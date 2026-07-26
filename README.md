@@ -39,6 +39,11 @@ pnpm install
 pnpm dev            # http://localhost:3000
 ```
 
+If you reach the dev server on any hostname other than `localhost` — through a
+tunnel, a reverse proxy, or from another machine — copy `.env.example` to
+`.env.local` and list those hostnames in `DEV_ORIGINS`, or Next will reject the
+requests.
+
 ## Scripts
 
 | Command              | What it does                                  |
