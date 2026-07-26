@@ -10,8 +10,10 @@ a shopping checklist.
 Dimensional correctness matters more than photorealism here. A sofa that
 renders beautifully but blocks the hallway is a wrong answer.
 
-> **Status: Milestone 0.** The repository, toolchain, and CI are in place. The
-> planner is not built yet. See [ROADMAP.md](ROADMAP.md).
+> **Status: roadmap steps 1–2 of 14 complete.** The repository, toolchain, and
+> CI are in place; the planner is not built yet. Step 3 — a rectangular room
+> measured in meters — is next. [ROADMAP.md](ROADMAP.md) is a strict sequence,
+> not a backlog.
 
 ## What it will do
 

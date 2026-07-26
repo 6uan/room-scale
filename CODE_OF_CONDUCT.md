@@ -59,9 +59,19 @@ representative at an online or offline event.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the community leaders responsible for enforcement at
-**[INSERT CONTACT METHOD]**. All complaints will be reviewed and investigated
-promptly and fairly.
+reported privately through this repository's **Security** tab →
+**Report a vulnerability**. Despite the name, that form is the only private
+channel GitHub gives a repository, and conduct reports are welcome there. It
+reaches the maintainers and no one else.
+
+This project has no contact email address, by design. Please do not go looking
+for one.
+
+If your report is about a maintainer, or you would rather not raise it inside
+this repository at all, use GitHub's own abuse reporting at
+https://github.com/contact/report-abuse.
+
+All complaints will be reviewed and investigated promptly and fairly.
 
 All community leaders are obligated to respect the privacy and security of the
 reporter of any incident.

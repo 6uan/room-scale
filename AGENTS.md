@@ -143,6 +143,11 @@ The 3D canvas must not be the sole way to edit or understand a project.
 
 ## Scope management
 
+`ROADMAP.md` holds the build order as a numbered sequence. Work through it one
+step at a time, in order. Do not begin a step until the previous step is
+finished and its checks pass, and do not implement a later step early because
+it seems convenient.
+
 Before implementing a feature:
 
 1. State the intended change.

@@ -85,8 +85,9 @@ export default function Home() {
       <section className="flex flex-col gap-4">
         <h2 className="text-xl font-semibold tracking-tight">Project status</h2>
         <p className="text-sm leading-relaxed opacity-80">
-          Milestone 0: the repository, toolchain, and continuous integration are
-          in place. The room planner itself is not built yet. See{" "}
+          Steps 1 and 2 of 14: the repository, toolchain, and continuous
+          integration are in place. The room planner itself is not built yet.
+          See{" "}
           <code className="rounded bg-black/5 px-1.5 py-0.5 text-xs dark:bg-white/10">
             ROADMAP.md
           </code>{" "}

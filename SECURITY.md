@@ -12,8 +12,9 @@ supported. Fixes land on `main`; there are no backports.
 Use GitHub's private vulnerability reporting: the **Security** tab →
 **Report a vulnerability**. That opens a private thread with the maintainers.
 
-If private reporting is unavailable to you, open a public issue that says only
-that you have a security report and asks for a private contact — no details.
+That is the only reporting channel. This project has no security mailing
+address, and requests for one will not be answered — please use the Security
+tab, which is private and reaches the maintainers directly.
 
 Please include, where you can:
 
