@@ -94,6 +94,9 @@ test.describe("saved projects", () => {
     const olive = page.getByRole("row", { name: /Olive tree/ });
     await expect(olive).toBeVisible();
 
+    // Human latency again: the write is issued at once but is asynchronous,
+    // and Playwright can reload before it lands.
+    await page.waitForTimeout(250);
     await page.reload();
 
     // Entered on one page, still there after reloading the other.
@@ -114,5 +117,60 @@ test.describe("saved projects", () => {
 
     await page.goto("/plan");
     await expect(page.getByLabel("Centimeters")).toBeChecked();
+  });
+});
+
+test.describe("placing furniture", () => {
+  async function addRug(page: Page) {
+    await page.goto("/furniture");
+    await page.getByLabel("Name").fill("Rug");
+    await page.getByLabel("Width").fill("96");
+    await page.getByLabel("Depth").fill("60");
+    await page.getByRole("button", { name: "Add product" }).click();
+    await expect(page.getByRole("row", { name: /Rug/ }).first()).toBeVisible();
+  }
+
+  test("places a product in the room and draws it", async ({ page }) => {
+    await addRug(page);
+    await page.goto("/plan");
+
+    await page.getByRole("button", { name: "Place Rug in the room" }).click();
+
+    await expect(planImage(page)).toHaveAccessibleName(/1 piece placed: Rug/);
+    await expect(
+      page
+        .getByRole("region", { name: "Furniture" })
+        .getByText("8' 0.0\" × 5' 0.0\""),
+    ).toBeVisible();
+  });
+
+  test("keeps placements across a reload", async ({ page }) => {
+    await addRug(page);
+    await page.goto("/plan");
+    await page.getByRole("button", { name: "Place Rug in the room" }).click();
+    await expect(planImage(page)).toHaveAccessibleName(/1 piece placed/);
+
+    await page.waitForTimeout(250);
+    await page.reload();
+
+    await expect(planImage(page)).toHaveAccessibleName(/1 piece placed: Rug/);
+  });
+
+  test("refuses to delete a product that is still in the room", async ({
+    page,
+  }) => {
+    await addRug(page);
+    await page.goto("/plan");
+    await page.getByRole("button", { name: "Place Rug in the room" }).click();
+    await page.waitForTimeout(250);
+
+    await page.goto("/furniture");
+    await page.getByRole("button", { name: "Remove Rug" }).click();
+
+    // Scoped: Next's route announcer is also a live region with role="alert".
+    await expect(
+      page.getByRole("region", { name: "Catalogue" }).getByRole("alert"),
+    ).toContainText(/still in the room/);
+    await expect(page.getByRole("row", { name: /Rug/ })).toBeVisible();
   });
 });

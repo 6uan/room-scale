@@ -14,7 +14,7 @@ Two rules keep the order honest:
   Steps 4 to 10 are that question end to end. Everything after them makes the
   answer nicer to look at.
 
-Status: **step 6b is next.**
+Status: **step 8 is next.**
 
 ---
 
@@ -117,7 +117,7 @@ to prefer — the JSON-LD step was dropped. And it reads rendered text rather
 than HTML, because retail markup is full of stylesheet lengths and script
 numbers that look exactly like measurements.
 
-**6b — Paste a link. ◀ next** A Next route handler fetches the page
+**6b — Paste a link.** A Next route handler fetches the page
 server-side, since a browser cannot fetch cross-origin, strips it to text, and
 runs the same parser. Both pages tried so far return 200, but Target's is a
 JavaScript shell whose markup carries no title, price, or dimensions — so this
@@ -135,18 +135,26 @@ product. Nothing is accepted silently.
 Done when: pasting an Article sectional page fills in its name, price, and
 dimensions, and a page the parser cannot read says so instead of guessing.
 
-### 7. Place products in the room
+### 7. Place products in the room ✅
 
-`FurnitureInstance`: a reference to a product plus a position and a Y rotation,
-as decided in
+Done. `FurnitureInstance` — a product reference plus a position and a rotation
+about the vertical axis, as decided in
 [ADR 0003](docs/adr/0003-separate-products-from-instances.md). Instances are
-drawn in the plan at their true footprint — rectangles at the exact dimensions
-from the product page.
+drawn in the plan at their true footprint, rotated about their own center.
 
-Done when: one product can be placed twice, editing its price changes both
-placements, and both survive a reload.
+A product can be placed more than once: two of the same pillow are one product
+and two placements. Deleting a product that is still in the room is refused
+rather than cascaded, which is the rule ADR 0003 set and this step activated.
 
-### 8. Move and rotate what you placed
+The stored document went to version 2, so this is the first real migration. A
+version 1 project simply had nothing placed, and the step from 1 to 2 is tested
+against a payload captured from version 1.
+
+Not carried out of this step: where a piece lands is a starting point, stepped
+diagonally so copies do not stack invisibly. Moving and rotating is step 8, and
+until then a placement cannot be adjusted.
+
+### 8. Move and rotate what you placed ◀ next
 
 Select an instance; move it; rotate it around Y. Pointer dragging _and_ numeric
 entry _and_ arrow keys, from the start — the canvas is never the only way in.

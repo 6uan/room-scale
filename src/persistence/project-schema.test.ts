@@ -45,6 +45,71 @@ describe("readStoredProject", () => {
     expect(result.ok && result.project.room.openings).toHaveLength(2);
   });
 
+  it("upgrades a version 1 document, which predates placed furniture", () => {
+    // Captured from the version 1 schema, exactly as it sat in IndexedDB.
+    const version1 = {
+      id: "current",
+      version: 1,
+      updatedAt: 1_700_000_000_000,
+      project: {
+        room: {
+          widthMeters: 4.2,
+          depthMeters: 3.6,
+          heightMeters: 2.44,
+          wallThicknessMeters: 0.1143,
+          openings: [
+            {
+              id: "door-1",
+              kind: "door",
+              wall: "south",
+              centerMeters: 0.9,
+              widthMeters: 0.8128,
+              hinge: "start",
+              swing: "inward",
+            },
+          ],
+        },
+        products: [
+          {
+            id: "p1",
+            name: "Rug",
+            retailer: "",
+            productUrl: "",
+            priceCents: 34900,
+            purchaseStatus: "considering",
+            footprint: { widthMeters: 2.4, depthMeters: 1.5 },
+            heightMeters: 0.01,
+          },
+        ],
+        displayUnit: "imperial",
+      },
+    };
+
+    const result = readStoredProject(version1);
+
+    expect(result.ok).toBe(true);
+    // Nothing was placed before version 2, so nothing is placed after it.
+    expect(result.ok && result.project.instances).toEqual([]);
+    // And everything the old document did hold survived the upgrade.
+    expect(result.ok && result.project.products).toHaveLength(1);
+    expect(result.ok && result.project.room.openings).toHaveLength(1);
+    expect(result.ok && result.project.displayUnit).toBe("imperial");
+  });
+
+  it("refuses a version 1 document that was already broken", () => {
+    const damaged = {
+      id: "current",
+      version: 1,
+      updatedAt: 0,
+      project: { room: "not a room", products: [], displayUnit: "imperial" },
+    };
+
+    expect(readStoredProject(damaged)).toEqual({
+      ok: false,
+      reason: "unreadable",
+    });
+  });
+
   it("refuses a document from a newer build rather than reading round it", () => {
     const result = readStoredProject({
       ...STORED,

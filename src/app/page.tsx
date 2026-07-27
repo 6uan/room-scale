@@ -86,7 +86,7 @@ export default function Home() {
       <section className="flex flex-col gap-4">
         <h2 className="text-xl font-semibold tracking-tight">Project status</h2>
         <p className="text-sm leading-relaxed opacity-80">
-          Steps 1 to 5 of 15 are done. A rectangular room can be measured and
+          Steps 1 to 7 of 15 are done. A rectangular room can be measured and
           seen to scale{" "}
           <Link href="/plan" className="underline underline-offset-4">
             in plan
@@ -96,8 +96,9 @@ export default function Home() {
           <Link href="/furniture" className="underline underline-offset-4">
             in the catalogue
           </Link>
-          . Saving your work is next, then placing the furniture in the room.
-          See{" "}
+          . Furniture can be placed in the room at its true footprint, and it is
+          all saved in your browser. Moving and rotating what you placed is
+          next. See{" "}
           <code className="rounded bg-black/5 px-1.5 py-0.5 text-xs dark:bg-white/10">
             ROADMAP.md
           </code>{" "}

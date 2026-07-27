@@ -16,8 +16,13 @@
 import { z } from "zod";
 import type { Project } from "@/domain/project";
 
-/** Bumped whenever the stored document shape changes. */
-export const SCHEMA_VERSION = 1;
+/**
+ * Bumped whenever the stored document shape changes.
+ *
+ * 1. Room, products, and the display-unit preference.
+ * 2. Added `instances` — copies of products placed in the room.
+ */
+export const SCHEMA_VERSION = 2;
 
 /** Meters, cents, and the rest are all plain finite numbers on the way in. */
 const finiteNumber = z
@@ -68,9 +73,17 @@ const productSchema = z.object({
   heightMeters: finiteNumber,
 });
 
+const instanceSchema = z.object({
+  id: z.string().min(1),
+  productId: z.string().min(1),
+  position: z.object({ xMeters: finiteNumber, zMeters: finiteNumber }),
+  rotationRadians: finiteNumber,
+});
+
 const projectSchema = z.object({
   room: roomSchema,
   products: z.array(productSchema),
+  instances: z.array(instanceSchema),
   displayUnit: z.enum(["metric", "imperial"]),
 });
 
@@ -113,17 +126,32 @@ export type ReadFailure =
   | "from-a-newer-version";
 
 /**
+ * One step forward, keyed by the version it upgrades from.
+ *
+ * Each runs on data that has not been validated yet, so a step must tolerate
+ * anything and never throw — whatever it produces is parsed afterwards, and
+ * that parse is what decides whether the result is usable.
+ */
+const MIGRATIONS: Record<number, (document: object) => object> = {
+  1: (document) => ({
+    ...document,
+    version: 2,
+    // Version 2 added placed furniture. A version 1 project had none, which is
+    // an empty list rather than a missing field.
+    project: { ...projectOf(document), instances: [] },
+  }),
+};
+
+/**
  * Reads a raw stored value into a project, migrating older documents forward.
  *
- * Only version 1 exists so far, so there is nothing to migrate yet. When
- * version 2 arrives, the step from 1 to 2 goes here, before the parse — and it
- * gets a test against a captured version 1 payload, because migrations run on
- * devices where we never see them fail.
+ * Migrations run on devices where we never see them fail, so each one is tested
+ * against a payload captured from the version it upgrades.
  */
 export function readStoredProject(value: unknown): ReadResult {
   const version = versionOf(value);
 
-  if (version === null) {
+  if (version === null || typeof value !== "object" || value === null) {
     return { ok: false, reason: "unreadable" };
   }
   if (version > SCHEMA_VERSION) {
@@ -132,10 +160,27 @@ export function readStoredProject(value: unknown): ReadResult {
     return { ok: false, reason: "from-a-newer-version" };
   }
 
-  const parsed = storedProjectSchema.safeParse(value);
+  let document: object = value;
+  for (let from = version; from < SCHEMA_VERSION; from += 1) {
+    const step = MIGRATIONS[from];
+    if (step === undefined) {
+      // A version we know is old but have no way to upgrade. Refusing keeps it
+      // on disk for a build that can.
+      return { ok: false, reason: "unreadable" };
+    }
+    document = step(document);
+  }
+
+  const parsed = storedProjectSchema.safeParse(document);
   return parsed.success
     ? { ok: true, project: parsed.data.project }
     : { ok: false, reason: "unreadable" };
+}
+
+/** The document's project, however malformed, for a migration to build on. */
+function projectOf(document: object): object {
+  const project = (document as { project?: unknown }).project;
+  return typeof project === "object" && project !== null ? project : {};
 }
 
 /** Reads the version without trusting anything else about the value. */

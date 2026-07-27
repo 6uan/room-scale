@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
-import { resetProjectStore } from "@/state/project-store";
+import { resetProjectStore, useProjectStore } from "@/state/project-store";
 import { FurnitureCatalog } from "./furniture-catalog";
 
 // The project store is module-level, so it outlives a single test.
@@ -300,5 +300,42 @@ describe("filling a product in from a pasted page", () => {
         screen.getByRole("region", { name: /Add a product/ }),
       ).getByLabelText("Name"),
     ).toHaveValue("");
+  });
+});
+
+describe("removing a product that is in the room", () => {
+  it("refuses rather than quietly emptying the room", async () => {
+    const user = userEvent.setup();
+    render(<FurnitureCatalog />);
+
+    await enterProduct(user, { name: "Rug", price: "349.00" });
+    const [product] = useProjectStore.getState().project.products;
+    useProjectStore.getState().setInstances([
+      {
+        id: "i1",
+        productId: product?.id ?? "",
+        position: { xMeters: 1, zMeters: 1 },
+        rotationRadians: 0,
+      },
+    ]);
+
+    await user.click(screen.getByRole("button", { name: "Remove Rug" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /still in the room once/,
+    );
+    // Both the product and its placement are untouched.
+    expect(useProjectStore.getState().project.products).toHaveLength(1);
+    expect(useProjectStore.getState().project.instances).toHaveLength(1);
+  });
+
+  it("removes it once it has been taken out of the room", async () => {
+    const user = userEvent.setup();
+    render(<FurnitureCatalog />);
+
+    await enterProduct(user, { name: "Rug", price: "349.00" });
+    await user.click(screen.getByRole("button", { name: "Remove Rug" }));
+
+    expect(catalogue().getByText(/Nothing yet/)).toBeInTheDocument();
   });
 });

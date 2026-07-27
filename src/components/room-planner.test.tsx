@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
-import { resetProjectStore } from "@/state/project-store";
+import { resetProjectStore, useProjectStore } from "@/state/project-store";
 import { RoomPlanner } from "./room-planner";
 
 // The project store is module-level, so it outlives a single test.
@@ -180,5 +180,107 @@ describe("RoomPlanner openings", () => {
     expect(
       opening("Window 1").queryByLabelText("Window 1 hinge"),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("RoomPlanner furniture", () => {
+  function furniture() {
+    return within(screen.getByRole("region", { name: "Furniture" }));
+  }
+
+  /** The catalogue is part of the same project, so it can be seeded directly. */
+  function seedCatalogue() {
+    useProjectStore.getState().setProducts([
+      {
+        id: "rug",
+        name: "Rug",
+        retailer: "",
+        productUrl: "",
+        priceCents: 34900,
+        purchaseStatus: "considering",
+        footprint: { widthMeters: 2.4384, depthMeters: 1.524 },
+        heightMeters: 0.01,
+      },
+    ]);
+  }
+
+  it("offers the catalogue, and says when it is empty", () => {
+    render(<RoomPlanner />);
+
+    expect(furniture().getByText(/catalogue is empty/)).toBeInTheDocument();
+    expect(furniture().getByText(/Nothing placed yet/)).toBeInTheDocument();
+  });
+
+  it("places a product in the room", async () => {
+    const user = userEvent.setup();
+    seedCatalogue();
+    render(<RoomPlanner />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Place Rug in the room" }),
+    );
+
+    expect(
+      furniture().queryByText(/Nothing placed yet/),
+    ).not.toBeInTheDocument();
+    expect(planDescription()).toHaveAccessibleName(/1 piece placed: Rug/);
+  });
+
+  it("places the same product twice, as two copies of one thing", async () => {
+    const user = userEvent.setup();
+    seedCatalogue();
+    render(<RoomPlanner />);
+
+    const place = () =>
+      user.click(screen.getByRole("button", { name: "Place Rug in the room" }));
+    await place();
+    await place();
+
+    expect(furniture().getByText("2 in the room")).toBeInTheDocument();
+    expect(planDescription()).toHaveAccessibleName(/2 pieces placed/);
+    // Two placements, still one product.
+    expect(useProjectStore.getState().project.products).toHaveLength(1);
+  });
+
+  it("gives each copy its own spot rather than stacking them", async () => {
+    const user = userEvent.setup();
+    seedCatalogue();
+    render(<RoomPlanner />);
+
+    const place = () =>
+      user.click(screen.getByRole("button", { name: "Place Rug in the room" }));
+    await place();
+    await place();
+
+    const [first, second] = useProjectStore.getState().project.instances;
+    expect(first?.position).not.toEqual(second?.position);
+  });
+
+  it("takes a piece back out of the room", async () => {
+    const user = userEvent.setup();
+    seedCatalogue();
+    render(<RoomPlanner />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Place Rug in the room" }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Take Rug out of the room" }),
+    );
+
+    expect(furniture().getByText(/Nothing placed yet/)).toBeInTheDocument();
+    expect(planDescription()).toHaveAccessibleName(/Nothing placed in it yet/);
+  });
+
+  it("shows each placed piece at its product's dimensions", async () => {
+    const user = userEvent.setup();
+    seedCatalogue();
+    render(<RoomPlanner />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Place Rug in the room" }),
+    );
+
+    expect(furniture().getByText(`8' 0.0" × 5' 0.0"`)).toBeInTheDocument();
   });
 });
