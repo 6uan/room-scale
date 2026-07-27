@@ -87,6 +87,7 @@ src/
     room/         The room, its walls, and its openings (implemented)
     furniture/    Products: dimensions, price, retailer (implemented)
     project/      The saved document: room, products, unit (implemented)
+    import/       Reading a product out of a pasted page (implemented)
     geometry/     Plan projection (implemented); SAT footprints (step 9)
     validation/   Fit and clearance rules (steps 9 and 11)
   persistence/    Dexie/IndexedDB schema and migrations (implemented)

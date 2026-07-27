@@ -82,3 +82,51 @@ test.describe("furniture catalogue", () => {
     ).toBeVisible();
   });
 });
+
+test.describe("filling a product in from a pasted page", () => {
+  const PASTED = [
+    "Skip to main content",
+    "Belffin Modular Sectional Sleeper Sofa Bed with Storage Chaise",
+    "$949.99",
+    "Item Dimensions 52.8 x 125.8 x 36.4 inches",
+  ].join("\n");
+
+  test("reads a pasted page into the form, then saves once confirmed", async ({
+    page,
+  }) => {
+    await page.goto("/furniture");
+
+    await page.getByText("Paste from a product page").click();
+    await page.getByRole("textbox", { name: /select all of it/ }).fill(PASTED);
+    await page.getByRole("button", { name: "Fill the form" }).click();
+
+    await expect(form(page).getByLabel("Name")).toHaveValue(
+      "Belffin Modular Sectional Sleeper Sofa Bed with Storage Chaise",
+    );
+    await expect(form(page).getByLabel("Price")).toHaveValue("949.99");
+    await expect(
+      page.getByText(/listed three sizes without saying which was which/),
+    ).toBeVisible();
+
+    // Still nothing saved until the form is submitted as normal.
+    await expect(catalogue(page).getByText(/Nothing yet/)).toBeVisible();
+
+    await page.getByRole("button", { name: "Add product" }).click();
+    await expect(
+      catalogue(page).getByRole("row", { name: /Belffin/ }),
+    ).toBeVisible();
+  });
+
+  test("says so rather than inventing anything when it can read nothing", async ({
+    page,
+  }) => {
+    await page.goto("/furniture");
+
+    await page.getByText("Paste from a product page").click();
+    await page.getByRole("textbox", { name: /select all of it/ }).fill("?? --");
+    await page.getByRole("button", { name: "Fill the form" }).click();
+
+    await expect(page.getByText(/Nothing could be read/)).toBeVisible();
+    await expect(form(page).getByLabel("Name")).toHaveValue("");
+  });
+});
