@@ -4,7 +4,6 @@ import { useState } from "react";
 import { LayoutProblems } from "@/components/layout-problems";
 import { RoomDimensionsForm } from "@/components/room-dimensions-form";
 import { RoomOpeningsForm } from "@/components/room-openings-form";
-import { RoomWalkwaysForm } from "@/components/room-walkways-form";
 import { RoomFurniturePanel } from "@/components/room-furniture-panel";
 import { RoomPlanCanvas } from "@/components/room-plan-canvas";
 import {
@@ -16,14 +15,11 @@ import {
 import { nextId } from "@/domain/project";
 import {
   createOpening,
-  createWalkway,
   roomFloorAreaSquareMeters,
   withOpenings,
-  withWalkways,
   type Opening,
   type OpeningKind,
   type Room,
-  type Walkway,
 } from "@/domain/room";
 import { formatArea, formatLength, type DisplayUnit } from "@/domain/units";
 import { checkLayout, troubledInstanceIds } from "@/domain/validation";
@@ -90,18 +86,6 @@ export function RoomPlanner() {
     setRoom(withOpenings(room, openings));
   }
 
-  function addWalkway(): void {
-    const id = nextId(
-      "walkway",
-      room.walkways.map((walkway) => walkway.id),
-    );
-    setRoom(withWalkways(room, [...room.walkways, createWalkway(id, room)]));
-  }
-
-  function setWalkways(walkways: readonly Walkway[]): void {
-    setRoom(withWalkways(room, walkways));
-  }
-
   return (
     <div className="grid gap-10 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:items-start">
       <div className="flex flex-col gap-10">
@@ -132,18 +116,6 @@ export function RoomPlanner() {
             onInstancesChange={setInstances}
             onSelect={setSelectedId}
             onInstanceChange={changeInstance}
-          />
-        </section>
-
-        <section aria-labelledby="walkways" className="flex flex-col gap-5">
-          <h2 id="walkways" className="text-xl font-semibold tracking-tight">
-            Walkways
-          </h2>
-          <RoomWalkwaysForm
-            room={room}
-            unit={unit}
-            onWalkwaysChange={setWalkways}
-            onAddWalkway={addWalkway}
           />
         </section>
 

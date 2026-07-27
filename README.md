@@ -65,7 +65,8 @@ about the furniture instead of the measurements.
   status per item, with what the room costs and what is still to buy.
 - Protected walkways: routes that must stay clear, each with a width you need
   and a width you would rather have, reported with what is left and by how much
-  it falls short.
+  it falls short. The rules are live; the form for drawing one is written but
+  not yet on the page, and arrives with the interface pass in step 14.
 - Everything saved in your browser, and nothing sent anywhere.
 
 Still to come, in this order: blocked doorways (step 11b), comparing layouts

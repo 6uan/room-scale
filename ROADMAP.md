@@ -254,9 +254,14 @@ finds the narrowest gap. Merging every intruder at once would have been simpler
 and wrong — a sofa at one end and a console at the other, on opposite sides,
 would report a corridor far narrower than the one you can walk down.
 
-Not carried out of this step: a route's ends are typed, not dragged. The
-machinery for dragging exists from step 8 and the numbers are the exact path,
-which is the one that had to work first.
+Not carried out of this step: **the form is not mounted.** The rules are live —
+a project holding a route is measured against it and reported in the fit list —
+but `/plan`'s left-hand column already holds dimensions, furniture, placements
+and openings, and a fifth section would have made the case for step 14 by being
+unusable. `RoomWalkwaysForm` is written and tested; step 14 gives it somewhere
+to live. A route's ends are typed rather than dragged for the same reason the
+numbers came first: 36 inches is a figure somebody has been told, not one they
+can eyeball.
 
 **11b — Blocked openings. ◀ next** `AGENTS.md` lists them under validation and step 9
 deliberately left them: a door needs the arc it sweeps treated as a zone that

@@ -21,6 +21,12 @@ export type RoomWalkwaysFormProps = {
 /**
  * The routes across the room that have to stay clear.
  *
+ * **Not mounted yet.** The rules behind it are live — a project that holds a
+ * route is measured against it and reported in the fit list — but the left-hand
+ * column of `/plan` is already too long to add another section to honestly.
+ * This is where routes get edited when step 14 gives the project somewhere
+ * better to put its forms than one scrolling column.
+ *
  * A route is two points and two widths, all of them typed. Dragging its ends
  * about on the plan is the obvious next thing to want, and it is not the way
  * in: a number typed here is exact, and 36 inches is a number somebody has
