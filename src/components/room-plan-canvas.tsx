@@ -8,10 +8,14 @@ import {
   type PointerEvent,
 } from "react";
 import {
+  MAX_ZOOM,
+  MIN_ZOOM,
   createPlanProjection,
+  panBy,
   projectLength,
   projectPoint,
   unprojectPoint,
+  zoomAt,
   type FloorPoint,
   type PixelPoint,
   type PixelSize,
@@ -93,13 +97,25 @@ export type RoomPlanCanvasProps = {
   onInstanceChange: (instance: FurnitureInstance) => void;
 };
 
-/** A drag in progress, held in a ref because moving it re-renders enough. */
-type Drag = {
-  readonly pointerId: number;
-  readonly instanceId: string;
-  /** Where in the piece it was grabbed, so it does not jump under the pointer. */
-  readonly grabOffset: FloorPoint;
-};
+/**
+ * A drag in progress, held in a ref because moving it re-renders enough.
+ *
+ * Either a piece is being moved, or the view is being panned. Panning carries
+ * the pixel it started from; moving carries where in the piece it was grabbed,
+ * so the piece does not jump under the pointer.
+ */
+type Drag =
+  | {
+      readonly kind: "move";
+      readonly pointerId: number;
+      readonly instanceId: string;
+      readonly grabOffset: FloorPoint;
+    }
+  | {
+      readonly kind: "pan";
+      readonly pointerId: number;
+      readonly from: PixelPoint;
+    };
 
 /**
  * A top-down view of the room, drawn to scale on a 2D canvas, and the place
@@ -128,6 +144,25 @@ export function RoomPlanCanvas({
   const [dragging, setDragging] = useState(false);
   const { ref: frameRef, size } = useElementSize<HTMLDivElement>();
 
+  // Null until the view is moved, so the plan re-fits itself as the apartment
+  // grows or the panel resizes. Once it has been panned or zoomed, it stays
+  // where it was put — a view that jumps back is a view you cannot work in.
+  const [view, setView] = useState<PlanProjection | null>(null);
+  const fitted = planProjectionFor(floor, size);
+  const projection = view ?? fitted;
+
+  // Read by the pointer handlers, which must use the same transform the last
+  // paint used rather than one recomputed from stale state.
+  const projectionRef = useRef(projection);
+  useEffect(() => {
+    projectionRef.current = projection;
+  }, [projection]);
+
+  // Space turns the pointer into a hand, as it does in every canvas tool. Held
+  // in a ref for the handlers and in state for the cursor.
+  const panningRef = useRef(false);
+  const [panReady, setPanReady] = useState(false);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || size.width <= 0 || size.height <= 0) {
@@ -149,6 +184,7 @@ export function RoomPlanCanvas({
 
     const style = window.getComputedStyle(canvas);
     drawPlan(context, {
+      projection,
       floor,
       furniture,
       unit,
@@ -158,23 +194,92 @@ export function RoomPlanCanvas({
       color: style.color,
       fontFamily: style.fontFamily,
     });
-  }, [floor, furniture, unit, selectedId, troubledIds, size]);
+  }, [floor, furniture, unit, selectedId, troubledIds, size, projection]);
+
+  /** Wheel: pan, unless a modifier makes it a zoom toward the pointer. */
+  function handleWheel(
+    event: WheelEventInit & { preventDefault(): void },
+  ): void {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return;
+    }
+    // The page must not scroll out from under a plan being panned, which means
+    // a listener React cannot give us: its own wheel handlers are passive.
+    event.preventDefault();
+    const box = canvas.getBoundingClientRect();
+    const at = {
+      x: (event.clientX ?? 0) - box.left,
+      y: (event.clientY ?? 0) - box.top,
+    };
+    const current = projectionRef.current;
+
+    if (event.ctrlKey || event.metaKey) {
+      // A wheel notch is about 100 units; a trackpad pinch arrives in ones.
+      const factor = Math.exp(-(event.deltaY ?? 0) / 250);
+      setView(
+        zoomAt(
+          current,
+          factor,
+          at,
+          fitted.pixelsPerMeter * MIN_ZOOM,
+          fitted.pixelsPerMeter * MAX_ZOOM,
+        ),
+      );
+      return;
+    }
+
+    setView(panBy(current, -(event.deltaX ?? 0), -(event.deltaY ?? 0)));
+  }
+
+  // Held in a ref so the listener below never goes stale without being
+  // torn down and rebuilt on every render.
+  const wheelRef = useRef(handleWheel);
+  useEffect(() => {
+    wheelRef.current = handleWheel;
+  });
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return;
+    }
+    const listener = (event: globalThis.WheelEvent) => wheelRef.current(event);
+    canvas.addEventListener("wheel", listener, { passive: false });
+    return () => canvas.removeEventListener("wheel", listener);
+  }, []);
 
   function handlePointerDown(event: PointerEvent<HTMLCanvasElement>): void {
     const canvas = canvasRef.current;
-    const point = canvas && floorPointAt(canvas, floor, event);
+    const point =
+      canvas && floorPointAt(canvas, floor, event, projectionRef.current);
     if (!canvas || !point) {
       return;
     }
 
+    const box = canvas.getBoundingClientRect();
     const hit = furnitureAt(furniture, point);
-    if (hit === null) {
-      onSelect(null);
+
+    // Space held, the middle button, or empty floor: the view moves instead of
+    // anything in it. Grabbing the background to pan is what makes a canvas
+    // feel like a canvas.
+    if (panningRef.current || event.button === 1 || hit === null) {
+      if (hit === null && !panningRef.current) {
+        onSelect(null);
+      }
+      dragRef.current = {
+        kind: "pan",
+        pointerId: event.pointerId,
+        from: { x: event.clientX - box.left, y: event.clientY - box.top },
+      };
+      setDragging(true);
+      canvas.setPointerCapture?.(event.pointerId);
       return;
     }
 
     onSelect(hit.instance.id);
     dragRef.current = {
+      kind: "move",
       pointerId: event.pointerId,
       instanceId: hit.instance.id,
       grabOffset: {
@@ -196,10 +301,20 @@ export function RoomPlanCanvas({
       return;
     }
 
+    if (drag.kind === "pan") {
+      const box = canvas.getBoundingClientRect();
+      const to = { x: event.clientX - box.left, y: event.clientY - box.top };
+      setView(
+        panBy(projectionRef.current, to.x - drag.from.x, to.y - drag.from.y),
+      );
+      dragRef.current = { ...drag, from: to };
+      return;
+    }
+
     const placed = furniture.find(
       ({ instance }) => instance.id === drag.instanceId,
     );
-    const point = floorPointAt(canvas, floor, event);
+    const point = floorPointAt(canvas, floor, event, projectionRef.current);
     if (!placed || !point) {
       return;
     }
@@ -215,6 +330,13 @@ export function RoomPlanCanvas({
     );
   }
 
+  function handleKeyUp(event: KeyboardEvent<HTMLCanvasElement>): void {
+    if (event.key === " ") {
+      panningRef.current = false;
+      setPanReady(false);
+    }
+  }
+
   function endDrag(event: PointerEvent<HTMLCanvasElement>): void {
     if (dragRef.current?.pointerId !== event.pointerId) {
       return;
@@ -227,6 +349,20 @@ export function RoomPlanCanvas({
   function handleKeyDown(event: KeyboardEvent<HTMLCanvasElement>): void {
     if (event.key === "Escape") {
       onSelect(null);
+      return;
+    }
+
+    // Back to the whole apartment, the way every canvas tool spells it.
+    if (event.key === "0" || event.key === "1") {
+      event.preventDefault();
+      setView(null);
+      return;
+    }
+
+    if (event.key === " ") {
+      event.preventDefault();
+      panningRef.current = true;
+      setPanReady(true);
       return;
     }
 
@@ -256,8 +392,13 @@ export function RoomPlanCanvas({
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
         onKeyDown={handleKeyDown}
+        onKeyUp={handleKeyUp}
         className={`block h-full w-full touch-none rounded-lg outline-offset-2 ${
-          dragging ? "cursor-grabbing" : "cursor-pointer"
+          dragging
+            ? "cursor-grabbing"
+            : panReady
+              ? "cursor-grab"
+              : "cursor-pointer"
         }`}
       />
     </div>
@@ -275,12 +416,12 @@ function floorPointAt(
   canvas: HTMLCanvasElement,
   floor: Floor,
   event: PointerEvent<HTMLCanvasElement>,
+  projection: PlanProjection,
 ): FloorPoint | null {
   const box = canvas.getBoundingClientRect();
-  const projection = planProjectionFor(floor, {
-    width: box.width,
-    height: box.height,
-  });
+  // The projection the last paint used, not a freshly fitted one: once the
+  // plan has been panned or zoomed, a fitted projection would put every click
+  // where the drawing used to be.
   const point = unprojectPoint(projection, {
     x: event.clientX - box.left,
     y: event.clientY - box.top,
@@ -392,6 +533,7 @@ function describeFurniture(
 }
 
 type DrawOptions = {
+  projection: PlanProjection;
   floor: Floor;
   furniture: readonly PlacedFurniture[];
   unit: DisplayUnit;
@@ -412,6 +554,7 @@ type PlanFrame = {
 function drawPlan(
   context: CanvasRenderingContext2D,
   {
+    projection,
     floor,
     furniture,
     unit,
@@ -427,9 +570,8 @@ function drawPlan(
   const thickness = floor.wallThicknessMeters;
   const { origin, extent } = floorBounds(floor);
 
-  // The walls sit outside the measured rooms, so the extent being fitted is the
-  // apartment plus a wall all round it.
-  const projection = planProjectionFor(floor, viewport);
+  // The projection arrives already fitted — and possibly panned and zoomed
+  // since. Everything below works in whatever transform it is handed.
   if (projection.pixelsPerMeter <= 0) {
     return;
   }

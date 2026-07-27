@@ -438,3 +438,83 @@ test.describe("the apartment", () => {
     await expect(planImage(page)).toHaveAccessibleName(/Kitchen/);
   });
 });
+
+test.describe("panning and zooming the plan", () => {
+  /** The middle of the canvas, which is where the middle of the plan is drawn. */
+  async function planCentre(page: Page) {
+    const box = await planImage(page).boundingBox();
+    if (box === null) {
+      throw new Error("the plan has no box to point at");
+    }
+    return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  }
+
+  async function placeRug(page: Page) {
+    await page.goto("/furniture");
+    const form = page.getByRole("region", { name: /Add a product/ });
+    await form.getByLabel("Name").fill("Rug");
+    await form.getByLabel("Width").fill("96");
+    await form.getByLabel("Depth").fill("60");
+    await page.getByRole("button", { name: "Add product" }).click();
+    await expect(page.getByRole("row", { name: /Rug/ }).first()).toBeVisible();
+    await page.waitForTimeout(500);
+
+    await page.goto("/plan");
+    await page.getByRole("button", { name: "Place Rug in the room" }).click();
+    await expect(
+      page.getByRole("group", { name: "Where Rug sits" }),
+    ).toBeVisible();
+  }
+
+  test("zooms toward the pointer without moving the furniture", async ({
+    page,
+  }) => {
+    await placeRug(page);
+    const centre = await planCentre(page);
+    const before = await page
+      .getByRole("group", { name: "Where Rug sits" })
+      .getByLabel("From west")
+      .inputValue();
+
+    await page.mouse.move(centre.x, centre.y);
+    await page.keyboard.down("Control");
+    await page.mouse.wheel(0, -400);
+    await page.keyboard.up("Control");
+
+    // Zooming is a change of view, never a change of the room.
+    await expect(
+      page
+        .getByRole("group", { name: "Where Rug sits" })
+        .getByLabel("From west"),
+    ).toHaveValue(before);
+
+    // And the rug is still under the middle of the canvas, because the zoom
+    // was anchored there — so clicking it still selects it.
+    await page.mouse.click(centre.x, centre.y);
+    await expect(
+      page.getByRole("group", { name: "Where Rug sits" }),
+    ).toBeVisible();
+  });
+
+  test("pans on a plain scroll, and comes back with the fit key", async ({
+    page,
+  }) => {
+    await placeRug(page);
+    const centre = await planCentre(page);
+    const placement = page.getByRole("group", { name: "Where Rug sits" });
+
+    await page.mouse.move(centre.x, centre.y);
+    await page.mouse.wheel(0, 200);
+
+    // The drawing moved up with the scroll, so the rug is 200 pixels higher
+    // than it was — and clicking it there still finds it.
+    await page.mouse.click(centre.x, centre.y - 200);
+    await expect(placement).toBeVisible();
+
+    // Zoom to fit puts the whole apartment back where it started.
+    await planImage(page).focus();
+    await page.keyboard.press("0");
+    await page.mouse.click(centre.x, centre.y);
+    await expect(placement).toBeVisible();
+  });
+});
