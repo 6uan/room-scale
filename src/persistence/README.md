@@ -1,6 +1,6 @@
 # `src/persistence`
 
-Empty until Milestone 3.
+Empty until roadmap step 5.
 
 Planned contents: the Dexie/IndexedDB schema, Zod parsers for stored records,
 migrations, and JSON/CSV export. Everything crossing this boundary is plain

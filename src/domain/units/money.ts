@@ -26,6 +26,20 @@ export function centsFromDecimalString(input: string): Cents | null {
   return negative ? -cents : cents;
 }
 
+/**
+ * The plain decimal text to seed an input with — no symbol, no thousands
+ * separator, so it parses straight back through `centsFromDecimalString`.
+ */
+export function decimalStringFromCents(cents: Cents): string {
+  const sign = cents < 0 ? "-" : "";
+  const absolute = Math.abs(cents);
+  // Split as integers. Dividing by 100 first would reintroduce the
+  // floating-point error the cents representation exists to avoid.
+  const whole = Math.floor(absolute / 100);
+  const fraction = String(absolute % 100).padStart(2, "0");
+  return `${sign}${whole}.${fraction}`;
+}
+
 export function sumCents(values: readonly Cents[]): Cents {
   return values.reduce((total, value) => total + value, 0);
 }

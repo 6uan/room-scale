@@ -7,13 +7,17 @@ fits inside a measured room while preserving the walkways you need. It combines
 room planning, furniture placement, spatial validation, layout comparison, and
 a shopping checklist.
 
-Dimensional correctness matters more than photorealism here. A sofa that
-renders beautifully but blocks the hallway is a wrong answer.
+Dimensional correctness comes before photorealism here. A sofa that renders
+beautifully but blocks the hallway is a wrong answer. Photorealism is wanted,
+and it is the last step rather than an abandoned one.
 
-> **Status: roadmap steps 1–2 of 14 complete.** The repository, toolchain, and
-> CI are in place; the planner is not built yet. Step 3 — a rectangular room
-> measured in meters — is next. [ROADMAP.md](ROADMAP.md) is a strict sequence,
-> not a backlog.
+> **Status: roadmap steps 1–4 of 15 complete.** A rectangular room can be
+> measured, given its doors, windows, and passages, and seen to scale in plan at
+> `/plan`. Furniture can be entered at its exact product dimensions, with price,
+> retailer, and link, at `/furniture`. Step 5 — saving the project to IndexedDB
+> so nothing is typed twice — is next. Steps 4 to 10 are the tool's whole reason
+> for existing: what fits, and what it costs.
+> [ROADMAP.md](ROADMAP.md) is a strict sequence, not a backlog.
 
 ## What it will do
 
@@ -25,12 +29,17 @@ renders beautifully but blocks the hallway is a wrong answer.
   blocked openings, and protected walkways
 - Multiple saved layouts of the same room, for comparison
 - Prices, product links, and purchase status in a shopping checklist
+- Product details filled in from a pasted page or link, always shown for
+  confirmation before they are stored
 - Everything stored in your browser (IndexedDB), exportable as JSON or CSV
 
 ## Not in scope
 
-Floor-plan recognition from photos, multiplayer, photorealistic rendering,
-retailer scraping, AR, multi-story buildings, and checkout.
+Floor-plan recognition from photos, multiplayer, bulk retailer scraping, AR,
+multi-story buildings, and checkout.
+
+Photorealistic rendering is wanted but deliberately last, after the tool
+answers the question it exists for.
 
 ## Getting started
 
@@ -74,12 +83,14 @@ src/
   app/            Next.js App Router routes and layouts
   components/     Non-3D React components
   domain/         Pure logic — no React, no Three.js, no browser APIs
-    units/        Meter and integer-cent conversions (implemented)
-    geometry/     Footprints and SAT intersection (Milestone 1)
-    validation/   Fit and clearance rules (Milestone 2)
-  persistence/    Dexie/IndexedDB schema, migrations, export (Milestone 3)
-  state/          Zustand stores (Milestone 3)
-  scene/          React Three Fiber rendering (Milestone 4)
+    units/        Meter, area, and integer-cent conversions (implemented)
+    room/         The room, its walls, and its openings (implemented)
+    furniture/    Products: dimensions, price, retailer (implemented)
+    geometry/     Plan projection (implemented); SAT footprints (step 9)
+    validation/   Fit and clearance rules (steps 9 and 11)
+  persistence/    Dexie/IndexedDB schema, migrations, export (step 5)
+  state/          Zustand stores (step 5)
+  scene/          React Three Fiber rendering (step 14)
 e2e/              Playwright specs
 docs/adr/         Architecture decision records
 ```
@@ -92,6 +103,8 @@ ESLint blocks React, Three.js, Zustand, Dexie, and Next imports there.
 - [ADR 0001 — Use meters internally](docs/adr/0001-use-meters-internally.md)
 - [ADR 0002 — Local-first persistence](docs/adr/0002-local-first-persistence.md)
 - [ADR 0003 — Separate furniture products from scene instances](docs/adr/0003-separate-products-from-instances.md)
+- [ADR 0004 — Draw the plan view on a 2D canvas](docs/adr/0004-draw-the-plan-view-on-a-2d-canvas.md)
+- [ADR 0005 — Assisted product import](docs/adr/0005-assisted-product-import.md)
 
 ## Contributing
 

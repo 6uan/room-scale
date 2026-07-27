@@ -14,6 +14,31 @@ const METERS_PER_CENTIMETER = 0.01;
 /** The unit a person reads, kept separately from the stored value. */
 export type DisplayUnit = "metric" | "imperial";
 
+/** An inclusive range a length must fall inside. */
+export type LengthLimits = {
+  readonly minMeters: number;
+  readonly maxMeters: number;
+};
+
+export type LengthProblem = "not-a-number" | "too-small" | "too-large";
+
+/** Returns the reason a length is unusable, or null when it is fine. */
+export function checkLength(
+  meters: number,
+  limits: LengthLimits,
+): LengthProblem | null {
+  if (!Number.isFinite(meters)) {
+    return "not-a-number";
+  }
+  if (meters < limits.minMeters) {
+    return "too-small";
+  }
+  if (meters > limits.maxMeters) {
+    return "too-large";
+  }
+  return null;
+}
+
 export function metersFromInches(inches: number): number {
   return inches * METERS_PER_INCH;
 }
@@ -47,6 +72,34 @@ export function feetAndInchesFromMeters(meters: number): {
     feet: sign * wholeFeet,
     inches: sign * (magnitude - wholeFeet * INCHES_PER_FOOT),
   };
+}
+
+/** The unit a person types a single number in: centimeters, or inches. */
+export function displayUnitSuffix(unit: DisplayUnit): string {
+  return unit === "metric" ? "cm" : "in";
+}
+
+/** Converts a number typed in the reader's unit into stored meters. */
+export function metersFromDisplayValue(
+  value: number,
+  unit: DisplayUnit,
+): number {
+  return unit === "metric"
+    ? metersFromCentimeters(value)
+    : metersFromInches(value);
+}
+
+/**
+ * The unrounded number to seed an input with. Rounding is left to the caller,
+ * so a field can decide its own precision without this losing any first.
+ */
+export function displayValueFromMeters(
+  meters: number,
+  unit: DisplayUnit,
+): number {
+  return unit === "metric"
+    ? centimetersFromMeters(meters)
+    : inchesFromMeters(meters);
 }
 
 /**
