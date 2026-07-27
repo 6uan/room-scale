@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { LayoutProblems } from "@/components/layout-problems";
 import { RoomDimensionsForm } from "@/components/room-dimensions-form";
 import { RoomOpeningsForm } from "@/components/room-openings-form";
 import { RoomFurniturePanel } from "@/components/room-furniture-panel";
 import { RoomPlanCanvas } from "@/components/room-plan-canvas";
 import {
   placedFurniture,
+  placedNames,
   withInstance,
   type FurnitureInstance,
 } from "@/domain/furniture";
@@ -20,6 +22,7 @@ import {
   type Room,
 } from "@/domain/room";
 import { formatArea, formatLength, type DisplayUnit } from "@/domain/units";
+import { checkLayout, troubledInstanceIds } from "@/domain/validation";
 import { useProjectStore } from "@/state/project-store";
 
 /**
@@ -44,6 +47,18 @@ export function RoomPlanner() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const furniture = placedFurniture(instances, products);
+
+  // Derived on every render rather than stored, so it cannot drift from the
+  // layout it describes. There are a handful of pieces in a room; the pairwise
+  // check is nothing next to redrawing the plan.
+  const problems = checkLayout(room, furniture);
+  const troubledIds = troubledInstanceIds(problems);
+  const namesById = new Map(
+    placedNames(furniture).map((name, index) => [
+      furniture[index]?.instance.id ?? "",
+      name,
+    ]),
+  );
 
   function changeInstance(instance: FurnitureInstance): void {
     setInstances(withInstance(instances, instance));
@@ -123,10 +138,18 @@ export function RoomPlanner() {
           furniture={furniture}
           unit={unit}
           selectedId={selectedId}
+          troubledIds={troubledIds}
           onSelect={setSelectedId}
           onInstanceChange={changeInstance}
         />
         <RoomSummary room={room} unit={unit} />
+
+        <div className="flex flex-col gap-3">
+          <h3 id="fit" className="text-sm font-medium">
+            Fit
+          </h3>
+          <LayoutProblems problems={problems} names={namesById} unit={unit} />
+        </div>
       </section>
     </div>
   );

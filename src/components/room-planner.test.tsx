@@ -454,3 +454,145 @@ describe("RoomPlanner moving furniture", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("RoomPlanner fit", () => {
+  /**
+   * A sectional and a coffee table, the two pieces the real room turns on. The
+   * sectional is 2.4 m by 1.6 m and the table is 0.9 m square.
+   */
+  function seedCatalogue() {
+    useProjectStore.getState().setProducts([
+      {
+        id: "sectional",
+        name: "Sectional",
+        retailer: "",
+        productUrl: "",
+        priceCents: 199900,
+        purchaseStatus: "considering",
+        footprint: { widthMeters: 2.4, depthMeters: 1.6 },
+        heightMeters: 0.85,
+      },
+      {
+        id: "table",
+        name: "Coffee table",
+        retailer: "",
+        productUrl: "",
+        priceCents: 39900,
+        purchaseStatus: "considering",
+        footprint: { widthMeters: 0.9, depthMeters: 0.9 },
+        heightMeters: 0.4,
+      },
+    ]);
+  }
+
+  function fit() {
+    return within(screen.getByRole("region", { name: "Plan" }));
+  }
+
+  /** Puts both pieces in the room, clear of each other. */
+  function seedLayout() {
+    seedCatalogue();
+    useProjectStore.getState().setInstances([
+      {
+        id: "i1",
+        productId: "sectional",
+        position: { xMeters: 1.3, zMeters: 0.85 },
+        rotationRadians: 0,
+      },
+      // Level with the sectional, but well to the east of it: moving it west
+      // is then the one thing that puts the two into each other.
+      {
+        id: "i2",
+        productId: "table",
+        position: { xMeters: 3.5, zMeters: 0.85 },
+        rotationRadians: 0,
+      },
+    ]);
+  }
+
+  it("says so when everything fits", () => {
+    seedLayout();
+    render(<RoomPlanner />);
+
+    expect(fit().getByText(/Everything fits/)).toBeInTheDocument();
+  });
+
+  it("flags both pieces in words, and says by how much", async () => {
+    const user = userEvent.setup();
+    seedLayout();
+    render(<RoomPlanner />);
+
+    // Push the coffee table into the sectional: its west edge lands at 1.65 m
+    // and the sectional reaches 2.5 m, so 0.85 m of each other.
+    await user.click(screen.getByRole("button", { name: "Coffee table" }));
+    await user.clear(
+      within(
+        screen.getByRole("group", { name: "Where Coffee table sits" }),
+      ).getByLabelText("From west"),
+    );
+    await user.paste("82.68");
+
+    expect(
+      fit().getByText(`Sectional overlaps Coffee table by 2' 9.5".`),
+    ).toBeInTheDocument();
+  });
+
+  it("reports a piece pushed through a wall, and which wall", async () => {
+    const user = userEvent.setup();
+    seedLayout();
+    render(<RoomPlanner />);
+
+    await user.click(screen.getByRole("button", { name: "Sectional" }));
+    await user.clear(
+      within(
+        screen.getByRole("group", { name: "Where Sectional sits" }),
+      ).getByLabelText("From west"),
+    );
+    await user.paste("24");
+
+    // Centered 0.6096 m from the west wall, a 2.4 m piece reaches 0.59 m past.
+    expect(
+      fit().getByText(`Sectional crosses the west wall by 1' 11.2".`),
+    ).toBeInTheDocument();
+  });
+
+  it("clears an overlap when the piece is nudged back out of the way", async () => {
+    const user = userEvent.setup();
+    seedLayout();
+    render(<RoomPlanner />);
+
+    await user.click(screen.getByRole("button", { name: "Coffee table" }));
+    const table = within(
+      screen.getByRole("group", { name: "Where Coffee table sits" }),
+    );
+    await user.clear(table.getByLabelText("From west"));
+    await user.paste("82.68");
+    expect(fit().getByText(/Sectional overlaps/)).toBeInTheDocument();
+
+    await user.clear(table.getByLabelText("From west"));
+    await user.paste("140");
+
+    // Specific: the all-clear line contains the word "overlaps" itself.
+    expect(fit().queryByText(/Sectional overlaps/)).not.toBeInTheDocument();
+    expect(fit().getByText(/Everything fits/)).toBeInTheDocument();
+  });
+
+  it("reads the shortfall in the reader's own unit", async () => {
+    const user = userEvent.setup();
+    seedLayout();
+    render(<RoomPlanner />);
+
+    await user.click(screen.getByLabelText("Centimeters"));
+    await user.click(screen.getByRole("button", { name: "Coffee table" }));
+    await user.clear(
+      within(
+        screen.getByRole("group", { name: "Where Coffee table sits" }),
+      ).getByLabelText("From west"),
+    );
+    await user.paste("210");
+
+    expect(
+      fit().getByText(`Sectional overlaps Coffee table by 85.0 cm.`),
+    ).toBeInTheDocument();
+  });
+});

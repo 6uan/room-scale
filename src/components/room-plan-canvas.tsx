@@ -62,12 +62,21 @@ const FURNITURE_EDGE_ALPHA = 0.7;
 const SELECTED_FILL_ALPHA = 0.36;
 const HANDLE_PIXELS = 6;
 
+/**
+ * The one color in the drawing that is not the foreground. A problem has to be
+ * findable at a glance, and it reads on both the light and the dark theme —
+ * the same red the forms use for a field that will not do.
+ */
+const PROBLEM_COLOR = "#dc2626";
+
 export type RoomPlanCanvasProps = {
   room: Room;
   furniture: readonly PlacedFurniture[];
   unit: DisplayUnit;
   /** Which piece is being worked on, or null. Never persisted: this is UI state. */
   selectedId: string | null;
+  /** Pieces the validation has something to say about, marked as they are drawn. */
+  troubledIds: ReadonlySet<string>;
   onSelect: (instanceId: string | null) => void;
   onInstanceChange: (instance: FurnitureInstance) => void;
 };
@@ -98,6 +107,7 @@ export function RoomPlanCanvas({
   furniture,
   unit,
   selectedId,
+  troubledIds,
   onSelect,
   onInstanceChange,
 }: RoomPlanCanvasProps) {
@@ -131,11 +141,12 @@ export function RoomPlanCanvas({
       furniture,
       unit,
       selectedId,
+      troubledIds,
       viewport: size,
       color: style.color,
       fontFamily: style.fontFamily,
     });
-  }, [room, furniture, unit, selectedId, size]);
+  }, [room, furniture, unit, selectedId, troubledIds, size]);
 
   function handlePointerDown(event: PointerEvent<HTMLCanvasElement>): void {
     const canvas = canvasRef.current;
@@ -352,6 +363,7 @@ type DrawOptions = {
   furniture: readonly PlacedFurniture[];
   unit: DisplayUnit;
   selectedId: string | null;
+  troubledIds: ReadonlySet<string>;
   viewport: PixelSize;
   color: string;
   fontFamily: string;
@@ -371,6 +383,7 @@ function drawPlan(
     furniture,
     unit,
     selectedId,
+    troubledIds,
     viewport,
     color,
     fontFamily,
@@ -435,7 +448,10 @@ function drawPlan(
   }
 
   for (const placed of furniture) {
-    drawFurniture(context, frame, placed, placed.instance.id === selectedId);
+    drawFurniture(context, frame, placed, {
+      selected: placed.instance.id === selectedId,
+      troubled: troubledIds.has(placed.instance.id),
+    });
   }
 
   drawDimensions(context, {
@@ -460,12 +476,16 @@ function drawPlan(
  *
  * The selected piece is drawn heavier, with a handle at each corner. Corners
  * are what show a rotation: a turned rectangle is otherwise just a rectangle.
+ *
+ * A piece the validation objects to is outlined in red. That is a pointer to
+ * the list beside the plan, never the report itself — a color cannot say which
+ * two pieces overlap or by how much.
  */
 function drawFurniture(
   context: CanvasRenderingContext2D,
   frame: PlanFrame,
   { instance, product }: PlacedFurniture,
-  selected: boolean,
+  { selected, troubled }: { selected: boolean; troubled: boolean },
 ): void {
   const center = frame.toPixels(instance.position);
   const origin = frame.toPixels({ xMeters: 0, zMeters: 0 });
@@ -485,12 +505,14 @@ function drawFurniture(
   // canvas's own rotation is already the right way round.
   context.rotate(instance.rotationRadians);
 
+  const edge = troubled ? PROBLEM_COLOR : frame.color;
+
   context.globalAlpha = selected ? SELECTED_FILL_ALPHA : FURNITURE_FILL_ALPHA;
-  context.fillStyle = frame.color;
+  context.fillStyle = edge;
   context.fillRect(left, top, widthPixels, depthPixels);
 
-  context.globalAlpha = FURNITURE_EDGE_ALPHA;
-  context.strokeStyle = frame.color;
+  context.globalAlpha = troubled ? 1 : FURNITURE_EDGE_ALPHA;
+  context.strokeStyle = edge;
   context.lineWidth = selected ? 2.5 : 1.5;
   context.strokeRect(left, top, widthPixels, depthPixels);
 
