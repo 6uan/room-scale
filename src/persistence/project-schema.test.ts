@@ -42,7 +42,9 @@ describe("readStoredProject", () => {
     );
 
     expect(result.ok && result.project).toEqual(project);
-    expect(result.ok && result.project.room.openings).toHaveLength(2);
+    expect(result.ok && result.project.floor.rooms[0]?.openings).toHaveLength(
+      2,
+    );
   });
 
   it("upgrades a version 1 document, which predates placed furniture", () => {
@@ -92,10 +94,12 @@ describe("readStoredProject", () => {
     expect(result.ok && result.project.instances).toEqual([]);
     // And everything the old document did hold survived the upgrade.
     expect(result.ok && result.project.products).toHaveLength(1);
-    expect(result.ok && result.project.room.openings).toHaveLength(1);
+    expect(result.ok && result.project.floor.rooms[0]?.openings).toHaveLength(
+      1,
+    );
     expect(result.ok && result.project.displayUnit).toBe("imperial");
     // And it came all the way forward, not just one step.
-    expect(result.ok && result.project.room.walkways).toEqual([]);
+    expect(result.ok && result.project.floor.walkways).toEqual([]);
   });
 
   it("upgrades a version 2 document, which predates protected walkways", () => {
@@ -149,9 +153,11 @@ describe("readStoredProject", () => {
     expect(result.ok).toBe(true);
     // Nobody had drawn a route, so there are none — not a guessed one across
     // the middle of a room whose owner never asked for it.
-    expect(result.ok && result.project.room.walkways).toEqual([]);
+    expect(result.ok && result.project.floor.walkways).toEqual([]);
     // The room the document did describe is untouched.
-    expect(result.ok && result.project.room.openings).toHaveLength(1);
+    expect(result.ok && result.project.floor.rooms[0]?.openings).toHaveLength(
+      1,
+    );
     expect(result.ok && result.project.instances).toHaveLength(1);
     expect(result.ok && result.project.products).toHaveLength(1);
   });
@@ -204,7 +210,12 @@ describe("readStoredProject", () => {
       ...STORED,
       project: {
         ...STORED.project,
-        room: { ...STORED.project.room, widthMeters: Number.NaN },
+        floor: {
+          ...STORED.project.floor,
+          rooms: [
+            { ...STORED.project.floor.rooms[0], widthMeters: Number.NaN },
+          ],
+        },
       },
     };
 

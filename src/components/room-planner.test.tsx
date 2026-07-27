@@ -15,33 +15,30 @@ beforeEach(resetProjectStore);
  * the room can be read and edited entirely without the drawing.
  */
 
-function dimensions() {
-  return within(screen.getByRole("region", { name: "Dimensions" }));
+function rooms() {
+  return within(screen.getByRole("region", { name: "Rooms" }));
 }
 
-function openings() {
-  return within(screen.getByRole("region", { name: "Openings" }));
-}
-
+/** Openings live inside the room whose walls they are cut into. */
 function opening(name: string) {
-  return within(openings().getByRole("group", { name }));
+  return within(rooms().getByRole("group", { name }));
 }
 
 function widthInput() {
-  return dimensions().getByLabelText("Width");
+  return rooms().getByLabelText("Living room width");
 }
 
 function planDescription() {
   return screen.getByRole("img", { name: /^Plan view/ });
 }
 
-describe("RoomPlanner dimensions", () => {
+describe("RoomPlanner rooms", () => {
   it("opens on the default room, in inches", () => {
     render(<RoomPlanner />);
 
     // 4.2 m is 165.35 inches.
     expect(widthInput()).toHaveValue(165.35);
-    expect(dimensions().getAllByText(`13' 9.4"`)).toHaveLength(1);
+    expect(rooms().getAllByText(`13' 9.4"`)).toHaveLength(1);
   });
 
   it("edits a dimension and updates the summary and the plan description", async () => {
@@ -63,7 +60,7 @@ describe("RoomPlanner dimensions", () => {
     await user.click(screen.getByLabelText("Centimeters"));
 
     expect(widthInput()).toHaveValue(420);
-    expect(dimensions().getByLabelText("Depth")).toHaveValue(360);
+    expect(rooms().getByLabelText("Living room depth")).toHaveValue(360);
     expect(screen.getByText("15.12 m²")).toBeInTheDocument();
   });
 
@@ -77,7 +74,7 @@ describe("RoomPlanner dimensions", () => {
     await user.paste("2000");
 
     expect(widthInput()).toBeInvalid();
-    expect(dimensions().getByText(`At most 98' 5.1".`)).toBeInTheDocument();
+    expect(rooms().getByText(`At most 98' 5.1".`)).toBeInTheDocument();
     // The room itself is untouched, so the plan still shows the last good width.
     expect(planDescription()).toHaveAccessibleName(/13' 9\.4" wide/);
   });
@@ -88,7 +85,7 @@ describe("RoomPlanner dimensions", () => {
 
     await user.clear(widthInput());
 
-    expect(dimensions().getByText("Enter a number.")).toBeInTheDocument();
+    expect(rooms().getByText("Enter a number.")).toBeInTheDocument();
     expect(planDescription()).toHaveAccessibleName(/13' 9\.4" wide/);
   });
 
@@ -99,7 +96,7 @@ describe("RoomPlanner dimensions", () => {
     const before = screen.getByText("162.8 sq ft");
     expect(before).toBeInTheDocument();
 
-    await user.clear(dimensions().getByLabelText("Wall thickness"));
+    await user.clear(rooms().getByLabelText("Wall thickness"));
     await user.paste("12");
 
     expect(screen.getByText("162.8 sq ft")).toBeInTheDocument();
@@ -125,8 +122,12 @@ describe("RoomPlanner openings", () => {
     await user.click(screen.getByRole("button", { name: "Add passage" }));
 
     // 36 inches, the walkway minimum, centered on the 4.2 m north wall.
-    expect(opening("Passage 1").getByLabelText("Width")).toHaveValue(36);
-    expect(opening("Passage 1").getByLabelText("Center")).toHaveValue(82.68);
+    expect(
+      opening("Living room passage 1").getByLabelText("Width"),
+    ).toHaveValue(36);
+    expect(
+      opening("Living room passage 1").getByLabelText("Center"),
+    ).toHaveValue(82.68);
     expect(planDescription()).toHaveAccessibleName(
       /an open passage 3' 0\.0" wide on the north wall/,
     );
@@ -136,9 +137,13 @@ describe("RoomPlanner openings", () => {
     const user = userEvent.setup();
     render(<RoomPlanner />);
 
-    await user.click(screen.getByRole("button", { name: "Remove window 1" }));
+    await user.click(
+      screen.getByRole("button", { name: "Remove living room window 1" }),
+    );
 
-    expect(planDescription()).toHaveAccessibleName(/1 opening:/);
+    expect(planDescription()).toHaveAccessibleName(
+      /with a door 2' 8\.0" wide on the south wall/,
+    );
     expect(planDescription()).not.toHaveAccessibleName(/window/);
   });
 
@@ -148,11 +153,15 @@ describe("RoomPlanner openings", () => {
 
     // The window is centered at 2.1 m, past the middle of the 3.6 m east wall.
     await user.selectOptions(
-      opening("Window 1").getByLabelText("Window 1 wall"),
+      opening("Living room window 1").getByLabelText(
+        "Living room window 1 wall",
+      ),
       "east",
     );
 
-    expect(opening("Window 1").queryByRole("alert")).not.toBeInTheDocument();
+    expect(
+      opening("Living room window 1").queryByRole("alert"),
+    ).not.toBeInTheDocument();
     expect(planDescription()).toHaveAccessibleName(
       /a window 4' 0\.0" wide on the east wall/,
     );
@@ -166,7 +175,7 @@ describe("RoomPlanner openings", () => {
     await user.clear(widthInput());
     await user.paste("40");
 
-    expect(opening("Door 1").getByRole("alert")).toHaveTextContent(
+    expect(opening("Living room door 1").getByRole("alert")).toHaveTextContent(
       /runs past the end of a 3' 4\.0" wall/,
     );
   });
@@ -175,10 +184,12 @@ describe("RoomPlanner openings", () => {
     render(<RoomPlanner />);
 
     expect(
-      opening("Door 1").getByLabelText("Door 1 hinge"),
+      opening("Living room door 1").getByLabelText("Living room door 1 hinge"),
     ).toBeInTheDocument();
     expect(
-      opening("Window 1").queryByLabelText("Window 1 hinge"),
+      opening("Living room window 1").queryByLabelText(
+        "Living room window 1 hinge",
+      ),
     ).not.toBeInTheDocument();
   });
 });
@@ -552,7 +563,9 @@ describe("RoomPlanner fit", () => {
 
     // Centered 0.6096 m from the west wall, a 2.4 m piece reaches 0.59 m past.
     expect(
-      fit().getByText(`Sectional crosses the west wall by 1' 11.2".`),
+      fit().getByText(
+        `Sectional crosses the west wall of the Living room by 1' 11.2".`,
+      ),
     ).toBeInTheDocument();
   });
 

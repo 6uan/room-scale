@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_ROOM } from "@/domain/room";
+import { DEFAULT_FLOOR, DEFAULT_ROOM } from "@/domain/room";
 import { metersFromInches } from "@/domain/units";
 import {
   clampToFloor,
@@ -16,6 +16,11 @@ import {
 } from "./instance";
 import type { FurnitureProduct } from "./product";
 
+/** A one-room apartment, four by three. */
+const FLOOR = {
+  ...DEFAULT_FLOOR,
+  rooms: [{ ...DEFAULT_ROOM, widthMeters: 4, depthMeters: 3 }],
+};
 const ROOM = { ...DEFAULT_ROOM, widthMeters: 4, depthMeters: 3 };
 
 const RUG: FurnitureProduct = {
@@ -34,19 +39,19 @@ const RUG: FurnitureProduct = {
 
 describe("placementFor", () => {
   it("puts the first piece in the middle of the room", () => {
-    expect(placementFor(ROOM, 0)).toEqual({ xMeters: 2, zMeters: 1.5 });
+    expect(placementFor(FLOOR, 0)).toEqual({ xMeters: 2, zMeters: 1.5 });
   });
 
   it("steps later pieces aside so they do not stack invisibly", () => {
-    const first = placementFor(ROOM, 0);
-    const second = placementFor(ROOM, 1);
+    const first = placementFor(FLOOR, 0);
+    const second = placementFor(FLOOR, 1);
 
     expect(second.xMeters).toBeGreaterThan(first.xMeters);
     expect(second.zMeters).toBeGreaterThan(first.zMeters);
   });
 
   it("keeps the starting point inside the room however many are placed", () => {
-    const far = placementFor(ROOM, 100);
+    const far = placementFor(FLOOR, 100);
 
     expect(far.xMeters).toBeLessThanOrEqual(ROOM.widthMeters);
     expect(far.zMeters).toBeLessThanOrEqual(ROOM.depthMeters);
@@ -209,14 +214,14 @@ describe("furnitureAt", () => {
 
 describe("clampToFloor", () => {
   it("leaves a point already on the floor alone", () => {
-    expect(clampToFloor(ROOM, { xMeters: 1, zMeters: 2 })).toEqual({
+    expect(clampToFloor(FLOOR, { xMeters: 1, zMeters: 2 })).toEqual({
       xMeters: 1,
       zMeters: 2,
     });
   });
 
   it("keeps a center on the floor when it is dragged past a wall", () => {
-    expect(clampToFloor(ROOM, { xMeters: -3, zMeters: 99 })).toEqual({
+    expect(clampToFloor(FLOOR, { xMeters: -3, zMeters: 99 })).toEqual({
       xMeters: 0,
       zMeters: ROOM.depthMeters,
     });

@@ -9,12 +9,17 @@ const NAMES = new Map([
   ["i2", "Coffee table"],
 ]);
 const ROUTES = new Map([["w1", "To the guest room"]]);
+const ROOMS = new Map([
+  ["r1", "Living room"],
+  ["r2", "Hall"],
+]);
 
 function renderProblems(problems: readonly LayoutProblem[]) {
   render(
     <LayoutProblems
       problems={problems}
       names={NAMES}
+      roomNames={ROOMS}
       walkwayNames={ROUTES}
       unit="imperial"
     />,
@@ -47,21 +52,40 @@ describe("LayoutProblems", () => {
       {
         kind: "crosses-wall",
         instanceId: "i1",
+        roomId: "r1",
         wall: "west",
         overhangMeters: metersFromInches(12),
       },
     ]);
 
     expect(
-      screen.getByText(`Sectional crosses the west wall by 1' 0.0".`),
+      screen.getByText(
+        `Sectional crosses the west wall of the Living room by 1' 0.0".`,
+      ),
     ).toBeInTheDocument();
   });
 
-  it("says a piece is outside the room without measuring it", () => {
+  it("says a piece is in no room at all without measuring it", () => {
     renderProblems([{ kind: "outside-room", instanceId: "i2" }]);
 
     expect(
-      screen.getByText("Coffee table is outside the room."),
+      screen.getByText("Coffee table is not in any room."),
+    ).toBeInTheDocument();
+  });
+
+  it("names both rooms when two blocks are in the same place", () => {
+    renderProblems([
+      {
+        kind: "rooms-overlap",
+        roomIds: ["r1", "r2"],
+        depthMeters: metersFromInches(18),
+      },
+    ]);
+
+    expect(
+      screen.getByText(
+        `Living room and Hall are in the same place, overlapping by 1' 6.0".`,
+      ),
     ).toBeInTheDocument();
   });
 });
@@ -131,6 +155,7 @@ describe("LayoutProblems: routes", () => {
           },
         ]}
         names={NAMES}
+        roomNames={ROOMS}
         walkwayNames={new Map()}
         unit="metric"
       />,

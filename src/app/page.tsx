@@ -89,8 +89,8 @@ export default function Home() {
       <section className="flex flex-col gap-4">
         <h2 className="text-xl font-semibold tracking-tight">Project status</h2>
         <p className="text-sm leading-relaxed opacity-80">
-          Steps 1 to 11 of 18 are done. A rectangular room can be measured and
-          seen to scale{" "}
+          Steps 1 to 12 of 18 are done. An apartment of rooms can be measured
+          and seen to scale{" "}
           <Link href="/plan" className="underline underline-offset-4">
             in plan
           </Link>

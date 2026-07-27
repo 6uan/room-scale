@@ -3,9 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import {
-  DEFAULT_ROOM,
+  DEFAULT_FLOOR,
   createWalkway,
-  withWalkways,
+  withFloorWalkways,
   type Walkway,
 } from "@/domain/room";
 import { metersFromInches } from "@/domain/units";
@@ -17,7 +17,7 @@ import { RoomWalkwaysForm } from "./room-walkways-form";
  * project holding a route is measured against it and reported in the fit list.
  */
 
-const ROUTE = createWalkway("walkway-1", DEFAULT_ROOM);
+const ROUTE = createWalkway("walkway-1", DEFAULT_FLOOR);
 
 /**
  * Held in state rather than mocked away, because these fields are controlled:
@@ -35,7 +35,7 @@ function Harness({
 
   return (
     <RoomWalkwaysForm
-      room={withWalkways(DEFAULT_ROOM, walkways)}
+      floor={withFloorWalkways(DEFAULT_FLOOR, walkways)}
       unit="imperial"
       onWalkwaysChange={(next) => {
         setWalkways(next);

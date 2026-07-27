@@ -14,7 +14,7 @@
 
 import type { FloorPoint, OrientedRect } from "@/domain/geometry";
 import { metersFromInches } from "@/domain/units";
-import type { Room } from "./room";
+import { floorBounds, type Floor } from "./floor";
 
 export type Walkway = {
   readonly id: string;
@@ -100,23 +100,23 @@ export function walkwayCorridor(
 }
 
 /**
- * A first route across the room, for someone to drag or type into shape.
+ * A first route across the apartment, for someone to type into shape.
  *
- * Down the middle from the north wall to the south, which is the trip most
- * often taken through a room and the one furniture most often blocks.
+ * Down the middle of everything on the floor, north to south. A route that
+ * crosses rooms is the point — the one that matters runs from the living room
+ * to the guest room — so it is drawn across the whole plan rather than inside
+ * whichever room happens to be first.
  */
-export function createWalkway(id: string, room: Room): Walkway {
-  const middle = room.widthMeters / 2;
+export function createWalkway(id: string, floor: Floor): Walkway {
+  const { origin, extent } = floorBounds(floor);
+  const middle = origin.xMeters + extent.widthMeters / 2;
+
   return {
     id,
     name: "Route",
-    start: { xMeters: middle, zMeters: 0 },
-    end: { xMeters: middle, zMeters: room.depthMeters },
+    start: { xMeters: middle, zMeters: origin.zMeters },
+    end: { xMeters: middle, zMeters: origin.zMeters + extent.depthMeters },
     minimumWidthMeters: DEFAULT_MINIMUM_WALKWAY_METERS,
     preferredWidthMeters: DEFAULT_PREFERRED_WALKWAY_METERS,
   };
-}
-
-export function withWalkways(room: Room, walkways: readonly Walkway[]): Room {
-  return { ...room, walkways };
 }

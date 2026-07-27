@@ -37,7 +37,7 @@ describe("room lengths", () => {
     expect(checkRoomLength(4, "widthMeters")).toBeNull();
     expect(checkRoomLength(4, "heightMeters")).toBeNull();
     expect(checkRoomLength(8, "heightMeters")).toBe("too-large");
-    expect(checkRoomLength(4, "wallThicknessMeters")).toBe("too-large");
+    // Wall thickness is the floor's now: an apartment has one kind of wall.
   });
 
   it("rejects values that are not real numbers", () => {
@@ -93,10 +93,10 @@ describe("room", () => {
     expect(roomFloorAreaSquareMeters(room)).toBeCloseTo(12, 10);
   });
 
-  it("measures floor area inside the walls, so wall thickness cannot change it", () => {
-    const thick = withRoomLength(DEFAULT_ROOM, "wallThicknessMeters", 0.4);
+  it("measures floor area inside the walls, from the numbers a tape gives", () => {
+    const same = withRoomLength(DEFAULT_ROOM, "heightMeters", 3);
 
-    expect(roomFloorAreaSquareMeters(thick)).toBe(
+    expect(roomFloorAreaSquareMeters(same)).toBe(
       roomFloorAreaSquareMeters(DEFAULT_ROOM),
     );
   });

@@ -5,11 +5,13 @@ import {
   type PlacedFurniture,
 } from "@/domain/furniture";
 import type { FurnitureProduct } from "@/domain/furniture";
-import { DEFAULT_ROOM } from "@/domain/room";
+import { DEFAULT_FLOOR, DEFAULT_ROOM } from "@/domain/room";
 import { inchesFromMeters, metersFromInches } from "@/domain/units";
 import { checkLayout, troubledInstanceIds } from "./layout";
 
-const ROOM = { ...DEFAULT_ROOM, widthMeters: 4, depthMeters: 3 };
+/** A one-room apartment, four by three. */
+const ROOM = { ...DEFAULT_ROOM, widthMeters: 4, depthMeters: 3, openings: [] };
+const FLOOR = { ...DEFAULT_FLOOR, rooms: [ROOM] };
 
 function product(id: string, widthMeters: number, depthMeters: number) {
   const made: FurnitureProduct = {
@@ -47,7 +49,7 @@ function place(
 
 describe("checkLayout: a room that works", () => {
   it("finds nothing wrong with an empty room", () => {
-    expect(checkLayout(ROOM, [])).toEqual([]);
+    expect(checkLayout(FLOOR, [])).toEqual([]);
   });
 
   it("finds nothing wrong with two pieces that clear each other", () => {
@@ -56,12 +58,12 @@ describe("checkLayout: a room that works", () => {
       place("i2", TABLE, 3, 2.4),
     ];
 
-    expect(checkLayout(ROOM, layout)).toEqual([]);
+    expect(checkLayout(FLOOR, layout)).toEqual([]);
   });
 
   it("accepts a piece pushed flush against a wall", () => {
     // A 1.6 m deep sectional centered 0.8 m from the north wall touches it.
-    expect(checkLayout(ROOM, [place("i1", SECTIONAL, 2, 0.8)])).toEqual([]);
+    expect(checkLayout(FLOOR, [place("i1", SECTIONAL, 2, 0.8)])).toEqual([]);
   });
 });
 
@@ -74,7 +76,7 @@ describe("checkLayout: furniture overlapping furniture", () => {
 
     // The sectional reaches x = 2.7 and the table starts at x = 2.05:
     // 0.65 m of each other, and the shorter way out.
-    expect(checkLayout(ROOM, layout)).toEqual([
+    expect(checkLayout(FLOOR, layout)).toEqual([
       {
         kind: "overlap",
         instanceIds: ["i1", "i2"],
@@ -89,7 +91,7 @@ describe("checkLayout: furniture overlapping furniture", () => {
       place("i2", TABLE, 2.5, 1.5),
     ];
 
-    expect(troubledInstanceIds(checkLayout(ROOM, layout))).toEqual(
+    expect(troubledInstanceIds(checkLayout(FLOOR, layout))).toEqual(
       new Set(["i1", "i2"]),
     );
   });
@@ -101,7 +103,7 @@ describe("checkLayout: furniture overlapping furniture", () => {
       place("i3", TABLE, 2.4, 1.5),
     ];
 
-    expect(checkLayout(ROOM, layout)).toHaveLength(3);
+    expect(checkLayout(FLOOR, layout)).toHaveLength(3);
   });
 
   it("clears a piece turned out of the way, which a bounding box would not", () => {
@@ -116,8 +118,8 @@ describe("checkLayout: furniture overlapping furniture", () => {
       place("i2", TABLE, 2.87, 1.5, Math.PI / 4),
     ];
 
-    expect(checkLayout(ROOM, square)).toEqual([]);
-    expect(checkLayout(ROOM, turned)).toHaveLength(1);
+    expect(checkLayout(FLOOR, square)).toEqual([]);
+    expect(checkLayout(FLOOR, turned)).toHaveLength(1);
   });
 });
 
@@ -125,10 +127,11 @@ describe("checkLayout: furniture against the room", () => {
   it("reports how far a piece crosses a wall", () => {
     const layout = [place("i1", SECTIONAL, 0.9, 1.5)];
 
-    expect(checkLayout(ROOM, layout)).toEqual([
+    expect(checkLayout(FLOOR, layout)).toEqual([
       {
         kind: "crosses-wall",
         instanceId: "i1",
+        roomId: ROOM.id,
         wall: "west",
         overhangMeters: expect.closeTo(0.3, 10),
       },
@@ -136,7 +139,7 @@ describe("checkLayout: furniture against the room", () => {
   });
 
   it("reports both walls a piece crosses in a corner", () => {
-    const problems = checkLayout(ROOM, [place("i1", SECTIONAL, 0.9, 0.5)]);
+    const problems = checkLayout(FLOOR, [place("i1", SECTIONAL, 0.9, 0.5)]);
 
     expect(problems.map((problem) => problem.kind)).toEqual([
       "crosses-wall",
@@ -145,13 +148,14 @@ describe("checkLayout: furniture against the room", () => {
     expect(problems).toContainEqual({
       kind: "crosses-wall",
       instanceId: "i1",
+      roomId: ROOM.id,
       wall: "north",
       overhangMeters: expect.closeTo(0.3, 10),
     });
   });
 
   it("says a piece is outside the room rather than listing four walls", () => {
-    expect(checkLayout(ROOM, [place("i1", TABLE, -3, 1.5)])).toEqual([
+    expect(checkLayout(FLOOR, [place("i1", TABLE, -3, 1.5)])).toEqual([
       { kind: "outside-room", instanceId: "i1" },
     ]);
   });
@@ -162,7 +166,7 @@ describe("checkLayout: furniture against the room", () => {
       place("i2", TABLE, 1.9, 1.5),
     ];
 
-    expect(checkLayout(ROOM, layout).map((problem) => problem.kind)).toEqual([
+    expect(checkLayout(FLOOR, layout).map((problem) => problem.kind)).toEqual([
       "crosses-wall",
       "overlap",
     ]);
@@ -179,10 +183,12 @@ describe("checkLayout: the order it reports in", () => {
 
     // i2 crosses the east wall; i1 overlaps i3. The piece problems come first.
     expect(
-      checkLayout(ROOM, layout).map((problem) =>
+      checkLayout(FLOOR, layout).map((problem) =>
         "instanceId" in problem
           ? problem.instanceId
-          : problem.instanceIds.join("+"),
+          : "instanceIds" in problem
+            ? problem.instanceIds.join("+")
+            : problem.roomIds.join("+"),
       ),
     ).toEqual(["i2", "i1+i3"]);
   });
@@ -202,7 +208,7 @@ describe("checkLayout: protected walkways", () => {
     preferredWidthMeters: metersFromInches(42),
   };
 
-  const WITH_ROUTE = { ...ROOM, walkways: [GUEST_ROOM_ROUTE] };
+  const WITH_ROUTE = { ...FLOOR, walkways: [GUEST_ROOM_ROUTE] };
 
   /** A piece `depthMeters` deep, pushed into the route from the west. */
   function intoTheRouteFromTheWest(inchesOfIntrusion: number) {
@@ -277,7 +283,7 @@ describe("checkLayout: protected walkways", () => {
     // Both ends in the same place: there is no route to protect, and the form
     // beside it says so rather than this inventing a corridor.
     const broken = {
-      ...ROOM,
+      ...FLOOR,
       walkways: [{ ...GUEST_ROOM_ROUTE, end: { ...GUEST_ROOM_ROUTE.start } }],
     };
 

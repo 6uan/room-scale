@@ -1,23 +1,23 @@
 /**
- * A project: one room, the furniture being considered for it, and how the
+ * A project: one apartment, the furniture being considered for it, and how the
  * person planning it prefers to read measurements.
  *
  * This is the whole of what gets saved. Keeping it as one plain, serializable
  * value means persistence has a single thing to write and export has a single
  * thing to hand over, rather than each feature inventing its own storage.
  *
- * Layouts — several arrangements of the same room — arrive later and will hang
+ * Layouts — several arrangements of the same apartment — arrive later and will hang
  * off this, which is why the shape is a document rather than loose fields.
  */
 
 import type { FurnitureInstance, FurnitureProduct } from "@/domain/furniture";
-import { DEFAULT_ROOM, type Room } from "@/domain/room";
+import { DEFAULT_FLOOR, type Floor } from "@/domain/room";
 import type { DisplayUnit } from "@/domain/units";
 
 export type Project = {
-  readonly room: Room;
+  readonly floor: Floor;
   readonly products: readonly FurnitureProduct[];
-  /** Copies of those products, standing in the room. */
+  /** Copies of those products, standing somewhere on the floor. */
   readonly instances: readonly FurnitureInstance[];
   /** A reading preference, not a measurement. Everything stored is meters. */
   readonly displayUnit: DisplayUnit;
@@ -26,15 +26,15 @@ export type Project = {
 /** What a new project starts as, before anything has been measured. */
 export function createProject(): Project {
   return {
-    room: DEFAULT_ROOM,
+    floor: DEFAULT_FLOOR,
     products: [],
     instances: [],
     displayUnit: "imperial",
   };
 }
 
-export function withRoom(project: Project, room: Room): Project {
-  return { ...project, room };
+export function withFloor(project: Project, floor: Floor): Project {
+  return { ...project, floor };
 }
 
 export function withProducts(

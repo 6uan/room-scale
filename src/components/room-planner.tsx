@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { LayoutProblems } from "@/components/layout-problems";
-import { RoomDimensionsForm } from "@/components/room-dimensions-form";
-import { RoomOpeningsForm } from "@/components/room-openings-form";
+import { FloorRoomsForm } from "@/components/floor-rooms-form";
 import { RoomFurniturePanel } from "@/components/room-furniture-panel";
 import { RoomPlanCanvas } from "@/components/room-plan-canvas";
 import {
@@ -15,9 +14,14 @@ import {
 import { nextId } from "@/domain/project";
 import {
   createOpening,
-  roomFloorAreaSquareMeters,
+  createRoom,
+  floorAreaSquareMeters,
+  floorBounds,
+  nextRoomOrigin,
   withOpenings,
-  type Opening,
+  withRoom,
+  withRooms,
+  type Floor,
   type OpeningKind,
   type Room,
 } from "@/domain/room";
@@ -33,11 +37,11 @@ import { useProjectStore } from "@/state/project-store";
  * are two views of one saved project rather than two islands.
  */
 export function RoomPlanner() {
-  const room = useProjectStore((state) => state.project.room);
+  const floor = useProjectStore((state) => state.project.floor);
   const unit = useProjectStore((state) => state.project.displayUnit);
   const products = useProjectStore((state) => state.project.products);
   const instances = useProjectStore((state) => state.project.instances);
-  const setRoom = useProjectStore((state) => state.setRoom);
+  const setFloor = useProjectStore((state) => state.setFloor);
   const setUnit = useProjectStore((state) => state.setDisplayUnit);
   const setInstances = useProjectStore((state) => state.setInstances);
 
@@ -51,10 +55,16 @@ export function RoomPlanner() {
   // Derived on every render rather than stored, so it cannot drift from the
   // layout it describes. There are a handful of pieces in a room; the pairwise
   // check is nothing next to redrawing the plan.
-  const problems = checkLayout(room, furniture);
+  const problems = checkLayout(floor, furniture);
   const troubledIds = troubledInstanceIds(problems);
+  const roomNames = new Map(
+    floor.rooms.map((room) => [
+      room.id,
+      room.name === "" ? "an unnamed room" : room.name,
+    ]),
+  );
   const walkwayNames = new Map(
-    room.walkways.map((walkway) => [
+    floor.walkways.map((walkway) => [
       walkway.id,
       walkway.name === "" ? "A route" : walkway.name,
     ]),
@@ -70,35 +80,51 @@ export function RoomPlanner() {
     setInstances(withInstance(instances, instance));
   }
 
-  function addOpening(kind: OpeningKind): void {
-    // Derived from what is already there rather than from a counter, because
-    // ids now outlive the page and a counter would restart at one.
+  function addRoom(): void {
     const id = nextId(
-      "opening",
-      room.openings.map((opening) => opening.id),
+      "room",
+      floor.rooms.map((one) => one.id),
     );
-    setRoom(
-      withOpenings(room, [...room.openings, createOpening(kind, id, room)]),
+    const name = `Room ${floor.rooms.length + 1}`;
+    setFloor(
+      withRooms(floor, [
+        ...floor.rooms,
+        createRoom(id, name, nextRoomOrigin(floor)),
+      ]),
     );
   }
 
-  function setOpenings(openings: readonly Opening[]): void {
-    setRoom(withOpenings(room, openings));
+  function addOpening(room: Room, kind: OpeningKind): void {
+    // Derived from what is already there rather than from a counter, because
+    // ids now outlive the page and a counter would restart at one. Unique
+    // across the apartment, so two rooms cannot both hold "opening-1".
+    const id = nextId(
+      "opening",
+      floor.rooms.flatMap((one) => one.openings.map((opening) => opening.id)),
+    );
+    setFloor(
+      withRoom(
+        floor,
+        withOpenings(room, [...room.openings, createOpening(kind, id, room)]),
+      ),
+    );
   }
 
   return (
     <div className="grid gap-10 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:items-start">
       <div className="flex flex-col gap-10">
         {/* Named sections, so each becomes a landmark that can be jumped to. */}
-        <section aria-labelledby="dimensions" className="flex flex-col gap-6">
-          <h2 id="dimensions" className="text-xl font-semibold tracking-tight">
-            Dimensions
+        <section aria-labelledby="rooms" className="flex flex-col gap-6">
+          <h2 id="rooms" className="text-xl font-semibold tracking-tight">
+            Rooms
           </h2>
-          <RoomDimensionsForm
-            room={room}
+          <FloorRoomsForm
+            floor={floor}
             unit={unit}
-            onRoomChange={setRoom}
+            onFloorChange={setFloor}
             onUnitChange={setUnit}
+            onAddRoom={addRoom}
+            onAddOpening={addOpening}
           />
         </section>
 
@@ -107,7 +133,7 @@ export function RoomPlanner() {
             Furniture
           </h2>
           <RoomFurniturePanel
-            room={room}
+            floor={floor}
             products={products}
             instances={instances}
             furniture={furniture}
@@ -116,18 +142,6 @@ export function RoomPlanner() {
             onInstancesChange={setInstances}
             onSelect={setSelectedId}
             onInstanceChange={changeInstance}
-          />
-        </section>
-
-        <section aria-labelledby="openings" className="flex flex-col gap-5">
-          <h2 id="openings" className="text-xl font-semibold tracking-tight">
-            Openings
-          </h2>
-          <RoomOpeningsForm
-            room={room}
-            unit={unit}
-            onOpeningsChange={setOpenings}
-            onAddOpening={addOpening}
           />
         </section>
       </div>
@@ -140,7 +154,7 @@ export function RoomPlanner() {
           Plan
         </h2>
         <RoomPlanCanvas
-          room={room}
+          floor={floor}
           furniture={furniture}
           unit={unit}
           selectedId={selectedId}
@@ -148,7 +162,7 @@ export function RoomPlanner() {
           onSelect={setSelectedId}
           onInstanceChange={changeInstance}
         />
-        <RoomSummary room={room} unit={unit} />
+        <FloorSummary floor={floor} unit={unit} />
 
         <div className="flex flex-col gap-3">
           <h3 id="fit" className="text-sm font-medium">
@@ -157,6 +171,7 @@ export function RoomPlanner() {
           <LayoutProblems
             problems={problems}
             names={namesById}
+            roomNames={roomNames}
             walkwayNames={walkwayNames}
             unit={unit}
           />
@@ -166,18 +181,23 @@ export function RoomPlanner() {
   );
 }
 
-function RoomSummary({ room, unit }: { room: Room; unit: DisplayUnit }) {
+function FloorSummary({ floor, unit }: { floor: Floor; unit: DisplayUnit }) {
+  const { extent } = floorBounds(floor);
+
   return (
     <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
-      <SummaryItem label="Width" value={formatLength(room.widthMeters, unit)} />
-      <SummaryItem label="Depth" value={formatLength(room.depthMeters, unit)} />
+      <SummaryItem label="Rooms" value={String(floor.rooms.length)} />
       <SummaryItem
-        label="Ceiling"
-        value={formatLength(room.heightMeters, unit)}
+        label="Across"
+        value={formatLength(extent.widthMeters, unit)}
+      />
+      <SummaryItem
+        label="Down"
+        value={formatLength(extent.depthMeters, unit)}
       />
       <SummaryItem
         label="Floor area"
-        value={formatArea(roomFloorAreaSquareMeters(room), unit)}
+        value={formatArea(floorAreaSquareMeters(floor), unit)}
       />
     </dl>
   );

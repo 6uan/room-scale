@@ -21,8 +21,11 @@ import {
 } from "@/domain/geometry";
 import {
   checkWalkway,
+  pointInRoom,
+  roomRect,
+  roomsAt,
   walkwayCorridor,
-  type Room,
+  type Floor,
   type WallSide,
 } from "@/domain/room";
 
@@ -37,8 +40,16 @@ export type LayoutProblem =
   | {
       readonly kind: "crosses-wall";
       readonly instanceId: string;
+      /** The room it stands in, whose wall it is going through. */
+      readonly roomId: string;
       readonly wall: WallSide;
       readonly overhangMeters: number;
+    }
+  /** Two rooms in the same place. Blocks can be dropped on top of each other. */
+  | {
+      readonly kind: "rooms-overlap";
+      readonly roomIds: readonly [string, string];
+      readonly depthMeters: number;
     }
   /** A piece that is not in the room at all. */
   | { readonly kind: "outside-room"; readonly instanceId: string }
@@ -70,43 +81,18 @@ export type LayoutProblem =
  * list that reshuffles itself as a piece moves cannot be followed.
  */
 export function checkLayout(
-  room: Room,
+  floor: Floor,
   furniture: readonly PlacedFurniture[],
 ): readonly LayoutProblem[] {
-  const floor = {
-    widthMeters: room.widthMeters,
-    depthMeters: room.depthMeters,
-  };
-
   const problems: LayoutProblem[] = [];
 
+  problems.push(...roomProblems(floor));
+
   for (const placed of furniture) {
-    const rect = footprintRect(placed);
-    const instanceId = placed.instance.id;
-
-    // Being outside the room says everything a wall crossing would, and says
-    // it better, so the two are not both reported for one piece.
-    if (rectOutsideFloor(rect, floor)) {
-      problems.push({ kind: "outside-room", instanceId });
-      continue;
-    }
-
-    const overhang = rectOverhang(rect, floor);
-    if (overhangs(overhang)) {
-      for (const wall of ["north", "east", "south", "west"] as const) {
-        if (overhang[wall] > 0) {
-          problems.push({
-            kind: "crosses-wall",
-            instanceId,
-            wall,
-            overhangMeters: overhang[wall],
-          });
-        }
-      }
-    }
+    problems.push(...pieceProblems(floor, placed));
   }
 
-  problems.push(...walkwayProblems(room, furniture));
+  problems.push(...walkwayProblems(floor, furniture));
 
   // Every pair once. A overlapping B is the same problem as B overlapping A.
   for (let i = 0; i < furniture.length; i += 1) {
@@ -132,6 +118,88 @@ export function checkLayout(
 }
 
 /**
+ * Where one piece stands, and whether it stands there properly.
+ *
+ * The room a piece is in is the one its center falls in. A piece is a rectangle
+ * on a floor, not a thing owned by a room, and its center is the one point that
+ * cannot be in two rooms at once unless the rooms themselves overlap — which is
+ * reported separately.
+ *
+ * Reaching past that room's walls is reported even when another room is on the
+ * far side. Furniture cannot occupy a wall.
+ */
+function pieceProblems(
+  floor: Floor,
+  placed: PlacedFurniture,
+): readonly LayoutProblem[] {
+  const rect = footprintRect(placed);
+  const instanceId = placed.instance.id;
+  const room = roomsAt(floor, placed.instance.position)[0];
+
+  if (room === undefined) {
+    return [{ kind: "outside-room", instanceId }];
+  }
+
+  // Measured in the room's own frame, where its north-west corner is (0, 0).
+  const local = { ...rect, center: pointInRoom(room, rect.center) };
+  const extent = {
+    widthMeters: room.widthMeters,
+    depthMeters: room.depthMeters,
+  };
+
+  if (rectOutsideFloor(local, extent)) {
+    return [{ kind: "outside-room", instanceId }];
+  }
+
+  const overhang = rectOverhang(local, extent);
+  if (!overhangs(overhang)) {
+    return [];
+  }
+
+  return (["north", "east", "south", "west"] as const)
+    .filter((wall) => overhang[wall] > 0)
+    .map((wall) => ({
+      kind: "crosses-wall" as const,
+      instanceId,
+      roomId: room.id,
+      wall,
+      overhangMeters: overhang[wall],
+    }));
+}
+
+/**
+ * Rooms standing on top of one another.
+ *
+ * Blocks carry their own positions, so two can be dropped in the same place.
+ * That is a mistake and it is reported here rather than prevented, the same way
+ * every other mistake in a layout is.
+ */
+function roomProblems(floor: Floor): readonly LayoutProblem[] {
+  const problems: LayoutProblem[] = [];
+
+  for (let i = 0; i < floor.rooms.length; i += 1) {
+    for (let j = i + 1; j < floor.rooms.length; j += 1) {
+      const a = floor.rooms[i];
+      const b = floor.rooms[j];
+      if (a === undefined || b === undefined) {
+        continue;
+      }
+
+      const overlap = orientedRectOverlap(roomRect(a), roomRect(b));
+      if (overlap !== null) {
+        problems.push({
+          kind: "rooms-overlap",
+          roomIds: [a.id, b.id],
+          depthMeters: overlap.depthMeters,
+        });
+      }
+    }
+  }
+
+  return problems;
+}
+
+/**
  * What each route has left, against the two widths it was given.
  *
  * The minimum is checked first and reported alone: a route that cannot be
@@ -140,7 +208,7 @@ export function checkLayout(
  * form beside it says why.
  */
 function walkwayProblems(
-  room: Room,
+  floor: Floor,
   furniture: readonly PlacedFurniture[],
 ): readonly LayoutProblem[] {
   const intruders = furniture.map((placed) => ({
@@ -148,7 +216,7 @@ function walkwayProblems(
     rect: footprintRect(placed),
   }));
 
-  return room.walkways.flatMap((walkway): readonly LayoutProblem[] => {
+  return floor.walkways.flatMap((walkway): readonly LayoutProblem[] => {
     if (checkWalkway(walkway) !== null) {
       return [];
     }
@@ -207,6 +275,8 @@ export function troubledInstanceIds(
         for (const id of problem.instanceIds) {
           ids.add(id);
         }
+        break;
+      case "rooms-overlap":
         break;
       default:
         ids.add(problem.instanceId);

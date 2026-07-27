@@ -121,7 +121,10 @@ function OpeningFields({
 }: OpeningFieldsProps) {
   const wallLength = wallLengthMeters(room, opening.wall);
   const problem = checkOpening(room, opening);
-  const name = `${kindLabel(opening.kind)} ${ordinal}`;
+  // Prefixed with the room, because an apartment has more than one Door 1.
+  const name = `${room.name === "" ? "Room" : room.name} ${kindLabel(
+    opening.kind,
+  ).toLowerCase()} ${ordinal}`;
 
   return (
     <fieldset className="flex flex-col gap-4 rounded-lg border border-black/10 p-4 dark:border-white/15">

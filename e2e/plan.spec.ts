@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
-function dimensions(page: Page) {
-  return page.getByRole("region", { name: "Dimensions" });
+function rooms(page: Page) {
+  return page.getByRole("region", { name: "Rooms" });
 }
 
 function planImage(page: Page) {
@@ -17,8 +17,11 @@ test.describe("room plan", () => {
     await expect(
       page.getByRole("heading", { level: 1, name: "The room" }),
     ).toBeVisible();
-    await expect(dimensions(page).getByLabel("Width")).toHaveValue("165.35");
-    await expect(page.getByText("162.8 sq ft")).toBeVisible();
+    await expect(rooms(page).getByLabel("Living room width")).toHaveValue(
+      "165.35",
+    );
+    // Exact: each room prints its own area too, and the apartment holds one.
+    await expect(page.getByText("162.8 sq ft", { exact: true })).toBeVisible();
   });
 
   test("draws the plan on a sized canvas", async ({ page }) => {
@@ -39,9 +42,13 @@ test.describe("room plan", () => {
 
     await page.getByLabel("Centimeters").check();
 
-    await expect(dimensions(page).getByLabel("Width")).toHaveValue("420");
-    await expect(dimensions(page).getByLabel("Depth")).toHaveValue("360");
-    await expect(page.getByText("15.12 m²")).toBeVisible();
+    await expect(rooms(page).getByLabel("Living room width")).toHaveValue(
+      "420",
+    );
+    await expect(rooms(page).getByLabel("Living room depth")).toHaveValue(
+      "360",
+    );
+    await expect(page.getByText("15.12 m²", { exact: true })).toBeVisible();
   });
 
   test("edits a dimension through the numeric field alone", async ({
@@ -49,7 +56,7 @@ test.describe("room plan", () => {
   }) => {
     await page.goto("/plan");
 
-    await dimensions(page).getByLabel("Width").fill("120");
+    await rooms(page).getByLabel("Living room width").fill("120");
 
     await expect(planImage(page)).toHaveAccessibleName(/10' 0\.0" wide/);
   });
@@ -57,22 +64,28 @@ test.describe("room plan", () => {
   test("adds and removes an opening", async ({ page }) => {
     await page.goto("/plan");
 
-    await expect(planImage(page)).toHaveAccessibleName(/2 openings/);
+    await expect(planImage(page)).toHaveAccessibleName(
+      /a window 4' 0\.0" wide on the north wall/,
+    );
 
     await page.getByRole("button", { name: "Add passage" }).click();
     await expect(planImage(page)).toHaveAccessibleName(
       /an open passage 3' 0\.0" wide on the north wall/,
     );
 
-    await page.getByRole("button", { name: "Remove passage 1" }).click();
-    await expect(planImage(page)).toHaveAccessibleName(/2 openings/);
+    await page
+      .getByRole("button", { name: "Remove living room passage 1" })
+      .click();
+    await expect(planImage(page)).toHaveAccessibleName(
+      /a window 4' 0\.0" wide on the north wall/,
+    );
   });
 
   test("moves an opening to another wall", async ({ page }) => {
     await page.goto("/plan");
 
-    const window = page.getByRole("group", { name: "Window 1" });
-    await window.getByLabel("Window 1 wall").selectOption("east");
+    const window = page.getByRole("group", { name: "Living room window 1" });
+    await window.getByLabel("Living room window 1 wall").selectOption("east");
 
     await expect(planImage(page)).toHaveAccessibleName(
       /a window 4' 0\.0" wide on the east wall/,
@@ -83,7 +96,7 @@ test.describe("room plan", () => {
 test.describe("saved projects", () => {
   test("keeps the room and the furniture across a reload", async ({ page }) => {
     await page.goto("/plan");
-    await dimensions(page).getByLabel("Width").fill("120");
+    await rooms(page).getByLabel("Living room width").fill("120");
 
     await page.goto("/furniture");
     await page.getByLabel("Name").fill("Olive tree");
@@ -102,7 +115,9 @@ test.describe("saved projects", () => {
     // Entered on one page, still there after reloading the other.
     await expect(page.getByRole("row", { name: /Olive tree/ })).toBeVisible();
     await page.goto("/plan");
-    await expect(dimensions(page).getByLabel("Width")).toHaveValue("120");
+    await expect(rooms(page).getByLabel("Living room width")).toHaveValue(
+      "120",
+    );
   });
 
   test("shares the display unit between both pages", async ({ page }) => {
@@ -329,7 +344,9 @@ test.describe("answering whether it fits", () => {
     await table.getByLabel("From west").fill("2");
 
     await expect(
-      fit(page).getByText(/Coffee table crosses the west wall by/),
+      fit(page).getByText(
+        /Coffee table crosses the west wall of the Living room by/,
+      ),
     ).toBeVisible();
   });
 
@@ -348,7 +365,76 @@ test.describe("answering whether it fits", () => {
     await table.getByLabel("Turn").fill("45");
 
     await expect(
-      fit(page).getByText(/Coffee table crosses the east wall by/),
+      fit(page).getByText(
+        /Coffee table crosses the east wall of the Living room by/,
+      ),
     ).toBeVisible();
+  });
+});
+
+test.describe("the apartment", () => {
+  function rooms(page: Page) {
+    return page.getByRole("region", { name: "Rooms" });
+  }
+
+  test("adds a second room, drawn beside the first", async ({ page }) => {
+    await page.goto("/plan");
+
+    await rooms(page).getByRole("button", { name: "Add a room" }).click();
+
+    // The new block lands east of everything already on the floor, so the
+    // apartment is wider than the room it started as.
+    await expect(planImage(page)).toHaveAccessibleName(/holding 2 rooms/);
+    await expect(planImage(page)).toHaveAccessibleName(
+      /Room 2, 9' 10\.1" wide by 9' 10\.1" deep/,
+    );
+    await expect(page.getByText("2", { exact: true }).first()).toBeVisible();
+  });
+
+  test("names a room, and moves it", async ({ page }) => {
+    await page.goto("/plan");
+    await rooms(page).getByRole("button", { name: "Add a room" }).click();
+
+    const second = page.getByRole("group", { name: "Room 2" });
+    await second.getByLabel("Name").fill("Guest room");
+    await page
+      .getByRole("group", { name: "Guest room" })
+      .getByLabel("Guest room from north")
+      .fill("24");
+
+    await expect(planImage(page)).toHaveAccessibleName(
+      /Guest room, .* at .* and 2' 0\.0" from the north/,
+    );
+  });
+
+  test("reports two rooms dropped in the same place", async ({ page }) => {
+    await page.goto("/plan");
+    await rooms(page).getByRole("button", { name: "Add a room" }).click();
+
+    // Straight on top of the living room, which starts at the origin.
+    await page
+      .getByRole("group", { name: "Room 2" })
+      .getByLabel("Room 2 from west")
+      .fill("0");
+
+    await expect(
+      page
+        .getByRole("region", { name: "Plan" })
+        .getByText(/Living room and Room 2 are in the same place/),
+    ).toBeVisible();
+  });
+
+  test("keeps the apartment across a reload", async ({ page }) => {
+    await page.goto("/plan");
+    await rooms(page).getByRole("button", { name: "Add a room" }).click();
+    await page
+      .getByRole("group", { name: "Room 2" })
+      .getByLabel("Name")
+      .fill("Kitchen");
+    await page.waitForTimeout(500);
+
+    await page.reload();
+
+    await expect(planImage(page)).toHaveAccessibleName(/Kitchen/);
   });
 });

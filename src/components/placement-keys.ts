@@ -18,7 +18,7 @@ import {
   turnInstance,
   type FurnitureInstance,
 } from "@/domain/furniture";
-import type { Room } from "@/domain/room";
+import type { Floor } from "@/domain/room";
 import { radiansFromDegrees } from "@/domain/units";
 
 const NUDGE_METERS = 0.05;
@@ -42,7 +42,7 @@ export const PLACEMENT_KEY_HINT =
  * alone rather than swallowed.
  */
 export function instanceFromKeyPress(
-  room: Room,
+  floor: Floor,
   instance: FurnitureInstance,
   { key, shiftKey }: PlacementKeyPress,
 ): FurnitureInstance | null {
@@ -52,13 +52,13 @@ export function instanceFromKeyPress(
   // Up is north, which is where depth is measured from, so it is z decreasing.
   switch (key) {
     case "ArrowLeft":
-      return nudge(room, instance, -step, 0);
+      return nudge(floor, instance, -step, 0);
     case "ArrowRight":
-      return nudge(room, instance, step, 0);
+      return nudge(floor, instance, step, 0);
     case "ArrowUp":
-      return nudge(room, instance, 0, -step);
+      return nudge(floor, instance, 0, -step);
     case "ArrowDown":
-      return nudge(room, instance, 0, step);
+      return nudge(floor, instance, 0, step);
     case "[":
       return turnInstance(instance, instance.rotationRadians - turn);
     case "]":
@@ -69,14 +69,14 @@ export function instanceFromKeyPress(
 }
 
 function nudge(
-  room: Room,
+  floor: Floor,
   instance: FurnitureInstance,
   dxMeters: number,
   dzMeters: number,
 ): FurnitureInstance {
   return moveInstance(
     instance,
-    clampToFloor(room, {
+    clampToFloor(floor, {
       xMeters: instance.position.xMeters + dxMeters,
       zMeters: instance.position.zMeters + dzMeters,
     }),

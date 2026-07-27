@@ -22,8 +22,9 @@ import type { Project } from "@/domain/project";
  * 1. Room, products, and the display-unit preference.
  * 2. Added `instances` — copies of products placed in the room.
  * 3. Added `room.walkways` — routes that have to stay clear.
+ * 4. The room became a floor: an apartment of rooms, each with a place on it.
  */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 /** Meters, cents, and the rest are all plain finite numbers on the way in. */
 const finiteNumber = z
@@ -62,11 +63,18 @@ const walkwaySchema = z.object({
 });
 
 const roomSchema = z.object({
+  id: z.string().min(1),
+  name: z.string(),
+  origin: z.object({ xMeters: finiteNumber, zMeters: finiteNumber }),
   widthMeters: finiteNumber,
   depthMeters: finiteNumber,
   heightMeters: finiteNumber,
-  wallThicknessMeters: finiteNumber,
   openings: z.array(openingSchema),
+});
+
+const floorSchema = z.object({
+  wallThicknessMeters: finiteNumber,
+  rooms: z.array(roomSchema),
   walkways: z.array(walkwaySchema),
 });
 
@@ -92,7 +100,7 @@ const instanceSchema = z.object({
 });
 
 const projectSchema = z.object({
-  room: roomSchema,
+  floor: floorSchema,
   products: z.array(productSchema),
   instances: z.array(instanceSchema),
   displayUnit: z.enum(["metric", "imperial"]),
@@ -161,6 +169,41 @@ const MIGRATIONS: Record<number, (document: object) => object> = {
       // guessed at — a route invented here would be a red band across a plan
       // its owner never asked for.
       project: { ...project, room: { ...roomOf(project), walkways: [] } },
+    };
+  },
+  3: (document) => {
+    const project = projectOf(document);
+    const room = roomOf(project) as Record<string, unknown>;
+    // The room key itself goes: what it held is now spread across the floor.
+    const rest = Object.fromEntries(
+      Object.entries(project).filter(([key]) => key !== "room"),
+    );
+
+    // Version 4 made the apartment the unit of work. A version 3 project was
+    // an apartment of exactly one room standing at the origin, which is what
+    // it always was — the wall thickness and the routes belonged to the whole
+    // place rather than to that room, so they move up to the floor.
+    return {
+      ...document,
+      version: 4,
+      project: {
+        ...rest,
+        floor: {
+          wallThicknessMeters: room.wallThicknessMeters,
+          walkways: Array.isArray(room.walkways) ? room.walkways : [],
+          rooms: [
+            {
+              id: "room-1",
+              name: "Living room",
+              origin: { xMeters: 0, zMeters: 0 },
+              widthMeters: room.widthMeters,
+              depthMeters: room.depthMeters,
+              heightMeters: room.heightMeters,
+              openings: Array.isArray(room.openings) ? room.openings : [],
+            },
+          ],
+        },
+      },
     };
   },
 };
