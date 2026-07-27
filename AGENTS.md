@@ -6,6 +6,11 @@ RoomScale is for somebody moving into an apartment who has to decide what
 furniture to buy from a floor plan, a few photographs, and at most one visit
 with a tape measure.
 
+The unit of work is the apartment, not the room. A floor plan is drawn whole —
+every room at once, the way the listing showed it — because furniture is chosen
+for a home and a sofa that fits the living room while blocking the hall is the
+wrong sofa.
+
 It runs entirely in the browser: no account, no server, and nothing uploaded.
 Everything is stored on the reader's own machine, per
 [ADR 0002](docs/adr/0002-local-first-persistence.md).
@@ -35,7 +40,7 @@ Dimensional correctness is more important than photorealism.
 
 The MVP supports:
 
-- one rectangular room,
+- one floor, built out of rectangular rooms,
 - doors, windows, and open passages,
 - exact furniture dimensions,
 - top-down and perspective views,
@@ -45,6 +50,10 @@ The MVP supports:
 - prices, product links, purchase statuses,
 - IndexedDB persistence,
 - JSON and CSV export.
+
+**One floor only.** The apartment being planned has one, and a second storey
+would buy nothing but a coordinate nobody needs. This is not a limitation to
+work around; it is the shape of the problem.
 
 Do not implement:
 
@@ -68,7 +77,7 @@ Wanted, but not yet:
   permanently, because page formats change and parsers rot.
 
 - **Photorealistic rendering.** It is a real goal, not a rejected one, and it is
-  step 16 — the last step, after the tool answers its question. Building it
+  step 18 — the last step, after the tool answers its question. Building it
   earlier trades the thing that makes RoomScale useful for the thing that makes
   it look useful.
 
@@ -94,9 +103,11 @@ Wanted, but not yet:
 ## Coordinate system
 
 - One Three.js unit equals one meter.
-- X represents room width.
+- X runs east across the floor plan; Z runs south down it.
 - Y is vertical.
-- Z represents room depth.
+- Floor coordinates are shared by the whole apartment. A room has an origin —
+  its north-west corner — and everything inside it is positioned in floor
+  coordinates, not relative to the room.
 - Furniture origins are centered horizontally at floor level.
 - Rotation occurs around the Y axis.
 - Retail measurements are converted to meters at the application boundary.
@@ -139,9 +150,14 @@ Validation must detect:
 
 - furniture overlap,
 - wall intersection,
-- furniture outside the room,
+- furniture outside every room,
+- rooms overlapping one another,
 - blocked openings,
 - protected walkway intersection.
+
+Furniture is measured against the room it stands in, which is the room it
+overlaps most. Reaching past that room's walls is reported even when another
+room is on the far side: furniture cannot occupy a wall.
 
 Every geometry utility must have unit tests.
 
@@ -195,13 +211,15 @@ Before implementing a feature:
 
 Do not add unrelated dependencies or features.
 
-## The room being planned
+## The apartment being planned
 
 This is not a fixture to build at the end. It is the project being planned right
 now, entered through the same interface anyone else would use — so a gap in the
 tool shows up as a thing that cannot be entered, not as a test that fails later.
 
-It is an apartment living room containing:
+It is a two-bedroom apartment on one floor: a living room open to a kitchen and
+a dining area, two bedrooms, two bathrooms, and the halls between them. The
+living room is the room being furnished first, and it contains:
 
 - an L-shaped sectional,
 - a round coffee table,
