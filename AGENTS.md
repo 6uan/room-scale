@@ -68,7 +68,7 @@ Wanted, but not yet:
   permanently, because page formats change and parsers rot.
 
 - **Photorealistic rendering.** It is a real goal, not a rejected one, and it is
-  step 15 — the last step, after the tool answers its question. Building it
+  step 16 — the last step, after the tool answers its question. Building it
   earlier trades the thing that makes RoomScale useful for the thing that makes
   it look useful.
 
