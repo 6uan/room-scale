@@ -51,18 +51,20 @@ about the furniture instead of the measurements.
 
 ## Where it is now
 
-**Roadmap steps 1–12 of 18 are done.** What works today:
+**Roadmap steps 1–13 of 18 are done.** What works today:
 
-- An apartment built out of rectangular rooms — each with a name, a size, a
-  place on the floor, and its own doors, windows, and open passages — drawn to
-  scale as one plan at `/plan`.
+- One workspace: what is in the apartment on the left, the plan in the middle,
+  and whatever you select on the right. The plan pans and zooms — scroll to pan,
+  ⌘ or Ctrl with scroll to zoom, `0` to fit.
+- An apartment built out of rectangular rooms, each with a name, a size, a place
+  on the floor, and its own doors, windows, and open passages.
 - A catalogue at `/furniture` — exact dimensions, price in integer cents,
   retailer, link, purchase status — filled in from a pasted product page.
 - Furniture placed in the room at its true footprint, moved and turned by
   dragging, by typing a position, or with the arrow keys.
 - Overlaps, wall crossings, and pieces outside the room, reported in words with
   the amount they are out by.
-- A printable checklist at `/checklist` — quantity, price, link, and purchase
+- A printable overview at `/overview` — quantity, price, link, and purchase
   status per item, with what the room costs and what is still to buy.
 - Protected walkways: routes that must stay clear, each with a width you need
   and a width you would rather have, reported with what is left and by how much
@@ -125,8 +127,8 @@ touched anything user-facing.
 
 ```
 src/
-  app/            Next.js App Router routes and layouts
-  components/     Non-3D React components
+  app/            Routes: the workspace at /, the overview at /overview
+  components/     The workspace panels, the plan canvas, and the forms
   domain/         Pure logic — no React, no Three.js, no browser APIs
     units/        Meter, area, and integer-cent conversions (implemented)
     room/         The room, its walls, and its openings (implemented)

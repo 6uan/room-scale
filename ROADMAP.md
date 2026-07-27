@@ -14,7 +14,7 @@ Two rules keep the order honest:
   Steps 4 to 10 are that question end to end. Everything after them makes the
   answer nicer to look at.
 
-Status: **step 13 is next.**
+Status: **step 14 is next.**
 
 ---
 
@@ -316,7 +316,7 @@ meeting exactly is a matter of typing the same number twice. Snapping wants a
 pointer, and rooms cannot be dragged yet either — both belong with the
 workspace.
 
-### 13. Make it one workspace ◀ next
+### 13. Make it one workspace ✅
 
 The plan is a third of the screen and everything else is a column you scroll
 past. Rooms made that worse, and the walkway form is sitting on `main`
@@ -360,11 +360,30 @@ arrive where they earn their place. What does not relax is that every value is
 still a number you can type. That has never been about access — a dimension you
 can only drag is a dimension you cannot trust.
 
-Done when: an apartment can be measured, furnished, arranged, and checked
-without scrolling, and the plan can be zoomed into a corner and back out to the
-whole floor.
+Done. `/` is the workspace; `/plan`, `/furniture` and `/checklist` redirect to
+where their work moved.
 
-### 14. Compare layouts
+Selection turned out to be the spine. One idea — room, piece, route, or product
+— covers every kind of thing, so pressing a name in the list and pressing a
+piece on the plan do the same thing, and the panel on the right is always the
+editor for whatever that was. It is what let the walkway form come back after
+sitting unmounted since 11a, and what made the catalogue's own form just
+another selection rather than a page.
+
+The plan holds its projection now rather than fitting one on every paint, which
+is all panning and zooming turned out to be. One bug came of it that only the
+browser could catch: hit testing was fitting a projection of its own, so a
+panned plan drew in one place and answered clicks in another.
+
+Not carried out of this step: rooms still cannot be dragged or snapped, and the
+list does not reorder anything. Both want more pointer work than the shell did.
+
+The end-to-end suite was rewritten against the workspace rather than adapted —
+forty tests describing a page of forms became seventeen describing a tool. The
+e2e build also moved to its own directory, having clobbered the dev server
+three times.
+
+### 14. Compare layouts ◀ next
 
 Multiple named arrangements of the same apartment: save, duplicate, rename,
 switch, compare. Products are shared across layouts; instances belong to one.

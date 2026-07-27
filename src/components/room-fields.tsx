@@ -2,112 +2,20 @@
 
 import { NumberField } from "@/components/number-field";
 import { RoomOpeningsForm } from "@/components/room-openings-form";
-import { UnitToggle } from "@/components/unit-toggle";
 import {
   ROOM_LENGTH_LIMITS,
   ROOM_ORIGIN_LIMITS,
+  roomFloorAreaSquareMeters,
   withOpenings,
   withOrigin,
-  withRoom,
   withRoomLength,
-  type Floor,
   type Opening,
   type OpeningKind,
   type Room,
 } from "@/domain/room";
 import { formatArea, type DisplayUnit } from "@/domain/units";
-import { roomFloorAreaSquareMeters } from "@/domain/room";
 
-/** A stud wall is about 0.114 m; a masonry one is thicker. */
-const WALL_THICKNESS_LIMITS = { minMeters: 0.02, maxMeters: 0.6 };
-
-export type FloorRoomsFormProps = {
-  floor: Floor;
-  unit: DisplayUnit;
-  onFloorChange: (floor: Floor) => void;
-  onUnitChange: (unit: DisplayUnit) => void;
-  onAddRoom: () => void;
-  onAddOpening: (room: Room, kind: OpeningKind) => void;
-};
-
-/**
- * The apartment, as the blocks it is built from.
- *
- * Each room is a rectangle with a name, a size, and a place on the floor, and
- * its own doors and windows are edited inside it — a doorway belongs to the
- * wall it is cut into, not to a list somewhere else.
- *
- * Wall thickness is asked once, at the top, because an apartment has one kind
- * of wall and asking per room would be asking the same question five times.
- */
-export function FloorRoomsForm({
-  floor,
-  unit,
-  onFloorChange,
-  onUnitChange,
-  onAddRoom,
-  onAddOpening,
-}: FloorRoomsFormProps) {
-  function changeRoom(room: Room): void {
-    onFloorChange(withRoom(floor, room));
-  }
-
-  function removeRoom(room: Room): void {
-    onFloorChange({
-      ...floor,
-      rooms: floor.rooms.filter((existing) => existing.id !== room.id),
-    });
-  }
-
-  return (
-    <div className="flex flex-col gap-6">
-      <UnitToggle unit={unit} onUnitChange={onUnitChange} />
-
-      <NumberField
-        label="Wall thickness"
-        unit={unit}
-        meters={floor.wallThicknessMeters}
-        limits={WALL_THICKNESS_LIMITS}
-        onMetersChange={(wallThicknessMeters) =>
-          onFloorChange({ ...floor, wallThicknessMeters })
-        }
-      />
-
-      {floor.rooms.length === 0 ? (
-        <p className="text-sm opacity-60">
-          No rooms yet. Add the one you are furnishing first — the others can
-          come later, and they only have to be right where they touch.
-        </p>
-      ) : (
-        <ul className="flex flex-col gap-5">
-          {floor.rooms.map((room) => (
-            <li key={room.id}>
-              <RoomFields
-                room={room}
-                unit={unit}
-                onChange={changeRoom}
-                onRemove={() => removeRoom(room)}
-                onAddOpening={(kind) => onAddOpening(room, kind)}
-              />
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <div>
-        <button
-          type="button"
-          onClick={onAddRoom}
-          className="rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
-        >
-          Add a room
-        </button>
-      </div>
-    </div>
-  );
-}
-
-type RoomFieldsProps = {
+export type RoomFieldsProps = {
   room: Room;
   unit: DisplayUnit;
   onChange: (room: Room) => void;
@@ -115,7 +23,7 @@ type RoomFieldsProps = {
   onAddOpening: (kind: OpeningKind) => void;
 };
 
-function RoomFields({
+export function RoomFields({
   room,
   unit,
   onChange,

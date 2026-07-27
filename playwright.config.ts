@@ -23,7 +23,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `pnpm build && pnpm start --port ${PORT}`,
+    command: `E2E=1 pnpm build && E2E=1 pnpm start --port ${PORT}`,
     url: baseURL,
     reuseExistingServer: !isCI,
     timeout: 180_000,
