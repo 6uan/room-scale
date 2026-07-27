@@ -1,39 +1,75 @@
 # RoomScale
 
-**Will it actually fit?**
+**You get one visit with a tape measure. Then you have to furnish the place.**
 
-RoomScale is a local-first browser application for testing whether furniture
-fits inside a measured room while preserving the walkways you need. It combines
-room planning, furniture placement, spatial validation, layout comparison, and
-a shopping checklist.
+RoomScale works out what furniture will fit in the apartment you are moving
+into — before you buy any of it, and without going back to measure again.
 
-Dimensional correctness comes before photorealism here. A sofa that renders
-beautifully but blocks the hallway is a wrong answer. Photorealism is wanted,
-and it is the last step rather than an abandoned one.
+It runs in your browser. No account, nothing uploaded, and the project stays on
+your own machine.
 
-> **Status: roadmap steps 1–7 of 15 complete.** A rectangular room can be
-> measured, given its doors, windows, and passages, and seen to scale in plan at
-> `/plan`. Furniture can be entered at its exact product dimensions, with price,
-> retailer, and link, at `/furniture`, filled in from a pasted product page.
-> Furniture can be placed in the room at its true footprint, and everything is
-> saved to IndexedDB. Step 8 — moving and rotating what you placed — is next.
-> Steps 4 to 10 are the tool's whole reason for existing: what fits, and what
-> it costs.
-> [ROADMAP.md](ROADMAP.md) is a strict sequence, not a backlog.
+Measure the room once. Bring furniture in from the listing pages you already
+have open, at the dimensions the retailer printed. Arrange it in a plan drawn to
+scale, and RoomScale tells you what does not fit and by how much: a sectional
+overlapping the coffee table, a console pushed through a wall, the route to the
+bedroom narrowed below what a person can walk through. What you are left with is
+a shopping list whose total you can trust, because every price on it belongs to
+something that has a place in the room.
 
-## What it will do
+Eventually you will be able to see it, rather than read it. A 3D view of the
+same data is the last step rather than the first, because a render that looks
+right and measures wrong is the exact mistake this tool exists to prevent. When
+it arrives, the dimensions still win.
 
-- One rectangular room with doors, windows, and open passages
-- Furniture entered at its exact product dimensions
-- Top-down plan view and a perspective view of the same data
-- Movement and rotation, by pointer or by typing numbers
-- Validation of furniture overlap, wall intersection, out-of-room placement,
-  blocked openings, and protected walkways
-- Multiple saved layouts of the same room, for comparison
-- Prices, product links, and purchase status in a shopping checklist
-- Product details filled in from a pasted page or link, always shown for
-  confirmation before they are stored
-- Everything stored in your browser (IndexedDB), exportable as JSON or CSV
+## Who it is for
+
+Somebody who has just signed for an apartment. You have the listing floor plan,
+a few photos of empty rooms, and — if you are lucky — one visit with a tape
+measure. Every sofa you like is fifteen minutes of arithmetic and a guess, and
+the wrong guess is a restocking fee or a living room you cannot walk through.
+
+RoomScale is the place to do that arithmetic once, keep it, and change your mind
+about the furniture instead of the measurements.
+
+## How it works
+
+1. **Measure the room once** — width, depth, ceiling, and where the doors,
+   windows, and open passages are. Type inches or centimeters; it stores meters
+   either way.
+2. **Bring the furniture in from its page** — paste a product page and RoomScale
+   reads the name, price, and dimensions out of it. Every value it extracts is
+   shown with the text it came from and confirmed before it is stored, and
+   typing one in by hand stays a first-class path.
+3. **Put it in the room** — pieces are drawn at their true footprint, and moved
+   and turned by dragging, by typing numbers, or with the arrow keys.
+4. **Find out what does not fit** — overlaps, wall crossings, and blocked
+   routes, reported in words with the amount, in your unit. Not a color on a
+   canvas you have to interpret.
+5. **Keep the list** — every product with its quantity, price, link, and whether
+   you have bought it yet, and a total that comes from what is actually in the
+   room.
+
+## Where it is now
+
+**Roadmap steps 1–9 of 15 are done.** What works today:
+
+- A rectangular room, measured in either unit, with its doors, windows, and open
+  passages, drawn to scale in plan at `/plan`.
+- A catalogue at `/furniture` — exact dimensions, price in integer cents,
+  retailer, link, purchase status — filled in from a pasted product page.
+- Furniture placed in the room at its true footprint, moved and turned by
+  dragging, by typing a position, or with the arrow keys.
+- Overlaps, wall crossings, and pieces outside the room, reported in words with
+  the amount they are out by.
+- Everything saved in your browser, and nothing sent anywhere.
+
+Still to come, in this order: the checklist and its total (step 10), protected
+walkways and blocked doorways (11), comparing layouts (12), JSON and CSV export
+(13), the perspective view (14), and photorealism (15).
+
+[ROADMAP.md](ROADMAP.md) is a strict sequence, not a backlog. Steps 4 to 10 are
+the tool's whole reason for existing: what fits, and what it costs. Everything
+after them makes the answer nicer to look at.
 
 ## Not in scope
 
@@ -90,8 +126,8 @@ src/
     furniture/    Products: dimensions, price, retailer (implemented)
     project/      The saved document: room, products, unit (implemented)
     import/       Reading a product out of a pasted page (implemented)
-    geometry/     Plan projection (implemented); SAT footprints (step 9)
-    validation/   Fit and clearance rules (steps 9 and 11)
+    geometry/     Plan projection, oriented rectangles, SAT (implemented)
+    validation/   Fit rules (implemented); clearance rules (step 11)
   persistence/    Dexie/IndexedDB schema and migrations (implemented)
   state/          Zustand store holding the active project (implemented)
   scene/          React Three Fiber rendering (step 14)

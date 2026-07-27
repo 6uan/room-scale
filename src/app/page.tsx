@@ -6,32 +6,32 @@ const FEATURES = [
   {
     title: "Measure the room once",
     description:
-      "Enter a rectangular room with its doors, windows, and open passages. Every length is stored in meters, so imperial and metric input agree to the millimeter.",
+      "Width, depth, ceiling, and where the doors, windows, and open passages are. Type inches or centimeters; it stores meters either way, so the two never disagree.",
   },
   {
-    title: "Place real products",
+    title: "Bring the furniture in from its page",
     description:
-      "Furniture carries the exact dimensions from the product page, plus price, retailer link, and purchase status. A product is separate from the copies you place.",
+      "Paste the product page you are already looking at. RoomScale reads the name, price, and dimensions out of it, shows you the text each number came from, and stores nothing you have not confirmed.",
   },
   {
-    title: "Protect the walkways",
+    title: "Arrange it at true size",
     description:
-      "Draw the paths that must stay clear. RoomScale flags overlaps, wall intersections, blocked doorways, and anything that narrows a route below its minimum.",
+      "Every piece is drawn at the footprint the retailer published, and moved and turned by dragging, by typing a position, or with the arrow keys. Save more than one arrangement and compare them.",
   },
   {
-    title: "Compare layouts",
+    title: "Find out what does not fit",
     description:
-      "Save several arrangements of the same room, switch between them, and see which one survives validation without losing the layout you started from.",
+      "Overlaps, wall crossings, blocked doorways, and routes narrowed below what you can walk through — reported in words, with the amount they are out by, in your unit.",
   },
   {
-    title: "See it in plan or in 3D",
+    title: "Keep the list and the total",
     description:
-      "A top-down plan view and a perspective view of the same data. Everything is also editable with numbers and the keyboard — the canvas is never the only way in.",
+      "Every product with its quantity, price, link, and whether you have bought it yet. The total comes from what is actually placed in the room, so it cannot drift from the plan.",
   },
   {
-    title: "Keep your data",
+    title: "It stays in your browser",
     description:
-      "Projects live in your browser's IndexedDB. No account, no server, no upload. Export to JSON or CSV whenever you want to take it elsewhere.",
+      "Projects live in IndexedDB on your own machine. No account, no server, no upload. Export to JSON or CSV whenever you want to take it elsewhere.",
   },
 ] as const;
 
@@ -43,19 +43,22 @@ export default function Home() {
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-12 px-6 py-16 sm:px-8 sm:py-24">
       <header className="flex flex-col gap-5">
         <p className="text-xs font-medium uppercase tracking-[0.2em] opacity-60">
-          Open source · Local first
+          Open source · Nothing leaves your browser
         </p>
         <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
           RoomScale
         </h1>
         <p className="text-lg leading-relaxed opacity-80">
-          Find out whether the furniture actually fits — before it is delivered.
-          RoomScale checks real product dimensions against a room you have
-          measured, and keeps the walkways you need clear.
+          You get one visit with a tape measure, and then you have to furnish
+          the place. RoomScale works out what will fit in the apartment you are
+          moving into — before you buy any of it, and without going back to
+          measure again.
         </p>
         <p className="text-sm leading-relaxed opacity-60">
-          Dimensional correctness over photorealism. A sofa that renders
-          beautifully but blocks the hallway is a bad answer.
+          Measure once, bring the furniture in from the listing pages you
+          already have open, and find out what does not fit and by how much. A
+          3D view of the same room comes last, not first: a render that looks
+          right and measures wrong is the mistake this exists to prevent.
         </p>
       </header>
 
@@ -86,7 +89,7 @@ export default function Home() {
       <section className="flex flex-col gap-4">
         <h2 className="text-xl font-semibold tracking-tight">Project status</h2>
         <p className="text-sm leading-relaxed opacity-80">
-          Steps 1 to 7 of 15 are done. A rectangular room can be measured and
+          Steps 1 to 9 of 15 are done. A rectangular room can be measured and
           seen to scale{" "}
           <Link href="/plan" className="underline underline-offset-4">
             in plan
@@ -96,9 +99,11 @@ export default function Home() {
           <Link href="/furniture" className="underline underline-offset-4">
             in the catalogue
           </Link>
-          . Furniture can be placed in the room at its true footprint, and it is
-          all saved in your browser. Moving and rotating what you placed is
-          next. See{" "}
+          . Furniture can be placed in the room at its true footprint, moved and
+          turned by dragging or by typing, and anything that overlaps, crosses a
+          wall, or sits outside the room is reported in words with the amount.
+          It is all saved in your browser. The shopping checklist and its total
+          are next. See{" "}
           <code className="rounded bg-black/5 px-1.5 py-0.5 text-xs dark:bg-white/10">
             ROADMAP.md
           </code>{" "}
