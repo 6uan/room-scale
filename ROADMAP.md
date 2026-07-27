@@ -230,22 +230,29 @@ standing in the plan".
 
 ## Making it usable for real
 
-### 11. Add protected walkways ◀ next
+### 11. Keep the routes clear ◀ next
 
-User-drawn routes that must stay clear, each with a minimum and a preferred
-width. Anything intersecting one is reported, with the shortfall in meters shown
-in the user's unit.
+Two halves, each shipping on its own and in this order. They share one idea —
+a zone furniture has to stay out of — which is why they are one step.
+
+**11a — Protected walkways.** User-drawn routes that must stay clear, each with
+a minimum and a preferred width. A route is a line across the floor with a
+width, which makes it an oriented rectangle: the same shape step 9 already
+measures. Anything intruding is reported with the width it leaves behind and
+the shortfall against the minimum, in the reader's unit.
 
 The route from the living room to the guest room is the case that matters: at
 least 36 inches, 42 preferred.
 
-**Blocked openings arrive here too.** `AGENTS.md` lists them under validation
-and step 9 deliberately left them: a door needs the arc it sweeps treated as a
-zone that must stay clear, which is the same machinery a walkway needs. A piece
-standing in a doorway is a blocked route by another name.
+Done when: a sofa narrowing that route to 30 inches reports a 6 inch shortfall.
 
-Done when: a sofa narrowing that route to 30 inches reports a 6 inch shortfall,
-and a console in front of the door says the door cannot open.
+**11b — Blocked openings.** `AGENTS.md` lists them under validation and step 9
+deliberately left them: a door needs the arc it sweeps treated as a zone that
+must stay clear, which is 11a's machinery pointed at a door instead of a
+hallway. A piece standing in a doorway is a blocked route by another name.
+
+Done when: a console in front of the door says the door cannot open, and moving
+it six inches says the door clears it.
 
 ### 12. Compare layouts
 
@@ -261,13 +268,37 @@ JSON export and import for the whole project, CSV export for the checklist.
 
 Done when: a project exported, cleared, and re-imported is identical.
 
+### 14. Make it editable on one page
+
+By here the left-hand column of `/plan` holds dimensions, furniture, placements,
+openings, and walkways, and the project spans three routes. That is a reasonable
+way to build it and a poor way to use it.
+
+The plan and the checklist become the two things always on screen, and
+everything else is edited where it lives: a modal for the room, for a product,
+for a placement, for a walkway. Nothing new can be answered afterwards — this is
+the step that stops the answers being buried.
+
+It comes after 13 and not before, because 11, 12, and 13 each add something that
+has to be edited, and a shell designed before them would be rebuilt three times.
+It comes before the perspective view, because that view needs room on the screen
+too, and building it into a cramped page is worse than fixing the page first.
+
+The rule that governs it: every modal is reachable, escapable, and returns focus
+where it came from, and every value in one is still editable as a number. The
+canvas is not the only way in, and neither is the mouse.
+
+Done when: a room can be measured, furnished, arranged, checked, and priced
+without leaving one screen — and the whole of that can be done from the
+keyboard.
+
 ---
 
 ## Fidelity
 
 Nothing here changes an answer. It changes how easy the answer is to believe.
 
-### 14. Add a perspective view
+### 15. Add a perspective view
 
 React Three Fiber, Three.js, and Drei arrive here. The same data, seen from
 inside the room, with furniture as correctly sized boxes and the openings from
@@ -278,7 +309,7 @@ The plan view stays fully capable. Neither view is the only way in.
 Done when: the room can be walked around, and every box measures what its
 product says it measures.
 
-### 15. Move toward photorealism
+### 16. Move toward photorealism
 
 The long goal, gated behind a working tool, and taken in stages so each one can
 be judged on its own:

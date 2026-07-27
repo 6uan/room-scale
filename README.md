@@ -51,7 +51,7 @@ about the furniture instead of the measurements.
 
 ## Where it is now
 
-**Roadmap steps 1–10 of 15 are done.** What works today:
+**Roadmap steps 1–10 of 16 are done.** What works today:
 
 - A rectangular room, measured in either unit, with its doors, windows, and open
   passages, drawn to scale in plan at `/plan`.
@@ -66,8 +66,8 @@ about the furniture instead of the measurements.
 - Everything saved in your browser, and nothing sent anywhere.
 
 Still to come, in this order: protected walkways and blocked doorways (step 11),
-comparing layouts (12), JSON and CSV export (13), the perspective view (14), and
-photorealism (15).
+comparing layouts (12), JSON and CSV export (13), editing the whole project on
+one screen (14), the perspective view (15), and photorealism (16).
 
 [ROADMAP.md](ROADMAP.md) is a strict sequence, not a backlog. Steps 4 to 10 are
 the tool's whole reason for existing: what fits, and what it costs. Everything
