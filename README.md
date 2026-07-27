@@ -67,12 +67,12 @@ about the furniture instead of the measurements.
 - Protected walkways: routes that must stay clear, each with a width you need
   and a width you would rather have, reported with what is left and by how much
   it falls short. The rules are live; the form for drawing one is written but
-  not yet on the page, and arrives with the interface pass in step 15.
+  not yet on the page, and arrives with the workspace in step 13.
 - Everything saved in your browser, and nothing sent anywhere.
 
-Still to come, in this order: comparing layouts (13), JSON and CSV export (14), editing the whole project
-on one screen (15), the doorway and clearance checks (16), the perspective view
-(17), and photorealism (18).
+Still to come, in this order: **one workspace instead of a page of forms**
+(step 13), comparing layouts (14), JSON and CSV export (15), the doorway and
+clearance checks (16), the perspective view (17), and photorealism (18).
 
 [ROADMAP.md](ROADMAP.md) is a strict sequence, not a backlog. Steps 4 to 10 are
 the tool's whole reason for existing: what fits, and what it costs. Everything
