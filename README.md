@@ -11,12 +11,14 @@ Dimensional correctness comes before photorealism here. A sofa that renders
 beautifully but blocks the hallway is a wrong answer. Photorealism is wanted,
 and it is the last step rather than an abandoned one.
 
-> **Status: roadmap steps 1–5 of 15 complete.** A rectangular room can be
+> **Status: roadmap steps 1–7 of 15 complete.** A rectangular room can be
 > measured, given its doors, windows, and passages, and seen to scale in plan at
 > `/plan`. Furniture can be entered at its exact product dimensions, with price,
-> retailer, and link, at `/furniture`. Step 6 — filling a product in from its page
-> instead of typing it — is next. Steps 4 to 10 are the tool's whole reason
-> for existing: what fits, and what it costs.
+> retailer, and link, at `/furniture`, filled in from a pasted product page.
+> Furniture can be placed in the room at its true footprint, and everything is
+> saved to IndexedDB. Step 8 — moving and rotating what you placed — is next.
+> Steps 4 to 10 are the tool's whole reason for existing: what fits, and what
+> it costs.
 > [ROADMAP.md](ROADMAP.md) is a strict sequence, not a backlog.
 
 ## What it will do

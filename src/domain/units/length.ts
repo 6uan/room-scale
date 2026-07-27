@@ -115,6 +115,19 @@ export function formatLength(meters: number, unit: DisplayUnit): string {
   if (unit === "metric") {
     return `${centimetersFromMeters(meters).toFixed(1)} cm`;
   }
+
   const { feet, inches } = feetAndInchesFromMeters(meters);
-  return `${feet}' ${inches.toFixed(1)}"`;
+  const negative = feet < 0 || inches < 0;
+  let wholeFeet = Math.abs(feet);
+  let displayInches = Number(Math.abs(inches).toFixed(1));
+
+  // Rounding to a tenth can reach a whole foot. Eight feet typed as 96 inches
+  // comes back out of meters as 95.9999…, which would otherwise print as
+  // 7' 12.0" — a length nobody writes and no tape measure shows.
+  if (displayInches >= INCHES_PER_FOOT) {
+    displayInches -= INCHES_PER_FOOT;
+    wholeFeet += 1;
+  }
+
+  return `${negative ? "-" : ""}${wholeFeet}' ${displayInches.toFixed(1)}"`;
 }

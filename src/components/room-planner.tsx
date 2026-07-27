@@ -2,7 +2,9 @@
 
 import { RoomDimensionsForm } from "@/components/room-dimensions-form";
 import { RoomOpeningsForm } from "@/components/room-openings-form";
+import { RoomFurniturePanel } from "@/components/room-furniture-panel";
 import { RoomPlanCanvas } from "@/components/room-plan-canvas";
+import { placedFurniture } from "@/domain/furniture";
 import { nextId } from "@/domain/project";
 import {
   createOpening,
@@ -25,8 +27,13 @@ import { useProjectStore } from "@/state/project-store";
 export function RoomPlanner() {
   const room = useProjectStore((state) => state.project.room);
   const unit = useProjectStore((state) => state.project.displayUnit);
+  const products = useProjectStore((state) => state.project.products);
+  const instances = useProjectStore((state) => state.project.instances);
   const setRoom = useProjectStore((state) => state.setRoom);
   const setUnit = useProjectStore((state) => state.setDisplayUnit);
+  const setInstances = useProjectStore((state) => state.setInstances);
+
+  const furniture = placedFurniture(instances, products);
 
   function addOpening(kind: OpeningKind): void {
     // Derived from what is already there rather than from a counter, because
@@ -60,6 +67,20 @@ export function RoomPlanner() {
           />
         </section>
 
+        <section aria-labelledby="furniture" className="flex flex-col gap-5">
+          <h2 id="furniture" className="text-xl font-semibold tracking-tight">
+            Furniture
+          </h2>
+          <RoomFurniturePanel
+            room={room}
+            products={products}
+            instances={instances}
+            furniture={furniture}
+            unit={unit}
+            onInstancesChange={setInstances}
+          />
+        </section>
+
         <section aria-labelledby="openings" className="flex flex-col gap-5">
           <h2 id="openings" className="text-xl font-semibold tracking-tight">
             Openings
@@ -80,7 +101,7 @@ export function RoomPlanner() {
         <h2 id="plan" className="text-xl font-semibold tracking-tight">
           Plan
         </h2>
-        <RoomPlanCanvas room={room} unit={unit} />
+        <RoomPlanCanvas room={room} furniture={furniture} unit={unit} />
         <RoomSummary room={room} unit={unit} />
       </section>
     </div>

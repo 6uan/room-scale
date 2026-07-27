@@ -54,6 +54,19 @@ describe("length conversions", () => {
     expect(formatLength(1.0668, "metric")).toBe("106.7 cm");
     expect(formatLength(1.0668, "imperial")).toBe(`3' 6.0"`);
   });
+
+  it("carries a rounded-up inch into the feet", () => {
+    // 96 inches comes back out of meters as 95.9999…, which rounds to 12.0
+    // inches. Eight feet is not written 7' 12.0".
+    expect(formatLength(metersFromInches(96), "imperial")).toBe(`8' 0.0"`);
+    expect(formatLength(metersFromInches(24), "imperial")).toBe(`2' 0.0"`);
+    // Just under the carry, so it stays where it is.
+    expect(formatLength(metersFromInches(95.9), "imperial")).toBe(`7' 11.9"`);
+  });
+
+  it("signs a negative length once, not on both parts", () => {
+    expect(formatLength(-metersFromInches(18), "imperial")).toBe(`-1' 6.0"`);
+  });
 });
 
 describe("checkLength", () => {

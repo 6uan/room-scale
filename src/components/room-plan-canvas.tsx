@@ -9,6 +9,7 @@ import {
   type PixelPoint,
   type PixelSize,
 } from "@/domain/geometry";
+import type { PlacedFurniture } from "@/domain/furniture";
 import {
   checkOpening,
   openingEndpoints,
@@ -40,9 +41,12 @@ const SYMBOL_ALPHA = 0.55;
 const SWING_ALPHA = 0.28;
 const DIMENSION_ALPHA = 0.4;
 const LABEL_ALPHA = 0.75;
+const FURNITURE_FILL_ALPHA = 0.22;
+const FURNITURE_EDGE_ALPHA = 0.7;
 
 export type RoomPlanCanvasProps = {
   room: Room;
+  furniture: readonly PlacedFurniture[];
   unit: DisplayUnit;
 };
 
@@ -53,7 +57,7 @@ export type RoomPlanCanvasProps = {
  * numbers beside it stay authoritative, and this element carries a text
  * description for anyone who cannot see the drawing.
  */
-export function RoomPlanCanvas({ room, unit }: RoomPlanCanvasProps) {
+export function RoomPlanCanvas({ room, furniture, unit }: RoomPlanCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const { ref: frameRef, size } = useElementSize<HTMLDivElement>();
 
@@ -79,12 +83,13 @@ export function RoomPlanCanvas({ room, unit }: RoomPlanCanvasProps) {
     const style = window.getComputedStyle(canvas);
     drawPlan(context, {
       room,
+      furniture,
       unit,
       viewport: size,
       color: style.color,
       fontFamily: style.fontFamily,
     });
-  }, [room, unit, size]);
+  }, [room, furniture, unit, size]);
 
   return (
     <div
@@ -94,7 +99,7 @@ export function RoomPlanCanvas({ room, unit }: RoomPlanCanvasProps) {
       <canvas
         ref={canvasRef}
         role="img"
-        aria-label={describeRoom(room, unit)}
+        aria-label={describeRoom(room, furniture, unit)}
         className="block h-full w-full"
       />
     </div>
@@ -102,7 +107,11 @@ export function RoomPlanCanvas({ room, unit }: RoomPlanCanvasProps) {
 }
 
 /** The same information as the drawing, for assistive technology. */
-function describeRoom(room: Room, unit: DisplayUnit): string {
+function describeRoom(
+  room: Room,
+  furniture: readonly PlacedFurniture[],
+  unit: DisplayUnit,
+): string {
   const shell =
     `Plan view of a rectangular room, ` +
     `${formatLength(room.widthMeters, unit)} wide by ` +
@@ -121,11 +130,29 @@ function describeRoom(room: Room, unit: DisplayUnit): string {
     )
     .join("; ");
 
-  return `${shell} ${room.openings.length} opening${room.openings.length === 1 ? "" : "s"}: ${openings}.`;
+  return `${shell} ${room.openings.length} opening${room.openings.length === 1 ? "" : "s"}: ${openings}. ${describeFurniture(furniture, unit)}`;
+}
+
+function describeFurniture(
+  furniture: readonly PlacedFurniture[],
+  unit: DisplayUnit,
+): string {
+  if (furniture.length === 0) {
+    return "Nothing placed in it yet.";
+  }
+  const pieces = furniture
+    .map(
+      ({ product }) =>
+        `${product.name}, ${formatLength(product.footprint.widthMeters, unit)} by ` +
+        `${formatLength(product.footprint.depthMeters, unit)}`,
+    )
+    .join("; ");
+  return `${furniture.length} ${furniture.length === 1 ? "piece" : "pieces"} placed: ${pieces}.`;
 }
 
 type DrawOptions = {
   room: Room;
+  furniture: readonly PlacedFurniture[];
   unit: DisplayUnit;
   viewport: PixelSize;
   color: string;
@@ -141,7 +168,7 @@ type PlanFrame = {
 
 function drawPlan(
   context: CanvasRenderingContext2D,
-  { room, unit, viewport, color, fontFamily }: DrawOptions,
+  { room, furniture, unit, viewport, color, fontFamily }: DrawOptions,
 ): void {
   context.clearRect(0, 0, viewport.width, viewport.height);
 
@@ -208,6 +235,10 @@ function drawPlan(
     drawOpeningSymbol(context, frame, room, opening);
   }
 
+  for (const placed of furniture) {
+    drawFurniture(context, frame, placed);
+  }
+
   drawDimensions(context, {
     room,
     unit,
@@ -218,6 +249,56 @@ function drawPlan(
     floorDepth,
     wallPixels: frame.wallPixels,
   });
+}
+
+/**
+ * A placed piece, at its true footprint.
+ *
+ * Drawn as the rectangle the product actually occupies, rotated about its own
+ * center — which is where the instance's position is. A prettier shape later
+ * still has to sit inside exactly this rectangle, because this is what the
+ * validation measures.
+ */
+function drawFurniture(
+  context: CanvasRenderingContext2D,
+  frame: PlanFrame,
+  { instance, product }: PlacedFurniture,
+): void {
+  const center = frame.toPixels(instance.position);
+  const width = frame.toPixels({
+    xMeters: product.footprint.widthMeters,
+    zMeters: 0,
+  }).x;
+  const origin = frame.toPixels({ xMeters: 0, zMeters: 0 }).x;
+  const widthPixels = width - origin;
+  const depthPixels =
+    frame.toPixels({ xMeters: 0, zMeters: product.footprint.depthMeters }).y -
+    frame.toPixels({ xMeters: 0, zMeters: 0 }).y;
+
+  context.save();
+  context.translate(center.x, center.y);
+  context.rotate(instance.rotationRadians);
+
+  context.globalAlpha = FURNITURE_FILL_ALPHA;
+  context.fillStyle = frame.color;
+  context.fillRect(
+    -widthPixels / 2,
+    -depthPixels / 2,
+    widthPixels,
+    depthPixels,
+  );
+
+  context.globalAlpha = FURNITURE_EDGE_ALPHA;
+  context.strokeStyle = frame.color;
+  context.lineWidth = 1.5;
+  context.strokeRect(
+    -widthPixels / 2,
+    -depthPixels / 2,
+    widthPixels,
+    depthPixels,
+  );
+
+  context.restore();
 }
 
 /** A one-meter grid, so the drawing reads as a measurement and not a sketch. */

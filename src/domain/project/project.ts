@@ -10,13 +10,15 @@
  * off this, which is why the shape is a document rather than loose fields.
  */
 
-import type { FurnitureProduct } from "@/domain/furniture";
+import type { FurnitureInstance, FurnitureProduct } from "@/domain/furniture";
 import { DEFAULT_ROOM, type Room } from "@/domain/room";
 import type { DisplayUnit } from "@/domain/units";
 
 export type Project = {
   readonly room: Room;
   readonly products: readonly FurnitureProduct[];
+  /** Copies of those products, standing in the room. */
+  readonly instances: readonly FurnitureInstance[];
   /** A reading preference, not a measurement. Everything stored is meters. */
   readonly displayUnit: DisplayUnit;
 };
@@ -26,6 +28,7 @@ export function createProject(): Project {
   return {
     room: DEFAULT_ROOM,
     products: [],
+    instances: [],
     displayUnit: "imperial",
   };
 }
@@ -39,6 +42,13 @@ export function withProducts(
   products: readonly FurnitureProduct[],
 ): Project {
   return { ...project, products };
+}
+
+export function withInstances(
+  project: Project,
+  instances: readonly FurnitureInstance[],
+): Project {
+  return { ...project, instances };
 }
 
 export function withDisplayUnit(

@@ -8,10 +8,11 @@
  */
 
 import { create } from "zustand";
-import type { FurnitureProduct } from "@/domain/furniture";
+import type { FurnitureInstance, FurnitureProduct } from "@/domain/furniture";
 import {
   createProject,
   withDisplayUnit,
+  withInstances,
   withProducts,
   withRoom,
   type Project,
@@ -34,6 +35,7 @@ export type ProjectState = {
   setStatus: (status: ProjectStatus) => void;
   setRoom: (room: Room) => void;
   setProducts: (products: readonly FurnitureProduct[]) => void;
+  setInstances: (instances: readonly FurnitureInstance[]) => void;
   setDisplayUnit: (unit: DisplayUnit) => void;
 };
 
@@ -46,6 +48,8 @@ export const useProjectStore = create<ProjectState>((set) => ({
     set((state) => ({ project: withRoom(state.project, room) })),
   setProducts: (products) =>
     set((state) => ({ project: withProducts(state.project, products) })),
+  setInstances: (instances) =>
+    set((state) => ({ project: withInstances(state.project, instances) })),
   setDisplayUnit: (unit) =>
     set((state) => ({ project: withDisplayUnit(state.project, unit) })),
 }));
