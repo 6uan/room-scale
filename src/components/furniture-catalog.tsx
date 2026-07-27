@@ -5,30 +5,35 @@ import { ProductForm } from "@/components/product-form";
 import { ProductList } from "@/components/product-list";
 import { UnitToggle } from "@/components/unit-toggle";
 import { createProduct, type FurnitureProduct } from "@/domain/furniture";
-import { formatCents, sumCents, type DisplayUnit } from "@/domain/units";
+import { nextId } from "@/domain/project";
+import { formatCents, sumCents } from "@/domain/units";
+import { useProjectStore } from "@/state/project-store";
 
 /**
  * The catalogue: everything under consideration, with what it costs and where
  * it came from.
  *
- * State lives here as plain serializable data. Saving it arrives at the next
- * roadmap step, and placing any of it in the room at the one after.
+ * The products come from the project store, so they are saved and shared with
+ * the room view. Placing any of them in the room is the step after next.
  */
 export function FurnitureCatalog() {
-  const [products, setProducts] = useState<readonly FurnitureProduct[]>([]);
-  const [unit, setUnit] = useState<DisplayUnit>("imperial");
+  const products = useProjectStore((state) => state.project.products);
+  const unit = useProjectStore((state) => state.project.displayUnit);
+  const setProducts = useProjectStore((state) => state.setProducts);
+  const setUnit = useProjectStore((state) => state.setDisplayUnit);
   const [editing, setEditing] = useState<FurnitureProduct | null>(null);
-  // A counter rather than a random id: this has to work over plain HTTP, where
-  // `crypto.randomUUID` is unavailable, and it keeps the tests deterministic.
-  // Held as state rather than a ref because the blank form's key derives from
-  // it, and a ref read during render is not a thing React guarantees.
-  const [nextProductNumber, setNextProductNumber] = useState(1);
-  const blankId = `product-${nextProductNumber}`;
+
+  // Derived from the products already saved, so a reload cannot hand a new
+  // product the id of an existing one.
+  const blankId = nextId(
+    "product",
+    products.map((product) => product.id),
+  );
 
   function addProduct(product: FurnitureProduct): void {
+    // Adding changes the derived blank id, which changes the form's key, which
+    // resets it to blank.
     setProducts([...products, product]);
-    // Advancing the number changes the form's key, which resets it to blank.
-    setNextProductNumber(nextProductNumber + 1);
   }
 
   function saveEdit(product: FurnitureProduct): void {

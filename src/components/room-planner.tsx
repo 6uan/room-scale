@@ -1,11 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
 import { RoomDimensionsForm } from "@/components/room-dimensions-form";
 import { RoomOpeningsForm } from "@/components/room-openings-form";
 import { RoomPlanCanvas } from "@/components/room-plan-canvas";
+import { nextId } from "@/domain/project";
 import {
-  DEFAULT_ROOM,
   createOpening,
   roomFloorAreaSquareMeters,
   withOpenings,
@@ -14,23 +13,28 @@ import {
   type Room,
 } from "@/domain/room";
 import { formatArea, formatLength, type DisplayUnit } from "@/domain/units";
+import { useProjectStore } from "@/state/project-store";
 
 /**
  * The room editor: numbers on one side, plan view on the other, one `Room` in
  * meters behind both.
  *
- * State lives here as plain serializable data. A store and persistence arrive
- * at the roadmap steps that call for them.
+ * The room comes from the project store, so this and the furniture catalogue
+ * are two views of one saved project rather than two islands.
  */
 export function RoomPlanner() {
-  const [room, setRoom] = useState<Room>(DEFAULT_ROOM);
-  const [unit, setUnit] = useState<DisplayUnit>("imperial");
-  // A counter rather than a random id: this has to work over plain HTTP, where
-  // `crypto.randomUUID` is unavailable, and it keeps the tests deterministic.
-  const nextOpeningNumber = useRef(1);
+  const room = useProjectStore((state) => state.project.room);
+  const unit = useProjectStore((state) => state.project.displayUnit);
+  const setRoom = useProjectStore((state) => state.setRoom);
+  const setUnit = useProjectStore((state) => state.setDisplayUnit);
 
   function addOpening(kind: OpeningKind): void {
-    const id = `opening-${nextOpeningNumber.current++}`;
+    // Derived from what is already there rather than from a counter, because
+    // ids now outlive the page and a counter would restart at one.
+    const id = nextId(
+      "opening",
+      room.openings.map((opening) => opening.id),
+    );
     setRoom(
       withOpenings(room, [...room.openings, createOpening(kind, id, room)]),
     );

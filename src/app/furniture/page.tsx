@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ProjectGate } from "@/components/project-gate";
 import { FurnitureCatalog } from "@/components/furniture-catalog";
 
 export const metadata: Metadata = {
@@ -28,7 +29,9 @@ export default function FurniturePage() {
         </p>
       </header>
 
-      <FurnitureCatalog />
+      <ProjectGate>
+        <FurnitureCatalog />
+      </ProjectGate>
     </main>
   );
 }

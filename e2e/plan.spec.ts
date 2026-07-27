@@ -79,3 +79,40 @@ test.describe("room plan", () => {
     );
   });
 });
+
+test.describe("saved projects", () => {
+  test("keeps the room and the furniture across a reload", async ({ page }) => {
+    await page.goto("/plan");
+    await dimensions(page).getByLabel("Width").fill("120");
+
+    await page.goto("/furniture");
+    await page.getByLabel("Name").fill("Olive tree");
+    await page.getByLabel("Price").fill("129.00");
+    await page.getByRole("button", { name: "Add product" }).click();
+
+    // Scoped to the table: the running total shows the same figure.
+    const olive = page.getByRole("row", { name: /Olive tree/ });
+    await expect(olive).toBeVisible();
+
+    await page.reload();
+
+    // Entered on one page, still there after reloading the other.
+    await expect(page.getByRole("row", { name: /Olive tree/ })).toBeVisible();
+    await page.goto("/plan");
+    await expect(dimensions(page).getByLabel("Width")).toHaveValue("120");
+  });
+
+  test("shares the display unit between both pages", async ({ page }) => {
+    await page.goto("/furniture");
+    await page.getByLabel("Centimeters").check();
+
+    // A write is issued straight away, but it is asynchronous, and Playwright
+    // can navigate within a millisecond or two of the click — faster than a
+    // person could. The pause stands in for human latency rather than papering
+    // over a wait the application needs.
+    await page.waitForTimeout(250);
+
+    await page.goto("/plan");
+    await expect(page.getByLabel("Centimeters")).toBeChecked();
+  });
+});

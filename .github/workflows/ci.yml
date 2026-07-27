@@ -3,8 +3,10 @@ name: CI
 on:
   push:
     branches: [main]
+  # Every pull request, whatever it targets. Filtering to `main` meant a pull
+  # request stacked on another branch got no checks at all, which is exactly
+  # when they are most wanted.
   pull_request:
-    branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
