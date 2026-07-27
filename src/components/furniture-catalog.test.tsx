@@ -204,3 +204,101 @@ describe("FurnitureCatalog", () => {
     expect(row(/Rug/).getByText(/243\.8 cm × 152\.4 cm/)).toBeInTheDocument();
   });
 });
+
+describe("filling a product in from a pasted page", () => {
+  /** Shaped like the Amazon sectional page as a person would paste it. */
+  const PASTED = [
+    "Skip to main content",
+    "Belffin Modular Sectional Sleeper Sofa Bed with Storage Chaise",
+    "$949.99",
+    "Item Dimensions 52.8 x 125.8 x 36.4 inches",
+  ].join("\n");
+
+  async function paste(
+    user: ReturnType<typeof userEvent.setup>,
+    text: string,
+  ): Promise<void> {
+    await user.click(screen.getByText("Paste from a product page"));
+    await user.click(screen.getByRole("textbox", { name: /select all of it/ }));
+    await user.paste(text);
+    await user.click(screen.getByRole("button", { name: "Fill the form" }));
+  }
+
+  it("fills the form from the page, leaving it to be checked and saved", async () => {
+    const user = userEvent.setup();
+    render(<FurnitureCatalog />);
+
+    await paste(user, PASTED);
+
+    const form = within(screen.getByRole("region", { name: /Add a product/ }));
+    expect(form.getByLabelText("Name")).toHaveValue(
+      "Belffin Modular Sectional Sleeper Sofa Bed with Storage Chaise",
+    );
+    expect(form.getByLabelText("Price")).toHaveValue("949.99");
+    expect(form.getByLabelText("Height")).toHaveValue(36.4);
+    // Nothing is saved until the form is submitted as normal.
+    expect(catalogue().getByText(/Nothing yet/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Add product" }));
+    expect(row(/Belffin/).getByText("$949.99")).toBeInTheDocument();
+  });
+
+  it("says where each value came from", async () => {
+    const user = userEvent.setup();
+    render(<FurnitureCatalog />);
+
+    await paste(user, PASTED);
+
+    const report = within(screen.getByRole("status"));
+    expect(screen.getByRole("status")).toHaveTextContent("Read 5 values");
+    // Twice over for the price: once as the value, once as the text it came
+    // from, which for a price are the same characters.
+    expect(report.getAllByText("$949.99")).toHaveLength(2);
+    // The three sizes all point back at the one line they were read from.
+    expect(report.getAllByText("52.8 x 125.8 x 36.4 inches")).toHaveLength(3);
+  });
+
+  it("warns when the page never said which size was which", async () => {
+    const user = userEvent.setup();
+    render(<FurnitureCatalog />);
+
+    await paste(user, PASTED);
+
+    expect(
+      screen.getByText(/listed three sizes without saying which was which/),
+    ).toBeInTheDocument();
+  });
+
+  it("stays quiet about the order when the page labelled its axes", async () => {
+    const user = userEvent.setup();
+    render(<FurnitureCatalog />);
+
+    await paste(
+      user,
+      ['AMERLIFE 70" Modern TV Stand', '70"W x 15.7"D x 20.5"H'].join("\n"),
+    );
+
+    const form = within(screen.getByRole("region", { name: /Add a product/ }));
+    expect(form.getByLabelText("Width")).toHaveValue(70);
+    expect(form.getByLabelText("Depth")).toHaveValue(15.7);
+    expect(
+      screen.queryByText(/without saying which was which/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("says so rather than inventing anything when it can read nothing", async () => {
+    const user = userEvent.setup();
+    render(<FurnitureCatalog />);
+
+    await paste(user, "$$$ ??? ---");
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      /Nothing could be read/,
+    );
+    expect(
+      within(
+        screen.getByRole("region", { name: /Add a product/ }),
+      ).getByLabelText("Name"),
+    ).toHaveValue("");
+  });
+});

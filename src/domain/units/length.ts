@@ -10,6 +10,7 @@
 const METERS_PER_INCH = 0.0254;
 const INCHES_PER_FOOT = 12;
 const METERS_PER_CENTIMETER = 0.01;
+const METERS_PER_MILLIMETER = 0.001;
 
 /** The unit a person reads, kept separately from the stored value. */
 export type DisplayUnit = "metric" | "imperial";
@@ -49,6 +50,10 @@ export function inchesFromMeters(meters: number): number {
 
 export function metersFromCentimeters(centimeters: number): number {
   return centimeters * METERS_PER_CENTIMETER;
+}
+
+export function metersFromMillimeters(millimeters: number): number {
+  return millimeters * METERS_PER_MILLIMETER;
 }
 
 export function centimetersFromMeters(meters: number): number {
