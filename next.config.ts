@@ -14,7 +14,17 @@ const devOrigins =
     .map((origin) => origin.trim())
     .filter(Boolean) ?? [];
 
+/**
+ * The end-to-end build writes somewhere else.
+ *
+ * Playwright builds and serves the app while a dev server is usually already
+ * running, and both default to `.next`. Sharing it leaves the dev server
+ * serving half a build — three times so far.
+ */
+const distDir = process.env.E2E === "1" ? ".next-e2e" : ".next";
+
 const nextConfig: NextConfig = {
+  distDir,
   ...(devOrigins.length > 0 ? { allowedDevOrigins: devOrigins } : {}),
 };
 

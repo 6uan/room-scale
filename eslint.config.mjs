@@ -50,6 +50,8 @@ const eslintConfig = defineConfig([
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",
+    // The end-to-end build, which writes here so it cannot clobber the dev one.
+    ".next-e2e/**",
     "out/**",
     "build/**",
     "next-env.d.ts",

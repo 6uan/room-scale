@@ -6,3 +6,4 @@ test-results
 pnpm-lock.yaml
 next-env.d.ts
 public
+.next-e2e

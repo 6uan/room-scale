@@ -2,9 +2,9 @@
 
 import { NumberField } from "@/components/number-field";
 import { ProductForm } from "@/components/product-form";
-import { RoomFields } from "@/components/floor-rooms-form";
-import { PlacementFields } from "@/components/room-furniture-panel";
-import { WalkwayFields } from "@/components/room-walkways-form";
+import { RoomFields } from "@/components/room-fields";
+import { PlacementFields } from "@/components/placement-fields";
+import { WalkwayFields } from "@/components/walkway-fields";
 import { UnitToggle } from "@/components/unit-toggle";
 import type { Selection } from "@/components/selection";
 import {

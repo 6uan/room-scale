@@ -47,7 +47,7 @@ export function CataloguePanel({
           onClick={() => onSelect({ kind: "new-product" })}
           className="rounded px-1.5 py-0.5 text-xs opacity-60 hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10"
         >
-          Add product
+          New product
         </button>
       </div>
 

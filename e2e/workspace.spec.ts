@@ -1,0 +1,274 @@
+import { expect, test, type Page } from "@playwright/test";
+
+function contents(page: Page) {
+  return page.getByRole("complementary", { name: "Contents" });
+}
+
+function details(page: Page) {
+  return page.getByRole("complementary", { name: "Details" });
+}
+
+function plan(page: Page) {
+  return page.getByRole("main", { name: "Plan" });
+}
+
+function planImage(page: Page) {
+  return page.getByRole("img", { name: /^Plan view/ });
+}
+
+/** Enters a product through the inspector, the way the workspace does it. */
+async function addProduct(
+  page: Page,
+  fields: { name: string; width: string; depth: string; price?: string },
+) {
+  await contents(page).getByRole("button", { name: "New product" }).click();
+  const form = details(page);
+  await form.getByLabel("Name").fill(fields.name);
+  await form.getByLabel("Width").fill(fields.width);
+  await form.getByLabel("Depth").fill(fields.depth);
+  if (fields.price !== undefined) {
+    await form.getByLabel("Price").fill(fields.price);
+  }
+  await form.getByRole("button", { name: "Add product" }).click();
+  // The Place button, specifically: the row also carries a button that opens
+  // the product for editing, and both are named after it.
+  await expect(
+    contents(page).getByRole("button", {
+      name: `Place ${fields.name} in the room`,
+    }),
+  ).toBeVisible();
+}
+
+test.describe("the workspace", () => {
+  test("opens on three panels and the apartment it starts with", async ({
+    page,
+  }) => {
+    await page.goto("/");
+
+    await expect(
+      contents(page).getByRole("button", { name: "Living room" }),
+    ).toBeVisible();
+    await expect(planImage(page)).toBeVisible();
+    // Nothing selected: the panel on the right is the apartment itself.
+    await expect(
+      details(page).getByRole("region", { name: "Apartment" }),
+    ).toBeVisible();
+  });
+
+  test("selects a room from the list and edits it on the right", async ({
+    page,
+  }) => {
+    await page.goto("/");
+
+    await contents(page).getByRole("button", { name: "Living room" }).click();
+
+    const inspector = details(page).getByRole("region", {
+      name: "Living room",
+    });
+    await expect(inspector).toBeVisible();
+    await inspector.getByLabel("Living room width").fill("120");
+
+    await expect(planImage(page)).toHaveAccessibleName(/10' 0\.0" wide/);
+  });
+
+  test("adds a room, and it appears in the list and the plan", async ({
+    page,
+  }) => {
+    await page.goto("/");
+
+    await contents(page).getByRole("button", { name: "Add room" }).click();
+
+    await expect(
+      contents(page).getByRole("button", { name: "Room 2" }),
+    ).toBeVisible();
+    await expect(planImage(page)).toHaveAccessibleName(/holding 2 rooms/);
+    // Added means selected, so it can be sized straight away.
+    await expect(
+      details(page).getByRole("region", { name: "Room 2" }),
+    ).toBeVisible();
+  });
+
+  test("enters a product and places it in the room", async ({ page }) => {
+    await page.goto("/");
+    await addProduct(page, { name: "Rug", width: "96", depth: "60" });
+
+    await contents(page)
+      .getByRole("button", { name: "Place Rug in the room" })
+      .click();
+
+    await expect(planImage(page)).toHaveAccessibleName(/1 piece placed: Rug/);
+    // Placed means selected, and the inspector is now that piece.
+    await expect(
+      details(page).getByRole("region", { name: "Rug" }),
+    ).toBeVisible();
+  });
+
+  test("moves a placed piece by typing, and the plan follows", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await addProduct(page, { name: "Rug", width: "96", depth: "60" });
+    await contents(page)
+      .getByRole("button", { name: "Place Rug in the room" })
+      .click();
+
+    await details(page).getByLabel("From west").fill("24");
+
+    await expect(planImage(page)).toHaveAccessibleName(
+      /2' 0\.0" from the west wall/,
+    );
+  });
+
+  test("reports what does not fit, under the plan", async ({ page }) => {
+    await page.goto("/");
+    await addProduct(page, { name: "Sectional", width: "94.5", depth: "63" });
+    await contents(page)
+      .getByRole("button", { name: "Place Sectional in the room" })
+      .click();
+
+    await details(page).getByLabel("From west").fill("12");
+
+    await expect(
+      plan(page).getByText(
+        /Sectional crosses the west wall of the Living room/,
+      ),
+    ).toBeVisible();
+  });
+
+  test("adds a route and reports what narrows it", async ({ page }) => {
+    await page.goto("/");
+    await addProduct(page, { name: "Sectional", width: "94.5", depth: "63" });
+    await contents(page)
+      .getByRole("button", { name: "Place Sectional in the room" })
+      .click();
+
+    await contents(page).getByRole("button", { name: "Add route" }).click();
+
+    await expect(plan(page).getByText(/is down to/)).toBeVisible();
+    await expect(
+      details(page).getByRole("region", { name: "Route" }),
+    ).toBeVisible();
+  });
+
+  test("keeps everything across a reload", async ({ page }) => {
+    await page.goto("/");
+    await addProduct(page, {
+      name: "Olive tree",
+      width: "24",
+      depth: "24",
+      price: "129.00",
+    });
+    await contents(page)
+      .getByRole("button", { name: "Place Olive tree in the room" })
+      .click();
+    await page.waitForTimeout(500);
+
+    await page.reload();
+
+    await expect(planImage(page)).toHaveAccessibleName(/1 piece placed/);
+    await expect(
+      contents(page)
+        .getByRole("button", { name: /Olive tree/ })
+        .first(),
+    ).toBeVisible();
+  });
+});
+
+test.describe("the plan as a canvas", () => {
+  async function planCentre(page: Page) {
+    const box = await planImage(page).boundingBox();
+    if (box === null) {
+      throw new Error("the plan has no box to point at");
+    }
+    return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  }
+
+  async function placeRug(page: Page) {
+    await page.goto("/");
+    await addProduct(page, { name: "Rug", width: "96", depth: "60" });
+    await contents(page)
+      .getByRole("button", { name: "Place Rug in the room" })
+      .click();
+    await expect(
+      details(page).getByRole("region", { name: "Rug" }),
+    ).toBeVisible();
+  }
+
+  test("drags a piece across the plan", async ({ page }) => {
+    await placeRug(page);
+    const centre = await planCentre(page);
+    const before = await details(page).getByLabel("From west").inputValue();
+
+    await page.mouse.move(centre.x, centre.y);
+    await page.mouse.down();
+    await page.mouse.move(centre.x + 60, centre.y, { steps: 10 });
+    await page.mouse.up();
+
+    expect(
+      Number(await details(page).getByLabel("From west").inputValue()),
+    ).toBeGreaterThan(Number(before));
+  });
+
+  test("zooms toward the pointer without moving the furniture", async ({
+    page,
+  }) => {
+    await placeRug(page);
+    const centre = await planCentre(page);
+    const before = await details(page).getByLabel("From west").inputValue();
+
+    await page.mouse.move(centre.x, centre.y);
+    await page.keyboard.down("Control");
+    await page.mouse.wheel(0, -400);
+    await page.keyboard.up("Control");
+
+    await expect(details(page).getByLabel("From west")).toHaveValue(before);
+    // Anchored at the pointer, so the rug is still under the middle.
+    await page.mouse.click(centre.x, centre.y);
+    await expect(
+      details(page).getByRole("region", { name: "Rug" }),
+    ).toBeVisible();
+  });
+
+  test("pans on a plain scroll, and comes back with the fit key", async ({
+    page,
+  }) => {
+    await placeRug(page);
+    const centre = await planCentre(page);
+
+    await page.mouse.move(centre.x, centre.y);
+    await page.mouse.wheel(0, 200);
+
+    // The drawing moved up with the scroll, so the rug is 200 pixels higher.
+    await page.mouse.click(centre.x, centre.y - 200);
+    await expect(
+      details(page).getByRole("region", { name: "Rug" }),
+    ).toBeVisible();
+
+    await planImage(page).focus();
+    await page.keyboard.press("0");
+    await page.mouse.click(centre.x, centre.y);
+    await expect(
+      details(page).getByRole("region", { name: "Rug" }),
+    ).toBeVisible();
+  });
+});
+
+test.describe("the routes it keeps", () => {
+  test("sends the old pages to where their work moved", async ({ page }) => {
+    for (const [from, heading] of [
+      ["/plan", "RoomScale"],
+      ["/furniture", "RoomScale"],
+      ["/checklist", "The list"],
+    ] as const) {
+      await page.goto(from);
+      await expect(
+        page.getByRole("heading", { level: 1, name: heading }),
+      ).toBeVisible();
+    }
+  });
+
+  test("has a document title", async ({ page }) => {
+    await page.goto("/");
+    await expect(page).toHaveTitle(/RoomScale/);
+  });
+});
