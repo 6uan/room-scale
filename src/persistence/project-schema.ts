@@ -21,8 +21,9 @@ import type { Project } from "@/domain/project";
  *
  * 1. Room, products, and the display-unit preference.
  * 2. Added `instances` — copies of products placed in the room.
+ * 3. Added `room.walkways` — routes that have to stay clear.
  */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 /** Meters, cents, and the rest are all plain finite numbers on the way in. */
 const finiteNumber = z
@@ -51,12 +52,22 @@ const openingSchema = z.discriminatedUnion("kind", [
   z.object({ ...openingFields, kind: z.literal("passage") }),
 ]);
 
+const walkwaySchema = z.object({
+  id: z.string().min(1),
+  name: z.string(),
+  start: z.object({ xMeters: finiteNumber, zMeters: finiteNumber }),
+  end: z.object({ xMeters: finiteNumber, zMeters: finiteNumber }),
+  minimumWidthMeters: finiteNumber,
+  preferredWidthMeters: finiteNumber,
+});
+
 const roomSchema = z.object({
   widthMeters: finiteNumber,
   depthMeters: finiteNumber,
   heightMeters: finiteNumber,
   wallThicknessMeters: finiteNumber,
   openings: z.array(openingSchema),
+  walkways: z.array(walkwaySchema),
 });
 
 const productSchema = z.object({
@@ -140,6 +151,18 @@ const MIGRATIONS: Record<number, (document: object) => object> = {
     // an empty list rather than a missing field.
     project: { ...projectOf(document), instances: [] },
   }),
+  2: (document) => {
+    const project = projectOf(document);
+    return {
+      ...document,
+      version: 3,
+      // Version 3 added protected walkways, which live on the room beside its
+      // openings. Nobody had drawn one, so the list is empty rather than
+      // guessed at — a route invented here would be a red band across a plan
+      // its owner never asked for.
+      project: { ...project, room: { ...roomOf(project), walkways: [] } },
+    };
+  },
 };
 
 /**
@@ -181,6 +204,11 @@ export function readStoredProject(value: unknown): ReadResult {
 function projectOf(document: object): object {
   const project = (document as { project?: unknown }).project;
   return typeof project === "object" && project !== null ? project : {};
+}
+
+function roomOf(project: object): object {
+  const room = (project as { room?: unknown }).room;
+  return typeof room === "object" && room !== null ? room : {};
 }
 
 /** Reads the version without trusting anything else about the value. */

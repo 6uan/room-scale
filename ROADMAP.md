@@ -230,12 +230,12 @@ standing in the plan".
 
 ## Making it usable for real
 
-### 11. Keep the routes clear ◀ next
+### 11. Keep the routes clear
 
 Two halves, each shipping on its own and in this order. They share one idea —
 a zone furniture has to stay out of — which is why they are one step.
 
-**11a — Protected walkways.** User-drawn routes that must stay clear, each with
+**11a — Protected walkways. ✅** Done. User-drawn routes that must stay clear, each with
 a minimum and a preferred width. A route is a line across the floor with a
 width, which makes it an oriented rectangle: the same shape step 9 already
 measures. Anything intruding is reported with the width it leaves behind and
@@ -244,9 +244,21 @@ the shortfall against the minimum, in the reader's unit.
 The route from the living room to the guest room is the case that matters: at
 least 36 inches, 42 preferred.
 
-Done when: a sofa narrowing that route to 30 inches reports a 6 inch shortfall.
+A route is stored on the room beside its openings, so the same routes hold for
+every layout step 12 will add. The document went to version 3, migrated from a
+version 2 payload with no routes rather than a guessed one.
 
-**11b — Blocked openings.** `AGENTS.md` lists them under validation and step 9
+Measuring the width left is more than an intersection: in the corridor's own
+frame each intruder covers a band across a stretch, and sweeping the stretches
+finds the narrowest gap. Merging every intruder at once would have been simpler
+and wrong — a sofa at one end and a console at the other, on opposite sides,
+would report a corridor far narrower than the one you can walk down.
+
+Not carried out of this step: a route's ends are typed, not dragged. The
+machinery for dragging exists from step 8 and the numbers are the exact path,
+which is the one that had to work first.
+
+**11b — Blocked openings. ◀ next** `AGENTS.md` lists them under validation and step 9
 deliberately left them: a door needs the arc it sweeps treated as a zone that
 must stay clear, which is 11a's machinery pointed at a door instead of a
 hallway. A piece standing in a doorway is a blocked route by another name.

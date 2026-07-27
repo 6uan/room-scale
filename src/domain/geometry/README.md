@@ -8,6 +8,7 @@ All lengths are meters; the XZ plane is the floor plane.
 | `oriented-rect.ts`   | Rectangular footprints that have been turned, and what is on one. |
 | `sat.ts`             | Whether two footprints intersect, and by how much.                |
 | `bounds.ts`          | How far a footprint reaches past the edges of the floor.          |
+| `clearance.ts`       | How wide a corridor still is once things stand in it.             |
 
 `unprojectPoint` is how the plan view is clicked: a canvas has no nodes to hit
 test against, so a pointer position comes back through the projection into
@@ -23,4 +24,9 @@ touching rather than overlapping. Pieces flush against each other are a
 legitimate arrangement, and retail dimensions are not precise enough to argue
 about less.
 
-Still to come: clearance-zone expansion for protected walkways.
+`clearance.ts` answers "how wide is it now" rather than "is anything in it",
+because a width is something a person can act on. It sweeps the stretches of a
+corridor rather than merging every intruder at once, so two pieces at opposite
+ends of a hallway are not added together.
+
+Still to come: a door's swing as a zone that has to stay clear.
