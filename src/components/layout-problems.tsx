@@ -7,6 +7,8 @@ export type LayoutProblemsProps = {
   problems: readonly LayoutProblem[];
   /** Instance id to the name that piece is called in the list beside it. */
   names: ReadonlyMap<string, string>;
+  /** Walkway id to the name its owner gave the route. */
+  walkwayNames: ReadonlyMap<string, string>;
   unit: DisplayUnit;
 };
 
@@ -22,7 +24,12 @@ export type LayoutProblemsProps = {
  * while a piece is being dragged and nobody is watching this corner of the
  * screen at the time.
  */
-export function LayoutProblems({ problems, names, unit }: LayoutProblemsProps) {
+export function LayoutProblems({
+  problems,
+  names,
+  walkwayNames,
+  unit,
+}: LayoutProblemsProps) {
   return (
     <div aria-live="polite">
       {problems.length === 0 ? (
@@ -34,9 +41,15 @@ export function LayoutProblems({ problems, names, unit }: LayoutProblemsProps) {
           {problems.map((problem) => (
             <li
               key={problemKey(problem)}
-              className="text-sm leading-relaxed text-red-600"
+              className={`text-sm leading-relaxed ${
+                // Amber for a route that works and is tighter than you wanted:
+                // it is worth knowing and it is not a thing you cannot do.
+                problem.kind === "walkway-tight"
+                  ? "text-amber-600"
+                  : "text-red-600"
+              }`}
             >
-              {problemMessage(problem, names, unit)}
+              {problemMessage(problem, names, walkwayNames, unit)}
             </li>
           ))}
         </ul>
@@ -48,9 +61,12 @@ export function LayoutProblems({ problems, names, unit }: LayoutProblemsProps) {
 function problemMessage(
   problem: LayoutProblem,
   names: ReadonlyMap<string, string>,
+  walkwayNames: ReadonlyMap<string, string>,
   unit: DisplayUnit,
 ): string {
   const name = (id: string) => names.get(id) ?? "A piece of furniture";
+  const inTheWay = (ids: readonly string[]) =>
+    ids.length === 0 ? "" : ` In the way: ${ids.map(name).join(", ")}.`;
 
   switch (problem.kind) {
     case "overlap":
@@ -66,6 +82,24 @@ function problemMessage(
       );
     case "outside-room":
       return `${name(problem.instanceId)} is outside the room.`;
+    case "walkway-blocked":
+      // The width it needs is what it has plus what it is missing, so the
+      // problem does not have to carry a number the route already knows.
+      return (
+        `${walkwayNames.get(problem.walkwayId) ?? "A route"} is down to ` +
+        `${formatLength(problem.clearMeters, unit)}, ` +
+        `${formatLength(problem.shortfallMeters, unit)} short of the ` +
+        `${formatLength(problem.clearMeters + problem.shortfallMeters, unit)} ` +
+        `it needs.${inTheWay(problem.instanceIds)}`
+      );
+    case "walkway-tight":
+      return (
+        `${walkwayNames.get(problem.walkwayId) ?? "A route"} is down to ` +
+        `${formatLength(problem.clearMeters, unit)}, ` +
+        `${formatLength(problem.shortfallMeters, unit)} under the ` +
+        `${formatLength(problem.clearMeters + problem.shortfallMeters, unit)} ` +
+        `you asked for.${inTheWay(problem.instanceIds)}`
+      );
   }
 }
 
@@ -78,5 +112,8 @@ function problemKey(problem: LayoutProblem): string {
       return `wall:${problem.instanceId}:${problem.wall}`;
     case "outside-room":
       return `outside:${problem.instanceId}`;
+    case "walkway-blocked":
+    case "walkway-tight":
+      return `walkway:${problem.walkwayId}`;
   }
 }

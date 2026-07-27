@@ -61,6 +61,18 @@ export function orientedRectContains(
   );
 }
 
+/**
+ * A world point in the rectangle's own frame: X along its width, Z across its
+ * depth, both measured from its center. Asking what is inside a corridor is
+ * much easier once everything has been turned to face the same way.
+ */
+export function orientedRectLocalPoint(
+  rect: OrientedRect,
+  point: FloorPoint,
+): FloorPoint {
+  return toLocal(rect, point);
+}
+
 function toWorld(
   rect: OrientedRect,
   localX: number,

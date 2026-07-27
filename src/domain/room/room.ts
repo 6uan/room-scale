@@ -19,6 +19,7 @@ import {
   type LengthProblem,
 } from "@/domain/units";
 import { checkOpening, type Opening } from "./openings";
+import type { Walkway } from "./walkways";
 
 export type Room = {
   readonly widthMeters: number;
@@ -26,6 +27,8 @@ export type Room = {
   readonly heightMeters: number;
   readonly wallThicknessMeters: number;
   readonly openings: readonly Opening[];
+  /** Routes across the floor that furniture has to stay out of. */
+  readonly walkways: readonly Walkway[];
 };
 
 /** The lengths of a room that can be edited as a single number. */
@@ -77,6 +80,9 @@ export const DEFAULT_ROOM: Room = {
       widthMeters: 1.2192,
     },
   ],
+  // Empty: a route is a fact about how a particular room is walked through,
+  // and guessing one would put a red band across a plan nobody asked for.
+  walkways: [],
 };
 
 export function checkRoomLength(

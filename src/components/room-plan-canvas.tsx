@@ -28,11 +28,13 @@ import {
 import { instanceFromKeyPress } from "@/components/placement-keys";
 import {
   checkOpening,
+  checkWalkway,
   openingEndpoints,
   wallOutwardNormal,
   type FloorVector,
   type Opening,
   type Room,
+  type Walkway,
 } from "@/domain/room";
 import { formatAngle, formatLength, type DisplayUnit } from "@/domain/units";
 
@@ -68,6 +70,10 @@ const HANDLE_PIXELS = 6;
  * the same red the forms use for a field that will not do.
  */
 const PROBLEM_COLOR = "#dc2626";
+
+/** A protected route: its preferred width filled, its minimum drawn inside. */
+const WALKWAY_FILL_ALPHA = 0.07;
+const WALKWAY_EDGE_ALPHA = 0.35;
 
 export type RoomPlanCanvasProps = {
   room: Room;
@@ -447,6 +453,14 @@ function drawPlan(
     drawOpeningSymbol(context, frame, room, opening);
   }
 
+  // Under the furniture, because a route is floor rather than a thing standing
+  // on it, and over the grid, because it is the more important measurement.
+  for (const walkway of room.walkways) {
+    if (checkWalkway(walkway) === null) {
+      drawWalkway(context, frame, walkway);
+    }
+  }
+
   for (const placed of furniture) {
     drawFurniture(context, frame, placed, {
       selected: placed.instance.id === selectedId,
@@ -533,6 +547,57 @@ function drawFurniture(
   }
 
   context.restore();
+}
+
+/**
+ * A protected route, as the strip of floor it needs.
+ *
+ * The preferred width is filled and the minimum is drawn as a line inside it,
+ * so the band shows both numbers at once: the edge you want to keep, and the
+ * edge you cannot cross.
+ */
+function drawWalkway(
+  context: CanvasRenderingContext2D,
+  frame: PlanFrame,
+  walkway: Walkway,
+): void {
+  const start = frame.toPixels(walkway.start);
+  const end = frame.toPixels(walkway.end);
+  const lengthPixels = Math.hypot(end.x - start.x, end.y - start.y);
+  if (lengthPixels <= 0) {
+    return;
+  }
+
+  // The projection maps floor X to canvas X and floor Z to canvas Y at one
+  // positive scale, so the route's angle on screen is the angle on the floor.
+  const angle = Math.atan2(end.y - start.y, end.x - start.x);
+  const perMeter = lengthPixels / walkwayLength(walkway);
+  const preferred = walkway.preferredWidthMeters * perMeter;
+  const minimum = walkway.minimumWidthMeters * perMeter;
+
+  context.save();
+  context.translate((start.x + end.x) / 2, (start.y + end.y) / 2);
+  context.rotate(angle);
+
+  context.fillStyle = frame.color;
+  context.strokeStyle = frame.color;
+
+  context.globalAlpha = WALKWAY_FILL_ALPHA;
+  context.fillRect(-lengthPixels / 2, -preferred / 2, lengthPixels, preferred);
+
+  context.globalAlpha = WALKWAY_EDGE_ALPHA;
+  context.lineWidth = 1;
+  context.setLineDash([5, 4]);
+  context.strokeRect(-lengthPixels / 2, -minimum / 2, lengthPixels, minimum);
+
+  context.restore();
+}
+
+function walkwayLength(walkway: Walkway): number {
+  return Math.hypot(
+    walkway.end.xMeters - walkway.start.xMeters,
+    walkway.end.zMeters - walkway.start.zMeters,
+  );
 }
 
 /** A one-meter grid, so the drawing reads as a measurement and not a sketch. */

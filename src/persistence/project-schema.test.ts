@@ -94,6 +94,66 @@ describe("readStoredProject", () => {
     expect(result.ok && result.project.products).toHaveLength(1);
     expect(result.ok && result.project.room.openings).toHaveLength(1);
     expect(result.ok && result.project.displayUnit).toBe("imperial");
+    // And it came all the way forward, not just one step.
+    expect(result.ok && result.project.room.walkways).toEqual([]);
+  });
+
+  it("upgrades a version 2 document, which predates protected walkways", () => {
+    // Captured from the version 2 schema, exactly as it sat in IndexedDB.
+    const version2 = {
+      id: "current",
+      version: 2,
+      updatedAt: 1_700_000_000_000,
+      project: {
+        room: {
+          widthMeters: 4.2,
+          depthMeters: 3.6,
+          heightMeters: 2.44,
+          wallThicknessMeters: 0.1143,
+          openings: [
+            {
+              id: "window-1",
+              kind: "window",
+              wall: "north",
+              centerMeters: 2.1,
+              widthMeters: 1.2192,
+            },
+          ],
+        },
+        products: [
+          {
+            id: "p1",
+            name: "Rug",
+            retailer: "",
+            productUrl: "",
+            priceCents: 34900,
+            purchaseStatus: "considering",
+            footprint: { widthMeters: 2.4, depthMeters: 1.5 },
+            heightMeters: 0.01,
+          },
+        ],
+        instances: [
+          {
+            id: "i1",
+            productId: "p1",
+            position: { xMeters: 2.1, zMeters: 1.8 },
+            rotationRadians: 0,
+          },
+        ],
+        displayUnit: "imperial",
+      },
+    };
+
+    const result = readStoredProject(version2);
+
+    expect(result.ok).toBe(true);
+    // Nobody had drawn a route, so there are none — not a guessed one across
+    // the middle of a room whose owner never asked for it.
+    expect(result.ok && result.project.room.walkways).toEqual([]);
+    // The room the document did describe is untouched.
+    expect(result.ok && result.project.room.openings).toHaveLength(1);
+    expect(result.ok && result.project.instances).toHaveLength(1);
+    expect(result.ok && result.project.products).toHaveLength(1);
   });
 
   it("refuses a version 1 document that was already broken", () => {

@@ -53,6 +53,12 @@ export function RoomPlanner() {
   // check is nothing next to redrawing the plan.
   const problems = checkLayout(room, furniture);
   const troubledIds = troubledInstanceIds(problems);
+  const walkwayNames = new Map(
+    room.walkways.map((walkway) => [
+      walkway.id,
+      walkway.name === "" ? "A route" : walkway.name,
+    ]),
+  );
   const namesById = new Map(
     placedNames(furniture).map((name, index) => [
       furniture[index]?.instance.id ?? "",
@@ -148,7 +154,12 @@ export function RoomPlanner() {
           <h3 id="fit" className="text-sm font-medium">
             Fit
           </h3>
-          <LayoutProblems problems={problems} names={namesById} unit={unit} />
+          <LayoutProblems
+            problems={problems}
+            names={namesById}
+            walkwayNames={walkwayNames}
+            unit={unit}
+          />
         </div>
       </section>
     </div>
