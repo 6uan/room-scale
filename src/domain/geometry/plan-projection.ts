@@ -94,3 +94,25 @@ export function projectPoint(
     y: projection.originY + point.zMeters * projection.pixelsPerMeter,
   };
 }
+
+/**
+ * `projectPoint` run backwards: the floor point a pixel lands on.
+ *
+ * This is how the plan view is clicked. A canvas has no nodes to hit test
+ * against, so a pointer position comes back through the projection into meters
+ * and the question is answered against the floor instead of against the DOM.
+ *
+ * Null when nothing fits in the viewport, because then no pixel means anything.
+ */
+export function unprojectPoint(
+  projection: PlanProjection,
+  point: PixelPoint,
+): FloorPoint | null {
+  if (!(projection.pixelsPerMeter > 0)) {
+    return null;
+  }
+  return {
+    xMeters: (point.x - projection.originX) / projection.pixelsPerMeter,
+    zMeters: (point.y - projection.originY) / projection.pixelsPerMeter,
+  };
+}

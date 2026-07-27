@@ -284,3 +284,173 @@ describe("RoomPlanner furniture", () => {
     expect(furniture().getByText(`8' 0.0" × 5' 0.0"`)).toBeInTheDocument();
   });
 });
+
+describe("RoomPlanner moving furniture", () => {
+  function furniture() {
+    return within(screen.getByRole("region", { name: "Furniture" }));
+  }
+
+  function seedCatalogue() {
+    useProjectStore.getState().setProducts([
+      {
+        id: "rug",
+        name: "Rug",
+        retailer: "",
+        productUrl: "",
+        priceCents: 34900,
+        purchaseStatus: "considering",
+        footprint: { widthMeters: 2.4384, depthMeters: 1.524 },
+        heightMeters: 0.01,
+      },
+    ]);
+  }
+
+  /**
+   * Places one rug and returns it selected, which is how it lands. The canvas
+   * cannot be dragged here — jsdom gives it no size and so no projection — so
+   * these cover the two ways in that do not need the drawing. The drag itself
+   * is checked in a real browser by `e2e/plan.spec.ts`.
+   */
+  async function placeRug(user: ReturnType<typeof userEvent.setup>) {
+    seedCatalogue();
+    render(<RoomPlanner />);
+    await user.click(
+      screen.getByRole("button", { name: "Place Rug in the room" }),
+    );
+  }
+
+  function placement() {
+    return within(furniture().getByRole("group", { name: "Where Rug sits" }));
+  }
+
+  function placedInstance() {
+    return useProjectStore.getState().project.instances[0];
+  }
+
+  it("selects a piece as it lands, and opens where it sits", async () => {
+    const user = userEvent.setup();
+    await placeRug(user);
+
+    // The default room is 4.2 m by 3.6 m, so the middle is 82.68 by 70.87 in.
+    expect(furniture().getByRole("button", { name: "Rug" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(placement().getByLabelText("From west")).toHaveValue(82.68);
+    expect(placement().getByLabelText("From north")).toHaveValue(70.87);
+    expect(placement().getByLabelText("Turn")).toHaveValue(0);
+  });
+
+  it("puts a piece down again when its name is pressed a second time", async () => {
+    const user = userEvent.setup();
+    await placeRug(user);
+
+    await user.click(furniture().getByRole("button", { name: "Rug" }));
+
+    expect(
+      furniture().queryByRole("group", { name: "Where Rug sits" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("moves a piece by typing a position", async () => {
+    const user = userEvent.setup();
+    await placeRug(user);
+
+    await user.clear(placement().getByLabelText("From west"));
+    await user.paste("24");
+
+    // 24 inches is 0.6096 m, from the west wall to the center of the rug.
+    expect(placedInstance()?.position.xMeters).toBeCloseTo(0.6096, 10);
+    expect(planDescription()).toHaveAccessibleName(
+      /2' 0\.0" from the west wall/,
+    );
+  });
+
+  it("refuses a position off the floor and leaves the piece where it was", async () => {
+    const user = userEvent.setup();
+    await placeRug(user);
+
+    await user.clear(placement().getByLabelText("From north"));
+    await user.paste("400");
+
+    expect(placement().getByLabelText("From north")).toBeInvalid();
+    expect(placedInstance()?.position.zMeters).toBeCloseTo(1.8, 10);
+  });
+
+  it("nudges the selected piece with an arrow key", async () => {
+    const user = userEvent.setup();
+    await placeRug(user);
+
+    furniture().getByRole("button", { name: "Rug" }).focus();
+    await user.keyboard("{ArrowRight}{ArrowRight}");
+
+    // Two 5 cm steps east of the middle of a 4.2 m room.
+    expect(placedInstance()?.position.xMeters).toBeCloseTo(2.2, 10);
+  });
+
+  it("takes a finer step with Shift held", async () => {
+    const user = userEvent.setup();
+    await placeRug(user);
+
+    furniture().getByRole("button", { name: "Rug" }).focus();
+    await user.keyboard("{Shift>}{ArrowUp}{/Shift}");
+
+    expect(placedInstance()?.position.zMeters).toBeCloseTo(1.79, 10);
+  });
+
+  it("turns a piece by typing degrees", async () => {
+    const user = userEvent.setup();
+    await placeRug(user);
+
+    await user.clear(placement().getByLabelText("Turn"));
+    await user.paste("90");
+
+    expect(placedInstance()?.rotationRadians).toBeCloseTo(Math.PI / 2, 10);
+    expect(planDescription()).toHaveAccessibleName(/turned 90°/);
+  });
+
+  it("turns a piece with the bracket keys", async () => {
+    const user = userEvent.setup();
+    await placeRug(user);
+
+    furniture().getByRole("button", { name: "Rug" }).focus();
+    await user.keyboard("]");
+    expect(placement().getByLabelText("Turn")).toHaveValue(15);
+
+    // "[[" is how user-event types one bracket: a single one opens a key code.
+    await user.keyboard("[[");
+    await user.keyboard("[[");
+
+    // Anticlockwise past zero reads as 345°, not as a negative angle.
+    expect(placement().getByRole("status")).toHaveTextContent(/turned 345°/);
+  });
+
+  it("says where the piece sits, for anyone who cannot see it move", async () => {
+    const user = userEvent.setup();
+    await placeRug(user);
+
+    furniture().getByRole("button", { name: "Rug" }).focus();
+    await user.keyboard("{ArrowDown}");
+
+    expect(placement().getByRole("status")).toHaveTextContent(
+      `Rug is 6' 10.7" from the west wall and 6' 0.8" from the north wall, turned 0°.`,
+    );
+  });
+
+  it("tells two copies of one product apart", async () => {
+    const user = userEvent.setup();
+    await placeRug(user);
+    await user.click(
+      screen.getByRole("button", { name: "Place Rug in the room" }),
+    );
+
+    // The second is the one that was just placed, so it is the selected one.
+    expect(furniture().getByRole("button", { name: "Rug 2" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(
+      furniture().getByRole("group", { name: "Where Rug 2 sits" }),
+    ).toBeInTheDocument();
+  });
+});

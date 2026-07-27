@@ -4,6 +4,7 @@ import {
   createPlanProjection,
   projectLength,
   projectPoint,
+  unprojectPoint,
 } from "./plan-projection";
 
 const SQUARE_VIEWPORT = { width: 400, height: 400 };
@@ -120,5 +121,32 @@ describe("projecting floor points", () => {
   it("converts a length to pixels", () => {
     expect(projectLength(projection, 1)).toBe(100);
     expect(projectLength(projection, 0.9144)).toBeCloseTo(91.44, 10);
+  });
+});
+
+describe("unprojectPoint", () => {
+  const projection = createPlanProjection(
+    { widthMeters: 4, depthMeters: 2 },
+    SQUARE_VIEWPORT,
+  );
+
+  it("gives back the point that was projected", () => {
+    const floor = { xMeters: 1.35, zMeters: 0.8 };
+
+    const back = unprojectPoint(projection, projectPoint(projection, floor));
+
+    expect(back?.xMeters).toBeCloseTo(floor.xMeters, 12);
+    expect(back?.zMeters).toBeCloseTo(floor.zMeters, 12);
+  });
+
+  it("reads a pixel below the origin as depth, not as height", () => {
+    expect(unprojectPoint(projection, { x: 0, y: 200 })).toEqual({
+      xMeters: 0,
+      zMeters: 1,
+    });
+  });
+
+  it("has nothing to say about a viewport nothing fits in", () => {
+    expect(unprojectPoint(EMPTY_PLAN_PROJECTION, { x: 10, y: 10 })).toBeNull();
   });
 });

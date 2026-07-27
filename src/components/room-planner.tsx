@@ -1,10 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { RoomDimensionsForm } from "@/components/room-dimensions-form";
 import { RoomOpeningsForm } from "@/components/room-openings-form";
 import { RoomFurniturePanel } from "@/components/room-furniture-panel";
 import { RoomPlanCanvas } from "@/components/room-plan-canvas";
-import { placedFurniture } from "@/domain/furniture";
+import {
+  placedFurniture,
+  withInstance,
+  type FurnitureInstance,
+} from "@/domain/furniture";
 import { nextId } from "@/domain/project";
 import {
   createOpening,
@@ -33,7 +38,16 @@ export function RoomPlanner() {
   const setUnit = useProjectStore((state) => state.setDisplayUnit);
   const setInstances = useProjectStore((state) => state.setInstances);
 
+  // Which piece is being worked on is a fact about this session, not about the
+  // project, so it stays here and is never saved. An id whose piece has been
+  // taken out simply matches nothing.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
   const furniture = placedFurniture(instances, products);
+
+  function changeInstance(instance: FurnitureInstance): void {
+    setInstances(withInstance(instances, instance));
+  }
 
   function addOpening(kind: OpeningKind): void {
     // Derived from what is already there rather than from a counter, because
@@ -77,7 +91,10 @@ export function RoomPlanner() {
             instances={instances}
             furniture={furniture}
             unit={unit}
+            selectedId={selectedId}
             onInstancesChange={setInstances}
+            onSelect={setSelectedId}
+            onInstanceChange={changeInstance}
           />
         </section>
 
@@ -101,7 +118,14 @@ export function RoomPlanner() {
         <h2 id="plan" className="text-xl font-semibold tracking-tight">
           Plan
         </h2>
-        <RoomPlanCanvas room={room} furniture={furniture} unit={unit} />
+        <RoomPlanCanvas
+          room={room}
+          furniture={furniture}
+          unit={unit}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+          onInstanceChange={changeInstance}
+        />
         <RoomSummary room={room} unit={unit} />
       </section>
     </div>
