@@ -1,15 +1,31 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+} from "react";
 import {
   createPlanProjection,
   projectLength,
   projectPoint,
+  unprojectPoint,
   type FloorPoint,
   type PixelPoint,
   type PixelSize,
+  type PlanProjection,
 } from "@/domain/geometry";
-import type { PlacedFurniture } from "@/domain/furniture";
+import {
+  clampToFloor,
+  furnitureAt,
+  moveInstance,
+  placedNames,
+  type FurnitureInstance,
+  type PlacedFurniture,
+} from "@/domain/furniture";
+import { instanceFromKeyPress } from "@/components/placement-keys";
 import {
   checkOpening,
   openingEndpoints,
@@ -18,7 +34,7 @@ import {
   type Opening,
   type Room,
 } from "@/domain/room";
-import { formatLength, type DisplayUnit } from "@/domain/units";
+import { formatAngle, formatLength, type DisplayUnit } from "@/domain/units";
 
 /** Space kept outside the walls for the dimension lines. */
 const DIMENSION_PADDING_PIXELS = 56;
@@ -43,22 +59,51 @@ const DIMENSION_ALPHA = 0.4;
 const LABEL_ALPHA = 0.75;
 const FURNITURE_FILL_ALPHA = 0.22;
 const FURNITURE_EDGE_ALPHA = 0.7;
+const SELECTED_FILL_ALPHA = 0.36;
+const HANDLE_PIXELS = 6;
 
 export type RoomPlanCanvasProps = {
   room: Room;
   furniture: readonly PlacedFurniture[];
   unit: DisplayUnit;
+  /** Which piece is being worked on, or null. Never persisted: this is UI state. */
+  selectedId: string | null;
+  onSelect: (instanceId: string | null) => void;
+  onInstanceChange: (instance: FurnitureInstance) => void;
+};
+
+/** A drag in progress, held in a ref because moving it re-renders enough. */
+type Drag = {
+  readonly pointerId: number;
+  readonly instanceId: string;
+  /** Where in the piece it was grabbed, so it does not jump under the pointer. */
+  readonly grabOffset: FloorPoint;
 };
 
 /**
- * A top-down view of the room, drawn to scale on a 2D canvas.
+ * A top-down view of the room, drawn to scale on a 2D canvas, and the place
+ * furniture is dragged around.
  *
  * The canvas is a picture of the room, not the way to understand it: the
  * numbers beside it stay authoritative, and this element carries a text
- * description for anyone who cannot see the drawing.
+ * description for anyone who cannot see the drawing. Everything a drag does,
+ * the fields and the arrow keys beside it do too.
+ *
+ * A canvas has no nodes to hit test against, so a pointer position goes back
+ * through the plan projection into meters and the question is answered against
+ * the floor — the same footprints validation measures.
  */
-export function RoomPlanCanvas({ room, furniture, unit }: RoomPlanCanvasProps) {
+export function RoomPlanCanvas({
+  room,
+  furniture,
+  unit,
+  selectedId,
+  onSelect,
+  onInstanceChange,
+}: RoomPlanCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const dragRef = useRef<Drag | null>(null);
+  const [dragging, setDragging] = useState(false);
   const { ref: frameRef, size } = useElementSize<HTMLDivElement>();
 
   useEffect(() => {
@@ -85,11 +130,93 @@ export function RoomPlanCanvas({ room, furniture, unit }: RoomPlanCanvasProps) {
       room,
       furniture,
       unit,
+      selectedId,
       viewport: size,
       color: style.color,
       fontFamily: style.fontFamily,
     });
-  }, [room, furniture, unit, size]);
+  }, [room, furniture, unit, selectedId, size]);
+
+  function handlePointerDown(event: PointerEvent<HTMLCanvasElement>): void {
+    const canvas = canvasRef.current;
+    const point = canvas && floorPointAt(canvas, room, event);
+    if (!canvas || !point) {
+      return;
+    }
+
+    const hit = furnitureAt(furniture, point);
+    if (hit === null) {
+      onSelect(null);
+      return;
+    }
+
+    onSelect(hit.instance.id);
+    dragRef.current = {
+      pointerId: event.pointerId,
+      instanceId: hit.instance.id,
+      grabOffset: {
+        xMeters: point.xMeters - hit.instance.position.xMeters,
+        zMeters: point.zMeters - hit.instance.position.zMeters,
+      },
+    };
+    setDragging(true);
+    // Focus follows the grab, so a piece can be dragged roughly into place and
+    // then nudged the last centimeter without reaching for the mouse again.
+    canvas.focus();
+    canvas.setPointerCapture?.(event.pointerId);
+  }
+
+  function handlePointerMove(event: PointerEvent<HTMLCanvasElement>): void {
+    const drag = dragRef.current;
+    const canvas = canvasRef.current;
+    if (!drag || !canvas || drag.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const placed = furniture.find(
+      ({ instance }) => instance.id === drag.instanceId,
+    );
+    const point = floorPointAt(canvas, room, event);
+    if (!placed || !point) {
+      return;
+    }
+
+    onInstanceChange(
+      moveInstance(
+        placed.instance,
+        clampToFloor(room, {
+          xMeters: point.xMeters - drag.grabOffset.xMeters,
+          zMeters: point.zMeters - drag.grabOffset.zMeters,
+        }),
+      ),
+    );
+  }
+
+  function endDrag(event: PointerEvent<HTMLCanvasElement>): void {
+    if (dragRef.current?.pointerId !== event.pointerId) {
+      return;
+    }
+    dragRef.current = null;
+    setDragging(false);
+    canvasRef.current?.releasePointerCapture?.(event.pointerId);
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLCanvasElement>): void {
+    if (event.key === "Escape") {
+      onSelect(null);
+      return;
+    }
+
+    const placed = furniture.find(({ instance }) => instance.id === selectedId);
+    const next = placed && instanceFromKeyPress(room, placed.instance, event);
+    if (!next) {
+      return;
+    }
+    // Only once a key has been acted on: an arrow with nothing selected still
+    // scrolls the page, which is what an arrow normally does.
+    event.preventDefault();
+    onInstanceChange(next);
+  }
 
   return (
     <div
@@ -99,10 +226,66 @@ export function RoomPlanCanvas({ room, furniture, unit }: RoomPlanCanvasProps) {
       <canvas
         ref={canvasRef}
         role="img"
+        tabIndex={0}
         aria-label={describeRoom(room, furniture, unit)}
-        className="block h-full w-full"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onKeyDown={handleKeyDown}
+        className={`block h-full w-full touch-none rounded-lg outline-offset-2 ${
+          dragging ? "cursor-grabbing" : "cursor-pointer"
+        }`}
       />
     </div>
+  );
+}
+
+/**
+ * The floor point under a pointer, in meters, or null when the room cannot be
+ * drawn at this size.
+ *
+ * The element is measured here rather than read from state, so a pointer landing
+ * during a resize is placed against the canvas as it actually is.
+ */
+function floorPointAt(
+  canvas: HTMLCanvasElement,
+  room: Room,
+  event: PointerEvent<HTMLCanvasElement>,
+): FloorPoint | null {
+  const bounds = canvas.getBoundingClientRect();
+  const projection = planProjectionFor(room, {
+    width: bounds.width,
+    height: bounds.height,
+  });
+  const point = unprojectPoint(projection, {
+    x: event.clientX - bounds.left,
+    y: event.clientY - bounds.top,
+  });
+
+  // The projection covers the walls as well as the floor, so floor coordinates
+  // start one wall thickness in.
+  return point === null
+    ? null
+    : {
+        xMeters: point.xMeters - room.wallThicknessMeters,
+        zMeters: point.zMeters - room.wallThicknessMeters,
+      };
+}
+
+/**
+ * The projection the plan is drawn with. Shared by the drawing and the hit
+ * testing, so a click lands where the piece appears rather than near it.
+ */
+function planProjectionFor(room: Room, viewport: PixelSize): PlanProjection {
+  const thickness = room.wallThicknessMeters;
+  return createPlanProjection(
+    {
+      widthMeters: room.widthMeters + thickness * 2,
+      depthMeters: room.depthMeters + thickness * 2,
+    },
+    viewport,
+    DIMENSION_PADDING_PIXELS,
   );
 }
 
@@ -133,6 +316,10 @@ function describeRoom(
   return `${shell} ${room.openings.length} opening${room.openings.length === 1 ? "" : "s"}: ${openings}. ${describeFurniture(furniture, unit)}`;
 }
 
+/**
+ * Where each piece is, not only what it is. Position is editable now, so it is
+ * part of what the drawing says and has to be readable without seeing it.
+ */
 function describeFurniture(
   furniture: readonly PlacedFurniture[],
   unit: DisplayUnit,
@@ -140,13 +327,23 @@ function describeFurniture(
   if (furniture.length === 0) {
     return "Nothing placed in it yet.";
   }
+
+  const names = placedNames(furniture);
   const pieces = furniture
-    .map(
-      ({ product }) =>
-        `${product.name}, ${formatLength(product.footprint.widthMeters, unit)} by ` +
-        `${formatLength(product.footprint.depthMeters, unit)}`,
-    )
+    .map(({ instance, product }, index) => {
+      const turn =
+        instance.rotationRadians === 0
+          ? ""
+          : `, turned ${formatAngle(instance.rotationRadians)}`;
+      return (
+        `${names[index]}, ${formatLength(product.footprint.widthMeters, unit)} by ` +
+        `${formatLength(product.footprint.depthMeters, unit)}, ` +
+        `${formatLength(instance.position.xMeters, unit)} from the west wall and ` +
+        `${formatLength(instance.position.zMeters, unit)} from the north wall${turn}`
+      );
+    })
     .join("; ");
+
   return `${furniture.length} ${furniture.length === 1 ? "piece" : "pieces"} placed: ${pieces}.`;
 }
 
@@ -154,6 +351,7 @@ type DrawOptions = {
   room: Room;
   furniture: readonly PlacedFurniture[];
   unit: DisplayUnit;
+  selectedId: string | null;
   viewport: PixelSize;
   color: string;
   fontFamily: string;
@@ -168,7 +366,15 @@ type PlanFrame = {
 
 function drawPlan(
   context: CanvasRenderingContext2D,
-  { room, furniture, unit, viewport, color, fontFamily }: DrawOptions,
+  {
+    room,
+    furniture,
+    unit,
+    selectedId,
+    viewport,
+    color,
+    fontFamily,
+  }: DrawOptions,
 ): void {
   context.clearRect(0, 0, viewport.width, viewport.height);
 
@@ -177,14 +383,7 @@ function drawPlan(
   // The walls sit outside the measured room, so the extent being fitted is the
   // floor plus a wall on each side. Floor coordinates are then one wall
   // thickness in from the outside corner.
-  const projection = createPlanProjection(
-    {
-      widthMeters: room.widthMeters + thickness * 2,
-      depthMeters: room.depthMeters + thickness * 2,
-    },
-    viewport,
-    DIMENSION_PADDING_PIXELS,
-  );
+  const projection = planProjectionFor(room, viewport);
   if (projection.pixelsPerMeter <= 0) {
     return;
   }
@@ -236,7 +435,7 @@ function drawPlan(
   }
 
   for (const placed of furniture) {
-    drawFurniture(context, frame, placed);
+    drawFurniture(context, frame, placed, placed.instance.id === selectedId);
   }
 
   drawDimensions(context, {
@@ -258,45 +457,58 @@ function drawPlan(
  * center — which is where the instance's position is. A prettier shape later
  * still has to sit inside exactly this rectangle, because this is what the
  * validation measures.
+ *
+ * The selected piece is drawn heavier, with a handle at each corner. Corners
+ * are what show a rotation: a turned rectangle is otherwise just a rectangle.
  */
 function drawFurniture(
   context: CanvasRenderingContext2D,
   frame: PlanFrame,
   { instance, product }: PlacedFurniture,
+  selected: boolean,
 ): void {
   const center = frame.toPixels(instance.position);
-  const width = frame.toPixels({
-    xMeters: product.footprint.widthMeters,
-    zMeters: 0,
-  }).x;
-  const origin = frame.toPixels({ xMeters: 0, zMeters: 0 }).x;
-  const widthPixels = width - origin;
+  const origin = frame.toPixels({ xMeters: 0, zMeters: 0 });
+  const widthPixels =
+    frame.toPixels({ xMeters: product.footprint.widthMeters, zMeters: 0 }).x -
+    origin.x;
   const depthPixels =
     frame.toPixels({ xMeters: 0, zMeters: product.footprint.depthMeters }).y -
-    frame.toPixels({ xMeters: 0, zMeters: 0 }).y;
+    origin.y;
+
+  const left = -widthPixels / 2;
+  const top = -depthPixels / 2;
 
   context.save();
   context.translate(center.x, center.y);
+  // Positive rotation turns +X toward +Z, and screen Y follows Z, so the
+  // canvas's own rotation is already the right way round.
   context.rotate(instance.rotationRadians);
 
-  context.globalAlpha = FURNITURE_FILL_ALPHA;
+  context.globalAlpha = selected ? SELECTED_FILL_ALPHA : FURNITURE_FILL_ALPHA;
   context.fillStyle = frame.color;
-  context.fillRect(
-    -widthPixels / 2,
-    -depthPixels / 2,
-    widthPixels,
-    depthPixels,
-  );
+  context.fillRect(left, top, widthPixels, depthPixels);
 
   context.globalAlpha = FURNITURE_EDGE_ALPHA;
   context.strokeStyle = frame.color;
-  context.lineWidth = 1.5;
-  context.strokeRect(
-    -widthPixels / 2,
-    -depthPixels / 2,
-    widthPixels,
-    depthPixels,
-  );
+  context.lineWidth = selected ? 2.5 : 1.5;
+  context.strokeRect(left, top, widthPixels, depthPixels);
+
+  if (selected) {
+    for (const [x, y] of [
+      [left, top],
+      [left + widthPixels, top],
+      [left + widthPixels, top + depthPixels],
+      [left, top + depthPixels],
+    ] as const) {
+      context.fillRect(
+        x - HANDLE_PIXELS / 2,
+        y - HANDLE_PIXELS / 2,
+        HANDLE_PIXELS,
+        HANDLE_PIXELS,
+      );
+    }
+  }
 
   context.restore();
 }

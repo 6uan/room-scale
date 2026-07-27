@@ -14,7 +14,7 @@ Two rules keep the order honest:
   Steps 4 to 10 are that question end to end. Everything after them makes the
   answer nicer to look at.
 
-Status: **step 8 is next.**
+Status: **step 9 is next.**
 
 ---
 
@@ -90,7 +90,7 @@ Not carried out of this step: there is only version 1, so there is nothing to
 migrate yet. The read path dispatches on version and refuses what it does not
 recognize, which is the part that has to exist before there is a version 2.
 
-### 6. Fill a product in from its page, instead of typing it ◀ next
+### 6. Fill a product in from its page, instead of typing it ◀ 6a only
 
 Typing a dozen products by hand is the thing most likely to stop this tool being
 used. This step removes most of that typing without ever letting a guessed
@@ -154,18 +154,31 @@ Not carried out of this step: where a piece lands is a starting point, stepped
 diagonally so copies do not stack invisibly. Moving and rotating is step 8, and
 until then a placement cannot be adjusted.
 
-### 8. Move and rotate what you placed ◀ next
+### 8. Move and rotate what you placed ✅
 
-Select an instance; move it; rotate it around Y. Pointer dragging _and_ numeric
-entry _and_ arrow keys, from the start — the canvas is never the only way in.
+Done. A piece is selected by clicking it on the plan or by pressing its name in
+the list beside it, and then moved by dragging, by typing a position, or by
+holding an arrow key — 5 cm a press, 1 cm with Shift. It is turned by typing
+degrees, or with `[` and `]` at 15° a press. All three ways in shipped
+together, because the canvas is never the only way in.
 
-Hit testing goes through the plan projection rather than the DOM, since a canvas
-has no nodes to click.
+Hit testing goes through the plan projection rather than the DOM: a pointer
+position comes back through `unprojectPoint` into meters, and the question is
+asked of the footprints themselves. Those footprints are now `OrientedRect`s in
+`src/domain/geometry` — the shape step 9 runs the Separating Axis Theorem over,
+arriving early because a rotated piece has to be clickable before it can be
+validated.
 
-Done when: the same sofa can be nudged into the corner by dragging, by typing a
-position, and by holding an arrow key.
+Only the _center_ of a piece is held on the floor. A sofa may still overhang a
+wall, because "that does not fit" is an answer step 9 gives in words, not
+something a drag should quietly prevent.
 
-### 9. Answer whether it fits
+Not carried out of this step: which piece is selected is not saved, being a
+fact about the session rather than about the project; and nothing snaps or
+aligns to anything, so squaring a piece against a wall is still done by eye or
+by typing.
+
+### 9. Answer whether it fits ◀ next
 
 Separating Axis Theorem intersection for rotated rectangles, in
 `src/domain/geometry` with exhaustive unit tests — touching edges, shared

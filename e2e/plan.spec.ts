@@ -174,3 +174,93 @@ test.describe("placing furniture", () => {
     await expect(page.getByRole("row", { name: /Rug/ })).toBeVisible();
   });
 });
+
+test.describe("moving furniture", () => {
+  async function placeRug(page: Page) {
+    await page.goto("/furniture");
+    await page.getByLabel("Name").fill("Rug");
+    await page.getByLabel("Width").fill("96");
+    await page.getByLabel("Depth").fill("60");
+    await page.getByRole("button", { name: "Add product" }).click();
+    await expect(page.getByRole("row", { name: /Rug/ }).first()).toBeVisible();
+
+    await page.goto("/plan");
+    await page.getByRole("button", { name: "Place Rug in the room" }).click();
+    // It lands in the middle of the room, selected, ready to be moved.
+    await expect(placement(page).getByLabel("From west")).toHaveValue("82.68");
+  }
+
+  function placement(page: Page) {
+    return page.getByRole("group", { name: "Where Rug sits" });
+  }
+
+  async function inches(page: Page, label: string) {
+    return Number(await placement(page).getByLabel(label).inputValue());
+  }
+
+  /** The middle of the canvas, which is where the middle of the room is drawn. */
+  async function planCenter(page: Page) {
+    const box = await planImage(page).boundingBox();
+    if (box === null) {
+      throw new Error("the plan has no box to point at");
+    }
+    return { box, x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  }
+
+  test("drags a piece across the room", async ({ page }) => {
+    await placeRug(page);
+    const { x, y } = await planCenter(page);
+
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + 60, y + 30, { steps: 10 });
+    await page.mouse.up();
+
+    // Right and down the plan is east and south: further from both walls.
+    expect(await inches(page, "From west")).toBeGreaterThan(82.68);
+    expect(await inches(page, "From north")).toBeGreaterThan(70.87);
+    await expect(planImage(page)).toHaveAccessibleName(
+      /from the west wall and .* from the north wall/,
+    );
+  });
+
+  test("nudges the same piece with an arrow key after dragging it", async ({
+    page,
+  }) => {
+    await placeRug(page);
+    const { x, y } = await planCenter(page);
+
+    await page.mouse.click(x, y);
+    // 5 cm east of the middle of a 4.2 m room, in inches.
+    await page.keyboard.press("ArrowRight");
+
+    expect(await inches(page, "From west")).toBeCloseTo(84.65, 1);
+  });
+
+  test("types a piece into the corner without touching the plan", async ({
+    page,
+  }) => {
+    await placeRug(page);
+
+    await placement(page).getByLabel("From west").fill("48");
+    await placement(page).getByLabel("From north").fill("30");
+    await placement(page).getByLabel("Turn").fill("90");
+
+    await expect(planImage(page)).toHaveAccessibleName(
+      /4' 0\.0" from the west wall and 2' 6\.0" from the north wall, turned 90°/,
+    );
+  });
+
+  test("puts a piece down when the floor beside it is clicked", async ({
+    page,
+  }) => {
+    await placeRug(page);
+    const { box } = await planCenter(page);
+
+    // The very corner of the canvas is outside the room altogether, which is
+    // as empty as floor gets.
+    await page.mouse.click(box.x + 4, box.y + 4);
+
+    await expect(placement(page)).toBeHidden();
+  });
+});
