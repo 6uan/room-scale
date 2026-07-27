@@ -127,8 +127,8 @@ touched anything user-facing.
 
 ```
 src/
-  app/            Next.js App Router routes and layouts
-  components/     Non-3D React components
+  app/            Routes: the workspace at /, the overview at /overview
+  components/     The workspace panels, the plan canvas, and the forms
   domain/         Pure logic — no React, no Three.js, no browser APIs
     units/        Meter, area, and integer-cent conversions (implemented)
     room/         The room, its walls, and its openings (implemented)
