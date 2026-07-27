@@ -106,6 +106,11 @@ feet, centimeters, or millimeters, and falls back to positional triples
 (`52.8 x 125.8 x 36.4 inches`) marked as an assumed order. Also the way an
 existing product gets corrected.
 
+Outstanding: Target's own rendered text is not a captured fixture. Its formats
+are covered by pattern rather than by a real capture, because getting it needs
+JavaScript to run. Pasting that page into the panel and reporting what it got
+wrong is the cheapest way to close that, whenever it comes up.
+
 Two findings from the real pages changed the plan. Neither Target nor Amazon
 publishes schema.org metadata for furniture, so there is no structured source
 to prefer — the JSON-LD step was dropped. And it reads rendered text rather
