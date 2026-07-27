@@ -16,7 +16,7 @@ import {
   type FloorPoint,
   type OrientedRect,
 } from "@/domain/geometry";
-import type { Room } from "@/domain/room";
+import { floorBounds, type Floor } from "@/domain/room";
 import { normalizeRadians } from "@/domain/units";
 import type { FurnitureProduct } from "./product";
 
@@ -45,11 +45,21 @@ export type PlacedFurniture = {
  */
 const PLACEMENT_STEP_METERS = 0.35;
 
-export function placementFor(room: Room, alreadyPlaced: number): FloorPoint {
+export function placementFor(floor: Floor, alreadyPlaced: number): FloorPoint {
+  const { origin, extent } = floorBounds(floor);
   const offset = alreadyPlaced * PLACEMENT_STEP_METERS;
+
   return {
-    xMeters: clamp(room.widthMeters / 2 + offset, 0, room.widthMeters),
-    zMeters: clamp(room.depthMeters / 2 + offset, 0, room.depthMeters),
+    xMeters: clamp(
+      origin.xMeters + extent.widthMeters / 2 + offset,
+      origin.xMeters,
+      origin.xMeters + extent.widthMeters,
+    ),
+    zMeters: clamp(
+      origin.zMeters + extent.depthMeters / 2 + offset,
+      origin.zMeters,
+      origin.zMeters + extent.depthMeters,
+    ),
   };
 }
 
@@ -138,16 +148,26 @@ export function furnitureAt(
 }
 
 /**
- * Keeps a piece's center on the floor.
+ * Keeps a piece's center somewhere on the apartment.
  *
- * Only the center: a piece may still hang over a wall, which is a real thing
- * to do by accident and the kind of thing validation is for. A center outside
- * the room is not a mistake worth representing.
+ * Only the center, and only within the whole floor rather than within one room:
+ * a piece may hang over a wall or sit in the gap between two blocks, which are
+ * real things to do by accident and exactly what validation is for. Dragging a
+ * sofa off the edge of the plan entirely is not.
  */
-export function clampToFloor(room: Room, point: FloorPoint): FloorPoint {
+export function clampToFloor(floor: Floor, point: FloorPoint): FloorPoint {
+  const { origin, extent } = floorBounds(floor);
   return {
-    xMeters: clamp(point.xMeters, 0, room.widthMeters),
-    zMeters: clamp(point.zMeters, 0, room.depthMeters),
+    xMeters: clamp(
+      point.xMeters,
+      origin.xMeters,
+      origin.xMeters + extent.widthMeters,
+    ),
+    zMeters: clamp(
+      point.zMeters,
+      origin.zMeters,
+      origin.zMeters + extent.depthMeters,
+    ),
   };
 }
 

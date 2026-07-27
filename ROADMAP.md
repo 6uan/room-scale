@@ -14,7 +14,7 @@ Two rules keep the order honest:
   Steps 4 to 10 are that question end to end. Everything after them makes the
   answer nicer to look at.
 
-Status: **step 12 is next.**
+Status: **step 13 is next.**
 
 ---
 
@@ -271,7 +271,7 @@ hallway. A piece standing in a doorway is a blocked route by another name.
 Done when: a console in front of the door says the door cannot open, and moving
 it six inches says the door clears it.
 
-### 12. Build the apartment out of rooms ◀ next
+### 12. Build the apartment out of rooms ✅
 
 A floor plan is a whole apartment, and until now RoomScale has drawn one
 rectangle. A sofa that fits the living room and blocks the hall is the wrong
@@ -306,11 +306,17 @@ Decisions this step makes, and why:
 The stored document goes to version 4: a version 3 project becomes an apartment
 of one room at the origin, which is exactly what it always was.
 
-Done when: the living room, the hall, and a bedroom can be laid out side by
-side, drawn as one plan, and a sofa reaching from the living room into the hall
-is reported as crossing the wall between them.
+Done. Every decision above holds. What it looks like in use: a Rooms section
+where each block carries its name, its size, where it stands, and its own doors
+and windows; a plan that draws the whole apartment with each room named inside
+it; and a summary that counts rooms and measures the place end to end.
 
-### 13. Compare layouts
+Not carried out of this step: rooms do not snap to each other, so two blocks
+meeting exactly is a matter of typing the same number twice. Snapping wants a
+pointer, and rooms cannot be dragged yet either — both belong with the
+interface pass.
+
+### 13. Compare layouts ◀ next
 
 Multiple named arrangements of the same room: save, duplicate, rename, switch,
 compare. Products are shared across layouts; instances belong to one.

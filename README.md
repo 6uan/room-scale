@@ -51,10 +51,11 @@ about the furniture instead of the measurements.
 
 ## Where it is now
 
-**Roadmap steps 1–11 of 18 are done.** What works today:
+**Roadmap steps 1–12 of 18 are done.** What works today:
 
-- A rectangular room, measured in either unit, with its doors, windows, and open
-  passages, drawn to scale in plan at `/plan`.
+- An apartment built out of rectangular rooms — each with a name, a size, a
+  place on the floor, and its own doors, windows, and open passages — drawn to
+  scale as one plan at `/plan`.
 - A catalogue at `/furniture` — exact dimensions, price in integer cents,
   retailer, link, purchase status — filled in from a pasted product page.
 - Furniture placed in the room at its true footprint, moved and turned by
@@ -69,8 +70,7 @@ about the furniture instead of the measurements.
   not yet on the page, and arrives with the interface pass in step 15.
 - Everything saved in your browser, and nothing sent anywhere.
 
-Still to come, in this order: **the whole apartment rather than one room**
-(step 12), comparing layouts (13), JSON and CSV export (14), editing the whole project
+Still to come, in this order: comparing layouts (13), JSON and CSV export (14), editing the whole project
 on one screen (15), the doorway and clearance checks (16), the perspective view
 (17), and photorealism (18).
 

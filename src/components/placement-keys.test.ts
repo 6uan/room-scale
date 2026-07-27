@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { createInstance, turnInstance } from "@/domain/furniture";
-import { DEFAULT_ROOM } from "@/domain/room";
+import { DEFAULT_FLOOR, DEFAULT_ROOM } from "@/domain/room";
 import { degreesFromRadians } from "@/domain/units";
 import { instanceFromKeyPress } from "./placement-keys";
 
-const ROOM = { ...DEFAULT_ROOM, widthMeters: 4, depthMeters: 3 };
+const FLOOR = {
+  ...DEFAULT_FLOOR,
+  rooms: [{ ...DEFAULT_ROOM, widthMeters: 4, depthMeters: 3 }],
+};
 const RUG = createInstance("i1", "rug", { xMeters: 2, zMeters: 1.5 });
 
 function press(key: string, shiftKey = false) {
-  return instanceFromKeyPress(ROOM, RUG, { key, shiftKey });
+  return instanceFromKeyPress(FLOOR, RUG, { key, shiftKey });
 }
 
 describe("instanceFromKeyPress", () => {
@@ -46,7 +49,7 @@ describe("instanceFromKeyPress", () => {
   it("turns from where the piece already stands", () => {
     const turned = turnInstance(RUG, Math.PI / 2);
 
-    const next = instanceFromKeyPress(ROOM, turned, {
+    const next = instanceFromKeyPress(FLOOR, turned, {
       key: "]",
       shiftKey: false,
     });
@@ -57,7 +60,7 @@ describe("instanceFromKeyPress", () => {
   it("stops a nudge at the wall rather than pushing the center off the floor", () => {
     const atWall = createInstance("i1", "rug", { xMeters: 0, zMeters: 1.5 });
 
-    const next = instanceFromKeyPress(ROOM, atWall, {
+    const next = instanceFromKeyPress(FLOOR, atWall, {
       key: "ArrowLeft",
       shiftKey: false,
     });

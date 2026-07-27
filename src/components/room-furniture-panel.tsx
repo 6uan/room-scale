@@ -19,11 +19,11 @@ import {
   type PlacedFurniture,
 } from "@/domain/furniture";
 import { nextId } from "@/domain/project";
-import type { Room } from "@/domain/room";
+import { floorBounds, type Floor } from "@/domain/room";
 import { formatAngle, formatLength, type DisplayUnit } from "@/domain/units";
 
 export type RoomFurniturePanelProps = {
-  room: Room;
+  floor: Floor;
   products: readonly FurnitureProduct[];
   instances: readonly FurnitureInstance[];
   furniture: readonly PlacedFurniture[];
@@ -45,7 +45,7 @@ export type RoomFurniturePanelProps = {
  * selected piece from either side.
  */
 export function RoomFurniturePanel({
-  room,
+  floor,
   products,
   instances,
   furniture,
@@ -64,7 +64,7 @@ export function RoomFurniturePanel({
         instances.map((existing) => existing.id),
       ),
       product.id,
-      placementFor(room, instances.length),
+      placementFor(floor, instances.length),
     );
     onInstancesChange([...instances, instance]);
     // Selected as it lands, so it can be moved straight away.
@@ -85,7 +85,7 @@ export function RoomFurniturePanel({
     if (instance.id !== selectedId) {
       return;
     }
-    const next = instanceFromKeyPress(room, instance, event);
+    const next = instanceFromKeyPress(floor, instance, event);
     if (next === null) {
       return;
     }
@@ -141,7 +141,7 @@ export function RoomFurniturePanel({
 
                   {selected ? (
                     <PlacementFields
-                      room={room}
+                      floor={floor}
                       instance={instance}
                       name={name}
                       unit={unit}
@@ -197,7 +197,7 @@ export function RoomFurniturePanel({
 }
 
 type PlacementFieldsProps = {
-  room: Room;
+  floor: Floor;
   instance: FurnitureInstance;
   name: string;
   unit: DisplayUnit;
@@ -213,12 +213,16 @@ type PlacementFieldsProps = {
  * than prevented.
  */
 function PlacementFields({
-  room,
+  floor,
   instance,
   name,
   unit,
   onInstanceChange,
 }: PlacementFieldsProps) {
+  // Measured across the whole apartment, not one room: a piece can stand in
+  // any of them, and the hallway is as valid a place as the living room.
+  const { origin, extent } = floorBounds(floor);
+
   return (
     <fieldset className="flex flex-col gap-3 rounded-lg border border-black/10 p-4 dark:border-white/15">
       <legend className="px-1 text-sm font-medium">Where {name} sits</legend>
@@ -228,7 +232,10 @@ function PlacementFields({
           label="From west"
           unit={unit}
           meters={instance.position.xMeters}
-          limits={{ minMeters: 0, maxMeters: room.widthMeters }}
+          limits={{
+            minMeters: origin.xMeters,
+            maxMeters: origin.xMeters + extent.widthMeters,
+          }}
           onMetersChange={(xMeters) =>
             onInstanceChange(
               moveInstance(instance, { ...instance.position, xMeters }),
@@ -239,7 +246,10 @@ function PlacementFields({
           label="From north"
           unit={unit}
           meters={instance.position.zMeters}
-          limits={{ minMeters: 0, maxMeters: room.depthMeters }}
+          limits={{
+            minMeters: origin.zMeters,
+            maxMeters: origin.zMeters + extent.depthMeters,
+          }}
           onMetersChange={(zMeters) =>
             onInstanceChange(
               moveInstance(instance, { ...instance.position, zMeters }),

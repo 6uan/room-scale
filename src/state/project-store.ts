@@ -12,12 +12,12 @@ import type { FurnitureInstance, FurnitureProduct } from "@/domain/furniture";
 import {
   createProject,
   withDisplayUnit,
+  withFloor,
   withInstances,
   withProducts,
-  withRoom,
   type Project,
 } from "@/domain/project";
-import type { Room } from "@/domain/room";
+import type { Floor } from "@/domain/room";
 import type { DisplayUnit } from "@/domain/units";
 
 export type ProjectStatus =
@@ -33,7 +33,7 @@ export type ProjectState = {
   /** Replaces the project wholesale, as loading does. */
   adopt: (project: Project) => void;
   setStatus: (status: ProjectStatus) => void;
-  setRoom: (room: Room) => void;
+  setFloor: (floor: Floor) => void;
   setProducts: (products: readonly FurnitureProduct[]) => void;
   setInstances: (instances: readonly FurnitureInstance[]) => void;
   setDisplayUnit: (unit: DisplayUnit) => void;
@@ -44,8 +44,8 @@ export const useProjectStore = create<ProjectState>((set) => ({
   status: "loading",
   adopt: (project) => set({ project }),
   setStatus: (status) => set({ status }),
-  setRoom: (room) =>
-    set((state) => ({ project: withRoom(state.project, room) })),
+  setFloor: (floor) =>
+    set((state) => ({ project: withFloor(state.project, floor) })),
   setProducts: (products) =>
     set((state) => ({ project: withProducts(state.project, products) })),
   setInstances: (instances) =>

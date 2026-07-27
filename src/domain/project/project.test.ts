@@ -4,16 +4,17 @@ import {
   nextId,
   withDisplayUnit,
   withProducts,
-  withRoom,
+  withFloor,
 } from "./project";
 
 describe("project", () => {
-  it("starts with a room, no furniture, and a reading preference", () => {
+  it("starts with an apartment, no furniture, and a reading preference", () => {
     const project = createProject();
 
     expect(project.products).toEqual([]);
     expect(project.displayUnit).toBe("imperial");
-    expect(project.room.widthMeters).toBeGreaterThan(0);
+    expect(project.floor.rooms).toHaveLength(1);
+    expect(project.floor.rooms[0]?.widthMeters).toBeGreaterThan(0);
   });
 
   it("replaces each part without mutating the original", () => {
@@ -22,8 +23,8 @@ describe("project", () => {
     expect(withDisplayUnit(project, "metric").displayUnit).toBe("metric");
     expect(withProducts(project, []).products).toEqual([]);
     expect(
-      withRoom(project, { ...project.room, widthMeters: 9 }).room.widthMeters,
-    ).toBe(9);
+      withFloor(project, { ...project.floor, rooms: [] }).floor.rooms,
+    ).toEqual([]);
     expect(project.displayUnit).toBe("imperial");
   });
 });

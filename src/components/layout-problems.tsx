@@ -5,6 +5,8 @@ import { formatLength, type DisplayUnit } from "@/domain/units";
 
 export type LayoutProblemsProps = {
   problems: readonly LayoutProblem[];
+  /** Room id to the name it goes by, for the walls a piece goes through. */
+  roomNames: ReadonlyMap<string, string>;
   /** Instance id to the name that piece is called in the list beside it. */
   names: ReadonlyMap<string, string>;
   /** Walkway id to the name its owner gave the route. */
@@ -27,6 +29,7 @@ export type LayoutProblemsProps = {
 export function LayoutProblems({
   problems,
   names,
+  roomNames,
   walkwayNames,
   unit,
 }: LayoutProblemsProps) {
@@ -49,7 +52,7 @@ export function LayoutProblems({
                   : "text-red-600"
               }`}
             >
-              {problemMessage(problem, names, walkwayNames, unit)}
+              {problemMessage(problem, names, roomNames, walkwayNames, unit)}
             </li>
           ))}
         </ul>
@@ -61,10 +64,12 @@ export function LayoutProblems({
 function problemMessage(
   problem: LayoutProblem,
   names: ReadonlyMap<string, string>,
+  roomNames: ReadonlyMap<string, string>,
   walkwayNames: ReadonlyMap<string, string>,
   unit: DisplayUnit,
 ): string {
   const name = (id: string) => names.get(id) ?? "A piece of furniture";
+  const roomName = (id: string) => roomNames.get(id) ?? "a room";
   const inTheWay = (ids: readonly string[]) =>
     ids.length === 0 ? "" : ` In the way: ${ids.map(name).join(", ")}.`;
 
@@ -77,11 +82,18 @@ function problemMessage(
       );
     case "crosses-wall":
       return (
-        `${name(problem.instanceId)} crosses the ${problem.wall} wall by ` +
+        `${name(problem.instanceId)} crosses the ${problem.wall} wall of the ` +
+        `${roomName(problem.roomId)} by ` +
         `${formatLength(problem.overhangMeters, unit)}.`
       );
     case "outside-room":
-      return `${name(problem.instanceId)} is outside the room.`;
+      return `${name(problem.instanceId)} is not in any room.`;
+    case "rooms-overlap":
+      return (
+        `${roomName(problem.roomIds[0])} and ${roomName(problem.roomIds[1])} ` +
+        `are in the same place, overlapping by ` +
+        `${formatLength(problem.depthMeters, unit)}.`
+      );
     case "walkway-blocked":
       // The width it needs is what it has plus what it is missing, so the
       // problem does not have to carry a number the route already knows.
@@ -112,6 +124,8 @@ function problemKey(problem: LayoutProblem): string {
       return `wall:${problem.instanceId}:${problem.wall}`;
     case "outside-room":
       return `outside:${problem.instanceId}`;
+    case "rooms-overlap":
+      return `rooms:${problem.roomIds.join(":")}`;
     case "walkway-blocked":
     case "walkway-tight":
       return `walkway:${problem.walkwayId}`;

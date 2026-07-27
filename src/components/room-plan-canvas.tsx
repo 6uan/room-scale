@@ -29,8 +29,11 @@ import { instanceFromKeyPress } from "@/components/placement-keys";
 import {
   checkOpening,
   checkWalkway,
+  floorBounds,
   openingEndpoints,
+  pointOnFloor,
   wallOutwardNormal,
+  type Floor,
   type FloorVector,
   type Opening,
   type Room,
@@ -75,8 +78,11 @@ const PROBLEM_COLOR = "#dc2626";
 const WALKWAY_FILL_ALPHA = 0.07;
 const WALKWAY_EDGE_ALPHA = 0.35;
 
+/** Room names: present, and never competing with the measurements. */
+const ROOM_NAME_ALPHA = 0.45;
+
 export type RoomPlanCanvasProps = {
-  room: Room;
+  floor: Floor;
   furniture: readonly PlacedFurniture[];
   unit: DisplayUnit;
   /** Which piece is being worked on, or null. Never persisted: this is UI state. */
@@ -109,7 +115,7 @@ type Drag = {
  * the floor — the same footprints validation measures.
  */
 export function RoomPlanCanvas({
-  room,
+  floor,
   furniture,
   unit,
   selectedId,
@@ -143,7 +149,7 @@ export function RoomPlanCanvas({
 
     const style = window.getComputedStyle(canvas);
     drawPlan(context, {
-      room,
+      floor,
       furniture,
       unit,
       selectedId,
@@ -152,11 +158,11 @@ export function RoomPlanCanvas({
       color: style.color,
       fontFamily: style.fontFamily,
     });
-  }, [room, furniture, unit, selectedId, troubledIds, size]);
+  }, [floor, furniture, unit, selectedId, troubledIds, size]);
 
   function handlePointerDown(event: PointerEvent<HTMLCanvasElement>): void {
     const canvas = canvasRef.current;
-    const point = canvas && floorPointAt(canvas, room, event);
+    const point = canvas && floorPointAt(canvas, floor, event);
     if (!canvas || !point) {
       return;
     }
@@ -193,7 +199,7 @@ export function RoomPlanCanvas({
     const placed = furniture.find(
       ({ instance }) => instance.id === drag.instanceId,
     );
-    const point = floorPointAt(canvas, room, event);
+    const point = floorPointAt(canvas, floor, event);
     if (!placed || !point) {
       return;
     }
@@ -201,7 +207,7 @@ export function RoomPlanCanvas({
     onInstanceChange(
       moveInstance(
         placed.instance,
-        clampToFloor(room, {
+        clampToFloor(floor, {
           xMeters: point.xMeters - drag.grabOffset.xMeters,
           zMeters: point.zMeters - drag.grabOffset.zMeters,
         }),
@@ -225,7 +231,7 @@ export function RoomPlanCanvas({
     }
 
     const placed = furniture.find(({ instance }) => instance.id === selectedId);
-    const next = placed && instanceFromKeyPress(room, placed.instance, event);
+    const next = placed && instanceFromKeyPress(floor, placed.instance, event);
     if (!next) {
       return;
     }
@@ -244,7 +250,7 @@ export function RoomPlanCanvas({
         ref={canvasRef}
         role="img"
         tabIndex={0}
-        aria-label={describeRoom(room, furniture, unit)}
+        aria-label={describeFloor(floor, furniture, unit)}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={endDrag}
@@ -267,39 +273,42 @@ export function RoomPlanCanvas({
  */
 function floorPointAt(
   canvas: HTMLCanvasElement,
-  room: Room,
+  floor: Floor,
   event: PointerEvent<HTMLCanvasElement>,
 ): FloorPoint | null {
-  const bounds = canvas.getBoundingClientRect();
-  const projection = planProjectionFor(room, {
-    width: bounds.width,
-    height: bounds.height,
+  const box = canvas.getBoundingClientRect();
+  const projection = planProjectionFor(floor, {
+    width: box.width,
+    height: box.height,
   });
   const point = unprojectPoint(projection, {
-    x: event.clientX - bounds.left,
-    y: event.clientY - bounds.top,
+    x: event.clientX - box.left,
+    y: event.clientY - box.top,
   });
+  if (point === null) {
+    return null;
+  }
 
-  // The projection covers the walls as well as the floor, so floor coordinates
-  // start one wall thickness in.
-  return point === null
-    ? null
-    : {
-        xMeters: point.xMeters - room.wallThicknessMeters,
-        zMeters: point.zMeters - room.wallThicknessMeters,
-      };
+  // The projection covers a wall all round the apartment, and starts at the
+  // north-west corner of everything on it rather than at the floor's zero.
+  const { origin } = floorBounds(floor);
+  return {
+    xMeters: point.xMeters + origin.xMeters - floor.wallThicknessMeters,
+    zMeters: point.zMeters + origin.zMeters - floor.wallThicknessMeters,
+  };
 }
 
 /**
  * The projection the plan is drawn with. Shared by the drawing and the hit
  * testing, so a click lands where the piece appears rather than near it.
  */
-function planProjectionFor(room: Room, viewport: PixelSize): PlanProjection {
-  const thickness = room.wallThicknessMeters;
+function planProjectionFor(floor: Floor, viewport: PixelSize): PlanProjection {
+  const thickness = floor.wallThicknessMeters;
+  const { extent } = floorBounds(floor);
   return createPlanProjection(
     {
-      widthMeters: room.widthMeters + thickness * 2,
-      depthMeters: room.depthMeters + thickness * 2,
+      widthMeters: extent.widthMeters + thickness * 2,
+      depthMeters: extent.depthMeters + thickness * 2,
     },
     viewport,
     DIMENSION_PADDING_PIXELS,
@@ -307,19 +316,37 @@ function planProjectionFor(room: Room, viewport: PixelSize): PlanProjection {
 }
 
 /** The same information as the drawing, for assistive technology. */
-function describeRoom(
-  room: Room,
+function describeFloor(
+  floor: Floor,
   furniture: readonly PlacedFurniture[],
   unit: DisplayUnit,
 ): string {
+  if (floor.rooms.length === 0) {
+    return "Plan view of an apartment with no rooms in it yet.";
+  }
+
+  const { extent } = floorBounds(floor);
   const shell =
-    `Plan view of a rectangular room, ` +
+    `Plan view of an apartment ${formatLength(extent.widthMeters, unit)} across ` +
+    `and ${formatLength(extent.depthMeters, unit)} down, ` +
+    `holding ${floor.rooms.length} ${floor.rooms.length === 1 ? "room" : "rooms"}: ` +
+    `${floor.rooms.map((room) => describeRoom(room, unit)).join("; ")}.`;
+
+  return `${shell} ${describeFurniture(furniture, unit)}`;
+}
+
+/** One room: how big it is, where it stands, and what is cut into its walls. */
+function describeRoom(room: Room, unit: DisplayUnit): string {
+  const name = room.name === "" ? "an unnamed room" : room.name;
+  const size =
     `${formatLength(room.widthMeters, unit)} wide by ` +
-    `${formatLength(room.depthMeters, unit)} deep, ` +
-    `with a ceiling ${formatLength(room.heightMeters, unit)} high.`;
+    `${formatLength(room.depthMeters, unit)} deep`;
+  const at =
+    `${formatLength(room.origin.xMeters, unit)} from the west and ` +
+    `${formatLength(room.origin.zMeters, unit)} from the north`;
 
   if (room.openings.length === 0) {
-    return `${shell} No openings yet.`;
+    return `${name}, ${size}, at ${at}, with no openings`;
   }
 
   const openings = room.openings
@@ -328,9 +355,9 @@ function describeRoom(
         `${opening.kind === "passage" ? "an open passage" : `a ${opening.kind}`} ` +
         `${formatLength(opening.widthMeters, unit)} wide on the ${opening.wall} wall`,
     )
-    .join("; ");
+    .join(", ");
 
-  return `${shell} ${room.openings.length} opening${room.openings.length === 1 ? "" : "s"}: ${openings}. ${describeFurniture(furniture, unit)}`;
+  return `${name}, ${size}, at ${at}, with ${openings}`;
 }
 
 /**
@@ -365,7 +392,7 @@ function describeFurniture(
 }
 
 type DrawOptions = {
-  room: Room;
+  floor: Floor;
   furniture: readonly PlacedFurniture[];
   unit: DisplayUnit;
   selectedId: string | null;
@@ -385,7 +412,7 @@ type PlanFrame = {
 function drawPlan(
   context: CanvasRenderingContext2D,
   {
-    room,
+    floor,
     furniture,
     unit,
     selectedId,
@@ -397,12 +424,12 @@ function drawPlan(
 ): void {
   context.clearRect(0, 0, viewport.width, viewport.height);
 
-  const thickness = room.wallThicknessMeters;
+  const thickness = floor.wallThicknessMeters;
+  const { origin, extent } = floorBounds(floor);
 
-  // The walls sit outside the measured room, so the extent being fitted is the
-  // floor plus a wall on each side. Floor coordinates are then one wall
-  // thickness in from the outside corner.
-  const projection = planProjectionFor(room, viewport);
+  // The walls sit outside the measured rooms, so the extent being fitted is the
+  // apartment plus a wall all round it.
+  const projection = planProjectionFor(floor, viewport);
   if (projection.pixelsPerMeter <= 0) {
     return;
   }
@@ -410,52 +437,42 @@ function drawPlan(
   const frame: PlanFrame = {
     toPixels: (point) =>
       projectPoint(projection, {
-        xMeters: point.xMeters + thickness,
-        zMeters: point.zMeters + thickness,
+        xMeters: point.xMeters - origin.xMeters + thickness,
+        zMeters: point.zMeters - origin.zMeters + thickness,
       }),
     wallPixels: projectLength(projection, thickness),
     color,
   };
 
-  const inside = frame.toPixels({ xMeters: 0, zMeters: 0 });
-  const floorWidth = projectLength(projection, room.widthMeters);
-  const floorDepth = projectLength(projection, room.depthMeters);
+  // Every room's walls first, as solid rings, then every floor punched out of
+  // them. Doing it room by room would leave one room's wall drawn over the
+  // next room's floor wherever two of them share one.
+  for (const room of floor.rooms) {
+    drawRoomWalls(context, frame, room);
+  }
+  for (const room of floor.rooms) {
+    punchRoomFloor(context, frame, room);
+  }
+  for (const room of floor.rooms) {
+    drawMeterGrid(context, inRoom(frame, room), room);
+  }
 
-  // Walls first, as one solid ring, then the floor punched out of it. Openings
-  // are cut from the ring afterwards, which is the order a plan is read in.
-  context.save();
-  context.globalAlpha = WALL_ALPHA;
-  context.fillStyle = color;
-  context.fillRect(
-    inside.x - frame.wallPixels,
-    inside.y - frame.wallPixels,
-    floorWidth + frame.wallPixels * 2,
-    floorDepth + frame.wallPixels * 2,
-  );
-  context.restore();
-  context.clearRect(inside.x, inside.y, floorWidth, floorDepth);
+  // Openings are cut from the finished wall band, which is the order a plan is
+  // read in — and the only order that opens a doorway through a shared wall.
+  for (const { room, opening } of drawableOpenings(floor)) {
+    cutOpening(context, inRoom(frame, room), room, opening);
+  }
+  for (const { room, opening } of drawableOpenings(floor)) {
+    drawOpeningSymbol(context, inRoom(frame, room), room, opening);
+  }
 
-  context.save();
-  context.globalAlpha = FLOOR_ALPHA;
-  context.fillStyle = color;
-  context.fillRect(inside.x, inside.y, floorWidth, floorDepth);
-  context.restore();
-
-  drawMeterGrid(context, frame, room);
-
-  for (const opening of room.openings) {
-    // An opening that has fallen off its wall is reported in the panel rather
-    // than drawn somewhere it could not be.
-    if (checkOpening(room, opening) !== null) {
-      continue;
-    }
-    cutOpening(context, frame, room, opening);
-    drawOpeningSymbol(context, frame, room, opening);
+  for (const room of floor.rooms) {
+    drawRoomName(context, frame, room, fontFamily);
   }
 
   // Under the furniture, because a route is floor rather than a thing standing
   // on it, and over the grid, because it is the more important measurement.
-  for (const walkway of room.walkways) {
+  for (const walkway of floor.walkways) {
     if (checkWalkway(walkway) === null) {
       drawWalkway(context, frame, walkway);
     }
@@ -469,15 +486,114 @@ function drawPlan(
   }
 
   drawDimensions(context, {
-    room,
+    widthMeters: extent.widthMeters,
+    depthMeters: extent.depthMeters,
     unit,
     color,
     fontFamily,
-    inside,
-    floorWidth,
-    floorDepth,
+    inside: frame.toPixels(origin),
+    floorWidth: projectLength(projection, extent.widthMeters),
+    floorDepth: projectLength(projection, extent.depthMeters),
     wallPixels: frame.wallPixels,
   });
+}
+
+/** A frame that takes points in one room's own coordinates. */
+function inRoom(frame: PlanFrame, room: Room): PlanFrame {
+  return {
+    ...frame,
+    toPixels: (point) => frame.toPixels(pointOnFloor(room, point)),
+  };
+}
+
+/** Openings that are actually on their wall. The rest are reported, not drawn. */
+function drawableOpenings(
+  floor: Floor,
+): readonly { room: Room; opening: Opening }[] {
+  return floor.rooms.flatMap((room) =>
+    room.openings
+      .filter((opening) => checkOpening(room, opening) === null)
+      .map((opening) => ({ room, opening })),
+  );
+}
+
+/** One room's walls, as a solid ring around the space it measures. */
+function drawRoomWalls(
+  context: CanvasRenderingContext2D,
+  frame: PlanFrame,
+  room: Room,
+): void {
+  const inside = frame.toPixels(room.origin);
+  const width = spanPixels(frame, room.widthMeters);
+  const depth = spanPixels(frame, room.depthMeters);
+
+  context.save();
+  context.globalAlpha = WALL_ALPHA;
+  context.fillStyle = frame.color;
+  context.fillRect(
+    inside.x - frame.wallPixels,
+    inside.y - frame.wallPixels,
+    width + frame.wallPixels * 2,
+    depth + frame.wallPixels * 2,
+  );
+  context.restore();
+}
+
+/** The room's own floor, cleared out of the wall band and tinted. */
+function punchRoomFloor(
+  context: CanvasRenderingContext2D,
+  frame: PlanFrame,
+  room: Room,
+): void {
+  const inside = frame.toPixels(room.origin);
+  const width = spanPixels(frame, room.widthMeters);
+  const depth = spanPixels(frame, room.depthMeters);
+
+  context.clearRect(inside.x, inside.y, width, depth);
+  context.save();
+  context.globalAlpha = FLOOR_ALPHA;
+  context.fillStyle = frame.color;
+  context.fillRect(inside.x, inside.y, width, depth);
+  context.restore();
+}
+
+/**
+ * The room's name, in the middle of it.
+ *
+ * An apartment of unlabelled rectangles is a puzzle. This is the one piece of
+ * text inside the plan, and it is what makes it a floor plan rather than a
+ * diagram.
+ */
+function drawRoomName(
+  context: CanvasRenderingContext2D,
+  frame: PlanFrame,
+  room: Room,
+  fontFamily: string,
+): void {
+  if (room.name === "") {
+    return;
+  }
+
+  const center = frame.toPixels({
+    xMeters: room.origin.xMeters + room.widthMeters / 2,
+    zMeters: room.origin.zMeters + room.depthMeters / 2,
+  });
+
+  context.save();
+  context.globalAlpha = ROOM_NAME_ALPHA;
+  context.fillStyle = frame.color;
+  context.font = `${LABEL_PIXELS}px ${fontFamily}`;
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText(room.name, center.x, center.y);
+  context.restore();
+}
+
+/** A length in meters, in pixels, read off the frame itself. */
+function spanPixels(frame: PlanFrame, meters: number): number {
+  const from = frame.toPixels({ xMeters: 0, zMeters: 0 });
+  const to = frame.toPixels({ xMeters: meters, zMeters: meters });
+  return to.x - from.x;
 }
 
 /**
@@ -766,7 +882,8 @@ function strokeSegments(
 }
 
 type DimensionOptions = {
-  room: Room;
+  widthMeters: number;
+  depthMeters: number;
   unit: DisplayUnit;
   color: string;
   fontFamily: string;
@@ -777,13 +894,17 @@ type DimensionOptions = {
 };
 
 /**
- * Dimension lines outside the walls, measuring the inside faces — the same
- * numbers the fields hold.
+ * Dimension lines outside the walls, measuring the apartment end to end.
+ *
+ * One pair for the whole plan rather than a pair per room: a room's own numbers
+ * are in the fields beside it, and five sets of dimension lines would bury the
+ * drawing they are meant to explain.
  */
 function drawDimensions(
   context: CanvasRenderingContext2D,
   {
-    room,
+    widthMeters,
+    depthMeters,
     unit,
     color,
     fontFamily,
@@ -806,7 +927,7 @@ function drawDimensions(
 
   // Width, above the room.
   const widthY = outerTop - DIMENSION_OFFSET_PIXELS;
-  const widthLabel = formatLength(room.widthMeters, unit);
+  const widthLabel = formatLength(widthMeters, unit);
   const widthGap = context.measureText(widthLabel).width / 2 + LABEL_GAP_PIXELS;
   const midX = inside.x + floorWidth / 2;
 
@@ -835,7 +956,7 @@ function drawDimensions(
 
   // Depth, up the left side, reading along the wall it measures.
   const depthX = outerLeft - DIMENSION_OFFSET_PIXELS;
-  const depthLabel = formatLength(room.depthMeters, unit);
+  const depthLabel = formatLength(depthMeters, unit);
   const depthGap = context.measureText(depthLabel).width / 2 + LABEL_GAP_PIXELS;
   const midY = inside.y + floorDepth / 2;
 

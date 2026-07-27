@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createProject, withDisplayUnit } from "@/domain/project";
-import { withRoomLength } from "@/domain/room";
+import { withRoom, withRoomLength } from "@/domain/room";
 import {
   CURRENT_PROJECT_ID,
   QUARANTINE_ID,
@@ -44,16 +44,20 @@ describe("loadProject", () => {
 
   it("reads back a room that was edited", async () => {
     const project = createProject();
+    const [room] = project.floor.rooms;
+    if (room === undefined) {
+      throw new Error("a new project starts with one room");
+    }
     const edited = {
       ...project,
-      room: withRoomLength(project.room, "widthMeters", 5.5),
+      floor: withRoom(project.floor, withRoomLength(room, "widthMeters", 5.5)),
     };
     await saveProject(edited, 1_700_000_000_000, database);
 
     const result = await loadProject(database);
-    expect(result.status === "loaded" && result.project.room.widthMeters).toBe(
-      5.5,
-    );
+    expect(
+      result.status === "loaded" && result.project.floor.rooms[0]?.widthMeters,
+    ).toBe(5.5);
   });
 
   it("keeps the newest save rather than accumulating rows", async () => {

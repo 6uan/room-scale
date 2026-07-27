@@ -4,22 +4,23 @@ import { NumberField } from "@/components/number-field";
 import {
   MIN_WALKWAY_LENGTH_METERS,
   checkWalkway,
+  floorBounds,
   walkwayLengthMeters,
-  type Room,
+  type Floor,
   type Walkway,
   type WalkwayProblem,
 } from "@/domain/room";
 import { formatLength, type DisplayUnit } from "@/domain/units";
 
 export type RoomWalkwaysFormProps = {
-  room: Room;
+  floor: Floor;
   unit: DisplayUnit;
   onWalkwaysChange: (walkways: readonly Walkway[]) => void;
   onAddWalkway: () => void;
 };
 
 /**
- * The routes across the room that have to stay clear.
+ * The routes across the apartment that have to stay clear.
  *
  * **Not mounted yet.** The rules behind it are live — a project that holds a
  * route is measured against it and reported in the fit list — but the left-hand
@@ -33,14 +34,14 @@ export type RoomWalkwaysFormProps = {
  * been told rather than one they can eyeball.
  */
 export function RoomWalkwaysForm({
-  room,
+  floor,
   unit,
   onWalkwaysChange,
   onAddWalkway,
 }: RoomWalkwaysFormProps) {
   function replace(walkway: Walkway, next: Walkway): void {
     onWalkwaysChange(
-      room.walkways.map((existing) =>
+      floor.walkways.map((existing) =>
         existing.id === walkway.id ? next : existing,
       ),
     );
@@ -48,7 +49,7 @@ export function RoomWalkwaysForm({
 
   function remove(walkway: Walkway): void {
     onWalkwaysChange(
-      room.walkways.filter((existing) => existing.id !== walkway.id),
+      floor.walkways.filter((existing) => existing.id !== walkway.id),
     );
   }
 
@@ -64,7 +65,7 @@ export function RoomWalkwaysForm({
         </button>
       </div>
 
-      {room.walkways.length === 0 ? (
+      {floor.walkways.length === 0 ? (
         <p className="text-sm opacity-60">
           No routes yet. Add the walk you take most — to the door, to the
           kitchen, to the guest room — and anything narrowing it will be
@@ -72,11 +73,11 @@ export function RoomWalkwaysForm({
         </p>
       ) : (
         <ul className="flex flex-col gap-5">
-          {room.walkways.map((walkway) => (
+          {floor.walkways.map((walkway) => (
             <li key={walkway.id}>
               <WalkwayFields
                 walkway={walkway}
-                room={room}
+                floor={floor}
                 unit={unit}
                 onChange={(next) => replace(walkway, next)}
                 onRemove={() => remove(walkway)}
@@ -91,7 +92,7 @@ export function RoomWalkwaysForm({
 
 type WalkwayFieldsProps = {
   walkway: Walkway;
-  room: Room;
+  floor: Floor;
   unit: DisplayUnit;
   onChange: (walkway: Walkway) => void;
   onRemove: () => void;
@@ -99,7 +100,7 @@ type WalkwayFieldsProps = {
 
 function WalkwayFields({
   walkway,
-  room,
+  floor,
   unit,
   onChange,
   onRemove,
@@ -131,14 +132,14 @@ function WalkwayFields({
       <End
         label={`${name} start`}
         point={walkway.start}
-        room={room}
+        floor={floor}
         unit={unit}
         onChange={(start) => onChange({ ...walkway, start })}
       />
       <End
         label={`${name} end`}
         point={walkway.end}
-        room={room}
+        floor={floor}
         unit={unit}
         onChange={(end) => onChange({ ...walkway, end })}
       />
@@ -192,16 +193,18 @@ function WalkwayFields({
 function End({
   label,
   point,
-  room,
+  floor,
   unit,
   onChange,
 }: {
   label: string;
   point: { xMeters: number; zMeters: number };
-  room: Room;
+  floor: Floor;
   unit: DisplayUnit;
   onChange: (point: { xMeters: number; zMeters: number }) => void;
 }) {
+  const { origin, extent } = floorBounds(floor);
+
   return (
     <div className="flex flex-wrap items-end gap-4">
       <span className="w-full text-xs uppercase tracking-[0.15em] opacity-60">
@@ -211,14 +214,20 @@ function End({
         label={`${label} from west`}
         unit={unit}
         meters={point.xMeters}
-        limits={{ minMeters: 0, maxMeters: room.widthMeters }}
+        limits={{
+          minMeters: origin.xMeters,
+          maxMeters: origin.xMeters + extent.widthMeters,
+        }}
         onMetersChange={(xMeters) => onChange({ ...point, xMeters })}
       />
       <NumberField
         label={`${label} from north`}
         unit={unit}
         meters={point.zMeters}
-        limits={{ minMeters: 0, maxMeters: room.depthMeters }}
+        limits={{
+          minMeters: origin.zMeters,
+          maxMeters: origin.zMeters + extent.depthMeters,
+        }}
         onMetersChange={(zMeters) => onChange({ ...point, zMeters })}
       />
     </div>
