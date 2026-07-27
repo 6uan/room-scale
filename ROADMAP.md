@@ -14,7 +14,7 @@ Two rules keep the order honest:
   Steps 4 to 10 are that question end to end. Everything after them makes the
   answer nicer to look at.
 
-Status: **step 11 is next.**
+Status: **step 12 is next.**
 
 ---
 
@@ -230,7 +230,7 @@ standing in the plan".
 
 ## Making it usable for real
 
-### 11. Keep the routes clear
+### 11. Keep the routes clear ✅
 
 Two halves, each shipping on its own and in this order. They share one idea —
 a zone furniture has to stay out of — which is why they are one step.
@@ -263,7 +263,7 @@ to live. A route's ends are typed rather than dragged for the same reason the
 numbers came first: 36 inches is a figure somebody has been told, not one they
 can eyeball.
 
-**11b — Blocked openings. ◀ next** `AGENTS.md` lists them under validation and step 9
+**Blocked openings moved to step 16.** `AGENTS.md` lists them under validation and step 9
 deliberately left them: a door needs the arc it sweeps treated as a zone that
 must stay clear, which is 11a's machinery pointed at a door instead of a
 hallway. A piece standing in a doorway is a blocked route by another name.
@@ -271,7 +271,46 @@ hallway. A piece standing in a doorway is a blocked route by another name.
 Done when: a console in front of the door says the door cannot open, and moving
 it six inches says the door clears it.
 
-### 12. Compare layouts
+### 12. Build the apartment out of rooms ◀ next
+
+A floor plan is a whole apartment, and until now RoomScale has drawn one
+rectangle. A sofa that fits the living room and blocks the hall is the wrong
+sofa, and there has been no way to say so.
+
+Rooms become **building blocks**: a rectangle with a name, a size, and a place
+on the floor. Add one, size it, put it where it goes, and the plan draws the
+apartment — every room at once, the way the listing showed it.
+
+Decisions this step makes, and why:
+
+- **A room carries its position, and rooms may overlap.** Shared walls derived
+  from adjacency would be truer to a real plan and much more work, and it would
+  make every room's position depend on its neighbours. Two blocks overlapping is
+  a mistake worth reporting, in the same list that reports everything else — not
+  a state the editor refuses to enter.
+- **Wall thickness belongs to the floor, not the room.** An apartment has one
+  wall thickness, and asking for it per room would be asking the same question
+  five times.
+- **Walkways move from the room to the floor.** The route that matters runs from
+  the living room to the guest room, and a route that cannot leave a room is not
+  the route anybody meant.
+- **Furniture is placed on the floor**, and the room it is in is worked out from
+  where it sits. A rug half in the hallway is a real thing to do, and a piece
+  owned by a room could not express it.
+- **Furniture is measured against the room it mostly occupies.** Reaching past
+  that room's walls is reported even when another room is on the far side,
+  because furniture cannot occupy a wall.
+- **One floor.** Not a limitation to work around later — the apartment being
+  planned has one storey, and a second would buy a coordinate nobody needs.
+
+The stored document goes to version 4: a version 3 project becomes an apartment
+of one room at the origin, which is exactly what it always was.
+
+Done when: the living room, the hall, and a bedroom can be laid out side by
+side, drawn as one plan, and a sofa reaching from the living room into the hall
+is reported as crossing the wall between them.
+
+### 13. Compare layouts
 
 Multiple named arrangements of the same room: save, duplicate, rename, switch,
 compare. Products are shared across layouts; instances belong to one.
@@ -279,13 +318,13 @@ compare. Products are shared across layouts; instances belong to one.
 Done when: two arrangements of the same furniture can be looked at side by side
 without losing either.
 
-### 13. Take the data elsewhere
+### 14. Take the data elsewhere
 
 JSON export and import for the whole project, CSV export for the checklist.
 
 Done when: a project exported, cleared, and re-imported is identical.
 
-### 14. Make it editable on one page
+### 15. Make it editable on one page
 
 By here the left-hand column of `/plan` holds dimensions, furniture, placements,
 openings, and walkways, and the project spans three routes. That is a reasonable
@@ -309,13 +348,26 @@ Done when: a room can be measured, furnished, arranged, checked, and priced
 without leaving one screen — and the whole of that can be done from the
 keyboard.
 
+### 16. Finish the clearance checks
+
+The half of step 11 that was deliberately left, now that a route can cross a
+whole apartment: a door's swing arc as a zone that must stay clear, and a piece
+standing in a doorway reported as the blocked route it is.
+
+It waits until here because a doorway between two rooms is only expressible once
+there are two rooms, and because the interface pass in step 15 is what gives a
+walkway somewhere to be drawn.
+
+Done when: a console in front of the door says the door cannot open, and moving
+it six inches says the door clears it.
+
 ---
 
 ## Fidelity
 
 Nothing here changes an answer. It changes how easy the answer is to believe.
 
-### 15. Add a perspective view
+### 17. Add a perspective view
 
 React Three Fiber, Three.js, and Drei arrive here. The same data, seen from
 inside the room, with furniture as correctly sized boxes and the openings from
@@ -326,7 +378,7 @@ The plan view stays fully capable. Neither view is the only way in.
 Done when: the room can be walked around, and every box measures what its
 product says it measures.
 
-### 16. Move toward photorealism
+### 18. Move toward photorealism
 
 The long goal, gated behind a working tool, and taken in stages so each one can
 be judged on its own:

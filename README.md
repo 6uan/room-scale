@@ -8,7 +8,7 @@ into — before you buy any of it, and without going back to measure again.
 It runs in your browser. No account, nothing uploaded, and the project stays on
 your own machine.
 
-Measure the room once. Bring furniture in from the listing pages you already
+Measure the rooms once. Bring furniture in from the listing pages you already
 have open, at the dimensions the retailer printed. Arrange it in a plan drawn to
 scale, and RoomScale tells you what does not fit and by how much: a sectional
 overlapping the coffee table, a console pushed through a wall, the route to the
@@ -33,8 +33,8 @@ about the furniture instead of the measurements.
 
 ## How it works
 
-1. **Measure the room once** — width, depth, ceiling, and where the doors,
-   windows, and open passages are. Type inches or centimeters; it stores meters
+1. **Measure the rooms once** — each room's width, depth, and ceiling, where it
+   sits in the apartment, and where the doors, windows, and open passages are. Type inches or centimeters; it stores meters
    either way.
 2. **Bring the furniture in from its page** — paste a product page and RoomScale
    reads the name, price, and dimensions out of it. Every value it extracts is
@@ -51,7 +51,7 @@ about the furniture instead of the measurements.
 
 ## Where it is now
 
-**Roadmap steps 1–11a of 16 are done.** What works today:
+**Roadmap steps 1–11 of 18 are done.** What works today:
 
 - A rectangular room, measured in either unit, with its doors, windows, and open
   passages, drawn to scale in plan at `/plan`.
@@ -66,12 +66,13 @@ about the furniture instead of the measurements.
 - Protected walkways: routes that must stay clear, each with a width you need
   and a width you would rather have, reported with what is left and by how much
   it falls short. The rules are live; the form for drawing one is written but
-  not yet on the page, and arrives with the interface pass in step 14.
+  not yet on the page, and arrives with the interface pass in step 15.
 - Everything saved in your browser, and nothing sent anywhere.
 
-Still to come, in this order: blocked doorways (step 11b), comparing layouts
-(12), JSON and CSV export (13), editing the whole project on
-one screen (14), the perspective view (15), and photorealism (16).
+Still to come, in this order: **the whole apartment rather than one room**
+(step 12), comparing layouts (13), JSON and CSV export (14), editing the whole project
+on one screen (15), the doorway and clearance checks (16), the perspective view
+(17), and photorealism (18).
 
 [ROADMAP.md](ROADMAP.md) is a strict sequence, not a backlog. Steps 4 to 10 are
 the tool's whole reason for existing: what fits, and what it costs. Everything
