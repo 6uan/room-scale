@@ -1,7 +1,11 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+import { resetProjectStore } from "@/state/project-store";
 import { RoomPlanner } from "./room-planner";
+
+// The project store is module-level, so it outlives a single test.
+beforeEach(resetProjectStore);
 
 /**
  * The canvas itself is not exercised here: jsdom gives elements a zero size and
