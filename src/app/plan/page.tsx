@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ProjectGate } from "@/components/project-gate";
 import { RoomPlanner } from "@/components/room-planner";
 
 export const metadata: Metadata = {
@@ -28,7 +29,9 @@ export default function PlanPage() {
         </p>
       </header>
 
-      <RoomPlanner />
+      <ProjectGate>
+        <RoomPlanner />
+      </ProjectGate>
     </main>
   );
 }

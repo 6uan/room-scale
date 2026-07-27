@@ -1,7 +1,11 @@
 # `src/state`
 
-Empty until roadmap step 5.
+The active project, held in one place so `/plan` and `/furniture` are two views
+of the same thing rather than two islands.
 
-Planned contents: Zustand stores holding the active project, selection, and UI
-mode. Stores hold plain serializable data and delegate all math to
-`src/domain`.
+`project-store.ts` is a Zustand store of plain serializable data. It does no
+input and no output: reading and writing IndexedDB is `ProjectGate`'s job, in
+`src/components`. That keeps the store testable without a database and keeps
+the persistence boundary somewhere you can see it.
+
+All maths is delegated to `src/domain`.
