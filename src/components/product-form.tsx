@@ -3,6 +3,8 @@
 import { useId, useState } from "react";
 import { NumberField } from "@/components/number-field";
 import { PriceField } from "@/components/price-field";
+import { ProductImportPanel } from "@/components/product-import-panel";
+import type { ExtractedProduct } from "@/domain/import";
 import {
   MAX_NAME_LENGTH,
   PRODUCT_LENGTH_LIMITS,
@@ -62,8 +64,33 @@ export function ProductForm({
     }
   }
 
+  /**
+   * Fills in what was read and leaves everything else alone, so importing over
+   * a half-filled form corrects it rather than wiping it.
+   */
+  function applyExtracted(extracted: ExtractedProduct): void {
+    setDraft((current) => ({
+      ...current,
+      ...(extracted.name === undefined ? {} : { name: extracted.name.value }),
+      ...(extracted.priceCents === undefined
+        ? {}
+        : { priceCents: extracted.priceCents.value }),
+      ...(extracted.heightMeters === undefined
+        ? {}
+        : { heightMeters: extracted.heightMeters.value }),
+      footprint: {
+        widthMeters:
+          extracted.widthMeters?.value ?? current.footprint.widthMeters,
+        depthMeters:
+          extracted.depthMeters?.value ?? current.footprint.depthMeters,
+      },
+    }));
+  }
+
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5" noValidate>
+      <ProductImportPanel unit={unit} onExtracted={applyExtracted} />
+
       <TextField
         label="Name"
         value={draft.name}

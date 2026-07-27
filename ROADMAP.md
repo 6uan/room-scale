@@ -14,7 +14,7 @@ Two rules keep the order honest:
   Steps 4 to 10 are that question end to end. Everything after them makes the
   answer nicer to look at.
 
-Status: **step 6 is next.**
+Status: **step 6b is next.**
 
 ---
 
@@ -99,16 +99,24 @@ number reach the catalogue unseen, per
 
 Three stages, each shipping on its own and in this order:
 
-**6a — Paste the page text.** A parser over pasted text: JSON-LD `Product`
-metadata if it is there, and dimension patterns (`112"W x 65"D x 34"H`,
-`Overall Width - Side to Side: 112"`, `112 x 65 x 34 inches`) if it is not.
-Pure, offline, and unit tested against real strings captured from the retailers
-actually being used. Also the way an existing product gets corrected.
+**6a — Paste the page text. ✅** A parser over pasted visible text, in
+`src/domain/import`, filling the form for confirmation. Reads labelled axes
+(`70"W x 15.7"D x 20.5"H`, `Overall Width - Side to Side: 112"`) in inches,
+feet, centimeters, or millimeters, and falls back to positional triples
+(`52.8 x 125.8 x 36.4 inches`) marked as an assumed order. Also the way an
+existing product gets corrected.
 
-**6b — Paste a link.** A Next route handler fetches the page server-side, since
-a browser cannot fetch cross-origin, and runs the same parser. Retailers that
-block the fetch or render their page in JavaScript fall back to 6a with a plain
-message saying so — this path is a convenience, never the only way in.
+Two findings from the real pages changed the plan. Neither Target nor Amazon
+publishes schema.org metadata for furniture, so there is no structured source
+to prefer — the JSON-LD step was dropped. And it reads rendered text rather
+than HTML, because retail markup is full of stylesheet lengths and script
+numbers that look exactly like measurements.
+
+**6b — Paste a link. ◀ next** A Next route handler fetches the page
+server-side, since a browser cannot fetch cross-origin, strips it to text, and
+runs the same parser. Both pages tried so far return 200, but Target's is a
+JavaScript shell whose markup carries no title, price, or dimensions — so this
+path is a convenience for the pages it works on, never the only way in.
 
 **6c — A local model for the pages the parser cannot read.** Ollama on
 `localhost`, with output constrained to the product schema so it cannot return
