@@ -314,45 +314,71 @@ it; and a summary that counts rooms and measures the place end to end.
 Not carried out of this step: rooms do not snap to each other, so two blocks
 meeting exactly is a matter of typing the same number twice. Snapping wants a
 pointer, and rooms cannot be dragged yet either — both belong with the
-interface pass.
+workspace.
 
-### 13. Compare layouts ◀ next
+### 13. Make it one workspace ◀ next
 
-Multiple named arrangements of the same room: save, duplicate, rename, switch,
-compare. Products are shared across layouts; instances belong to one.
+The plan is a third of the screen and everything else is a column you scroll
+past. Rooms made that worse, and the walkway form is sitting on `main`
+unmounted because there was nowhere honest to put it. The shape of the
+interface is now the thing holding the tool back.
+
+It moves ahead of comparing layouts and export because the two surfaces that
+argued for waiting — walkways and rooms — have both shipped. What is left adds
+a switcher and two buttons, and those land in a workspace far more easily than
+in a column that would then be torn out.
+
+**One screen, three panels.**
+
+- **Left, split.** What is in the apartment — rooms, the furniture standing in
+  them, the routes — over the catalogue of things being considered. Selecting
+  anything selects it on the plan.
+- **Centre.** The plan, given the room it deserves, pannable and zoomable.
+- **Right.** Whatever is selected, in full: a room's size and place, a piece's
+  position and rotation, a route's widths. Nothing is selected, and it shows
+  the apartment's own settings.
+
+**It pans and zooms like a design tool.** Scroll pans, ⌘ or Ctrl with scroll
+zooms toward the pointer, space and drag pans, pinch zooms. A plain scroll never
+zooms by accident, which is the mistake that makes a canvas feel hostile. Zoom
+to fit is one key.
+
+**The catalogue folds in; the checklist becomes an overview.** Adding and
+picking furniture is part of arranging, so it happens here. What you leave with
+— the list, the prices, the total, and later the export — moves to its own
+route, which is the thing to print and take to a shop.
+
+**The drafting look stays.** Monochrome lines, real dimension lines, hatched
+walls, one accent for selection and red only for problems. Dimension text keeps
+its size as the plan zooms, the way a design tool keeps its own furniture
+constant. A measured plan is what makes the answers trustworthy; step 18 is
+where it stops looking like a drawing.
+
+**On the keyboard.** Earlier steps treated a key for every action as a gate on
+shipping. That is relaxed: the workspace is a pointer-first tool, and shortcuts
+arrive where they earn their place. What does not relax is that every value is
+still a number you can type. That has never been about access — a dimension you
+can only drag is a dimension you cannot trust.
+
+Done when: an apartment can be measured, furnished, arranged, and checked
+without scrolling, and the plan can be zoomed into a corner and back out to the
+whole floor.
+
+### 14. Compare layouts
+
+Multiple named arrangements of the same apartment: save, duplicate, rename,
+switch, compare. Products are shared across layouts; instances belong to one.
+The switcher lives in the workspace's top bar.
 
 Done when: two arrangements of the same furniture can be looked at side by side
 without losing either.
 
-### 14. Take the data elsewhere
+### 15. Take the data elsewhere
 
-JSON export and import for the whole project, CSV export for the checklist.
+JSON export and import for the whole project, CSV export for the checklist,
+offered from the overview — the page that already exists to be taken away.
 
 Done when: a project exported, cleared, and re-imported is identical.
-
-### 15. Make it editable on one page
-
-By here the left-hand column of `/plan` holds dimensions, furniture, placements,
-openings, and walkways, and the project spans three routes. That is a reasonable
-way to build it and a poor way to use it.
-
-The plan and the checklist become the two things always on screen, and
-everything else is edited where it lives: a modal for the room, for a product,
-for a placement, for a walkway. Nothing new can be answered afterwards — this is
-the step that stops the answers being buried.
-
-It comes after 13 and not before, because 11, 12, and 13 each add something that
-has to be edited, and a shell designed before them would be rebuilt three times.
-It comes before the perspective view, because that view needs room on the screen
-too, and building it into a cramped page is worse than fixing the page first.
-
-The rule that governs it: every modal is reachable, escapable, and returns focus
-where it came from, and every value in one is still editable as a number. The
-canvas is not the only way in, and neither is the mouse.
-
-Done when: a room can be measured, furnished, arranged, checked, and priced
-without leaving one screen — and the whole of that can be done from the
-keyboard.
 
 ### 16. Finish the clearance checks
 
@@ -361,7 +387,7 @@ whole apartment: a door's swing arc as a zone that must stay clear, and a piece
 standing in a doorway reported as the blocked route it is.
 
 It waits until here because a doorway between two rooms is only expressible once
-there are two rooms, and because the interface pass in step 15 is what gives a
+there are two rooms, and because the workspace in step 13 is what gives a
 walkway somewhere to be drawn.
 
 Done when: a console in front of the door says the door cannot open, and moving

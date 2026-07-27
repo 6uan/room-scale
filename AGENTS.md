@@ -175,12 +175,19 @@ The application must support:
 
 - top-down plan view,
 - perspective view,
-- keyboard-accessible editing,
 - numeric transforms,
 - visible validation messages,
 - a non-3D checklist representation.
 
-The 3D canvas must not be the sole way to edit or understand a project.
+**Every value must remain typeable as a number.** This is a measurement rule
+rather than an accessibility one: a dimension that can only be dragged is a
+dimension nobody can trust, and the whole point of the tool is that its numbers
+are right.
+
+The plan is a pointer-first workspace — it pans, zooms, and is dragged on.
+Keyboard shortcuts are welcome and are not a condition of shipping a feature.
+The checklist remains readable and printable without touching the canvas at
+all, so a project can always be understood without it.
 
 ## Code quality
 
