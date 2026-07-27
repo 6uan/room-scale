@@ -1,7 +1,11 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+import { resetProjectStore } from "@/state/project-store";
 import { FurnitureCatalog } from "./furniture-catalog";
+
+// The project store is module-level, so it outlives a single test.
+beforeEach(resetProjectStore);
 
 /** Fills the form the way someone copying a product page would. */
 async function enterProduct(

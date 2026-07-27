@@ -14,7 +14,7 @@ Two rules keep the order honest:
   Steps 4 to 10 are that question end to end. Everything after them makes the
   answer nicer to look at.
 
-Status: **step 5 is next.**
+Status: **step 6 is next.**
 
 ---
 
@@ -70,21 +70,27 @@ Not carried out of this step: the catalogue total counts one of each, because
 quantity comes from how many are placed and nothing can be placed yet. The real
 budget is step 10.
 
-### 5. Save the project, so nothing is typed twice ◀ next
+### 5. Save the project, so nothing is typed twice ✅
 
-Dexie over IndexedDB, per
+Done. Dexie over IndexedDB, per
 [ADR 0002](docs/adr/0002-local-first-persistence.md). One versioned project
-document holding the room and the products, Zod validated on read, with forward
-migrations.
+document holding the room, the products, and the display-unit preference, Zod
+validated on read.
 
-Built early and deliberately generic: later steps add fields to the document and
-a migration, rather than building persistence again. Each migration gets a test
-against a captured old payload, because they run on devices we cannot watch.
+`/plan` and `/furniture` are now two views of one project rather than two
+islands, through a Zustand store that holds state and does no input or output.
+Reading and writing live in `ProjectGate`, which holds the interface back until
+storage has been read — rendering the editor first would let someone type into
+a default room and then have the load overwrite it.
 
-Done when: enter a room and three products, reload the page, and everything is
-still there.
+A record that cannot be read is kept aside rather than overwritten, and a
+document from a newer build is refused rather than half-understood.
 
-### 6. Fill a product in from its page, instead of typing it
+Not carried out of this step: there is only version 1, so there is nothing to
+migrate yet. The read path dispatches on version and refuses what it does not
+recognize, which is the part that has to exist before there is a version 2.
+
+### 6. Fill a product in from its page, instead of typing it ◀ next
 
 Typing a dozen products by hand is the thing most likely to stop this tool being
 used. This step removes most of that typing without ever letting a guessed
