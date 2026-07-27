@@ -51,7 +51,7 @@ about the furniture instead of the measurements.
 
 ## Where it is now
 
-**Roadmap steps 1–9 of 15 are done.** What works today:
+**Roadmap steps 1–10 of 15 are done.** What works today:
 
 - A rectangular room, measured in either unit, with its doors, windows, and open
   passages, drawn to scale in plan at `/plan`.
@@ -61,11 +61,13 @@ about the furniture instead of the measurements.
   dragging, by typing a position, or with the arrow keys.
 - Overlaps, wall crossings, and pieces outside the room, reported in words with
   the amount they are out by.
+- A printable checklist at `/checklist` — quantity, price, link, and purchase
+  status per item, with what the room costs and what is still to buy.
 - Everything saved in your browser, and nothing sent anywhere.
 
-Still to come, in this order: the checklist and its total (step 10), protected
-walkways and blocked doorways (11), comparing layouts (12), JSON and CSV export
-(13), the perspective view (14), and photorealism (15).
+Still to come, in this order: protected walkways and blocked doorways (step 11),
+comparing layouts (12), JSON and CSV export (13), the perspective view (14), and
+photorealism (15).
 
 [ROADMAP.md](ROADMAP.md) is a strict sequence, not a backlog. Steps 4 to 10 are
 the tool's whole reason for existing: what fits, and what it costs. Everything
@@ -124,7 +126,7 @@ src/
     units/        Meter, area, and integer-cent conversions (implemented)
     room/         The room, its walls, and its openings (implemented)
     furniture/    Products: dimensions, price, retailer (implemented)
-    project/      The saved document: room, products, unit (implemented)
+    project/      The saved document, and the checklist derived from it
     import/       Reading a product out of a pasted page (implemented)
     geometry/     Plan projection, oriented rectangles, SAT (implemented)
     validation/   Fit rules (implemented); clearance rules (step 11)

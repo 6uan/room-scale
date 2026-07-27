@@ -89,7 +89,7 @@ export default function Home() {
       <section className="flex flex-col gap-4">
         <h2 className="text-xl font-semibold tracking-tight">Project status</h2>
         <p className="text-sm leading-relaxed opacity-80">
-          Steps 1 to 9 of 15 are done. A rectangular room can be measured and
+          Steps 1 to 10 of 15 are done. A rectangular room can be measured and
           seen to scale{" "}
           <Link href="/plan" className="underline underline-offset-4">
             in plan
@@ -102,8 +102,11 @@ export default function Home() {
           . Furniture can be placed in the room at its true footprint, moved and
           turned by dragging or by typing, and anything that overlaps, crosses a
           wall, or sits outside the room is reported in words with the amount.
-          It is all saved in your browser. The shopping checklist and its total
-          are next. See{" "}
+          It is all saved in your browser, and what it all costs is in the{" "}
+          <Link href="/checklist" className="underline underline-offset-4">
+            checklist
+          </Link>
+          . Protected walkways are next. See{" "}
           <code className="rounded bg-black/5 px-1.5 py-0.5 text-xs dark:bg-white/10">
             ROADMAP.md
           </code>{" "}

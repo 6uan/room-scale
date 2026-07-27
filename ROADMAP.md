@@ -14,7 +14,7 @@ Two rules keep the order honest:
   Steps 4 to 10 are that question end to end. Everything after them makes the
   answer nicer to look at.
 
-Status: **step 10 is next.**
+Status: **step 11 is next.**
 
 ---
 
@@ -202,21 +202,35 @@ validation but no step ever scheduled them, and a door needs its swing treated
 as a clearance zone — which is step 11's machinery. They belong there, and step
 11's text now says so.
 
-### 10. Add the checklist and the budget ◀ next
+### 10. Add the checklist and the budget ✅
 
-The non-3D representation of the project: every product with its quantity,
-price, link, and purchase status, plus the total. Quantity comes from the
-instance count and totals are derived from products deduplicated by id — never
-stored, so they cannot drift from what is actually placed. Print-friendly.
+Done. `/checklist` is the project without the drawing: every placed product with
+its quantity, price each, line total, link, and purchase status, and three
+figures — what the room costs, what has been ordered or is already owned, and
+what is still to buy.
 
-Done when: the total matches the sum of what is in the room, and marking the rug
-as bought changes what is still owed.
+Quantity is counted from the instances and the totals are added up on every
+render. Nothing is stored, so no number can drift from the furniture it
+describes. Products are deduplicated by id before counting, so a catalogue that
+somehow holds one twice still bills for it once.
+
+Ordered counts as spent alongside owned: retailers take the money when the order
+goes in, so a sofa on a lorry is not something you still have to buy.
+
+Printing drops the navigation and the dropdowns, leaving the words they were
+showing and a product's link as its address rather than as "Open Sectional".
+
+Not carried out of this step: a product in the catalogue with nothing placed is
+listed as not counted rather than priced, because the total is a fact about the
+room. Buying two of something still means placing it twice — there is no
+quantity field, and there should not be one while quantity means "how many are
+standing in the plan".
 
 ---
 
 ## Making it usable for real
 
-### 11. Add protected walkways
+### 11. Add protected walkways ◀ next
 
 User-drawn routes that must stay clear, each with a minimum and a preferred
 width. Anything intersecting one is reported, with the shortfall in meters shown

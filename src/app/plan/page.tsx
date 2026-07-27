@@ -18,6 +18,9 @@ export default function PlanPage() {
           <Link href="/furniture" className="underline underline-offset-4">
             Furniture
           </Link>
+          <Link href="/checklist" className="underline underline-offset-4">
+            Checklist
+          </Link>
         </nav>
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
           The room
