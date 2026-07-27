@@ -3,11 +3,13 @@
 Pure, framework-free logic. Everything here is deterministic and testable
 without a browser.
 
-| Folder        | Holds                                                     |
-| ------------- | --------------------------------------------------------- |
-| `units/`      | Meter and integer-cent conversions at the input boundary. |
-| `geometry/`   | Oriented rectangles, SAT intersection, clearance zones.   |
-| `validation/` | Rules that turn geometry facts into user-facing problems. |
+| Folder        | Holds                                                              |
+| ------------- | ------------------------------------------------------------------ |
+| `units/`      | Meter, square-meter, and integer-cent conversions at the boundary. |
+| `room/`       | The rectangular room, its walls, and its openings.                 |
+| `furniture/`  | Furniture products: dimensions, price, retailer, purchase status.  |
+| `geometry/`   | Oriented rectangles, SAT intersection, clearance zones.            |
+| `validation/` | Rules that turn geometry facts into user-facing problems.          |
 
 Rules:
 

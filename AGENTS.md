@@ -34,11 +34,31 @@ Do not implement:
 
 - floor-plan AI recognition,
 - multiplayer,
-- photorealistic rendering,
-- retailer scraping,
+- bulk retailer scraping or catalogue harvesting,
 - AR,
 - multi-story architecture,
 - direct checkout.
+
+Wanted, but not yet:
+
+- **Assisted product import.** Filling the product form in from a pasted page,
+  a pasted link, or — where those fail — a local language model, per
+  [ADR 0005](docs/adr/0005-assisted-product-import.md). One page at a time, on
+  an explicit user action. This is not the scraping ruled out above: no
+  crawling, no bulk collection, no background fetching.
+
+  A value that was extracted rather than typed is shown with the text it came
+  from and confirmed before it is stored. Manual entry stays a first-class path
+  permanently, because page formats change and parsers rot.
+
+- **Photorealistic rendering.** It is a real goal, not a rejected one, and it is
+  step 15 — the last step, after the tool answers its question. Building it
+  earlier trades the thing that makes RoomScale useful for the thing that makes
+  it look useful.
+
+  When it arrives, a prettier render still never changes a measurement. If a
+  model and its product dimensions disagree, the dimensions win, and validation
+  keeps using the footprint.
 
 ## Technology
 
@@ -159,9 +179,13 @@ Before implementing a feature:
 
 Do not add unrelated dependencies or features.
 
-## Current real-world demo
+## The room being planned
 
-The first demo is an apartment living room containing:
+This is not a fixture to build at the end. It is the project being planned right
+now, entered through the same interface anyone else would use — so a gap in the
+tool shows up as a thing that cannot be entered, not as a test that fails later.
+
+It is an apartment living room containing:
 
 - an L-shaped sectional,
 - a round coffee table,
