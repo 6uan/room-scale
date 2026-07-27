@@ -14,7 +14,7 @@ Two rules keep the order honest:
   Steps 4 to 10 are that question end to end. Everything after them makes the
   answer nicer to look at.
 
-Status: **step 9 is next.**
+Status: **step 10 is next.**
 
 ---
 
@@ -178,19 +178,31 @@ fact about the session rather than about the project; and nothing snaps or
 aligns to anything, so squaring a piece against a wall is still done by eye or
 by typing.
 
-### 9. Answer whether it fits ◀ next
+### 9. Answer whether it fits ✅
 
-Separating Axis Theorem intersection for rotated rectangles, in
-`src/domain/geometry` with exhaustive unit tests — touching edges, shared
-corners, rotated cases. Detects furniture overlapping furniture, furniture
-crossing a wall, and furniture outside the room.
+Done. `sat.ts` implements the Separating Axis Theorem over the oriented
+rectangles step 8 introduced, and returns the penetration depth — the least a
+piece has to move — rather than a boolean, because that is the number worth
+telling somebody. `bounds.ts` measures how far a footprint reaches past each
+edge of the floor, which needs no theorem: the floor is axis-aligned, so the
+corners answer directly.
 
-Problems are shown as a readable list, not only as a color on the canvas.
+`src/domain/validation`, empty since step 2, now holds `checkLayout`. It reports
+overlaps between pieces, a piece crossing a wall and by how much, and a piece
+outside the room altogether. The list appears beside the plan in words, in the
+reader's own unit, and announces itself as it changes; the plan marks the pieces
+involved in red as an illustration of the list, never as the report.
 
-Done when: pushing the coffee table into the sectional flags both, in words, and
-says by how much.
+Touching is not overlapping. Contact within a millimeter is treated as flush,
+because a console pushed against a sofa is a legitimate arrangement and a
+retailer's rounded inches are not precise enough to argue about less.
 
-### 10. Add the checklist and the budget
+Not carried out of this step: **blocked openings**. `AGENTS.md` lists them under
+validation but no step ever scheduled them, and a door needs its swing treated
+as a clearance zone — which is step 11's machinery. They belong there, and step
+11's text now says so.
+
+### 10. Add the checklist and the budget ◀ next
 
 The non-3D representation of the project: every product with its quantity,
 price, link, and purchase status, plus the total. Quantity comes from the
@@ -213,7 +225,13 @@ in the user's unit.
 The route from the living room to the guest room is the case that matters: at
 least 36 inches, 42 preferred.
 
-Done when: a sofa narrowing that route to 30 inches reports a 6 inch shortfall.
+**Blocked openings arrive here too.** `AGENTS.md` lists them under validation
+and step 9 deliberately left them: a door needs the arc it sweeps treated as a
+zone that must stay clear, which is the same machinery a walkway needs. A piece
+standing in a doorway is a blocked route by another name.
+
+Done when: a sofa narrowing that route to 30 inches reports a 6 inch shortfall,
+and a console in front of the door says the door cannot open.
 
 ### 12. Compare layouts
 

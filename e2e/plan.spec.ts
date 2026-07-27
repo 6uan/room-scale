@@ -264,3 +264,91 @@ test.describe("moving furniture", () => {
     await expect(placement(page)).toBeHidden();
   });
 });
+
+test.describe("answering whether it fits", () => {
+  /** Two pieces, placed in the middle of the room one after the other. */
+  async function placePair(page: Page) {
+    await page.goto("/furniture");
+    // Scoped to the add form: once a product exists the page has more than one
+    // field called Name.
+    const form = page.getByRole("region", { name: /Add a product/ });
+    for (const piece of [
+      { name: "Sectional", width: "94.5", depth: "63" },
+      { name: "Coffee table", width: "24", depth: "24" },
+    ]) {
+      await form.getByLabel("Name").fill(piece.name);
+      await form.getByLabel("Width").fill(piece.width);
+      await form.getByLabel("Depth").fill(piece.depth);
+      await page.getByRole("button", { name: "Add product" }).click();
+      await expect(
+        page.getByRole("row", { name: new RegExp(piece.name) }).first(),
+      ).toBeVisible();
+    }
+
+    // Two products added back to back arrive inside one save gap, so the
+    // second is written by the trailing timer. Navigating faster than a person
+    // could would leave it behind.
+    await page.waitForTimeout(500);
+
+    await page.goto("/plan");
+    await page
+      .getByRole("button", { name: "Place Sectional in the room" })
+      .click();
+    await page
+      .getByRole("button", { name: "Place Coffee table in the room" })
+      .click();
+  }
+
+  function fit(page: Page) {
+    return page.getByRole("region", { name: "Plan" });
+  }
+
+  test("reports an overlap in words, with the amount, and clears it again", async ({
+    page,
+  }) => {
+    await placePair(page);
+
+    // Both land near the middle, stepped apart but still into each other.
+    await expect(
+      fit(page).getByText(/Sectional overlaps Coffee table by/),
+    ).toBeVisible();
+
+    // Move the table east: the sectional is centered in a 165 inch room and is
+    // 94.5 wide, so it reaches 130, and a 24 inch table centered at 150 starts
+    // at 138.
+    const table = page.getByRole("group", { name: "Where Coffee table sits" });
+    await table.getByLabel("From west").fill("150");
+
+    await expect(fit(page).getByText(/Everything fits/)).toBeVisible();
+  });
+
+  test("reports a piece dragged through a wall", async ({ page }) => {
+    await placePair(page);
+
+    const table = page.getByRole("group", { name: "Where Coffee table sits" });
+    await table.getByLabel("From west").fill("2");
+
+    await expect(
+      fit(page).getByText(/Coffee table crosses the west wall by/),
+    ).toBeVisible();
+  });
+
+  test("clears itself when the piece is turned out of the way", async ({
+    page,
+  }) => {
+    await placePair(page);
+
+    const table = page.getByRole("group", { name: "Where Coffee table sits" });
+    await table.getByLabel("From west").fill("152");
+    await expect(fit(page).getByText(/Everything fits/)).toBeVisible();
+
+    // Square on, the table reaches 164 of the room's 165 inches. Turned 45° it
+    // reaches 17 inches from its center rather than 12, and goes through the
+    // wall — the case a bounding box would have reported all along.
+    await table.getByLabel("Turn").fill("45");
+
+    await expect(
+      fit(page).getByText(/Coffee table crosses the east wall by/),
+    ).toBeVisible();
+  });
+});
