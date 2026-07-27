@@ -10,7 +10,11 @@ test.describe("landing page", () => {
     await expect(
       page.getByRole("heading", { level: 2, name: "What it does" }),
     ).toBeVisible();
-    await expect(page.getByText("Protect the walkways")).toBeVisible();
+    // By role: the hero paragraph says the same thing in a sentence, and
+    // Playwright's text matcher would find both.
+    await expect(
+      page.getByRole("heading", { name: "Find out what does not fit" }),
+    ).toBeVisible();
   });
 
   test("shows the clearance rule in both units", async ({ page }) => {

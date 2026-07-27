@@ -2,8 +2,24 @@
 
 ## Product goal
 
-RoomScale is a local-first browser application for testing whether furniture
-fits inside a measured room while preserving required walkways.
+RoomScale is for somebody moving into an apartment who has to decide what
+furniture to buy from a floor plan, a few photographs, and at most one visit
+with a tape measure.
+
+It runs entirely in the browser: no account, no server, and nothing uploaded.
+Everything is stored on the reader's own machine, per
+[ADR 0002](docs/adr/0002-local-first-persistence.md).
+
+It answers that question end to end: measure the room once, bring furniture in
+from the listing pages the person is already looking at, arrange it at true
+size, find out what does not fit and by how much, and keep the resulting
+shopping list and its total. The alternative it replaces is arithmetic on the
+back of an envelope, a second trip to measure again, and a sectional that turns
+out to block the hallway.
+
+Seeing the room, rather than reading it, is a real goal and the last one. A
+render that looks right and measures wrong is the exact mistake this application
+exists to prevent, so the measurements come first and the picture comes after.
 
 The application combines:
 

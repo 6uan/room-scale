@@ -2,7 +2,7 @@
   "name": "room-scale",
   "version": "0.1.0",
   "private": true,
-  "description": "Local-first browser tool for checking whether furniture fits a measured room while preserving walkways.",
+  "description": "Works out what furniture will fit in the apartment you are moving into, and what it will cost. Runs in your browser; nothing is uploaded.",
   "license": "MIT",
   "engines": {
     "node": ">=20.11"

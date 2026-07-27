@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "RoomScale — will it actually fit?",
   description:
-    "A local-first browser tool for checking whether furniture fits a measured room while preserving the walkways you need.",
+    "Work out what furniture will fit in the apartment you are moving into, before you buy any of it. Measure once, bring products in from their listing pages, and see what does not fit and by how much. It runs in your browser: no account, nothing uploaded.",
 };
 
 export default function RootLayout({
