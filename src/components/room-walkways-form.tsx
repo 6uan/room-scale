@@ -90,7 +90,7 @@ export function RoomWalkwaysForm({
   );
 }
 
-type WalkwayFieldsProps = {
+export type WalkwayFieldsProps = {
   walkway: Walkway;
   floor: Floor;
   unit: DisplayUnit;
@@ -98,7 +98,7 @@ type WalkwayFieldsProps = {
   onRemove: () => void;
 };
 
-function WalkwayFields({
+export function WalkwayFields({
   walkway,
   floor,
   unit,

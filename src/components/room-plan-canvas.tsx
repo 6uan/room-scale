@@ -4,6 +4,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type DragEvent,
   type KeyboardEvent,
   type PointerEvent,
 } from "react";
@@ -30,6 +31,7 @@ import {
   type PlacedFurniture,
 } from "@/domain/furniture";
 import { instanceFromKeyPress } from "@/components/placement-keys";
+import { PRODUCT_DRAG_TYPE } from "@/components/catalogue-panel";
 import {
   checkOpening,
   checkWalkway,
@@ -95,6 +97,8 @@ export type RoomPlanCanvasProps = {
   troubledIds: ReadonlySet<string>;
   onSelect: (instanceId: string | null) => void;
   onInstanceChange: (instance: FurnitureInstance) => void;
+  /** A product dragged in from the catalogue, dropped where it was let go. */
+  onDropProduct?: (productId: string, at: FloorPoint) => void;
 };
 
 /**
@@ -138,6 +142,7 @@ export function RoomPlanCanvas({
   troubledIds,
   onSelect,
   onInstanceChange,
+  onDropProduct,
 }: RoomPlanCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const dragRef = useRef<Drag | null>(null);
@@ -330,6 +335,18 @@ export function RoomPlanCanvas({
     );
   }
 
+  function handleDrop(event: DragEvent<HTMLCanvasElement>): void {
+    const canvas = canvasRef.current;
+    const productId = event.dataTransfer.getData(PRODUCT_DRAG_TYPE);
+    const point =
+      canvas && floorPointAt(canvas, floor, event, projectionRef.current);
+    if (!canvas || !point || productId === "") {
+      return;
+    }
+    event.preventDefault();
+    onDropProduct?.(productId, clampToFloor(floor, point));
+  }
+
   function handleKeyUp(event: KeyboardEvent<HTMLCanvasElement>): void {
     if (event.key === " ") {
       panningRef.current = false;
@@ -393,6 +410,13 @@ export function RoomPlanCanvas({
         onPointerCancel={endDrag}
         onKeyDown={handleKeyDown}
         onKeyUp={handleKeyUp}
+        onDragOver={(event) => {
+          if (event.dataTransfer.types.includes(PRODUCT_DRAG_TYPE)) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "copy";
+          }
+        }}
+        onDrop={handleDrop}
         className={`block h-full w-full touch-none rounded-lg outline-offset-2 ${
           dragging
             ? "cursor-grabbing"
@@ -415,7 +439,7 @@ export function RoomPlanCanvas({
 function floorPointAt(
   canvas: HTMLCanvasElement,
   floor: Floor,
-  event: PointerEvent<HTMLCanvasElement>,
+  event: { clientX: number; clientY: number },
   projection: PlanProjection,
 ): FloorPoint | null {
   const box = canvas.getBoundingClientRect();

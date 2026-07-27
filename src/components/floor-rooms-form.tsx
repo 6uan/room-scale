@@ -107,7 +107,7 @@ export function FloorRoomsForm({
   );
 }
 
-type RoomFieldsProps = {
+export type RoomFieldsProps = {
   room: Room;
   unit: DisplayUnit;
   onChange: (room: Room) => void;
@@ -115,7 +115,7 @@ type RoomFieldsProps = {
   onAddOpening: (kind: OpeningKind) => void;
 };
 
-function RoomFields({
+export function RoomFields({
   room,
   unit,
   onChange,

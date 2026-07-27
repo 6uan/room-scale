@@ -196,7 +196,7 @@ export function RoomFurniturePanel({
   );
 }
 
-type PlacementFieldsProps = {
+export type PlacementFieldsProps = {
   floor: Floor;
   instance: FurnitureInstance;
   name: string;
@@ -212,7 +212,7 @@ type PlacementFieldsProps = {
  * a piece may still overhang a wall, which is a thing to be told about rather
  * than prevented.
  */
-function PlacementFields({
+export function PlacementFields({
   floor,
   instance,
   name,
