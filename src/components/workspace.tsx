@@ -254,9 +254,12 @@ export function Workspace() {
       </header>
 
       <div className="grid min-h-0 grid-cols-[minmax(0,16rem)_minmax(0,1fr)_minmax(0,20rem)]">
+        {/* The layers are a handful of rows; the catalogue is a list that
+            grows. So the layers take what they need and the catalogue takes
+            the rest, rather than the other way round. */}
         <aside
           aria-label="Contents"
-          className="grid min-w-0 grid-rows-[minmax(0,1fr)_minmax(min-content,auto)] overflow-hidden border-r border-black/10 dark:border-white/15"
+          className="grid min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden border-r border-black/10 dark:border-white/15"
         >
           <ApartmentLayers
             floor={floor}

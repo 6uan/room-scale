@@ -44,7 +44,7 @@ export function ApartmentLayers({
   const homeless = inRoom(null);
 
   return (
-    <div className="flex flex-col gap-4 overflow-y-auto p-4">
+    <div className="flex max-h-[55vh] min-h-0 flex-col gap-4 overflow-y-auto p-4">
       <Header title="Apartment" action="Add room" onAction={onAddRoom} />
 
       <ul className="flex flex-col gap-1">
