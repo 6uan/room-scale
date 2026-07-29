@@ -526,6 +526,52 @@ test.describe("laying the apartment out", () => {
     await expect(plan(page).getByText(`y -6' 0.0"`)).toBeVisible();
   });
 
+  test("resizes a room by dragging its wall, landing on whole inches", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await contents(page).getByRole("button", { name: "Living room" }).click();
+
+    const room = details(page).getByRole("region", { name: "Living room" });
+    await expect(room.getByLabel("Living room width")).toHaveValue("168");
+
+    const box = await planImage(page).boundingBox();
+    if (box === null) {
+      throw new Error("the plan has no box to point at");
+    }
+
+    // Where the east wall is drawn. The plan fits the apartment plus a wall
+    // all round into the panel less its padding, at one scale for both axes —
+    // the same arithmetic createPlanProjection does.
+    const metres = (inches: number) => inches * 0.0254;
+    const padding = 40;
+    const across = metres(168) + metres(4.5) * 2;
+    const down = metres(144) + metres(4.5) * 2;
+    const scale = Math.min(
+      (box.width - padding * 2) / across,
+      (box.height - padding * 2) / down,
+    );
+    const middle = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const handle = {
+      x: middle.x + (metres(168) / 2) * scale,
+      y: middle.y,
+    };
+
+    await page.mouse.move(handle.x, handle.y);
+    await page.mouse.down();
+    await page.mouse.move(handle.x + 60, handle.y, { steps: 8 });
+    await page.mouse.up();
+
+    const width = Number(
+      await room.getByLabel("Living room width").inputValue(),
+    );
+    expect(width).toBeGreaterThan(168);
+    // Whole inches, not the seven decimals a pixel would give.
+    expect(width % 1).toBe(0);
+    // The east wall moved; the west one did not.
+    await expect(room.getByLabel("Living room from west")).toHaveValue("-84");
+  });
+
   test("opens on numbers somebody could have measured", async ({ page }) => {
     await page.goto("/");
     await contents(page).getByRole("button", { name: "Living room" }).click();

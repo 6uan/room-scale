@@ -39,6 +39,7 @@ import {
   floorBounds,
   openingEndpoints,
   pointOnFloor,
+  resizeRoomEdge,
   roomsAt,
   snapRoomOrigin,
   wallOutwardNormal,
@@ -47,12 +48,14 @@ import {
   type FloorVector,
   type Opening,
   type Room,
+  type RoomEdge,
   type Walkway,
 } from "@/domain/room";
 import {
   formatAngle,
   formatArea,
   formatLength,
+  roundToDisplayUnit,
   type DisplayUnit,
 } from "@/domain/units";
 
@@ -78,6 +81,13 @@ const FURNITURE_FILL_ALPHA = 0.22;
 const FURNITURE_EDGE_ALPHA = 0.7;
 const SELECTED_FILL_ALPHA = 0.36;
 const HANDLE_PIXELS = 6;
+
+/**
+ * How near a handle counts as holding it. Larger than the handle is drawn,
+ * because a six pixel square is a hard thing to hit and an easy thing to miss
+ * by one pixel.
+ */
+const HANDLE_GRAB_PIXELS = 9;
 
 /**
  * The one color in the drawing that is not the foreground. A problem has to be
@@ -131,6 +141,13 @@ type Drag =
       readonly roomId: string;
       /** Where in the room it was grabbed, so it does not jump under the pointer. */
       readonly grabOffset: FloorPoint;
+    }
+  | {
+      readonly kind: "resize";
+      readonly pointerId: number;
+      readonly roomId: string;
+      /** One or two walls: an edge moves one, a corner moves both. */
+      readonly edges: readonly RoomEdge[];
     }
   | {
       readonly kind: "pan";
@@ -321,6 +338,28 @@ export function RoomPlanCanvas({
     }
 
     const box = canvas.getBoundingClientRect();
+
+    const grabbed = handleAt(
+      floor,
+      selectedRoomId,
+      projectionRef.current,
+      { x: event.clientX - box.left, y: event.clientY - box.top },
+      floorBounds(floor).origin,
+      floor.wallThicknessMeters,
+    );
+    if (grabbed !== null && !panningRef.current) {
+      dragRef.current = {
+        kind: "resize",
+        pointerId: event.pointerId,
+        roomId: grabbed.roomId,
+        edges: grabbed.edges,
+      };
+      setDragging(true);
+      canvas.focus();
+      canvas.setPointerCapture?.(event.pointerId);
+      return;
+    }
+
     const hit = furnitureAt(furniture, point);
     // Furniture first: it stands on the room, so it is what you are pointing
     // at when the two are in the same place. Rooms later in the list win over
@@ -389,6 +428,32 @@ export function RoomPlanCanvas({
     const canvas = canvasRef.current;
 
     if (!drag || !canvas || drag.pointerId !== event.pointerId) {
+      return;
+    }
+
+    if (drag.kind === "resize") {
+      const sizing = floor.rooms.find((one) => one.id === drag.roomId);
+      const point = floorPointAt(canvas, floor, event, projectionRef.current);
+      if (sizing === undefined || point === null) {
+        return;
+      }
+      // Rounded to the unit on screen, so a dragged wall lands on the same
+      // kind of number a typed one does.
+      const next = drag.edges.reduce(
+        (room, edge) =>
+          resizeRoomEdge(
+            room,
+            edge,
+            roundToDisplayUnit(
+              edge === "west" || edge === "east"
+                ? point.xMeters
+                : point.zMeters,
+              unit,
+            ),
+          ),
+        sizing,
+      );
+      onRoomChange?.(next);
       return;
     }
 
@@ -566,6 +631,41 @@ export function RoomPlanCanvas({
       )}
     </div>
   );
+}
+
+/**
+ * The handle under a pointer, if the selected room has one there.
+ *
+ * Measured in pixels rather than meters, because a handle is a thing on the
+ * screen: it stays the same size to grab however far the plan is zoomed out,
+ * which is the whole reason it is worth having.
+ */
+function handleAt(
+  floor: Floor,
+  selectedRoomId: string | null,
+  projection: PlanProjection,
+  at: PixelPoint,
+  origin: FloorPoint,
+  thickness: number,
+): { roomId: string; edges: readonly RoomEdge[] } | null {
+  const room = floor.rooms.find((one) => one.id === selectedRoomId);
+  if (room === undefined) {
+    return null;
+  }
+
+  for (const handle of roomHandles(room)) {
+    const point = projectPoint(projection, {
+      xMeters: handle.at.xMeters - origin.xMeters + thickness,
+      zMeters: handle.at.zMeters - origin.zMeters + thickness,
+    });
+    if (
+      Math.abs(point.x - at.x) <= HANDLE_GRAB_PIXELS &&
+      Math.abs(point.y - at.y) <= HANDLE_GRAB_PIXELS
+    ) {
+      return { roomId: room.id, edges: handle.edges };
+    }
+  }
+  return null;
 }
 
 /**
@@ -885,7 +985,35 @@ function drawRoomName(
   context.restore();
 }
 
-/** The selected room, outlined inside its own walls. */
+/**
+ * The eight places a room can be taken hold of to resize it.
+ *
+ * Four walls and four corners. A corner is simply two walls moving at once,
+ * which is why a handle carries a list of edges rather than a name of its own.
+ */
+export function roomHandles(
+  room: Room,
+): readonly { edges: readonly RoomEdge[]; at: FloorPoint }[] {
+  const west = room.origin.xMeters;
+  const east = west + room.widthMeters;
+  const north = room.origin.zMeters;
+  const south = north + room.depthMeters;
+  const middleX = west + room.widthMeters / 2;
+  const middleZ = north + room.depthMeters / 2;
+
+  return [
+    { edges: ["north", "west"], at: { xMeters: west, zMeters: north } },
+    { edges: ["north"], at: { xMeters: middleX, zMeters: north } },
+    { edges: ["north", "east"], at: { xMeters: east, zMeters: north } },
+    { edges: ["east"], at: { xMeters: east, zMeters: middleZ } },
+    { edges: ["south", "east"], at: { xMeters: east, zMeters: south } },
+    { edges: ["south"], at: { xMeters: middleX, zMeters: south } },
+    { edges: ["south", "west"], at: { xMeters: west, zMeters: south } },
+    { edges: ["west"], at: { xMeters: west, zMeters: middleZ } },
+  ];
+}
+
+/** The selected room, outlined inside its own walls, with its handles. */
 function markSelectedRoom(
   context: CanvasRenderingContext2D,
   frame: PlanFrame,
@@ -904,6 +1032,18 @@ function markSelectedRoom(
   context.lineWidth = 2;
   context.setLineDash([6, 4]);
   context.strokeRect(inside.x, inside.y, width, depth);
+
+  context.setLineDash([]);
+  context.fillStyle = frame.color;
+  for (const { at } of roomHandles(room)) {
+    const point = frame.toPixels(at);
+    context.fillRect(
+      point.x - HANDLE_PIXELS / 2,
+      point.y - HANDLE_PIXELS / 2,
+      HANDLE_PIXELS,
+      HANDLE_PIXELS,
+    );
+  }
   context.restore();
 }
 
