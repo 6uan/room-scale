@@ -40,7 +40,7 @@ Dimensional correctness is more important than photorealism.
 
 The MVP supports:
 
-- one floor, built out of rectangular rooms,
+- one floor, built out of rooms made of rectangular parts,
 - doors, windows, and open passages,
 - exact furniture dimensions,
 - top-down and perspective views,
@@ -77,7 +77,7 @@ Wanted, but not yet:
   permanently, because page formats change and parsers rot.
 
 - **Photorealistic rendering.** It is a real goal, not a rejected one, and it is
-  step 18 — the last step, after the tool answers its question. Building it
+  step 22 — the last step, after the tool answers its question. Building it
   earlier trades the thing that makes RoomScale useful for the thing that makes
   it look useful.
 
@@ -143,6 +143,13 @@ Products and instances must remain separate.
 ## Geometry rules
 
 Furniture footprints are oriented rectangles during the MVP.
+
+A room's outline is a union of oriented rectangles — its parts. An L-shaped
+room is two of them, a room with a notch is two, and a wall running at an angle
+is a part that is turned. Keeping every part rectangular is what lets openings
+sit on a wall with a start corner and a distance, and what keeps every shape
+convex for the theorem below. A free polygon would take both away and buy only
+the shapes nobody's apartment has.
 
 Use the Separating Axis Theorem for rotated rectangle intersection.
 
