@@ -178,7 +178,9 @@ export type RoomPlanCanvasProps = {
    *
    * A mode rather than a modifier, and rather than taking over the plain drag
    * that already pans: a plan you cannot push around while laying rooms out
-   * would be worse than one that needs a button pressed first.
+   * would be worse than one that needs a button pressed first. It lasts one
+   * room, so the drag straight afterwards adjusts that room rather than
+   * starting another.
    */
   drawing?: boolean;
   /**
@@ -189,10 +191,11 @@ export type RoomPlanCanvasProps = {
    */
   onDrawRoom?: (from: FloorPoint, to: FloorPoint | null) => void;
   /**
-   * The mode has been called off from inside the plan — by Escape.
+   * The mode is over: a room was drawn, or Escape called it off.
    *
-   * Not called after a room is drawn: the mode is sticky, because an apartment
-   * is fifteen rooms and one button press should buy all fifteen.
+   * One room per press. The next thing anybody does after drawing a room is
+   * drag it into place, and a mode that stayed armed would answer that by
+   * drawing another room on top of it.
    */
   onDrawEnd?: () => void;
 };
@@ -749,9 +752,11 @@ export function RoomPlanCanvas({
       setDrawnTo(null);
       setCursor("none");
       canvas?.releasePointerCapture?.(event.pointerId);
-      // The mode stays on. An apartment is fifteen rooms, and turning it off
-      // after each one would mean pressing the button fifteen times; Escape
-      // and the button itself are both one keystroke away when it is done.
+      // One room, then out of the mode. Staying armed reads like a saving —
+      // an apartment is fifteen rooms — but the thing anybody does straight
+      // after drawing a room is adjust it, and a plan that answers that by
+      // drawing another room on top fights every attempt.
+      onDrawEnd?.();
       return;
     }
 

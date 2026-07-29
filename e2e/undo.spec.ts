@@ -8,7 +8,7 @@ function details(page: Page) {
   return page.getByRole("complementary", { name: "Details" });
 }
 
-/** "Add room" now arms the plan; a click on it drops one. See workspace.spec. */
+/** "Add room" arms the plan; a click on it drops one. See workspace.spec. */
 async function addRoom(page: Page) {
   await contents(page).getByRole("button", { name: "Add room" }).click();
   const box = await page.getByRole("img", { name: /^Plan view/ }).boundingBox();
@@ -16,7 +16,6 @@ async function addRoom(page: Page) {
     throw new Error("the plan has no box to point at");
   }
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-  await page.keyboard.press("Escape");
 }
 
 function undoButton(page: Page) {

@@ -18,8 +18,8 @@ function planImage(page: Page) {
 
 /**
  * Adds a room the way the workspace does now: "Add room" turns the plan into a
- * drawing surface, and a click on it drops one there. The mode stays on, so
- * anything that wants a single room turns it off again afterwards.
+ * drawing surface, and a click on it drops one there. One room per press, so
+ * there is nothing to turn off afterwards.
  */
 async function addRoom(page: Page) {
   await contents(page).getByRole("button", { name: "Add room" }).click();
@@ -28,7 +28,6 @@ async function addRoom(page: Page) {
     throw new Error("the plan has no box to point at");
   }
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-  await page.keyboard.press("Escape");
 }
 
 /** Enters a product through the inspector, the way the workspace does it. */
@@ -625,7 +624,7 @@ test.describe("laying the apartment out", () => {
     expect(width).toBeGreaterThan(depth);
   });
 
-  test("keeps drawing, so an apartment is one button press", async ({
+  test("stops drawing after one room, so the next drag adjusts it", async ({
     page,
   }) => {
     await page.goto("/");
@@ -636,20 +635,34 @@ test.describe("laying the apartment out", () => {
 
     await contents(page).getByRole("button", { name: "Add room" }).click();
 
-    for (const offset of [0, 90]) {
-      const from = { x: box.x + 40 + offset, y: box.y + box.height - 90 };
-      await page.mouse.move(from.x, from.y);
-      await page.mouse.down();
-      await page.mouse.move(from.x + 60, from.y + 50, { steps: 6 });
-      await page.mouse.up();
-    }
+    const from = { x: box.x + 60, y: box.y + box.height - 100 };
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(from.x + 80, from.y + 60, { steps: 6 });
+    await page.mouse.up();
 
+    // Out of the mode: the button offers to draw again rather than saying it
+    // already is.
     await expect(
-      contents(page).getByRole("button", { name: "Room 2" }),
+      contents(page).getByRole("button", { name: "Add room" }),
     ).toBeVisible();
-    await expect(
-      contents(page).getByRole("button", { name: "Room 3" }),
-    ).toBeVisible();
+
+    const room = details(page).getByRole("region", { name: "Room 2" });
+    const west = Number(await room.getByLabel("Room 2 from west").inputValue());
+
+    // The drag straight afterwards moves the room that was just drawn. It used
+    // to draw another one on top of it, which is what anybody trying to nudge
+    // a room into place ran into first.
+    const middle = { x: from.x + 40, y: from.y + 30 };
+    await page.mouse.move(middle.x, middle.y);
+    await page.mouse.down();
+    await page.mouse.move(middle.x + 50, middle.y, { steps: 6 });
+    await page.mouse.up();
+
+    await expect(planImage(page)).toHaveAccessibleName(/holding 2 rooms/);
+    expect(
+      Number(await room.getByLabel("Room 2 from west").inputValue()),
+    ).toBeGreaterThan(west);
   });
 
   test("stops drawing on Escape, and the button says so", async ({ page }) => {
@@ -680,7 +693,6 @@ test.describe("laying the apartment out", () => {
     await contents(page).getByRole("button", { name: "Add room" }).click();
     // A click, not a drag: the usual size, centred where it was put.
     await page.mouse.click(box.x + 60, box.y + box.height - 60);
-    await page.keyboard.press("Escape");
 
     const room = details(page).getByRole("region", { name: "Room 2" });
     // Ten feet square, which is what createRoom gives, rather than a drag.

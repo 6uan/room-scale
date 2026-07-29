@@ -80,7 +80,7 @@ export function Workspace() {
   const [selection, setSelection] = useState<Selection>(null);
   const [productProblem, setProductProblem] = useState<string | null>(null);
   const [guideOpen, setGuideOpen] = useState(false);
-  /** Whether a drag on the plan draws a room. Left on until it has drawn one. */
+  /** Whether a drag on the plan draws a room. One room, then off again. */
   const [drawingRoom, setDrawingRoom] = useState(false);
 
   const furniture = placedFurniture(instances, products);

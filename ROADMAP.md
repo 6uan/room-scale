@@ -580,8 +580,8 @@ and almost none of the effort went into the drawing.
 Two things become pointer work, and neither stops being a number. One each.
 
 **18a — A room is drawn. ✅** Done. "Add room" no longer drops a rectangle east
-of everything and leaves you to move it: it arms the plan, and a drag on it is
-a room. Both corners snap independently through `snapRoomEdge`, so a rectangle
+of everything and leaves you to move it: it arms the plan for one room, and a
+drag on it is that room. Both corners snap independently through `snapRoomEdge`, so a rectangle
 pulled up against a neighbour shares its wall without anybody working out the
 neighbour's edge plus a thickness. The preview is run through the same
 `drawnRoom` the drop uses, because a preview that shows one rectangle and
@@ -592,11 +592,17 @@ Three decisions the step's own text did not settle:
 - **A mode, not a modifier, and not the plain drag.** Dragging empty floor
   already pans, and a plan you cannot push around while laying rooms out would
   be worse than one that needs a button pressed first.
-- **The mode stays on.** It first turned itself off after each room, and six
-  end-to-end tests failing on the button no longer being one press was what
-  made the question visible. An apartment is fifteen rooms; one press should
-  buy all fifteen. Escape leaves, from anywhere — the plan handles it too, but
-  pressing the button leaves focus on the button.
+- **The mode lasts one room.** This was got wrong first, and the way it was
+  got wrong is worth keeping. Six end-to-end tests failed on "Add room" no
+  longer being a single press, and that was read as an argument for the mode
+  staying armed: an apartment is fifteen rooms, so one press should buy all
+  fifteen. It was a tidy argument about a task nobody performs. The thing
+  anybody does straight after drawing a room is drag it into place, and an
+  armed plan answers that by drawing another room on top of it — which is
+  exactly what happened the first time it was used. Test churn is not a design
+  signal. Escape still leaves the mode from anywhere, for a press that was a
+  mistake, and it is handled at the window because pressing the button leaves
+  focus on the button.
 - **A click is still a room.** Below six pixels of travel the press was a
   click, and a click drops one the usual size, centred where it was put. The
   canvas tells a click from a drag because it knows pixels; it has no business
