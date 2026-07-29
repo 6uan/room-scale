@@ -31,6 +31,8 @@ import {
   type PlacedFurniture,
 } from "@/domain/furniture";
 import { instanceFromKeyPress } from "@/components/placement-keys";
+import { pressIs } from "@/components/shortcuts";
+import type { Gesture } from "@/state/project-store";
 import { PRODUCT_DRAG_TYPE } from "@/components/catalogue-panel";
 import {
   checkOpening,
@@ -142,11 +144,21 @@ export type RoomPlanCanvasProps = {
   /** Pieces the validation has something to say about, marked as they are drawn. */
   troubledIds: ReadonlySet<string>;
   onSelect: (instanceId: string | null) => void;
-  onInstanceChange: (instance: FurnitureInstance) => void;
+  /**
+   * A changed piece, and what is doing the changing.
+   *
+   * The gesture is what makes one drag one press of ⌘Z. A drag calls this a
+   * couple of hundred times and every call carries the same string, so the
+   * history collapses them; `onGestureEnd` is what closes it when the pointer
+   * comes up. See `src/state/history.ts`.
+   */
+  onInstanceChange: (instance: FurnitureInstance, gesture?: Gesture) => void;
   /** Which room is being worked on, so the plan can mark and move it. */
   selectedRoomId?: string | null;
   onSelectRoom?: (roomId: string) => void;
-  onRoomChange?: (room: Room) => void;
+  onRoomChange?: (room: Room, gesture?: Gesture) => void;
+  /** The drag or the held key is over. The next one is a new step back. */
+  onGestureEnd?: () => void;
   /** A product dragged in from the catalogue, dropped where it was let go. */
   onDropProduct?: (productId: string, at: FloorPoint) => void;
 };
@@ -210,6 +222,7 @@ export function RoomPlanCanvas({
   selectedRoomId = null,
   onSelectRoom,
   onRoomChange,
+  onGestureEnd,
 }: RoomPlanCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const dragRef = useRef<Drag | null>(null);
@@ -531,7 +544,7 @@ export function RoomPlanCanvas({
           ),
         sizing,
       );
-      onRoomChange?.(next);
+      onRoomChange?.(next, `room-resize:${drag.roomId}`);
       return;
     }
 
@@ -551,6 +564,7 @@ export function RoomPlanCanvas({
             zMeters: point.zMeters - drag.grabOffset.zMeters,
           }),
         ),
+        `room-move:${drag.roomId}`,
       );
       return;
     }
@@ -581,6 +595,7 @@ export function RoomPlanCanvas({
           zMeters: point.zMeters - drag.grabOffset.zMeters,
         }),
       ),
+      `piece-move:${drag.instanceId}`,
     );
   }
 
@@ -597,9 +612,15 @@ export function RoomPlanCanvas({
   }
 
   function handleKeyUp(event: KeyboardEvent<HTMLCanvasElement>): void {
-    if (event.key === " ") {
+    if (pressIs("pan-space", event)) {
       panningRef.current = false;
       setCursor("none");
+      return;
+    }
+    // A key let go ends the nudge it was making, so holding an arrow is one
+    // step back and tapping it three times is three.
+    if (pressIs("nudge", event) || pressIs("turn", event)) {
+      onGestureEnd?.();
     }
   }
 
@@ -610,22 +631,23 @@ export function RoomPlanCanvas({
     dragRef.current = null;
     setCursor("none");
     canvasRef.current?.releasePointerCapture?.(event.pointerId);
+    onGestureEnd?.();
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLCanvasElement>): void {
-    if (event.key === "Escape") {
+    if (pressIs("deselect", event)) {
       onSelect(null);
       return;
     }
 
     // Back to the whole apartment, the way every canvas tool spells it.
-    if (event.key === "0" || event.key === "1") {
+    if (pressIs("zoom-fit", event)) {
       event.preventDefault();
       setView(null);
       return;
     }
 
-    if (event.key === " ") {
+    if (pressIs("pan-space", event)) {
       event.preventDefault();
       panningRef.current = true;
       setCursor("pan");
@@ -640,7 +662,7 @@ export function RoomPlanCanvas({
     // Only once a key has been acted on: an arrow with nothing selected still
     // scrolls the page, which is what an arrow normally does.
     event.preventDefault();
-    onInstanceChange(next);
+    onInstanceChange(next, `piece-key:${placed.instance.id}`);
   }
 
   return (
@@ -668,6 +690,8 @@ export function RoomPlanCanvas({
           setActive(false);
           panningRef.current = false;
           setCursor("none");
+          // A key held as focus leaves never sends its keyup here.
+          onGestureEnd?.();
         }}
         className={`block h-full w-full touch-none outline-none ${CURSORS[cursor]}`}
       />

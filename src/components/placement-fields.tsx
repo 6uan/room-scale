@@ -2,7 +2,7 @@
 
 import { AngleField } from "@/components/angle-field";
 import { NumberField } from "@/components/number-field";
-import { PLACEMENT_KEY_HINT } from "@/components/placement-keys";
+import { SELECTION_GROUP, shortcutSentence } from "@/components/shortcuts";
 import {
   moveInstance,
   turnInstance,
@@ -88,7 +88,8 @@ export function PlacementFields({
       </p>
 
       <p className="text-xs leading-relaxed opacity-60">
-        Drag it on the plan, or select it and use the keys. {PLACEMENT_KEY_HINT}
+        Drag it on the plan, or select it and use the keys.{" "}
+        {shortcutSentence(SELECTION_GROUP, unit)}
       </p>
     </fieldset>
   );

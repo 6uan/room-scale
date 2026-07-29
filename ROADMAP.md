@@ -14,7 +14,7 @@ Two rules keep the order honest:
   Steps 4 to 10 are that question end to end. Everything after them makes the
   answer nicer to look at.
 
-Status: **step 17 is next.**
+Status: **step 18 is next.**
 
 ---
 
@@ -469,7 +469,7 @@ The tool can already express most of it. What it cannot do is let anybody enter
 it in an afternoon, and what it cannot express exactly is the handful of shapes
 that are not rectangles. One step each.
 
-### 17. Take it back ◀ next
+### 17. Take it back ✅
 
 Everything the last step made easy to do, it made easy to do by accident. A
 wall is dragged to a number nobody meant, a room is dropped on top of its
@@ -511,11 +511,42 @@ from, so it cannot drift; a hand-written list of shortcuts is wrong within two
 changes, and `PLACEMENT_KEY_HINT` is already a sentence duplicating the switch
 below it.
 
-Done when: a deleted room comes back with ⌘Z, a dragged wall goes back to the
-number it had in one press rather than two hundred, and pressing `?` says what
-every key does.
+Done. `history.ts` holds the past projects and nothing else — no React, no
+store, no knowledge of what a project is — and the store is where an edit
+becomes a step, because that is the one layer where an edit is a single call.
 
-### 18. Draw the plan instead of typing it
+A gesture turned out to be the whole design. Every edit carries a string naming
+what is doing it, `room-resize:room-2` or `piece-move:instance-1`, and while
+that string holds the history replaces the value at the front rather than
+pushing a new one. Closing it is what the canvas does on pointer-up, on key-up,
+and on losing focus — that last one because a key held as focus leaves never
+sends its key-up anywhere.
+
+Keeping the view still across a step back needed its own rule. The display unit
+and the arrangement on screen are saved in the project because they are worth
+saving, but they are not the edit: without `keepingView`, taking back a moved
+sofa would also flip the panel to centimeters if that had been changed since.
+
+`shortcuts.ts` is one table that the handlers match against and the guide is
+printed from, so a key that stops working stops being listed. It swallowed
+`PLACEMENT_KEY_HINT`, which had been telling somebody working in inches that
+the arrows moved a piece five centimeters; the distances now read in whatever
+unit the reader is in, because they are generated from the constants that
+decide them.
+
+Opening a file is undoable and loading from storage is not. Replacing a project
+somebody has been working on with the wrong file has to be one press back;
+finding the project that was already there is not a thing to take back.
+
+Not carried out of this step: **a typed value is its own step for every value
+it passes through.** Typing `4.25` into a width field applies 4, then 4.2, then
+4.25, and each is a step. A drag is the flood that mattered and it is handled;
+this is three presses in the worst case, and fixing it means threading a
+gesture down through every field, which is worth doing when it annoys somebody
+rather than now. Undo also does not restore what was selected, for the same
+reason selection was never saved: it is not part of the project.
+
+### 18. Draw the plan instead of typing it ◀ next
 
 Recreating a real floor plan today is fifteen rounds of press "Add room", drag
 it across from wherever it landed, resize it, then type each door's distance

@@ -21,20 +21,34 @@ import {
 import type { Floor } from "@/domain/room";
 import { radiansFromDegrees } from "@/domain/units";
 
-const NUDGE_METERS = 0.05;
-const FINE_NUDGE_METERS = 0.01;
-const TURN_DEGREES = 15;
-const FINE_TURN_DEGREES = 1;
+/**
+ * How far each press moves a piece. Exported because `shortcuts.ts` writes the
+ * guide from them: a sentence saying "5 cm" beside a constant saying something
+ * else is how a key list goes stale.
+ */
+export const NUDGE_METERS = 0.05;
+export const FINE_NUDGE_METERS = 0.01;
+export const TURN_DEGREES = 15;
+export const FINE_TURN_DEGREES = 1;
+
+/**
+ * The keys this acts on, named once. `shortcuts.ts` describes them from here
+ * rather than repeating the names, so a rebinding cannot leave the guide
+ * pointing at a key that no longer does anything.
+ */
+export const NUDGE_KEYS = [
+  "ArrowLeft",
+  "ArrowRight",
+  "ArrowUp",
+  "ArrowDown",
+] as const;
+export const TURN_KEYS = ["[", "]"] as const;
 
 /** What a handler needs off a keyboard event, and no more. */
 export type PlacementKeyPress = {
   readonly key: string;
   readonly shiftKey: boolean;
 };
-
-/** How the keys read, for the hint beside the fields. */
-export const PLACEMENT_KEY_HINT =
-  "Arrow keys nudge it 5 cm, or 1 cm with Shift. [ and ] turn it 15°, or 1° with Shift.";
 
 /**
  * The instance a key press produces, or null when the key is not one this
