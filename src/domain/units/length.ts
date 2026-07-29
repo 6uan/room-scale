@@ -108,6 +108,21 @@ export function displayValueFromMeters(
 }
 
 /**
+ * The nearest whole unit the reader is working in: an inch, or a centimeter.
+ *
+ * Dragging produces a number with as many decimals as there are pixels, and
+ * nobody builds an apartment to seven-thousandths of an inch. Rounding to the
+ * unit on screen means a dragged wall lands on the same kind of number a typed
+ * one does, and the field beside it does not fill with noise.
+ */
+export function roundToDisplayUnit(meters: number, unit: DisplayUnit): number {
+  return metersFromDisplayValue(
+    Math.round(displayValueFromMeters(meters, unit)),
+    unit,
+  );
+}
+
+/**
  * Formats a stored meter value for display. Rounding happens here only —
  * calculations upstream keep full precision.
  */

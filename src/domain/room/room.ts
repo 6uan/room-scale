@@ -157,6 +157,70 @@ export function withOrigin(room: Room, origin: FloorPoint): Room {
   return { ...room, origin };
 }
 
+/** Which side of a room a drag is moving. */
+export type RoomEdge = "north" | "east" | "south" | "west";
+
+/**
+ * Moves one wall of a room, leaving the wall opposite it where it is.
+ *
+ * That is what dragging an edge means: the room grows or shrinks on the side
+ * you have hold of, and the rest of it stays put. A wall pushed past its
+ * opposite would turn the room inside out, so it stops at the smallest room
+ * the limits allow instead.
+ */
+export function resizeRoomEdge(
+  room: Room,
+  edge: RoomEdge,
+  positionMeters: number,
+): Room {
+  const smallest = ROOM_LENGTH_LIMITS.widthMeters.minMeters;
+
+  switch (edge) {
+    case "west": {
+      const east = room.origin.xMeters + room.widthMeters;
+      const xMeters = Math.min(positionMeters, east - smallest);
+      return {
+        ...room,
+        origin: { ...room.origin, xMeters },
+        widthMeters: east - xMeters,
+      };
+    }
+    case "east":
+      return {
+        ...room,
+        widthMeters: Math.max(smallest, positionMeters - room.origin.xMeters),
+      };
+    case "north": {
+      const south = room.origin.zMeters + room.depthMeters;
+      const zMeters = Math.min(positionMeters, south - smallest);
+      return {
+        ...room,
+        origin: { ...room.origin, zMeters },
+        depthMeters: south - zMeters,
+      };
+    }
+    case "south":
+      return {
+        ...room,
+        depthMeters: Math.max(smallest, positionMeters - room.origin.zMeters),
+      };
+  }
+}
+
+/** Where a room's wall stands, in floor coordinates. */
+export function roomEdgePosition(room: Room, edge: RoomEdge): number {
+  switch (edge) {
+    case "west":
+      return room.origin.xMeters;
+    case "east":
+      return room.origin.xMeters + room.widthMeters;
+    case "north":
+      return room.origin.zMeters;
+    case "south":
+      return room.origin.zMeters + room.depthMeters;
+  }
+}
+
 export function roomFloorAreaSquareMeters(room: Room): number {
   return room.widthMeters * room.depthMeters;
 }
