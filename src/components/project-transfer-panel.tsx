@@ -78,8 +78,12 @@ export function ProjectTransferPanel({
       return;
     }
     setProblem(null);
-    adopt(result.project);
-    setDone("Opened. What was here has been replaced by the file.");
+    // Undoable, unlike the load at startup: opening the wrong file replaces a
+    // project somebody has been working on, and that has to be one press back.
+    adopt(result.project, { undoable: true });
+    setDone(
+      "Opened. What was here has been replaced by the file — undo puts it back.",
+    );
   }
 
   return (
