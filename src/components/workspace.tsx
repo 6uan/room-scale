@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ApartmentLayers } from "@/components/apartment-layers";
 import { CataloguePanel } from "@/components/catalogue-panel";
 import { Inspector } from "@/components/inspector";
@@ -9,6 +9,8 @@ import { LayoutProblems } from "@/components/layout-problems";
 import { LayoutSwitcher } from "@/components/layout-switcher";
 import { RoomPlanCanvas } from "@/components/room-plan-canvas";
 import { selectedInstanceId, type Selection } from "@/components/selection";
+import { ShortcutsGuide } from "@/components/shortcuts-guide";
+import { pressIs } from "@/components/shortcuts";
 import {
   countPlaced,
   createInstance,
@@ -68,10 +70,16 @@ export function Workspace() {
   );
   const setLayouts = useProjectStore((state) => state.setLayouts);
   const setActiveLayout = useProjectStore((state) => state.setActiveLayout);
+  const undo = useProjectStore((state) => state.undo);
+  const redo = useProjectStore((state) => state.redo);
+  const canUndo = useProjectStore((state) => state.canUndo);
+  const canRedo = useProjectStore((state) => state.canRedo);
+  const endGesture = useProjectStore((state) => state.endGesture);
 
-  // A fact about this session, never about the project.
+  // Facts about this session, never about the project.
   const [selection, setSelection] = useState<Selection>(null);
   const [productProblem, setProductProblem] = useState<string | null>(null);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   const furniture = placedFurniture(instances, products);
   const problems = checkLayout(floor, furniture);
@@ -196,6 +204,51 @@ export function Workspace() {
     setSelection({ kind: "instance", id: instance.id });
   }
 
+  /**
+   * Removes whatever is selected.
+   *
+   * Only safe to put on a single key because it is undoable — before this step
+   * a deleted room was gone, and the only way back was remembering what it
+   * said. A product still in the apartment is refused rather than cascaded,
+   * which is `removeProduct`'s rule and ADR 0003's.
+   */
+  function removeSelected(): void {
+    if (selection === null) {
+      return;
+    }
+    switch (selection.kind) {
+      case "room": {
+        const room = floor.rooms.find((one) => one.id === selection.id);
+        if (room !== undefined) {
+          removeRoom(room);
+        }
+        return;
+      }
+      case "instance": {
+        setInstances(instances.filter((one) => one.id !== selection.id));
+        setSelection(null);
+        return;
+      }
+      case "walkway": {
+        setFloor(
+          withFloorWalkways(
+            floor,
+            floor.walkways.filter((one) => one.id !== selection.id),
+          ),
+        );
+        setSelection(null);
+        return;
+      }
+      case "product": {
+        const product = products.find((one) => one.id === selection.id);
+        if (product !== undefined) {
+          removeProduct(product);
+        }
+        return;
+      }
+    }
+  }
+
   function saveProduct(product: FurnitureProduct): void {
     setProductProblem(null);
     const known = products.some((one) => one.id === product.id);
@@ -221,6 +274,41 @@ export function Workspace() {
     setSelection(null);
   }
 
+  /**
+   * The keys that belong to the whole workspace rather than to the plan.
+   *
+   * On the window, because a room selected from the list on the left leaves
+   * focus on a button there, and ⌘Z has to work from wherever you are. Anything
+   * typed into a field is left alone: an input has its own undo and its own
+   * Delete, and taking those over would be the tool fighting the browser.
+   *
+   * Registered on every render rather than once, so the handler is never
+   * looking at a stale selection. A keydown listener costs nothing to rebind.
+   */
+  useEffect(() => {
+    function handle(event: KeyboardEvent): void {
+      if (isTyping(event.target)) {
+        return;
+      }
+      if (pressIs("undo", event)) {
+        event.preventDefault();
+        undo();
+      } else if (pressIs("redo", event)) {
+        event.preventDefault();
+        redo();
+      } else if (pressIs("delete", event)) {
+        event.preventDefault();
+        removeSelected();
+      } else if (pressIs("guide", event)) {
+        event.preventDefault();
+        setGuideOpen(true);
+      }
+    }
+
+    window.addEventListener("keydown", handle);
+    return () => window.removeEventListener("keydown", handle);
+  });
+
   return (
     <div className="grid h-dvh grid-rows-[auto_minmax(0,1fr)] bg-black/[0.02] dark:bg-white/[0.02]">
       <header className="flex items-center justify-between gap-4 border-b border-black/10 px-4 py-2 dark:border-white/15">
@@ -245,12 +333,36 @@ export function Workspace() {
             onRemove={removeLayout}
           />
         </div>
-        <Link
-          href="/overview"
-          className="rounded-md border border-black/15 px-2.5 py-1 text-xs hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
-        >
-          Overview and prices
-        </Link>
+        <div className="flex items-center gap-2">
+          {/* Beside the plan rather than buried in a menu: the two things you
+              reach for after a drag that went wrong. Disabled says there is
+              nothing to take back, which is worth knowing. */}
+          <div className="flex items-center gap-1">
+            <HeaderButton
+              label="Undo"
+              title="Undo the last change"
+              disabled={!canUndo}
+              onClick={undo}
+            />
+            <HeaderButton
+              label="Redo"
+              title="Put back what was undone"
+              disabled={!canRedo}
+              onClick={redo}
+            />
+          </div>
+          <HeaderButton
+            label="Keys"
+            title="What the keys do"
+            onClick={() => setGuideOpen(true)}
+          />
+          <Link
+            href="/overview"
+            className="rounded-md border border-black/15 px-2.5 py-1 text-xs hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
+          >
+            Overview and prices
+          </Link>
+        </div>
       </header>
 
       <div className="grid min-h-0 grid-cols-[minmax(0,16rem)_minmax(0,1fr)_minmax(0,20rem)]">
@@ -291,12 +403,15 @@ export function Workspace() {
               onSelect={(id) =>
                 setSelection(id === null ? null : { kind: "instance", id })
               }
-              onInstanceChange={(instance) =>
-                setInstances(withInstance(instances, instance))
+              onInstanceChange={(instance, gesture) =>
+                setInstances(withInstance(instances, instance), gesture)
               }
               selectedRoomId={selection?.kind === "room" ? selection.id : null}
               onSelectRoom={(id) => setSelection({ kind: "room", id })}
-              onRoomChange={(room) => setFloor(withRoom(floor, room))}
+              onRoomChange={(room, gesture) =>
+                setFloor(withRoom(floor, room), gesture)
+              }
+              onGestureEnd={endGesture}
               onDropProduct={(productId, at) => {
                 const product = products.find((one) => one.id === productId);
                 if (product !== undefined) {
@@ -357,6 +472,52 @@ export function Workspace() {
           />
         </aside>
       </div>
+
+      {guideOpen ? (
+        <ShortcutsGuide unit={unit} onClose={() => setGuideOpen(false)} />
+      ) : null}
     </div>
+  );
+}
+
+function HeaderButton({
+  label,
+  title,
+  disabled = false,
+  onClick,
+}: {
+  label: string;
+  title: string;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      disabled={disabled}
+      onClick={onClick}
+      className="rounded-md border border-black/15 px-2.5 py-1 text-xs hover:bg-black/5 disabled:cursor-default disabled:opacity-35 disabled:hover:bg-transparent dark:border-white/20 dark:hover:bg-white/10 dark:disabled:hover:bg-transparent"
+    >
+      {label}
+    </button>
+  );
+}
+
+/**
+ * Whether the keystroke belongs to a field somebody is typing in.
+ *
+ * A number field's own undo, and its own Delete, are the browser's to handle.
+ * The workspace only takes a key when nothing is being typed into.
+ */
+function isTyping(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  return (
+    target.isContentEditable ||
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement
   );
 }
