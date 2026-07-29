@@ -35,7 +35,7 @@ import {
   createOpening,
   createRoom,
   createWalkway,
-  nextRoomOrigin,
+  drawnRoom,
   withFloorWalkways,
   withOpenings,
   withRoom,
@@ -80,6 +80,8 @@ export function Workspace() {
   const [selection, setSelection] = useState<Selection>(null);
   const [productProblem, setProductProblem] = useState<string | null>(null);
   const [guideOpen, setGuideOpen] = useState(false);
+  /** Whether a drag on the plan draws a room. Left on until it has drawn one. */
+  const [drawingRoom, setDrawingRoom] = useState(false);
 
   const furniture = placedFurniture(instances, products);
   const problems = checkLayout(floor, furniture);
@@ -142,16 +144,27 @@ export function Workspace() {
     setSelection(null);
   }
 
-  function addRoom(): void {
+  /**
+   * Adds a room drawn on the plan.
+   *
+   * `to` is null when the press was a click rather than a drag, which means "a
+   * room here, the usual size" — centred on the point, so it arrives under the
+   * pointer rather than at a corner of it. The canvas can tell a click from a
+   * drag because it knows pixels; it has no business knowing how big a room
+   * usually is, which is why the choice is made here.
+   */
+  function drawRoom(from: FloorPoint, to: FloorPoint | null): void {
     const id = nextId(
       "room",
       floor.rooms.map((one) => one.id),
     );
-    const room = createRoom(
-      id,
-      `Room ${floor.rooms.length + 1}`,
-      nextRoomOrigin(floor),
-    );
+    const name = `Room ${floor.rooms.length + 1}`;
+
+    const room =
+      to === null
+        ? centredRoom(createRoom(id, name, from), from)
+        : drawnRoom(floor, id, name, from, to);
+
     setFloor(withRooms(floor, [...floor.rooms, room]));
     setSelection({ kind: "room", id });
   }
@@ -290,7 +303,13 @@ export function Workspace() {
       if (isTyping(event.target)) {
         return;
       }
-      if (pressIs("undo", event)) {
+      // Before everything else: Escape gets somebody out of a mode from
+      // wherever they are. The plan handles it too, but pressing "Add room"
+      // leaves focus on the button rather than on the plan.
+      if (drawingRoom && pressIs("deselect", event)) {
+        event.preventDefault();
+        setDrawingRoom(false);
+      } else if (pressIs("undo", event)) {
         event.preventDefault();
         undo();
       } else if (pressIs("redo", event)) {
@@ -379,7 +398,8 @@ export function Workspace() {
             selection={selection}
             troubledIds={troubledIds}
             onSelect={setSelection}
-            onAddRoom={addRoom}
+            onAddRoom={() => setDrawingRoom((on) => !on)}
+            drawingRoom={drawingRoom}
             onAddWalkway={addWalkway}
           />
           <CataloguePanel
@@ -412,6 +432,9 @@ export function Workspace() {
                 setFloor(withRoom(floor, room), gesture)
               }
               onGestureEnd={endGesture}
+              drawing={drawingRoom}
+              onDrawRoom={drawRoom}
+              onDrawEnd={() => setDrawingRoom(false)}
               onDropProduct={(productId, at) => {
                 const product = products.find((one) => one.id === productId);
                 if (product !== undefined) {
@@ -520,4 +543,15 @@ function isTyping(target: EventTarget | null): boolean {
     target instanceof HTMLTextAreaElement ||
     target instanceof HTMLSelectElement
   );
+}
+
+/** The same room, moved so the point given is its middle rather than a corner. */
+function centredRoom(room: Room, at: FloorPoint): Room {
+  return {
+    ...room,
+    origin: {
+      xMeters: at.xMeters - room.widthMeters / 2,
+      zMeters: at.zMeters - room.depthMeters / 2,
+    },
+  };
 }

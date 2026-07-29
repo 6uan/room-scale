@@ -14,7 +14,7 @@ Two rules keep the order honest:
   Steps 4 to 10 are that question end to end. Everything after them makes the
   answer nicer to look at.
 
-Status: **step 18 is next.**
+Status: **step 18b is next.**
 
 ---
 
@@ -570,24 +570,50 @@ gesture down through every field, which is worth doing when it annoys somebody
 rather than now. Undo also does not restore what was selected, for the same
 reason selection was never saved: it is not part of the project.
 
-### 18. Draw the plan instead of typing it ◀ next
+### 18. Draw the plan instead of typing it ◀ 18a only
 
 Recreating a real floor plan today is fifteen rounds of press "Add room", drag
 it across from wherever it landed, resize it, then type each door's distance
 from that room's own north-west corner. The drawing is right at the end of it,
 and almost none of the effort went into the drawing.
 
-Two things become pointer work, and neither stops being a number:
+Two things become pointer work, and neither stops being a number. One each.
 
-- **A room is drawn.** Drag a rectangle on the plan and that is a room, sized
-  and placed where the drag ended, snapping to its neighbours the way a dragged
-  room already does. Its size and origin still appear in the inspector as
-  numbers to correct.
-- **An opening is placed on the wall it belongs to.** Click a wall and a door
-  goes there; drag it along the wall to move it; drag a jamb to widen it. The
-  distance-from-the-corner field stays, because 32 inches is a figure somebody
-  measured — but nobody should have to compute where along a wall that is in
-  order to see a door appear.
+**18a — A room is drawn. ✅** Done. "Add room" no longer drops a rectangle east
+of everything and leaves you to move it: it arms the plan, and a drag on it is
+a room. Both corners snap independently through `snapRoomEdge`, so a rectangle
+pulled up against a neighbour shares its wall without anybody working out the
+neighbour's edge plus a thickness. The preview is run through the same
+`drawnRoom` the drop uses, because a preview that shows one rectangle and
+produces another is worse than none.
+
+Three decisions the step's own text did not settle:
+
+- **A mode, not a modifier, and not the plain drag.** Dragging empty floor
+  already pans, and a plan you cannot push around while laying rooms out would
+  be worse than one that needs a button pressed first.
+- **The mode stays on.** It first turned itself off after each room, and six
+  end-to-end tests failing on the button no longer being one press was what
+  made the question visible. An apartment is fifteen rooms; one press should
+  buy all fifteen. Escape leaves, from anywhere — the plan handles it too, but
+  pressing the button leaves focus on the button.
+- **A click is still a room.** Below six pixels of travel the press was a
+  click, and a click drops one the usual size, centred where it was put. The
+  canvas tells a click from a drag because it knows pixels; it has no business
+  knowing how big a room usually is, so the choice of size is made outside it.
+
+`nextRoomOrigin` left with this: nothing puts a room east of everything any
+more.
+
+**18b — An opening is placed on the wall it belongs to.** Click a wall and a
+door goes there; drag it along the wall to move it; drag a jamb to widen it.
+The distance-from-the-corner field stays, because 32 inches is a figure
+somebody measured — but nobody should have to compute where along a wall that
+is in order to see a door appear.
+
+Openings will want a place in the left-hand list at the same time. There are
+fourteen of them in the real plan and today the only way to reach one is to
+select its room first and find it in that room's own form.
 
 Openings are already cut from the finished wall band rather than room by room,
 so a door dropped on a shared wall opens through both rooms without being

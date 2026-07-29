@@ -8,6 +8,17 @@ function details(page: Page) {
   return page.getByRole("complementary", { name: "Details" });
 }
 
+/** "Add room" now arms the plan; a click on it drops one. See workspace.spec. */
+async function addRoom(page: Page) {
+  await contents(page).getByRole("button", { name: "Add room" }).click();
+  const box = await page.getByRole("img", { name: /^Plan view/ }).boundingBox();
+  if (box === null) {
+    throw new Error("the plan has no box to point at");
+  }
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await page.keyboard.press("Escape");
+}
+
 function undoButton(page: Page) {
   return page.getByRole("button", { name: "Undo" });
 }
@@ -24,7 +35,7 @@ test.describe("taking it back", () => {
 
   test("brings a deleted room back", async ({ page }) => {
     await page.goto("/");
-    await contents(page).getByRole("button", { name: "Add room" }).click();
+    await addRoom(page);
     const room = contents(page).getByRole("button", { name: "Room 2" });
     await expect(room).toBeVisible();
 
@@ -61,7 +72,7 @@ test.describe("taking it back", () => {
 
   test("puts back what was taken back", async ({ page }) => {
     await page.goto("/");
-    await contents(page).getByRole("button", { name: "Add room" }).click();
+    await addRoom(page);
     await expect(
       contents(page).getByRole("button", { name: "Room 2" }),
     ).toBeVisible();

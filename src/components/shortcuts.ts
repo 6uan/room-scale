@@ -98,7 +98,8 @@ export const SHORTCUTS: readonly Shortcut[] = [
     id: "deselect",
     group: PLAN_GROUP,
     keys: ["Esc"],
-    describe: () => "Selects nothing, and shows the apartment's own settings.",
+    describe: () =>
+      "Leaves the drawing mode, or selects nothing and shows the apartment.",
     matches: (press) => press.key === "Escape",
   },
 

@@ -26,7 +26,12 @@
  */
 
 import type { FloorExtent, FloorPoint, OrientedRect } from "@/domain/geometry";
-import { DEFAULT_ROOM, type Room } from "./room";
+import {
+  DEFAULT_ROOM,
+  ROOM_LENGTH_LIMITS,
+  createRoom,
+  type Room,
+} from "./room";
 import type { Walkway } from "./walkways";
 
 export type Floor = {
@@ -46,18 +51,6 @@ export const DEFAULT_FLOOR: Floor = {
   // guessing one would put a band across a plan nobody asked for.
   walkways: [],
 };
-
-/** Where a new block goes: east of everything already on the floor. */
-export function nextRoomOrigin(floor: Floor): FloorPoint {
-  if (floor.rooms.length === 0) {
-    return { xMeters: 0, zMeters: 0 };
-  }
-  const { origin, extent } = floorBounds(floor);
-  return {
-    xMeters: origin.xMeters + extent.widthMeters + floor.wallThicknessMeters,
-    zMeters: origin.zMeters,
-  };
-}
 
 /** The floor rectangle of one room, in floor coordinates. */
 export function roomRect(room: Room): OrientedRect {
@@ -225,6 +218,96 @@ export function snapRoomOrigin(
       thickness,
     ),
   };
+}
+
+/**
+ * A room from two opposite corners, as dragged out on the plan.
+ *
+ * Both corners snap independently — see `snapRoomEdge` — so a rectangle
+ * dragged up against a neighbour shares its wall without anybody working out
+ * the neighbour's edge plus a thickness. Then they are sorted into a
+ * north-west origin and a size, because a drag runs in whatever direction the
+ * hand went and a room does not.
+ *
+ * Held to the minimum a room is allowed to be. A rectangle two centimeters
+ * across is a slip rather than a cupboard, and the alternative — refusing it —
+ * would mean a drag that produced nothing and said nothing about why.
+ */
+export function drawnRoom(
+  floor: Floor,
+  id: string,
+  name: string,
+  from: FloorPoint,
+  to: FloorPoint,
+): Room {
+  const xs = [
+    snapRoomEdge(floor, "x", from.xMeters),
+    snapRoomEdge(floor, "x", to.xMeters),
+  ].sort((a, b) => a - b);
+  const zs = [
+    snapRoomEdge(floor, "z", from.zMeters),
+    snapRoomEdge(floor, "z", to.zMeters),
+  ].sort((a, b) => a - b);
+
+  const west = xs[0] ?? 0;
+  const north = zs[0] ?? 0;
+  const minimum = ROOM_LENGTH_LIMITS.widthMeters.minMeters;
+
+  return {
+    ...createRoom(id, name, { xMeters: west, zMeters: north }),
+    widthMeters: Math.max(minimum, (xs[1] ?? 0) - west),
+    depthMeters: Math.max(minimum, (zs[1] ?? 0) - north),
+  };
+}
+
+/**
+ * Where one edge of a room being **drawn** would land.
+ *
+ * Different question from `snapRoomOrigin`, which moves a room of a known size:
+ * a rectangle being dragged out has two corners that move independently, and
+ * neither of them carries a length. So this snaps a single coordinate, and the
+ * drawing snaps both of its corners with it.
+ *
+ * The candidates are a neighbour's own face — for a room drawn flush inside a
+ * space — and a wall thickness beyond it, which is the one that shares a wall.
+ * Sharing is listed first so it wins a tie, for the reason `snapRoomOrigin`
+ * gives: two rooms a wall apart have their bands in the same place, so one
+ * doorway cut in it opens through both.
+ *
+ * `exceptRoomId` keeps a room being redrawn from snapping to itself.
+ */
+export function snapRoomEdge(
+  floor: Floor,
+  axis: "x" | "z",
+  value: number,
+  exceptRoomId?: string,
+): number {
+  const thickness = floor.wallThicknessMeters;
+  const others = floor.rooms.filter((one) => one.id !== exceptRoomId);
+
+  const candidates = others.flatMap((room) => {
+    const start = axis === "x" ? room.origin.xMeters : room.origin.zMeters;
+    const end = start + (axis === "x" ? room.widthMeters : room.depthMeters);
+    return [
+      // Sharing a wall with it: a thickness clear of either face.
+      start - thickness,
+      end + thickness,
+      // Flush against it, which is what a room drawn inside another wants.
+      start,
+      end,
+    ];
+  });
+
+  let best = value;
+  let nearest = SNAP_METERS;
+  for (const candidate of candidates) {
+    const distance = Math.abs(candidate - value);
+    if (distance < nearest) {
+      best = candidate;
+      nearest = distance;
+    }
+  }
+  return best;
 }
 
 /** One axis of the snap: the candidates, nearest first, or the value as given. */

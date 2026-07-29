@@ -11,6 +11,8 @@ export type ApartmentLayersProps = {
   troubledIds: ReadonlySet<string>;
   onSelect: (selection: Selection) => void;
   onAddRoom: () => void;
+  /** Whether the plan is waiting for a room to be drawn on it. */
+  drawingRoom?: boolean;
   onAddWalkway: () => void;
 };
 
@@ -30,6 +32,7 @@ export function ApartmentLayers({
   troubledIds,
   onSelect,
   onAddRoom,
+  drawingRoom = false,
   onAddWalkway,
 }: ApartmentLayersProps) {
   const names = placedNames(furniture);
@@ -45,7 +48,14 @@ export function ApartmentLayers({
 
   return (
     <div className="flex min-h-0 flex-col gap-4 overflow-y-auto p-4">
-      <Header title="Apartment" action="Add room" onAction={onAddRoom} />
+      {/* The button says what pressing it will do next, so the mode it turns
+          on is visible in the one place that turned it on. */}
+      <Header
+        title="Apartment"
+        action={drawingRoom ? "Drawing…" : "Add room"}
+        active={drawingRoom}
+        onAction={onAddRoom}
+      />
 
       <ul className="flex flex-col gap-1">
         {floor.rooms.map((room) => (
@@ -130,10 +140,12 @@ export function ApartmentLayers({
 function Header({
   title,
   action,
+  active = false,
   onAction,
 }: {
   title: string;
   action: string;
+  active?: boolean;
   onAction: () => void;
 }) {
   return (
@@ -144,7 +156,10 @@ function Header({
       <button
         type="button"
         onClick={onAction}
-        className="shrink-0 rounded px-1.5 py-0.5 text-xs opacity-60 hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10"
+        aria-pressed={active}
+        className={`shrink-0 rounded px-1.5 py-0.5 text-xs hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10 ${
+          active ? "bg-black/10 opacity-100 dark:bg-white/15" : "opacity-60"
+        }`}
       >
         {action}
       </button>

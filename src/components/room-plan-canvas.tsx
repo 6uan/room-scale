@@ -39,6 +39,7 @@ import { PRODUCT_DRAG_TYPE } from "@/components/catalogue-panel";
 import {
   checkOpening,
   checkWalkway,
+  drawnRoom,
   floorAreaSquareMeters,
   floorBounds,
   openingEndpoints,
@@ -134,6 +135,15 @@ const PROBLEM_COLOR = "#dc2626";
 const WALKWAY_FILL_ALPHA = 0.07;
 const WALKWAY_EDGE_ALPHA = 0.35;
 
+/**
+ * How far a pointer must travel before a drag counts as drawing a room.
+ *
+ * Below it the press was a click, and a click means "a room here, the usual
+ * size". Measured in pixels because the question is whether a hand moved; at
+ * a low zoom a firm drag covers only a few centimeters of floor.
+ */
+const DRAW_THRESHOLD_PIXELS = 6;
+
 /** Room names: present, and never competing with the measurements. */
 const ROOM_NAME_ALPHA = 0.45;
 
@@ -163,6 +173,28 @@ export type RoomPlanCanvasProps = {
   onGestureEnd?: () => void;
   /** A product dragged in from the catalogue, dropped where it was let go. */
   onDropProduct?: (productId: string, at: FloorPoint) => void;
+  /**
+   * Whether a drag on the plan draws a new room instead of panning it.
+   *
+   * A mode rather than a modifier, and rather than taking over the plain drag
+   * that already pans: a plan you cannot push around while laying rooms out
+   * would be worse than one that needs a button pressed first.
+   */
+  drawing?: boolean;
+  /**
+   * A room drawn on the plan: two opposite corners, or one corner and null
+   * where it was a click rather than a drag. A click means "a room here, the
+   * usual size" — the canvas knows pixels and so can tell the two apart, but
+   * it has no business knowing how big a room usually is.
+   */
+  onDrawRoom?: (from: FloorPoint, to: FloorPoint | null) => void;
+  /**
+   * The mode has been called off from inside the plan — by Escape.
+   *
+   * Not called after a room is drawn: the mode is sticky, because an apartment
+   * is fifteen rooms and one button press should buy all fifteen.
+   */
+  onDrawEnd?: () => void;
 };
 
 /**
@@ -197,6 +229,13 @@ type Drag =
       readonly kind: "pan";
       readonly pointerId: number;
       readonly from: PixelPoint;
+    }
+  | {
+      /** A new room being dragged out. Both corners are in floor meters. */
+      readonly kind: "draw";
+      readonly pointerId: number;
+      readonly from: FloorPoint;
+      readonly fromPixel: PixelPoint;
     };
 
 /**
@@ -225,6 +264,9 @@ export function RoomPlanCanvas({
   onSelectRoom,
   onRoomChange,
   onGestureEnd,
+  drawing = false,
+  onDrawRoom,
+  onDrawEnd,
 }: RoomPlanCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const dragRef = useRef<Drag | null>(null);
@@ -272,6 +314,15 @@ export function RoomPlanCanvas({
   /** What the pointer is over, kept in state because it is only a cursor. */
   const [cursor, setCursor] = useState<Cursor>("none");
 
+  /**
+   * The far corner of a room being drawn, or null when none is.
+   *
+   * State rather than a ref, unlike the drag itself: this one has to repaint
+   * on every move, because the rectangle following the pointer *is* the
+   * feedback. There is nothing else on screen saying how big the room will be.
+   */
+  const [drawnTo, setDrawnTo] = useState<FloorPoint | null>(null);
+
   const [active, setActive] = useState(false);
   const activeRef = useRef(active);
   useEffect(() => {
@@ -308,6 +359,10 @@ export function RoomPlanCanvas({
       viewport: size,
       color: style.color,
       fontFamily: style.fontFamily,
+      drawnRect:
+        drawnTo === null || dragRef.current?.kind !== "draw"
+          ? null
+          : { from: dragRef.current.from, to: drawnTo },
     });
   }, [
     floor,
@@ -318,6 +373,7 @@ export function RoomPlanCanvas({
     troubledIds,
     size,
     projection,
+    drawnTo,
   ]);
 
   /**
@@ -425,6 +481,20 @@ export function RoomPlanCanvas({
     setView(projectionRef.current);
 
     const box = canvas.getBoundingClientRect();
+
+    // Drawing takes the drag before anything else looks at it. In this mode
+    // the pointer is for making a room, not for finding one.
+    if (drawing) {
+      dragRef.current = {
+        kind: "draw",
+        pointerId: event.pointerId,
+        from: point,
+        fromPixel: { x: event.clientX - box.left, y: event.clientY - box.top },
+      };
+      canvas.focus();
+      canvas.setPointerCapture?.(event.pointerId);
+      return;
+    }
 
     const grabbed = handleAt(floor, selectedRoomId, projectionRef.current, {
       x: event.clientX - box.left,
@@ -594,6 +664,11 @@ export function RoomPlanCanvas({
       return;
     }
 
+    if (drag.kind === "draw") {
+      setDrawnTo(floorPointAt(canvas, event, projectionRef.current));
+      return;
+    }
+
     if (drag.kind === "pan") {
       const box = canvas.getBoundingClientRect();
       const to = { x: event.clientX - box.left, y: event.clientY - box.top };
@@ -651,9 +726,35 @@ export function RoomPlanCanvas({
   }
 
   function endDrag(event: PointerEvent<HTMLCanvasElement>): void {
-    if (dragRef.current?.pointerId !== event.pointerId) {
+    const drag = dragRef.current;
+    if (drag?.pointerId !== event.pointerId) {
       return;
     }
+
+    if (drag.kind === "draw") {
+      const canvas = canvasRef.current;
+      const box = canvas?.getBoundingClientRect();
+      const to = canvas && floorPointAt(canvas, event, projectionRef.current);
+      const travelled =
+        box === undefined
+          ? 0
+          : Math.hypot(
+              event.clientX - box.left - drag.fromPixel.x,
+              event.clientY - box.top - drag.fromPixel.y,
+            );
+      // Measured in pixels rather than meters, because the question is whether
+      // a hand moved — and at low zoom a firm drag is a few centimeters.
+      onDrawRoom?.(drag.from, travelled >= DRAW_THRESHOLD_PIXELS ? to : null);
+      dragRef.current = null;
+      setDrawnTo(null);
+      setCursor("none");
+      canvas?.releasePointerCapture?.(event.pointerId);
+      // The mode stays on. An apartment is fifteen rooms, and turning it off
+      // after each one would mean pressing the button fifteen times; Escape
+      // and the button itself are both one keystroke away when it is done.
+      return;
+    }
+
     dragRef.current = null;
     setCursor("none");
     canvasRef.current?.releasePointerCapture?.(event.pointerId);
@@ -662,6 +763,14 @@ export function RoomPlanCanvas({
 
   function handleKeyDown(event: KeyboardEvent<HTMLCanvasElement>): void {
     if (pressIs("deselect", event)) {
+      if (drawing) {
+        // Called off rather than deselecting: in this mode Escape is the way
+        // out of the mode, which is the nearer of the two things it could mean.
+        dragRef.current = null;
+        setDrawnTo(null);
+        onDrawEnd?.();
+        return;
+      }
       onSelect(null);
       return;
     }
@@ -719,7 +828,7 @@ export function RoomPlanCanvas({
           // A key held as focus leaves never sends its keyup here.
           onGestureEnd?.();
         }}
-        className={`block h-full w-full touch-none outline-none ${CURSORS[cursor]}`}
+        className={`block h-full w-full touch-none outline-none ${drawing ? "cursor-crosshair" : CURSORS[cursor]}`}
       />
 
       {/*
@@ -745,8 +854,14 @@ export function RoomPlanCanvas({
         </span>
       </p>
 
+      {drawing ? (
+        <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1 text-xs text-white dark:bg-white/15">
+          Drag out a room, or click to drop one. Esc to stop.
+        </p>
+      ) : null}
+
       {/* Said once, where it is needed, and gone as soon as it is not. */}
-      {active ? null : (
+      {active || drawing ? null : (
         <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1 text-xs text-white dark:bg-white/15">
           Click the plan to move around it
         </p>
@@ -922,6 +1037,8 @@ type DrawOptions = {
   viewport: PixelSize;
   color: string;
   fontFamily: string;
+  /** A room being dragged out right now, drawn as an outline over everything. */
+  drawnRect?: { readonly from: FloorPoint; readonly to: FloorPoint } | null;
 };
 
 /** Everything the drawing helpers need to place a floor coordinate in pixels. */
@@ -943,6 +1060,7 @@ function drawPlan(
     viewport,
     color,
     fontFamily,
+    drawnRect = null,
   }: DrawOptions,
 ): void {
   context.clearRect(0, 0, viewport.width, viewport.height);
@@ -1004,6 +1122,44 @@ function drawPlan(
       troubled: troubledIds.has(placed.instance.id),
     });
   }
+
+  // Last, over everything: it is the thing being made right now.
+  if (drawnRect !== null) {
+    drawRoomPreview(context, frame, floor, drawnRect);
+  }
+}
+
+/**
+ * The room being dragged out, as it will be made.
+ *
+ * Run through `drawnRoom` rather than drawn from the raw corners, so the
+ * rectangle on screen is the room you get — snapped to its neighbours and held
+ * to the smallest a room may be. A preview that shows one rectangle and
+ * produces another is worse than no preview.
+ */
+function drawRoomPreview(
+  context: CanvasRenderingContext2D,
+  frame: PlanFrame,
+  floor: Floor,
+  corners: { readonly from: FloorPoint; readonly to: FloorPoint },
+): void {
+  const room = drawnRoom(floor, "preview", "", corners.from, corners.to);
+  const inside = frame.toPixels(room.origin);
+  const width = spanPixels(frame, room.widthMeters);
+  const depth = spanPixels(frame, room.depthMeters);
+
+  context.save();
+  context.globalAlpha = FLOOR_ALPHA;
+  context.fillStyle = frame.color;
+  context.fillRect(inside.x, inside.y, width, depth);
+
+  // Dashed, because it is not a room yet. The wall band arrives with it.
+  context.globalAlpha = 1;
+  context.strokeStyle = frame.color;
+  context.lineWidth = 1.5;
+  context.setLineDash([6, 4]);
+  context.strokeRect(inside.x, inside.y, width, depth);
+  context.restore();
 }
 
 /** A frame that takes points in one room's own coordinates. */
