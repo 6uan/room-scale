@@ -472,6 +472,91 @@ test.describe("comparing layouts", () => {
 });
 
 test.describe("laying the apartment out", () => {
+  test("places, lists, selects, moves, and resizes an opening on the plan", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await contents(page).getByRole("button", { name: "Living room" }).click();
+
+    await details(page).getByRole("button", { name: "Add door" }).click();
+    await expect(
+      plan(page).getByText("Click the wall for the door. Esc to stop."),
+    ).toBeVisible();
+
+    const box = await planImage(page).boundingBox();
+    if (box === null) {
+      throw new Error("the plan has no box to point at");
+    }
+    const metres = (inches: number) => inches * 0.0254;
+    const padding = 40;
+    const scale = Math.min(
+      (box.width - padding * 2) / metres(168 + 4.5 * 2),
+      (box.height - padding * 2) / metres(144 + 4.5 * 2),
+    );
+    const middle = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    // Clear of the existing centered north window: 36" from the west corner.
+    const north = {
+      x: middle.x + metres(-84 + 36) * scale,
+      y: middle.y - metres(72) * scale,
+    };
+
+    await page.mouse.click(north.x, north.y);
+
+    const row = contents(page).getByRole("button", { name: "Door 2" });
+    await expect(row).toBeVisible();
+    await expect(row).toHaveAttribute("aria-pressed", "true");
+    const opening = details(page).getByRole("region", {
+      name: "Living room door 2",
+    });
+    await expect(opening).toBeVisible();
+    await expect(opening.getByLabel("Living room door 2 wall")).toHaveValue(
+      "north",
+    );
+    await expect(opening.getByLabel("Center")).toHaveValue("36");
+    await expect(opening.getByLabel("Width")).toHaveValue("32");
+
+    // A measured number stays exact and moves the selected opening's readout.
+    await opening.getByLabel("Center").fill("40");
+    await expect(opening.getByLabel("Center")).toHaveValue("40");
+    await expect(plan(page).getByText(`x -3' 8.0"`)).toBeVisible();
+
+    // Selection is also on the canvas, through the gap cut in the wall.
+    await planImage(page).press("Escape");
+    const typedCenter = {
+      x: middle.x + metres(-84 + 40) * scale,
+      y: north.y,
+    };
+    await page.mouse.click(typedCenter.x, typedCenter.y);
+    await expect(opening).toBeVisible();
+
+    // Drag the whole opening along its wall.
+    await page.mouse.move(typedCenter.x, typedCenter.y);
+    await page.mouse.down();
+    await page.mouse.move(typedCenter.x + 24, typedCenter.y, { steps: 6 });
+    await page.mouse.up();
+    const movedCenter = Number(await opening.getByLabel("Center").inputValue());
+    expect(movedCenter).toBeGreaterThan(40);
+    expect(movedCenter % 1).toBe(0);
+
+    // Drag its end jamb. The start stays put, so width and center both grow.
+    const beforeWidth = Number(await opening.getByLabel("Width").inputValue());
+    const endJamb = {
+      x: middle.x + metres(-84 + movedCenter + beforeWidth / 2) * scale,
+      y: north.y,
+    };
+    await page.mouse.move(endJamb.x, endJamb.y);
+    await page.mouse.down();
+    await page.mouse.move(endJamb.x + 24, endJamb.y, { steps: 6 });
+    await page.mouse.up();
+
+    expect(
+      Number(await opening.getByLabel("Width").inputValue()),
+    ).toBeGreaterThan(beforeWidth);
+    expect(
+      Number(await opening.getByLabel("Center").inputValue()),
+    ).toBeGreaterThan(movedCenter);
+  });
+
   test("snaps a room against its neighbour, sharing one wall", async ({
     page,
   }) => {

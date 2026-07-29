@@ -142,6 +142,80 @@ export function pointAlongWall(
 }
 
 /**
+ * How far along one wall a room-local point lies.
+ *
+ * The perpendicular coordinate is deliberately ignored: a pointer moving an
+ * opening may stray away from the narrow wall band, but it still changes only
+ * the measured distance along that wall.
+ */
+export function metersAlongWall(wall: WallSide, point: FloorPoint): number {
+  return wall === "north" || wall === "south" ? point.xMeters : point.zMeters;
+}
+
+export type WallPlacement = {
+  readonly wall: WallSide;
+  readonly alongMeters: number;
+};
+
+/**
+ * The wall near a room-local point, if one is within reach.
+ *
+ * Reach is supplied by the caller because a pointer target is measured on
+ * screen: the canvas converts its fixed pixel tolerance to meters at the
+ * current zoom. The wall's own length is still exact domain geometry.
+ */
+export function wallPlacementAt(
+  room: Room,
+  point: FloorPoint,
+  reachMeters: number,
+): WallPlacement | null {
+  const candidates = WALL_SIDES.map((wall) => {
+    const alongMeters = metersAlongWall(wall, point);
+    const length = wallLengthMeters(room, wall);
+    const distanceMeters = distanceFromWall(room, wall, point);
+    return { wall, alongMeters, length, distanceMeters };
+  })
+    .filter(
+      ({ alongMeters, length, distanceMeters }) =>
+        distanceMeters <= reachMeters &&
+        alongMeters >= 0 &&
+        alongMeters <= length,
+    )
+    .sort((a, b) => a.distanceMeters - b.distanceMeters);
+
+  const nearest = candidates[0];
+  return nearest === undefined
+    ? null
+    : { wall: nearest.wall, alongMeters: nearest.alongMeters };
+}
+
+/** The topmost opening under a room-local point, if there is one. */
+export function openingAtPoint(
+  room: Room,
+  point: FloorPoint,
+  reachMeters: number,
+): Opening | null {
+  const placement = wallPlacementAt(room, point, reachMeters);
+  if (placement === null) {
+    return null;
+  }
+
+  return (
+    room.openings
+      .filter((opening) => opening.wall === placement.wall)
+      .filter((opening) => checkOpening(room, opening) === null)
+      .filter((opening) => {
+        const { startMeters, endMeters } = openingRangeMeters(opening);
+        return (
+          placement.alongMeters >= startMeters &&
+          placement.alongMeters <= endMeters
+        );
+      })
+      .at(-1) ?? null
+  );
+}
+
+/**
  * The opening's two jambs on the inside face of its wall. `start` is the end
  * nearer the wall's start corner, which is also the `"start"` hinge.
  */
@@ -162,13 +236,20 @@ export function createOpening(
   id: string,
   room: Room,
   wall: WallSide = "north",
+  centerMeters?: number,
 ): Opening {
   const wallLength = wallLengthMeters(room, wall);
+  const widthMeters = Math.min(DEFAULT_OPENING_WIDTH_METERS[kind], wallLength);
+  const half = widthMeters / 2;
   const placement = {
     id,
     wall,
-    centerMeters: wallLength / 2,
-    widthMeters: Math.min(DEFAULT_OPENING_WIDTH_METERS[kind], wallLength),
+    centerMeters: clamp(
+      centerMeters ?? wallLength / 2,
+      half,
+      wallLength - half,
+    ),
+    widthMeters,
   };
 
   switch (kind) {
@@ -199,6 +280,69 @@ export function withOpeningWall(
     widthMeters,
     centerMeters: clamp(opening.centerMeters, half, wallLength - half),
   };
+}
+
+/** Moves an opening along its wall without letting either jamb leave it. */
+export function moveOpening(
+  room: Room,
+  opening: Opening,
+  centerMeters: number,
+): Opening {
+  const wallLength = wallLengthMeters(room, opening.wall);
+  const half = opening.widthMeters / 2;
+  return {
+    ...opening,
+    centerMeters: clamp(centerMeters, half, wallLength - half),
+  };
+}
+
+export type OpeningJamb = "start" | "end";
+
+/**
+ * Moves one jamb while the opposite jamb stays where it is.
+ *
+ * Pointer editing cannot create a hole narrower than the domain minimum or
+ * pull it beyond a corner. Numeric editing remains separate and exact.
+ */
+export function resizeOpeningJamb(
+  room: Room,
+  opening: Opening,
+  jamb: OpeningJamb,
+  alongMeters: number,
+): Opening {
+  const wallLength = wallLengthMeters(room, opening.wall);
+  const { startMeters, endMeters } = openingRangeMeters(opening);
+  const start =
+    jamb === "start"
+      ? clamp(alongMeters, 0, endMeters - MIN_OPENING_METERS)
+      : startMeters;
+  const end =
+    jamb === "end"
+      ? clamp(alongMeters, startMeters + MIN_OPENING_METERS, wallLength)
+      : endMeters;
+
+  return {
+    ...opening,
+    centerMeters: (start + end) / 2,
+    widthMeters: end - start,
+  };
+}
+
+function distanceFromWall(
+  room: Room,
+  wall: WallSide,
+  point: FloorPoint,
+): number {
+  switch (wall) {
+    case "north":
+      return Math.abs(point.zMeters);
+    case "south":
+      return Math.abs(point.zMeters - room.depthMeters);
+    case "west":
+      return Math.abs(point.xMeters);
+    case "east":
+      return Math.abs(point.xMeters - room.widthMeters);
+  }
 }
 
 function clamp(value: number, low: number, high: number): number {

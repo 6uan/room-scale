@@ -41,18 +41,28 @@ import {
   drawnRoom,
   floorAreaSquareMeters,
   floorBounds,
+  metersAlongWall,
+  moveOpening,
+  openingAtPoint,
   openingEndpoints,
+  pointAlongWall,
+  pointInRoom,
   pointOnFloor,
+  resizeOpeningJamb,
   roomsAt,
   snapRoomOrigin,
   snapRoomResize,
+  wallPlacementAt,
   wallOutwardNormal,
   withOrigin,
   type Floor,
   type FloorVector,
   type Opening,
+  type OpeningJamb,
+  type OpeningKind,
   type Room,
   type RoomEdge,
+  type WallSide,
 } from "@/domain/room";
 import {
   formatAngle,
@@ -122,6 +132,11 @@ function cursorForEdges(edges: readonly RoomEdge[]): Cursor {
   return northWest ? "resize-nwse" : "resize-nesw";
 }
 
+/** A jamb moves along its wall. */
+function cursorForWall(wall: WallSide): Cursor {
+  return wall === "north" || wall === "south" ? "resize-x" : "resize-y";
+}
+
 /**
  * The one color in the drawing that is not the foreground. A problem has to be
  * findable at a glance, and it reads on both the light and the dark theme —
@@ -163,6 +178,9 @@ export type RoomPlanCanvasProps = {
   selectedRoomId?: string | null;
   onSelectRoom?: (roomId: string) => void;
   onRoomChange?: (room: Room, gesture?: Gesture) => void;
+  /** Which wall opening is being worked on. */
+  selectedOpeningId?: string | null;
+  onSelectOpening?: (roomId: string, openingId: string) => void;
   /** The drag or the held key is over. The next one is a new step back. */
   onGestureEnd?: () => void;
   /** A product dragged in from the catalogue, dropped where it was let go. */
@@ -192,6 +210,18 @@ export type RoomPlanCanvasProps = {
    * drawing another room on top of it.
    */
   onDrawEnd?: () => void;
+  /** A one-shot request to put this kind of opening on this room's next wall. */
+  placingOpening?: {
+    readonly roomId: string;
+    readonly kind: OpeningKind;
+  } | null;
+  onPlaceOpening?: (
+    roomId: string,
+    kind: OpeningKind,
+    wall: WallSide,
+    centerMeters: number,
+  ) => void;
+  onPlaceOpeningEnd?: () => void;
 };
 
 /**
@@ -221,6 +251,21 @@ type Drag =
       readonly roomId: string;
       /** One or two walls: an edge moves one, a corner moves both. */
       readonly edges: readonly RoomEdge[];
+    }
+  | {
+      readonly kind: "opening-move";
+      readonly pointerId: number;
+      readonly roomId: string;
+      readonly openingId: string;
+      /** Where inside the opening it was grabbed, along its wall. */
+      readonly grabOffsetMeters: number;
+    }
+  | {
+      readonly kind: "opening-resize";
+      readonly pointerId: number;
+      readonly roomId: string;
+      readonly openingId: string;
+      readonly jamb: OpeningJamb;
     }
   | {
       readonly kind: "pan";
@@ -260,10 +305,15 @@ export function RoomPlanCanvas({
   selectedRoomId = null,
   onSelectRoom,
   onRoomChange,
+  selectedOpeningId = null,
+  onSelectOpening,
   onGestureEnd,
   drawing = false,
   onDrawRoom,
   onDrawEnd,
+  placingOpening = null,
+  onPlaceOpening,
+  onPlaceOpeningEnd,
 }: RoomPlanCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const dragRef = useRef<Drag | null>(null);
@@ -295,15 +345,26 @@ export function RoomPlanCanvas({
    * costs nothing to explain — the focus ring already says which it is.
    */
   /**
-   * The coordinates in the readout: the selected room's north-west corner, or
-   * the selected piece's centre.
+   * The coordinates in the readout: the selected room's north-west corner, an
+   * opening's center on the floor, or the selected piece's centre.
    *
    * Not the pointer. A number that changes as the mouse drifts is one nobody
    * can read off, and the corner is the same number the panel on the right
    * holds — so the readout and the field agree rather than nearly agreeing.
    */
+  const selectedOpening = findOpening(floor, selectedOpeningId);
   const at =
     floor.rooms.find((room) => room.id === selectedRoomId)?.origin ??
+    (selectedOpening === null
+      ? null
+      : pointOnFloor(
+          selectedOpening.room,
+          pointAlongWall(
+            selectedOpening.room,
+            selectedOpening.opening.wall,
+            selectedOpening.opening.centerMeters,
+          ),
+        )) ??
     furniture.find(({ instance }) => instance.id === selectedId)?.instance
       .position ??
     null;
@@ -352,6 +413,7 @@ export function RoomPlanCanvas({
       furniture,
       selectedId,
       selectedRoomId,
+      selectedOpeningId,
       troubledIds,
       viewport: size,
       color: style.color,
@@ -367,6 +429,7 @@ export function RoomPlanCanvas({
     unit,
     selectedId,
     selectedRoomId,
+    selectedOpeningId,
     troubledIds,
     size,
     projection,
@@ -479,6 +542,31 @@ export function RoomPlanCanvas({
 
     const box = canvas.getBoundingClientRect();
 
+    // Opening placement is one wall click. It is scoped to the room whose
+    // inspector armed it, so a shared wall is not ambiguously stored twice.
+    if (placingOpening !== null) {
+      const room = floor.rooms.find((one) => one.id === placingOpening.roomId);
+      const placement =
+        room === undefined
+          ? null
+          : wallPlacementAt(
+              room,
+              pointInRoom(room, point),
+              pointerReachMeters(floor, projectionRef.current),
+            );
+      if (room !== undefined && placement !== null) {
+        onPlaceOpening?.(
+          room.id,
+          placingOpening.kind,
+          placement.wall,
+          roundToDisplayUnit(placement.alongMeters, unit),
+        );
+        onPlaceOpeningEnd?.();
+      }
+      canvas.focus();
+      return;
+    }
+
     // Drawing takes the drag before anything else looks at it. In this mode
     // the pointer is for making a room, not for finding one.
     if (drawing) {
@@ -488,6 +576,52 @@ export function RoomPlanCanvas({
         from: point,
         fromPixel: { x: event.clientX - box.left, y: event.clientY - box.top },
       };
+      canvas.focus();
+      canvas.setPointerCapture?.(event.pointerId);
+      return;
+    }
+
+    const openingHandle = openingHandleAt(
+      floor,
+      selectedOpeningId,
+      projectionRef.current,
+      {
+        x: event.clientX - box.left,
+        y: event.clientY - box.top,
+      },
+    );
+    if (openingHandle !== null && !panningRef.current) {
+      dragRef.current = {
+        kind: "opening-resize",
+        pointerId: event.pointerId,
+        roomId: openingHandle.roomId,
+        openingId: openingHandle.openingId,
+        jamb: openingHandle.jamb,
+      };
+      setCursor(cursorForWall(openingHandle.wall));
+      canvas.focus();
+      canvas.setPointerCapture?.(event.pointerId);
+      return;
+    }
+
+    const openingHit = openingAt(
+      floor,
+      point,
+      pointerReachMeters(floor, projectionRef.current),
+    );
+    if (openingHit !== null && !panningRef.current) {
+      const local = pointInRoom(openingHit.room, point);
+      onSelectOpening?.(openingHit.room.id, openingHit.opening.id);
+      dragRef.current = {
+        kind: "opening-move",
+        pointerId: event.pointerId,
+        roomId: openingHit.room.id,
+        openingId: openingHit.opening.id,
+        grabOffsetMeters:
+          metersAlongWall(openingHit.opening.wall, local) -
+          openingHit.opening.centerMeters,
+      };
+      setCursor("move");
       canvas.focus();
       canvas.setPointerCapture?.(event.pointerId);
       return;
@@ -583,6 +717,19 @@ export function RoomPlanCanvas({
     }
 
     const box = canvas.getBoundingClientRect();
+    const openingHandle = openingHandleAt(
+      floor,
+      selectedOpeningId,
+      projectionRef.current,
+      {
+        x: event.clientX - box.left,
+        y: event.clientY - box.top,
+      },
+    );
+    if (openingHandle !== null) {
+      return cursorForWall(openingHandle.wall);
+    }
+
     const grabbed = handleAt(floor, selectedRoomId, projectionRef.current, {
       x: event.clientX - box.left,
       y: event.clientY - box.top,
@@ -598,6 +745,15 @@ export function RoomPlanCanvas({
     if (furnitureAt(furniture, point) !== null) {
       return "move";
     }
+    if (
+      openingAt(
+        floor,
+        point,
+        pointerReachMeters(floor, projectionRef.current),
+      ) !== null
+    ) {
+      return "move";
+    }
     // Floor with nothing on it is where a drag pans, so it offers a hand.
     return roomsAt(floor, point).length > 0 ? "move" : "pan";
   }
@@ -611,6 +767,34 @@ export function RoomPlanCanvas({
     }
 
     if (!drag || !canvas || drag.pointerId !== event.pointerId) {
+      return;
+    }
+
+    if (drag.kind === "opening-move" || drag.kind === "opening-resize") {
+      const found = findOpening(floor, drag.openingId, drag.roomId);
+      const point = floorPointAt(canvas, event, projectionRef.current);
+      if (found === null || point === null) {
+        return;
+      }
+      const local = pointInRoom(found.room, point);
+      const alongMeters = roundToDisplayUnit(
+        metersAlongWall(found.opening.wall, local) -
+          (drag.kind === "opening-move" ? drag.grabOffsetMeters : 0),
+        unit,
+      );
+      const next =
+        drag.kind === "opening-move"
+          ? moveOpening(found.room, found.opening, alongMeters)
+          : resizeOpeningJamb(
+              found.room,
+              found.opening,
+              drag.jamb,
+              alongMeters,
+            );
+      onRoomChange?.(
+        replaceOpening(found.room, next),
+        `opening-${drag.kind === "opening-move" ? "move" : "resize"}:${drag.openingId}`,
+      );
       return;
     }
 
@@ -763,12 +947,16 @@ export function RoomPlanCanvas({
 
   function handleKeyDown(event: KeyboardEvent<HTMLCanvasElement>): void {
     if (pressIs("deselect", event)) {
-      if (drawing) {
+      if (drawing || placingOpening !== null) {
         // Called off rather than deselecting: in this mode Escape is the way
         // out of the mode, which is the nearer of the two things it could mean.
         dragRef.current = null;
         setDrawnTo(null);
-        onDrawEnd?.();
+        if (drawing) {
+          onDrawEnd?.();
+        } else {
+          onPlaceOpeningEnd?.();
+        }
         return;
       }
       onSelect(null);
@@ -828,7 +1016,11 @@ export function RoomPlanCanvas({
           // A key held as focus leaves never sends its keyup here.
           onGestureEnd?.();
         }}
-        className={`block h-full w-full touch-none outline-none ${drawing ? "cursor-crosshair" : CURSORS[cursor]}`}
+        className={`block h-full w-full touch-none outline-none ${
+          drawing || placingOpening !== null
+            ? "cursor-crosshair"
+            : CURSORS[cursor]
+        }`}
       />
 
       {/*
@@ -860,12 +1052,20 @@ export function RoomPlanCanvas({
         </p>
       ) : null}
 
-      {/* Said once, where it is needed, and gone as soon as it is not. */}
-      {active || drawing ? null : (
+      {placingOpening === null ? null : (
         <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1 text-xs text-white dark:bg-white/15">
-          {selectedRoomId === null
-            ? "Click the plan to pan and zoom"
-            : "Drag the room here or use X/Y and W/H/D"}
+          Click the wall for the {placingOpening.kind}. Esc to stop.
+        </p>
+      )}
+
+      {/* Said once, where it is needed, and gone as soon as it is not. */}
+      {active || drawing || placingOpening !== null ? null : (
+        <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1 text-xs text-white dark:bg-white/15">
+          {selectedRoomId !== null
+            ? "Drag the room here or use X/Y and W/H/D"
+            : selectedOpeningId !== null
+              ? "Drag the opening or a jamb, or type its measurements"
+              : "Click the plan to pan and zoom"}
         </p>
       )}
     </div>
@@ -900,6 +1100,107 @@ function handleAt(
     }
   }
   return null;
+}
+
+type FoundOpening = { readonly room: Room; readonly opening: Opening };
+
+function findOpening(
+  floor: Floor,
+  openingId: string | null,
+  roomId?: string,
+): FoundOpening | null {
+  if (openingId === null) {
+    return null;
+  }
+  const rooms =
+    roomId === undefined
+      ? floor.rooms
+      : floor.rooms.filter((room) => room.id === roomId);
+  for (const room of rooms) {
+    const opening = room.openings.find((one) => one.id === openingId);
+    if (opening !== undefined) {
+      return { room, opening };
+    }
+  }
+  return null;
+}
+
+/** The last-drawn opening under a floor point. */
+function openingAt(
+  floor: Floor,
+  point: FloorPoint,
+  reachMeters: number,
+): FoundOpening | null {
+  for (let index = floor.rooms.length - 1; index >= 0; index -= 1) {
+    const room = floor.rooms[index];
+    if (room === undefined) {
+      continue;
+    }
+    const opening = openingAtPoint(room, pointInRoom(room, point), reachMeters);
+    if (opening !== null) {
+      return { room, opening };
+    }
+  }
+  return null;
+}
+
+/**
+ * The selected opening jamb under a pixel, if there is one.
+ *
+ * Like room handles, these keep a fixed screen target however far out the plan
+ * is zoomed.
+ */
+function openingHandleAt(
+  floor: Floor,
+  selectedOpeningId: string | null,
+  projection: PlanProjection,
+  at: PixelPoint,
+): {
+  roomId: string;
+  openingId: string;
+  jamb: OpeningJamb;
+  wall: WallSide;
+} | null {
+  const found = findOpening(floor, selectedOpeningId);
+  if (found === null || checkOpening(found.room, found.opening) !== null) {
+    return null;
+  }
+  const endpoints = openingEndpoints(found.room, found.opening);
+  for (const jamb of ["start", "end"] as const) {
+    const point = projectPoint(
+      projection,
+      pointOnFloor(found.room, endpoints[jamb]),
+    );
+    if (
+      Math.abs(point.x - at.x) <= HANDLE_GRAB_PIXELS &&
+      Math.abs(point.y - at.y) <= HANDLE_GRAB_PIXELS
+    ) {
+      return {
+        roomId: found.room.id,
+        openingId: found.opening.id,
+        jamb,
+        wall: found.opening.wall,
+      };
+    }
+  }
+  return null;
+}
+
+/** Fixed pointer reach converted from screen pixels into floor meters. */
+function pointerReachMeters(floor: Floor, projection: PlanProjection): number {
+  return Math.max(
+    floor.wallThicknessMeters,
+    HANDLE_GRAB_PIXELS / projection.pixelsPerMeter,
+  );
+}
+
+function replaceOpening(room: Room, next: Opening): Room {
+  return {
+    ...room,
+    openings: room.openings.map((opening) =>
+      opening.id === next.id ? next : opening,
+    ),
+  };
 }
 
 /**
@@ -1035,6 +1336,7 @@ type DrawOptions = {
   furniture: readonly PlacedFurniture[];
   selectedId: string | null;
   selectedRoomId: string | null;
+  selectedOpeningId: string | null;
   troubledIds: ReadonlySet<string>;
   viewport: PixelSize;
   color: string;
@@ -1058,6 +1360,7 @@ function drawPlan(
     furniture,
     selectedId,
     selectedRoomId,
+    selectedOpeningId,
     troubledIds,
     viewport,
     color,
@@ -1101,6 +1404,18 @@ function drawPlan(
   }
   for (const { room, opening } of drawableOpenings(floor)) {
     drawOpeningSymbol(context, inRoom(frame, room), room, opening);
+  }
+  const selectedOpening = findOpening(floor, selectedOpeningId);
+  if (
+    selectedOpening !== null &&
+    checkOpening(selectedOpening.room, selectedOpening.opening) === null
+  ) {
+    markSelectedOpening(
+      context,
+      inRoom(frame, selectedOpening.room),
+      selectedOpening.room,
+      selectedOpening.opening,
+    );
   }
 
   for (const room of floor.rooms) {
@@ -1299,6 +1614,38 @@ function markSelectedRoom(
   context.fillStyle = frame.color;
   for (const { at } of roomHandles(room)) {
     const point = frame.toPixels(at);
+    context.fillRect(
+      point.x - HANDLE_PIXELS / 2,
+      point.y - HANDLE_PIXELS / 2,
+      HANDLE_PIXELS,
+      HANDLE_PIXELS,
+    );
+  }
+  context.restore();
+}
+
+/** The selected opening, with a grab point on each jamb. */
+function markSelectedOpening(
+  context: CanvasRenderingContext2D,
+  frame: PlanFrame,
+  room: Room,
+  opening: Opening,
+): void {
+  const { start, end } = openingEndpoints(room, opening);
+  const a = frame.toPixels(start);
+  const b = frame.toPixels(end);
+
+  context.save();
+  context.strokeStyle = frame.color;
+  context.globalAlpha = FURNITURE_EDGE_ALPHA;
+  context.lineWidth = 2;
+  // A guide rather than a wall put back across the opening it is marking.
+  context.setLineDash([4, 3]);
+  strokeSegments(context, [[a, b]]);
+  context.setLineDash([]);
+  context.globalAlpha = 1;
+  context.fillStyle = frame.color;
+  for (const point of [a, b]) {
     context.fillRect(
       point.x - HANDLE_PIXELS / 2,
       point.y - HANDLE_PIXELS / 2,

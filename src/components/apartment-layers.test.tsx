@@ -61,4 +61,19 @@ describe("ApartmentLayers room names", () => {
       screen.getByRole("button", { name: "Living room" }),
     ).toBeInTheDocument();
   });
+
+  it("lists and selects each opening under the room it belongs to", async () => {
+    const user = userEvent.setup();
+    render(<LayersHarness />);
+
+    const door = screen.getByRole("button", { name: "Door 1" });
+    const window = screen.getByRole("button", { name: "Window 1" });
+    expect(door).toBeInTheDocument();
+    expect(window).toBeInTheDocument();
+
+    await user.click(window);
+
+    expect(window).toHaveAttribute("aria-pressed", "true");
+    expect(door).toHaveAttribute("aria-pressed", "false");
+  });
 });

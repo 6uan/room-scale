@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { openingListName } from "@/components/opening-name";
 import { placedNames, type PlacedFurniture } from "@/domain/furniture";
 import { roomsAt, type Floor, type Room } from "@/domain/room";
 import { isSelected, type Selection } from "@/components/selection";
@@ -68,6 +69,22 @@ export function ApartmentLayers({
               onChange={onRoomChange}
             />
             <ul className="flex flex-col">
+              {room.openings.map((opening) => (
+                <li key={opening.id}>
+                  <Row
+                    label={openingListName(room, opening)}
+                    depth
+                    selected={isSelected(selection, "opening", opening.id)}
+                    onSelect={() =>
+                      onSelect({
+                        kind: "opening",
+                        roomId: room.id,
+                        id: opening.id,
+                      })
+                    }
+                  />
+                </li>
+              ))}
               {inRoom(room.id).map(({ placed, name }) => (
                 <li key={placed.instance.id}>
                   <Row

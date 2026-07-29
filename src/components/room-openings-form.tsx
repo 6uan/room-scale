@@ -1,6 +1,7 @@
 "use client";
 
 import { NumberField } from "@/components/number-field";
+import { openingName } from "@/components/opening-name";
 import {
   MIN_OPENING_METERS,
   WALL_SIDES,
@@ -32,88 +33,61 @@ const WALL_LABELS: Record<WallSide, string> = {
 
 export type RoomOpeningsFormProps = {
   room: Room;
-  unit: DisplayUnit;
-  onOpeningsChange: (openings: readonly Opening[]) => void;
+  placingKind?: OpeningKind | null;
   onAddOpening: (kind: OpeningKind) => void;
 };
 
-/** Adding, positioning, and removing the doors, windows, and passages. */
+/** Arms the plan to put a door, window, or passage on this room's wall. */
 export function RoomOpeningsForm({
   room,
-  unit,
-  onOpeningsChange,
+  placingKind = null,
   onAddOpening,
 }: RoomOpeningsFormProps) {
-  function replace(opening: Opening, next: Opening): void {
-    onOpeningsChange(
-      room.openings.map((existing) =>
-        existing.id === opening.id ? next : existing,
-      ),
-    );
-  }
-
-  function remove(opening: Opening): void {
-    onOpeningsChange(
-      room.openings.filter((existing) => existing.id !== opening.id),
-    );
-  }
-
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-3 border-t border-black/10 pt-4 dark:border-white/15">
+      <h3 className="text-xs font-medium">Openings</h3>
       <div className="flex flex-wrap gap-2">
         {KINDS.map(({ kind, label }) => (
           <button
             key={kind}
             type="button"
             onClick={() => onAddOpening(kind)}
-            className="rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
+            aria-pressed={placingKind === kind}
+            className={`rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10 ${
+              placingKind === kind
+                ? "bg-black/10 dark:bg-white/15"
+                : "bg-transparent"
+            }`}
           >
-            Add {label.toLowerCase()}
+            {placingKind === kind
+              ? `Placing ${label.toLowerCase()}…`
+              : `Add ${label.toLowerCase()}`}
           </button>
         ))}
       </div>
 
-      {room.openings.length === 0 ? (
-        <p className="text-sm opacity-60">
-          No openings yet. The room is drawn as four unbroken walls.
-        </p>
-      ) : (
-        <ul className="flex flex-col gap-5">
-          {room.openings.map((opening, index) => (
-            <li key={opening.id}>
-              <OpeningFields
-                opening={opening}
-                ordinal={ordinalOf(room.openings, opening, index)}
-                room={room}
-                unit={unit}
-                onChange={(next) => replace(opening, next)}
-                onRemove={() => remove(opening)}
-              />
-            </li>
-          ))}
-        </ul>
-      )}
-
       <p className="text-xs leading-relaxed opacity-60">
-        Centers are measured along the wall: from the west end on the north and
-        south walls, from the north end on the east and west walls.
+        {placingKind === null
+          ? room.openings.length === 0
+            ? "Choose a kind, then click the wall where it belongs."
+            : `${room.openings.length} ${room.openings.length === 1 ? "opening" : "openings"}. Select one in the Apartment list or on the plan to edit its measurements.`
+          : `Click a ${room.name === "" ? "room" : room.name} wall to place it. Press Esc to stop.`}
       </p>
     </div>
   );
 }
 
-type OpeningFieldsProps = {
+export type OpeningFieldsProps = {
   opening: Opening;
-  ordinal: number;
   room: Room;
   unit: DisplayUnit;
   onChange: (opening: Opening) => void;
   onRemove: () => void;
 };
 
-function OpeningFields({
+/** Exact numeric editing for one selected opening. */
+export function OpeningFields({
   opening,
-  ordinal,
   room,
   unit,
   onChange,
@@ -121,10 +95,7 @@ function OpeningFields({
 }: OpeningFieldsProps) {
   const wallLength = wallLengthMeters(room, opening.wall);
   const problem = checkOpening(room, opening);
-  // Prefixed with the room, because an apartment has more than one Door 1.
-  const name = `${room.name === "" ? "Room" : room.name} ${kindLabel(
-    opening.kind,
-  ).toLowerCase()} ${ordinal}`;
+  const name = openingName(room, opening);
 
   return (
     <fieldset className="flex flex-col gap-4 rounded-lg border border-black/10 p-4 dark:border-white/15">
@@ -262,23 +233,6 @@ function SelectField({
         ))}
       </select>
     </div>
-  );
-}
-
-function kindLabel(kind: OpeningKind): string {
-  return kind === "door" ? "Door" : kind === "window" ? "Window" : "Passage";
-}
-
-/** Numbers each kind separately, so the list reads "Door 1, Door 2, Window 1". */
-function ordinalOf(
-  openings: readonly Opening[],
-  opening: Opening,
-  index: number,
-): number {
-  return (
-    openings
-      .slice(0, index)
-      .filter((existing) => existing.kind === opening.kind).length + 1
   );
 }
 

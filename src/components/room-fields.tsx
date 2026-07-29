@@ -9,11 +9,9 @@ import {
   SNAP_METERS,
   snapRoomOrigin,
   snapRoomResize,
-  withOpenings,
   withOrigin,
   withRoomLength,
   type Floor,
-  type Opening,
   type OpeningKind,
   type Room,
 } from "@/domain/room";
@@ -33,6 +31,7 @@ export type RoomFieldsProps = {
   onGestureEnd: () => void;
   onRemove: () => void;
   onAddOpening: (kind: OpeningKind) => void;
+  placingOpeningKind?: OpeningKind | null;
 };
 
 export function RoomFields({
@@ -43,6 +42,7 @@ export function RoomFields({
   onGestureEnd,
   onRemove,
   onAddOpening,
+  placingOpeningKind = null,
 }: RoomFieldsProps) {
   const name = room.name === "" ? "Room" : room.name;
 
@@ -154,10 +154,7 @@ export function RoomFields({
 
       <RoomOpeningsForm
         room={room}
-        unit={unit}
-        onOpeningsChange={(openings: readonly Opening[]) =>
-          onChange(withOpenings(room, openings))
-        }
+        placingKind={placingOpeningKind}
         onAddOpening={onAddOpening}
       />
 
