@@ -254,6 +254,9 @@ export function Workspace() {
       </header>
 
       <div className="grid min-h-0 grid-cols-[minmax(0,16rem)_minmax(0,1fr)_minmax(0,20rem)]">
+        {/* The catalogue sits at the bottom and grows upward as it fills; the
+            layers take the rest, so spare room shows above it rather than
+            below. */}
         <aside
           aria-label="Contents"
           className="grid min-w-0 grid-rows-[minmax(0,1fr)_auto] overflow-hidden border-r border-black/10 dark:border-white/15"
@@ -291,6 +294,9 @@ export function Workspace() {
               onInstanceChange={(instance) =>
                 setInstances(withInstance(instances, instance))
               }
+              selectedRoomId={selection?.kind === "room" ? selection.id : null}
+              onSelectRoom={(id) => setSelection({ kind: "room", id })}
+              onRoomChange={(room) => setFloor(withRoom(floor, room))}
               onDropProduct={(productId, at) => {
                 const product = products.find((one) => one.id === productId);
                 if (product !== undefined) {

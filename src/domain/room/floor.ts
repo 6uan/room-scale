@@ -173,3 +173,84 @@ export function floorAreaSquareMeters(floor: Floor): number {
     0,
   );
 }
+
+/**
+ * How near a room has to be to share a wall before it is taken to mean it.
+ *
+ * Four inches: further than a fat finger on a trackpad, closer than anything
+ * anybody types on purpose. Rooms are laid out by typing a number, and the
+ * number that shares a wall is the neighbour's edge plus a wall thickness —
+ * arithmetic nobody should have to do to get two rooms to touch.
+ */
+export const SNAP_METERS = 0.1016;
+
+/**
+ * The origin a room would take if it were let go here.
+ *
+ * Snaps to two things, on each axis independently: sharing a wall with a
+ * neighbour, and lining up with one. Sharing wins, because it is the one that
+ * makes an apartment rather than a diagram — two rooms a wall thickness apart
+ * have their wall bands in exactly the same place, so one doorway cut in it
+ * opens through both.
+ *
+ * Anything further than `SNAP_METERS` from either is left exactly where it was
+ * put. A tool that will not let you place a room where you meant is worse than
+ * one that makes you type.
+ */
+export function snapRoomOrigin(
+  floor: Floor,
+  room: Room,
+  origin: FloorPoint,
+): FloorPoint {
+  const others = floor.rooms.filter((one) => one.id !== room.id);
+  const thickness = floor.wallThicknessMeters;
+
+  return {
+    xMeters: snapAxis(
+      origin.xMeters,
+      room.widthMeters,
+      others.map((one) => ({
+        start: one.origin.xMeters,
+        length: one.widthMeters,
+      })),
+      thickness,
+    ),
+    zMeters: snapAxis(
+      origin.zMeters,
+      room.depthMeters,
+      others.map((one) => ({
+        start: one.origin.zMeters,
+        length: one.depthMeters,
+      })),
+      thickness,
+    ),
+  };
+}
+
+/** One axis of the snap: the candidates, nearest first, or the value as given. */
+function snapAxis(
+  value: number,
+  length: number,
+  others: readonly { start: number; length: number }[],
+  thickness: number,
+): number {
+  const candidates = others.flatMap(({ start, length: theirs }) => [
+    // Sharing a wall: a thickness past their far edge, or before their near one.
+    start + theirs + thickness,
+    start - thickness - length,
+    // Lining up: the same near edge, or the same far edge.
+    start,
+    start + theirs - length,
+  ]);
+
+  let best = value;
+  let nearest = SNAP_METERS;
+  for (const candidate of candidates) {
+    const distance = Math.abs(candidate - value);
+    if (distance < nearest) {
+      best = candidate;
+      nearest = distance;
+    }
+  }
+  return best;
+}

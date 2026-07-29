@@ -19,6 +19,7 @@
 import type { FloorPoint } from "@/domain/geometry";
 import {
   checkLength,
+  metersFromInches,
   type LengthLimits,
   type LengthProblem,
 } from "@/domain/units";
@@ -56,27 +57,45 @@ export const ROOM_LENGTH_LIMITS: Record<RoomDimension, LengthLimits> = {
   heightMeters: { minMeters: 1.5, maxMeters: 6 },
 };
 
-/** Where a room can be placed on the floor. Generous: an apartment is small. */
+/**
+ * Where a room can be placed on the floor.
+ *
+ * Negative on purpose. The floor's zero is the middle of the apartment rather
+ * than a corner of it, so a room added to the west of everything else has a
+ * negative origin — and being unable to type one would mean laying an apartment
+ * out from whichever room happened to be entered first.
+ */
 export const ROOM_ORIGIN_LIMITS: LengthLimits = {
-  minMeters: 0,
+  minMeters: -60,
   maxMeters: 60,
 };
 
-/** A living room a little over 13 by 11 feet, with an 8 foot ceiling. */
+/**
+ * A fourteen by twelve foot living room with an eight foot ceiling, standing
+ * in the middle of the floor.
+ *
+ * Round in inches rather than in meters, because the application opens in
+ * inches: 4.2 m is a tidy number that reads as 165.35", which is a number
+ * nobody measured and everybody has to retype. Centred on the origin so the
+ * apartment grows in whichever direction it actually goes.
+ */
 export const DEFAULT_ROOM: Room = {
   id: "room-1",
   name: "Living room",
-  origin: { xMeters: 0, zMeters: 0 },
-  widthMeters: 4.2,
-  depthMeters: 3.6,
-  heightMeters: 2.44,
+  origin: {
+    xMeters: -metersFromInches(84),
+    zMeters: -metersFromInches(72),
+  },
+  widthMeters: metersFromInches(168),
+  depthMeters: metersFromInches(144),
+  heightMeters: metersFromInches(96),
   openings: [
     {
       id: "door-1",
       kind: "door",
       wall: "south",
-      centerMeters: 0.9,
-      widthMeters: 0.8128,
+      centerMeters: metersFromInches(36),
+      widthMeters: metersFromInches(32),
       hinge: "start",
       swing: "inward",
     },
@@ -84,23 +103,23 @@ export const DEFAULT_ROOM: Room = {
       id: "window-1",
       kind: "window",
       wall: "north",
-      centerMeters: 2.1,
-      widthMeters: 1.2192,
+      centerMeters: metersFromInches(84),
+      widthMeters: metersFromInches(48),
     },
   ],
 };
 
 /**
- * A new block, the size of a small bedroom, dropped east of everything already
- * on the floor so it does not land on top of another room.
+ * A new block, ten feet square, dropped east of everything already on the floor
+ * so it does not land on top of another room. Round in inches, like the rest.
  */
 export function createRoom(id: string, name: string, origin: FloorPoint): Room {
   return {
     id,
     name,
     origin,
-    widthMeters: 3,
-    depthMeters: 3,
+    widthMeters: metersFromInches(120),
+    depthMeters: metersFromInches(120),
     heightMeters: DEFAULT_ROOM.heightMeters,
     openings: [],
   };

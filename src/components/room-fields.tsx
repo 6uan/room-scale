@@ -6,16 +6,21 @@ import {
   ROOM_LENGTH_LIMITS,
   ROOM_ORIGIN_LIMITS,
   roomFloorAreaSquareMeters,
+  SNAP_METERS,
+  snapRoomOrigin,
   withOpenings,
   withOrigin,
   withRoomLength,
+  type Floor,
   type Opening,
   type OpeningKind,
   type Room,
 } from "@/domain/room";
-import { formatArea, type DisplayUnit } from "@/domain/units";
+import { formatArea, formatLength, type DisplayUnit } from "@/domain/units";
 
 export type RoomFieldsProps = {
+  /** The rest of the apartment, so a room can be snapped against it. */
+  floor: Floor;
   room: Room;
   unit: DisplayUnit;
   onChange: (room: Room) => void;
@@ -24,6 +29,7 @@ export type RoomFieldsProps = {
 };
 
 export function RoomFields({
+  floor,
   room,
   unit,
   onChange,
@@ -88,7 +94,12 @@ export function RoomFields({
           meters={room.origin.xMeters}
           limits={ROOM_ORIGIN_LIMITS}
           onMetersChange={(xMeters) =>
-            onChange(withOrigin(room, { ...room.origin, xMeters }))
+            onChange(
+              withOrigin(
+                room,
+                snapRoomOrigin(floor, room, { ...room.origin, xMeters }),
+              ),
+            )
           }
         />
         <NumberField
@@ -97,13 +108,20 @@ export function RoomFields({
           meters={room.origin.zMeters}
           limits={ROOM_ORIGIN_LIMITS}
           onMetersChange={(zMeters) =>
-            onChange(withOrigin(room, { ...room.origin, zMeters }))
+            onChange(
+              withOrigin(
+                room,
+                snapRoomOrigin(floor, room, { ...room.origin, zMeters }),
+              ),
+            )
           }
         />
       </div>
 
-      <p className="text-xs opacity-60">
-        {formatArea(roomFloorAreaSquareMeters(room), unit)} of floor.
+      <p className="text-xs leading-relaxed opacity-60">
+        {formatArea(roomFloorAreaSquareMeters(room), unit)} of floor. Bring a
+        room within {formatLength(SNAP_METERS, unit)} of another and it snaps
+        against it, sharing one wall — so a doorway cut in it opens both ways.
       </p>
 
       <RoomOpeningsForm

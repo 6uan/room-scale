@@ -126,7 +126,9 @@ test.describe("the workspace", () => {
       .getByRole("button", { name: "Place Sectional in the room" })
       .click();
 
-    await details(page).getByLabel("From west").fill("12");
+    // The room runs from -84 to 84 inches, so a 94.5 inch sofa centred at -60
+    // reaches -107 and goes through the west wall.
+    await details(page).getByLabel("From west").fill("-60");
 
     await expect(
       plan(page).getByText(
@@ -432,5 +434,106 @@ test.describe("comparing layouts", () => {
 
     await expect(page.getByLabel("Layout name")).toHaveValue("First try");
     await expect(page.getByRole("button", { name: /^Delete/ })).toBeHidden();
+  });
+});
+
+test.describe("laying the apartment out", () => {
+  test("snaps a room against its neighbour, sharing one wall", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await contents(page).getByRole("button", { name: "Add room" }).click();
+
+    // The living room runs to 84 inches and the wall is 4.5 thick, so sharing
+    // it means 88.5. Typing 87 is near enough to mean it.
+    const room = details(page).getByRole("region", { name: "Room 2" });
+    await room.getByLabel("Room 2 from west").fill("87");
+
+    await expect(room.getByLabel("Room 2 from west")).toHaveValue("88.5");
+  });
+
+  test("leaves a room where it was put when nothing is near", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await contents(page).getByRole("button", { name: "Add room" }).click();
+
+    const room = details(page).getByRole("region", { name: "Room 2" });
+    await room.getByLabel("Room 2 from west").fill("200");
+
+    await expect(room.getByLabel("Room 2 from west")).toHaveValue("200");
+  });
+
+  test("takes a negative position, so the apartment grows either way", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await contents(page).getByRole("button", { name: "Add room" }).click();
+
+    const room = details(page).getByRole("region", { name: "Room 2" });
+    await room.getByLabel("Room 2 from west").fill("-300");
+
+    await expect(room.getByLabel("Room 2 from west")).toHaveValue("-300");
+    await expect(planImage(page)).toHaveAccessibleName(/holding 2 rooms/);
+  });
+
+  test("selects a room by clicking the plan, and drags it", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    const box = await planImage(page).boundingBox();
+    if (box === null) {
+      throw new Error("the plan has no box to point at");
+    }
+    const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+
+    // The living room is the only thing on the plan, and it is in the middle.
+    await page.mouse.click(centre.x, centre.y);
+    await expect(
+      details(page).getByRole("region", { name: "Living room" }),
+    ).toBeVisible();
+
+    const before = await details(page)
+      .getByLabel("Living room from west")
+      .inputValue();
+
+    await page.mouse.move(centre.x, centre.y);
+    await page.mouse.down();
+    await page.mouse.move(centre.x + 120, centre.y, { steps: 10 });
+    await page.mouse.up();
+
+    expect(
+      Number(
+        await details(page).getByLabel("Living room from west").inputValue(),
+      ),
+    ).toBeGreaterThan(Number(before));
+  });
+
+  test("reads out the selection's corner, and what the floor adds up to", async ({
+    page,
+  }) => {
+    await page.goto("/");
+
+    // A fourteen by twelve foot room is 168 square feet.
+    await expect(plan(page).getByText("168.0 sq ft")).toBeVisible();
+    // Nothing selected, nothing to give coordinates for.
+    await expect(plan(page).getByText("x —")).toBeVisible();
+
+    await contents(page).getByRole("button", { name: "Living room" }).click();
+
+    // Its north-west corner: the room is centred, so half of 168 by half of 144.
+    await expect(plan(page).getByText(`x -7' 0.0"`)).toBeVisible();
+    await expect(plan(page).getByText(`y -6' 0.0"`)).toBeVisible();
+  });
+
+  test("opens on numbers somebody could have measured", async ({ page }) => {
+    await page.goto("/");
+    await contents(page).getByRole("button", { name: "Living room" }).click();
+
+    const room = details(page).getByRole("region", { name: "Living room" });
+    // Fourteen by twelve feet, eight foot ceiling — not 165.35 by 141.73.
+    await expect(room.getByLabel("Living room width")).toHaveValue("168");
+    await expect(room.getByLabel("Living room depth")).toHaveValue("144");
+    await expect(room.getByLabel("Living room ceiling")).toHaveValue("96");
   });
 });

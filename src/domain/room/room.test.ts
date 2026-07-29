@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { metersFromInches } from "@/domain/units";
 import { metersFromFeetAndInches } from "@/domain/units";
 import { createOpening } from "./openings";
 import {
@@ -75,7 +76,8 @@ describe("room", () => {
 
     expect(updated.widthMeters).toBe(5);
     expect(updated.depthMeters).toBe(DEFAULT_ROOM.depthMeters);
-    expect(DEFAULT_ROOM.widthMeters).toBe(4.2);
+    // Fourteen feet, which is where the default started.
+    expect(DEFAULT_ROOM.widthMeters).toBe(metersFromInches(168));
   });
 
   it("replaces the openings without mutating the original", () => {

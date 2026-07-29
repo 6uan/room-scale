@@ -35,25 +35,33 @@ import { PRODUCT_DRAG_TYPE } from "@/components/catalogue-panel";
 import {
   checkOpening,
   checkWalkway,
+  floorAreaSquareMeters,
   floorBounds,
   openingEndpoints,
   pointOnFloor,
+  roomsAt,
+  snapRoomOrigin,
   wallOutwardNormal,
+  withOrigin,
   type Floor,
   type FloorVector,
   type Opening,
   type Room,
   type Walkway,
 } from "@/domain/room";
-import { formatAngle, formatLength, type DisplayUnit } from "@/domain/units";
+import {
+  formatAngle,
+  formatArea,
+  formatLength,
+  type DisplayUnit,
+} from "@/domain/units";
 
-/** Space kept outside the walls for the dimension lines. */
-const DIMENSION_PADDING_PIXELS = 56;
-const DIMENSION_OFFSET_PIXELS = 26;
-const WITNESS_GAP_PIXELS = 5;
-const TICK_PIXELS = 4;
+/**
+ * Space kept around the apartment when it is fitted, so its walls are not
+ * against the edge of the panel.
+ */
+const PLAN_PADDING_PIXELS = 40;
 const LABEL_PIXELS = 12;
-const LABEL_GAP_PIXELS = 7;
 
 /**
  * Opacities, so a single foreground color carries the whole drawing and follows
@@ -66,8 +74,6 @@ const WALL_ALPHA = 0.88;
 const JAMB_ALPHA = 0.5;
 const SYMBOL_ALPHA = 0.55;
 const SWING_ALPHA = 0.28;
-const DIMENSION_ALPHA = 0.4;
-const LABEL_ALPHA = 0.75;
 const FURNITURE_FILL_ALPHA = 0.22;
 const FURNITURE_EDGE_ALPHA = 0.7;
 const SELECTED_FILL_ALPHA = 0.36;
@@ -97,6 +103,10 @@ export type RoomPlanCanvasProps = {
   troubledIds: ReadonlySet<string>;
   onSelect: (instanceId: string | null) => void;
   onInstanceChange: (instance: FurnitureInstance) => void;
+  /** Which room is being worked on, so the plan can mark and move it. */
+  selectedRoomId?: string | null;
+  onSelectRoom?: (roomId: string) => void;
+  onRoomChange?: (room: Room) => void;
   /** A product dragged in from the catalogue, dropped where it was let go. */
   onDropProduct?: (productId: string, at: FloorPoint) => void;
 };
@@ -113,6 +123,13 @@ type Drag =
       readonly kind: "move";
       readonly pointerId: number;
       readonly instanceId: string;
+      readonly grabOffset: FloorPoint;
+    }
+  | {
+      readonly kind: "room";
+      readonly pointerId: number;
+      readonly roomId: string;
+      /** Where in the room it was grabbed, so it does not jump under the pointer. */
       readonly grabOffset: FloorPoint;
     }
   | {
@@ -143,6 +160,9 @@ export function RoomPlanCanvas({
   onSelect,
   onInstanceChange,
   onDropProduct,
+  selectedRoomId = null,
+  onSelectRoom,
+  onRoomChange,
 }: RoomPlanCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const dragRef = useRef<Drag | null>(null);
@@ -175,6 +195,20 @@ export function RoomPlanCanvas({
    * and a stray trackpad swipe cannot send the drawing off somewhere. It also
    * costs nothing to explain — the focus ring already says which it is.
    */
+  /**
+   * The coordinates in the readout: the selected room's north-west corner, or
+   * the selected piece's centre.
+   *
+   * Not the pointer. A number that changes as the mouse drifts is one nobody
+   * can read off, and the corner is the same number the panel on the right
+   * holds — so the readout and the field agree rather than nearly agreeing.
+   */
+  const at =
+    floor.rooms.find((room) => room.id === selectedRoomId)?.origin ??
+    furniture.find(({ instance }) => instance.id === selectedId)?.instance
+      .position ??
+    null;
+
   const [active, setActive] = useState(false);
   const activeRef = useRef(active);
   useEffect(() => {
@@ -205,14 +239,23 @@ export function RoomPlanCanvas({
       projection,
       floor,
       furniture,
-      unit,
       selectedId,
+      selectedRoomId,
       troubledIds,
       viewport: size,
       color: style.color,
       fontFamily: style.fontFamily,
     });
-  }, [floor, furniture, unit, selectedId, troubledIds, size, projection]);
+  }, [
+    floor,
+    furniture,
+    unit,
+    selectedId,
+    selectedRoomId,
+    troubledIds,
+    size,
+    projection,
+  ]);
 
   /** Wheel: pan, unless a modifier makes it a zoom toward the pointer. */
   function handleWheel(
@@ -279,12 +322,19 @@ export function RoomPlanCanvas({
 
     const box = canvas.getBoundingClientRect();
     const hit = furnitureAt(furniture, point);
+    // Furniture first: it stands on the room, so it is what you are pointing
+    // at when the two are in the same place. Rooms later in the list win over
+    // earlier ones, being the ones drawn on top.
+    const room = hit === null ? (roomsAt(floor, point).at(-1) ?? null) : null;
 
-    // Space held, the middle button, or empty floor: the view moves instead of
-    // anything in it. Grabbing the background to pan is what makes a canvas
-    // feel like a canvas.
-    if (panningRef.current || event.button === 1 || hit === null) {
-      if (hit === null && !panningRef.current) {
+    // Space held, the middle button, or floor with nothing on it: the view
+    // moves instead of anything in it.
+    if (
+      panningRef.current ||
+      event.button === 1 ||
+      (hit === null && room === null)
+    ) {
+      if (hit === null && room === null && !panningRef.current) {
         onSelect(null);
       }
       dragRef.current = {
@@ -294,6 +344,26 @@ export function RoomPlanCanvas({
       };
       setDragging(true);
       canvas.setPointerCapture?.(event.pointerId);
+      return;
+    }
+
+    if (hit === null && room !== null) {
+      onSelectRoom?.(room.id);
+      dragRef.current = {
+        kind: "room",
+        pointerId: event.pointerId,
+        roomId: room.id,
+        grabOffset: {
+          xMeters: point.xMeters - room.origin.xMeters,
+          zMeters: point.zMeters - room.origin.zMeters,
+        },
+      };
+      setDragging(true);
+      canvas.focus();
+      canvas.setPointerCapture?.(event.pointerId);
+      return;
+    }
+    if (hit === null) {
       return;
     }
 
@@ -317,7 +387,28 @@ export function RoomPlanCanvas({
   function handlePointerMove(event: PointerEvent<HTMLCanvasElement>): void {
     const drag = dragRef.current;
     const canvas = canvasRef.current;
+
     if (!drag || !canvas || drag.pointerId !== event.pointerId) {
+      return;
+    }
+
+    if (drag.kind === "room") {
+      const moving = floor.rooms.find((one) => one.id === drag.roomId);
+      const point = floorPointAt(canvas, floor, event, projectionRef.current);
+      if (moving === undefined || point === null) {
+        return;
+      }
+      // Snapped as it is dragged, so a room shares a wall by being brought up
+      // against one rather than by arithmetic.
+      onRoomChange?.(
+        withOrigin(
+          moving,
+          snapRoomOrigin(floor, moving, {
+            xMeters: point.xMeters - drag.grabOffset.xMeters,
+            zMeters: point.zMeters - drag.grabOffset.zMeters,
+          }),
+        ),
+      );
       return;
     }
 
@@ -444,6 +535,29 @@ export function RoomPlanCanvas({
         }`}
       />
 
+      {/*
+        The measurements used to be drawn on the plan, in dimension lines
+        outside its walls. They cost the drawing its margins and told you the
+        same two numbers however far you zoomed in.
+
+        They are text now, and split by how often they change: what the floor
+        adds up to sits in one corner and rarely moves, while the coordinates
+        of whatever is selected sit in the opposite one. Putting a number that
+        changes next to a number that does not makes both harder to read.
+      */}
+      <p className="pointer-events-none absolute left-3 top-3 rounded-md bg-black/70 px-2.5 py-1 font-mono text-xs tabular-nums text-white/90 dark:bg-white/10">
+        {formatArea(floorAreaSquareMeters(floor), unit)}
+      </p>
+
+      <p className="pointer-events-none absolute bottom-3 right-3 flex gap-3 rounded-md bg-black/70 px-2.5 py-1 font-mono text-xs tabular-nums text-white/90 dark:bg-white/10">
+        <span>
+          {at === null ? "x —" : `x ${formatLength(at.xMeters, unit)}`}
+        </span>
+        <span>
+          {at === null ? "y —" : `y ${formatLength(at.zMeters, unit)}`}
+        </span>
+      </p>
+
       {/* Said once, where it is needed, and gone as soon as it is not. */}
       {active ? null : (
         <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1 text-xs text-white dark:bg-white/15">
@@ -501,7 +615,7 @@ function planProjectionFor(floor: Floor, viewport: PixelSize): PlanProjection {
       depthMeters: extent.depthMeters + thickness * 2,
     },
     viewport,
-    DIMENSION_PADDING_PIXELS,
+    PLAN_PADDING_PIXELS,
   );
 }
 
@@ -585,8 +699,8 @@ type DrawOptions = {
   projection: PlanProjection;
   floor: Floor;
   furniture: readonly PlacedFurniture[];
-  unit: DisplayUnit;
   selectedId: string | null;
+  selectedRoomId: string | null;
   troubledIds: ReadonlySet<string>;
   viewport: PixelSize;
   color: string;
@@ -606,8 +720,8 @@ function drawPlan(
     projection,
     floor,
     furniture,
-    unit,
     selectedId,
+    selectedRoomId,
     troubledIds,
     viewport,
     color,
@@ -617,7 +731,7 @@ function drawPlan(
   context.clearRect(0, 0, viewport.width, viewport.height);
 
   const thickness = floor.wallThicknessMeters;
-  const { origin, extent } = floorBounds(floor);
+  const { origin } = floorBounds(floor);
 
   // The projection arrives already fitted — and possibly panned and zoomed
   // since. Everything below works in whatever transform it is handed.
@@ -659,6 +773,9 @@ function drawPlan(
 
   for (const room of floor.rooms) {
     drawRoomName(context, frame, room, fontFamily);
+    if (room.id === selectedRoomId) {
+      markSelectedRoom(context, frame, room);
+    }
   }
 
   // Under the furniture, because a route is floor rather than a thing standing
@@ -675,18 +792,6 @@ function drawPlan(
       troubled: troubledIds.has(placed.instance.id),
     });
   }
-
-  drawDimensions(context, {
-    widthMeters: extent.widthMeters,
-    depthMeters: extent.depthMeters,
-    unit,
-    color,
-    fontFamily,
-    inside: frame.toPixels(origin),
-    floorWidth: projectLength(projection, extent.widthMeters),
-    floorDepth: projectLength(projection, extent.depthMeters),
-    wallPixels: frame.wallPixels,
-  });
 }
 
 /** A frame that takes points in one room's own coordinates. */
@@ -777,6 +882,28 @@ function drawRoomName(
   context.textAlign = "center";
   context.textBaseline = "middle";
   context.fillText(room.name, center.x, center.y);
+  context.restore();
+}
+
+/** The selected room, outlined inside its own walls. */
+function markSelectedRoom(
+  context: CanvasRenderingContext2D,
+  frame: PlanFrame,
+  room: Room,
+): void {
+  const inside = frame.toPixels(room.origin);
+  const width = spanPixels(frame, room.widthMeters);
+  const depth = spanPixels(frame, room.depthMeters);
+
+  context.save();
+  context.globalAlpha = SELECTED_FILL_ALPHA;
+  context.fillStyle = frame.color;
+  context.fillRect(inside.x, inside.y, width, depth);
+  context.globalAlpha = 1;
+  context.strokeStyle = frame.color;
+  context.lineWidth = 2;
+  context.setLineDash([6, 4]);
+  context.strokeRect(inside.x, inside.y, width, depth);
   context.restore();
 }
 
@@ -1070,142 +1197,6 @@ function strokeSegments(
     context.lineTo(to.x, to.y);
   }
   context.stroke();
-}
-
-type DimensionOptions = {
-  widthMeters: number;
-  depthMeters: number;
-  unit: DisplayUnit;
-  color: string;
-  fontFamily: string;
-  inside: PixelPoint;
-  floorWidth: number;
-  floorDepth: number;
-  wallPixels: number;
-};
-
-/**
- * Dimension lines outside the walls, measuring the apartment end to end.
- *
- * One pair for the whole plan rather than a pair per room: a room's own numbers
- * are in the fields beside it, and five sets of dimension lines would bury the
- * drawing they are meant to explain.
- */
-function drawDimensions(
-  context: CanvasRenderingContext2D,
-  {
-    widthMeters,
-    depthMeters,
-    unit,
-    color,
-    fontFamily,
-    inside,
-    floorWidth,
-    floorDepth,
-    wallPixels,
-  }: DimensionOptions,
-): void {
-  context.save();
-  context.font = `${LABEL_PIXELS}px ${fontFamily}`;
-  context.strokeStyle = color;
-  context.fillStyle = color;
-  context.lineWidth = 1;
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-
-  const outerTop = inside.y - wallPixels;
-  const outerLeft = inside.x - wallPixels;
-
-  // Width, above the room.
-  const widthY = outerTop - DIMENSION_OFFSET_PIXELS;
-  const widthLabel = formatLength(widthMeters, unit);
-  const widthGap = context.measureText(widthLabel).width / 2 + LABEL_GAP_PIXELS;
-  const midX = inside.x + floorWidth / 2;
-
-  context.globalAlpha = DIMENSION_ALPHA;
-  strokeSegments(context, [
-    [
-      { x: inside.x, y: widthY },
-      { x: Math.max(inside.x, midX - widthGap), y: widthY },
-    ],
-    [
-      { x: Math.min(inside.x + floorWidth, midX + widthGap), y: widthY },
-      { x: inside.x + floorWidth, y: widthY },
-    ],
-    ...tickAt({ x: inside.x, y: widthY }),
-    ...tickAt({ x: inside.x + floorWidth, y: widthY }),
-    ...witness({ x: inside.x, y: widthY }, { x: inside.x, y: outerTop }, "y"),
-    ...witness(
-      { x: inside.x + floorWidth, y: widthY },
-      { x: inside.x + floorWidth, y: outerTop },
-      "y",
-    ),
-  ]);
-
-  context.globalAlpha = LABEL_ALPHA;
-  context.fillText(widthLabel, midX, widthY);
-
-  // Depth, up the left side, reading along the wall it measures.
-  const depthX = outerLeft - DIMENSION_OFFSET_PIXELS;
-  const depthLabel = formatLength(depthMeters, unit);
-  const depthGap = context.measureText(depthLabel).width / 2 + LABEL_GAP_PIXELS;
-  const midY = inside.y + floorDepth / 2;
-
-  context.globalAlpha = DIMENSION_ALPHA;
-  strokeSegments(context, [
-    [
-      { x: depthX, y: inside.y },
-      { x: depthX, y: Math.max(inside.y, midY - depthGap) },
-    ],
-    [
-      { x: depthX, y: Math.min(inside.y + floorDepth, midY + depthGap) },
-      { x: depthX, y: inside.y + floorDepth },
-    ],
-    ...tickAt({ x: depthX, y: inside.y }),
-    ...tickAt({ x: depthX, y: inside.y + floorDepth }),
-    ...witness({ x: depthX, y: inside.y }, { x: outerLeft, y: inside.y }, "x"),
-    ...witness(
-      { x: depthX, y: inside.y + floorDepth },
-      { x: outerLeft, y: inside.y + floorDepth },
-      "x",
-    ),
-  ]);
-
-  context.globalAlpha = LABEL_ALPHA;
-  context.translate(depthX, midY);
-  context.rotate(-Math.PI / 2);
-  context.fillText(depthLabel, 0, 0);
-
-  context.restore();
-}
-
-/** The slash an architect puts where a dimension line meets its extent. */
-function tickAt(
-  at: PixelPoint,
-): readonly (readonly [PixelPoint, PixelPoint])[] {
-  return [
-    [
-      { x: at.x - TICK_PIXELS, y: at.y - TICK_PIXELS },
-      { x: at.x + TICK_PIXELS, y: at.y + TICK_PIXELS },
-    ],
-  ];
-}
-
-/** The thin line joining a dimension line back to the wall it measures. */
-function witness(
-  from: PixelPoint,
-  to: PixelPoint,
-  axis: "x" | "y",
-): readonly (readonly [PixelPoint, PixelPoint])[] {
-  const gap = Math.sign(to[axis] - from[axis]) * WITNESS_GAP_PIXELS;
-  return [
-    [
-      axis === "y"
-        ? { x: from.x, y: from.y + gap }
-        : { x: from.x + gap, y: from.y },
-      to,
-    ],
-  ];
 }
 
 /** Tracks an element's CSS pixel size, so the canvas can match it. */

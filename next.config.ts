@@ -25,6 +25,9 @@ const distDir = process.env.E2E === "1" ? ".next-e2e" : ".next";
 
 const nextConfig: NextConfig = {
   distDir,
+  // The dev-tools badge sits in the bottom-left corner, which is where the
+  // catalogue is. Nothing about it helps here, and it hides a row.
+  devIndicators: false,
   ...(devOrigins.length > 0 ? { allowedDevOrigins: devOrigins } : {}),
 };
 
