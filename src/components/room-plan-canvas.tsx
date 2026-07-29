@@ -538,21 +538,25 @@ export function RoomPlanCanvas({
       {/*
         The measurements used to be drawn on the plan, in dimension lines
         outside its walls. They cost the drawing its margins and told you the
-        same two numbers however far you zoomed in. Here they are text, beside
-        where the pointer is — which is the number you want while placing
-        something, and the one a drawing cannot show you at all.
+        same two numbers however far you zoomed in.
+
+        They are text now, and split by how often they change: what the floor
+        adds up to sits in one corner and rarely moves, while the coordinates
+        of whatever is selected sit in the opposite one. Putting a number that
+        changes next to a number that does not makes both harder to read.
       */}
-      <div className="pointer-events-none absolute left-3 top-3 flex gap-3 rounded-md bg-black/70 px-2.5 py-1 font-mono text-xs tabular-nums text-white/90 dark:bg-white/10">
+      <p className="pointer-events-none absolute left-3 top-3 rounded-md bg-black/70 px-2.5 py-1 font-mono text-xs tabular-nums text-white/90 dark:bg-white/10">
+        {formatArea(floorAreaSquareMeters(floor), unit)}
+      </p>
+
+      <p className="pointer-events-none absolute bottom-3 right-3 flex gap-3 rounded-md bg-black/70 px-2.5 py-1 font-mono text-xs tabular-nums text-white/90 dark:bg-white/10">
         <span>
           {at === null ? "x —" : `x ${formatLength(at.xMeters, unit)}`}
         </span>
         <span>
           {at === null ? "y —" : `y ${formatLength(at.zMeters, unit)}`}
         </span>
-        <span className="opacity-60">
-          {formatArea(floorAreaSquareMeters(floor), unit)}
-        </span>
-      </div>
+      </p>
 
       {/* Said once, where it is needed, and gone as soon as it is not. */}
       {active ? null : (
