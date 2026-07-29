@@ -6,7 +6,14 @@ import { instanceFromKeyPress } from "./placement-keys";
 
 const FLOOR = {
   ...DEFAULT_FLOOR,
-  rooms: [{ ...DEFAULT_ROOM, widthMeters: 4, depthMeters: 3 }],
+  rooms: [
+    {
+      ...DEFAULT_ROOM,
+      origin: { xMeters: 0, zMeters: 0 },
+      widthMeters: 4,
+      depthMeters: 3,
+    },
+  ],
 };
 const RUG = createInstance("i1", "rug", { xMeters: 2, zMeters: 1.5 });
 

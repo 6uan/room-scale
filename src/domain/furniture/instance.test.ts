@@ -19,9 +19,21 @@ import type { FurnitureProduct } from "./product";
 /** A one-room apartment, four by three. */
 const FLOOR = {
   ...DEFAULT_FLOOR,
-  rooms: [{ ...DEFAULT_ROOM, widthMeters: 4, depthMeters: 3 }],
+  rooms: [
+    {
+      ...DEFAULT_ROOM,
+      origin: { xMeters: 0, zMeters: 0 },
+      widthMeters: 4,
+      depthMeters: 3,
+    },
+  ],
 };
-const ROOM = { ...DEFAULT_ROOM, widthMeters: 4, depthMeters: 3 };
+const ROOM = {
+  ...DEFAULT_ROOM,
+  origin: { xMeters: 0, zMeters: 0 },
+  widthMeters: 4,
+  depthMeters: 3,
+};
 
 const RUG: FurnitureProduct = {
   id: "rug",

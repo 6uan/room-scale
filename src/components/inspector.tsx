@@ -158,6 +158,7 @@ function RoomInspector({
   return (
     <Panel title={room.name === "" ? "Room" : room.name} subtitle="Room">
       <RoomFields
+        floor={floor}
         room={room}
         unit={unit}
         onChange={onRoomChange}
