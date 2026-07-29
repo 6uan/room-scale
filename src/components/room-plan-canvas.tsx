@@ -168,6 +168,19 @@ export function RoomPlanCanvas({
   const panningRef = useRef(false);
   const [panReady, setPanReady] = useState(false);
 
+  /**
+   * Whether the plan is taking pointer input for the view.
+   *
+   * Focus is the toggle: click into the plan and it pans and zooms; click away
+   * and a stray trackpad swipe cannot send the drawing off somewhere. It also
+   * costs nothing to explain — the focus ring already says which it is.
+   */
+  const [active, setActive] = useState(false);
+  const activeRef = useRef(active);
+  useEffect(() => {
+    activeRef.current = active;
+  }, [active]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || size.width <= 0 || size.height <= 0) {
@@ -206,7 +219,9 @@ export function RoomPlanCanvas({
     event: WheelEventInit & { preventDefault(): void },
   ): void {
     const canvas = canvasRef.current;
-    if (!canvas) {
+    if (!canvas || !activeRef.current) {
+      // Not clicked into: the wheel belongs to whatever is behind it, and the
+      // plan stays where it was left.
       return;
     }
     // The page must not scroll out from under a plan being panned, which means
@@ -395,10 +410,7 @@ export function RoomPlanCanvas({
   }
 
   return (
-    <div
-      ref={frameRef}
-      className="aspect-[4/3] w-full rounded-lg border border-black/10 dark:border-white/15"
-    >
+    <div ref={frameRef} className="relative h-full w-full">
       <canvas
         ref={canvasRef}
         role="img"
@@ -417,7 +429,13 @@ export function RoomPlanCanvas({
           }
         }}
         onDrop={handleDrop}
-        className={`block h-full w-full touch-none rounded-lg outline-offset-2 ${
+        onFocus={() => setActive(true)}
+        onBlur={() => {
+          setActive(false);
+          panningRef.current = false;
+          setPanReady(false);
+        }}
+        className={`block h-full w-full touch-none outline-none ${
           dragging
             ? "cursor-grabbing"
             : panReady
@@ -425,6 +443,13 @@ export function RoomPlanCanvas({
               : "cursor-pointer"
         }`}
       />
+
+      {/* Said once, where it is needed, and gone as soon as it is not. */}
+      {active ? null : (
+        <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1 text-xs text-white dark:bg-white/15">
+          Click the plan to move around it
+        </p>
+      )}
     </div>
   );
 }

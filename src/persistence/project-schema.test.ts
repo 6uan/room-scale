@@ -91,7 +91,7 @@ describe("readStoredProject", () => {
 
     expect(result.ok).toBe(true);
     // Nothing was placed before version 2, so nothing is placed after it.
-    expect(result.ok && result.project.instances).toEqual([]);
+    expect(result.ok && result.project.layouts[0]?.instances).toEqual([]);
     // And everything the old document did hold survived the upgrade.
     expect(result.ok && result.project.products).toHaveLength(1);
     expect(result.ok && result.project.floor.rooms[0]?.openings).toHaveLength(
@@ -158,8 +158,78 @@ describe("readStoredProject", () => {
     expect(result.ok && result.project.floor.rooms[0]?.openings).toHaveLength(
       1,
     );
-    expect(result.ok && result.project.instances).toHaveLength(1);
+    expect(result.ok && result.project.layouts[0]?.instances).toHaveLength(1);
     expect(result.ok && result.project.products).toHaveLength(1);
+  });
+
+  it("upgrades a version 4 document, which predates layouts", () => {
+    // Captured from the version 4 schema, exactly as it sat in IndexedDB.
+    const version4 = {
+      id: "current",
+      version: 4,
+      updatedAt: 1_700_000_000_000,
+      project: {
+        floor: {
+          wallThicknessMeters: 0.1143,
+          rooms: [
+            {
+              id: "room-1",
+              name: "Living room",
+              origin: { xMeters: 0, zMeters: 0 },
+              widthMeters: 4.2,
+              depthMeters: 3.6,
+              heightMeters: 2.44,
+              openings: [],
+            },
+          ],
+          walkways: [],
+        },
+        products: [
+          {
+            id: "p1",
+            name: "Rug",
+            retailer: "",
+            productUrl: "",
+            priceCents: 34900,
+            purchaseStatus: "considering",
+            footprint: { widthMeters: 2.4, depthMeters: 1.5 },
+            heightMeters: 0.01,
+          },
+        ],
+        instances: [
+          {
+            id: "i1",
+            productId: "p1",
+            position: { xMeters: 2.1, zMeters: 1.8 },
+            rotationRadians: 0,
+          },
+        ],
+        displayUnit: "imperial",
+      },
+    };
+
+    const result = readStoredProject(version4);
+
+    expect(result.ok).toBe(true);
+    // What it held was one arrangement nobody had needed to name yet.
+    expect(result.ok && result.project.layouts).toHaveLength(1);
+    expect(result.ok && result.project.layouts[0]?.instances).toHaveLength(1);
+    expect(result.ok && result.project.activeLayoutId).toBe(
+      result.ok ? result.project.layouts[0]?.id : "",
+    );
+    // And the furniture itself is untouched by the move.
+    expect(
+      result.ok && result.project.layouts[0]?.instances[0]?.position,
+    ).toEqual({ xMeters: 2.1, zMeters: 1.8 });
+  });
+
+  it("refuses a project with no layout to put furniture in", () => {
+    const empty = {
+      ...STORED,
+      project: { ...STORED.project, layouts: [] },
+    };
+
+    expect(readStoredProject(empty).ok).toBe(false);
   });
 
   it("refuses a version 1 document that was already broken", () => {

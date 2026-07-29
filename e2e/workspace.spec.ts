@@ -174,6 +174,33 @@ test.describe("the workspace", () => {
   });
 });
 
+test.describe("editing the product behind a piece", () => {
+  test("reaches the product from the piece standing in the room", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await addProduct(page, {
+      name: "Rug",
+      width: "96",
+      depth: "60",
+      price: "349.00",
+    });
+    await contents(page)
+      .getByRole("button", { name: "Place Rug in the room" })
+      .click();
+
+    // The piece is selected; its size and price belong to the product.
+    await expect(details(page).getByText("$349.00")).toBeVisible();
+    await details(page).getByRole("button", { name: "Edit Rug" }).click();
+
+    // Now editing the product itself, and a change reaches the plan.
+    await details(page).getByLabel("Width").fill("48");
+    await details(page).getByRole("button", { name: "Save changes" }).click();
+
+    await expect(planImage(page)).toHaveAccessibleName(/4' 0\.0" by 5' 0\.0"/);
+  });
+});
+
 test.describe("the plan as a canvas", () => {
   async function planCentre(page: Page) {
     const box = await planImage(page).boundingBox();
@@ -229,13 +256,30 @@ test.describe("the plan as a canvas", () => {
     ).toBeVisible();
   });
 
-  test("pans on a plain scroll, and comes back with the fit key", async ({
+  test("ignores the wheel until the plan is clicked into", async ({ page }) => {
+    await placeRug(page);
+    const centre = await planCentre(page);
+
+    // Hovering is not entering: a stray swipe over the plan leaves it alone.
+    await page.mouse.move(centre.x, centre.y);
+    await page.mouse.wheel(0, 200);
+
+    await expect(planImage(page)).not.toBeFocused();
+    // Still where it was, so the rug is still under the middle.
+    await page.mouse.click(centre.x, centre.y);
+    await expect(
+      details(page).getByRole("region", { name: "Rug" }),
+    ).toBeVisible();
+  });
+
+  test("pans on a plain scroll once clicked into, and fits again with 0", async ({
     page,
   }) => {
     await placeRug(page);
     const centre = await planCentre(page);
 
-    await page.mouse.move(centre.x, centre.y);
+    await page.mouse.click(centre.x, centre.y);
+    await expect(planImage(page)).toBeFocused();
     await page.mouse.wheel(0, 200);
 
     // The drawing moved up with the scroll, so the rug is 200 pixels higher.
@@ -244,7 +288,6 @@ test.describe("the plan as a canvas", () => {
       details(page).getByRole("region", { name: "Rug" }),
     ).toBeVisible();
 
-    await planImage(page).focus();
     await page.keyboard.press("0");
     await page.mouse.click(centre.x, centre.y);
     await expect(
@@ -270,5 +313,124 @@ test.describe("the routes it keeps", () => {
   test("has a document title", async ({ page }) => {
     await page.goto("/");
     await expect(page).toHaveTitle(/RoomScale/);
+  });
+});
+
+test.describe("comparing layouts", () => {
+  /** Two products in the catalogue, one of them placed. */
+  async function withASofa(page: Page) {
+    await page.goto("/");
+    await addProduct(page, {
+      name: "Sectional",
+      width: "94.5",
+      depth: "63",
+      price: "1999.00",
+    });
+    await addProduct(page, {
+      name: "Loveseat",
+      width: "60",
+      depth: "38",
+      price: "899.00",
+    });
+    await contents(page)
+      .getByRole("button", { name: "Place Sectional in the room" })
+      .click();
+  }
+
+  test("duplicates an arrangement and keeps both", async ({ page }) => {
+    await withASofa(page);
+
+    await page.getByRole("button", { name: "Duplicate" }).click();
+
+    // The copy is the one being worked on, and it holds the same furniture.
+    await expect(page.getByLabel("Layout name")).toHaveValue("Second try");
+    await expect(planImage(page)).toHaveAccessibleName(
+      /1 piece placed: Sectional/,
+    );
+    await expect(page.getByLabel("Layout", { exact: true })).toHaveValue(
+      /layout-2/,
+    );
+  });
+
+  test("changes one arrangement without touching the other", async ({
+    page,
+  }) => {
+    await withASofa(page);
+    await page.getByRole("button", { name: "Duplicate" }).click();
+
+    // In the copy, swap the sectional for the loveseat.
+    await contents(page)
+      .getByRole("button", { name: "Sectional", exact: true })
+      .click();
+    await details(page)
+      .getByRole("button", { name: "Take Sectional out of the room" })
+      .click();
+    await contents(page)
+      .getByRole("button", { name: "Place Loveseat in the room" })
+      .click();
+    await expect(planImage(page)).toHaveAccessibleName(
+      /1 piece placed: Loveseat/,
+    );
+
+    // The first arrangement still has the sectional in it.
+    await page.getByLabel("Layout", { exact: true }).selectOption({ index: 0 });
+    await expect(planImage(page)).toHaveAccessibleName(
+      /1 piece placed: Sectional/,
+    );
+  });
+
+  test("names an arrangement, and the name sticks across a reload", async ({
+    page,
+  }) => {
+    await withASofa(page);
+    await page.getByRole("button", { name: "Duplicate" }).click();
+
+    await page.getByLabel("Layout name").fill("Loveseat instead");
+    await page.waitForTimeout(500);
+    await page.reload();
+
+    await expect(page.getByLabel("Layout name")).toHaveValue(
+      "Loveseat instead",
+    );
+  });
+
+  test("prices each arrangement, so they can be weighed against each other", async ({
+    page,
+  }) => {
+    await withASofa(page);
+    await page.getByRole("button", { name: "Duplicate" }).click();
+    await contents(page)
+      .getByRole("button", { name: "Sectional", exact: true })
+      .click();
+    await details(page)
+      .getByRole("button", { name: "Take Sectional out of the room" })
+      .click();
+    await contents(page)
+      .getByRole("button", { name: "Place Loveseat in the room" })
+      .click();
+    await page.waitForTimeout(500);
+
+    await page.goto("/overview");
+
+    // The cheaper arrangement is named as such rather than left to arithmetic.
+    const comparison = page.getByRole("row", { name: /First try/ });
+    await expect(comparison).toContainText("$1,999.00");
+    await expect(page.getByRole("row", { name: /Second try/ })).toContainText(
+      "$899.00",
+    );
+    await expect(page.getByText("least")).toBeVisible();
+  });
+
+  test("deletes an arrangement, but never the last one", async ({ page }) => {
+    await page.goto("/");
+
+    // One layout: there is nothing to delete.
+    await expect(page.getByRole("button", { name: /^Delete/ })).toBeHidden();
+
+    await page.getByRole("button", { name: "Duplicate" }).click();
+    await page.getByRole("button", { name: "Delete Second try" }).click();
+
+    await expect(page.getByLabel("Layout name")).toHaveValue("First try");
+    await expect(page.getByRole("button", { name: /^Delete/ })).toBeHidden();
   });
 });
