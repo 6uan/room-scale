@@ -51,7 +51,7 @@ about the furniture instead of the measurements.
 
 ## Where it is now
 
-**Roadmap steps 1–14 of 18 are done.** What works today:
+**Roadmap steps 1–15 of 18 are done.** What works today:
 
 - One workspace: what is in the apartment on the left, the plan in the middle,
   and whatever you select on the right. The plan pans and zooms — scroll to pan,
@@ -72,10 +72,11 @@ about the furniture instead of the measurements.
   and a width you would rather have, reported with what is left and by how much
   it falls short. The rules are live; the form for drawing one is written but
   not yet on the page, and arrives with the workspace in step 13.
-- Everything saved in your browser, and nothing sent anywhere.
+- Everything saved in your browser, and nothing sent anywhere — and a way out:
+  the whole project as a file to keep or reopen, and the list as a spreadsheet.
 
-Still to come, in this order: JSON and CSV export (step 15), the doorway and
-clearance checks (16), the perspective view (17), and photorealism (18).
+Still to come, in this order: the doorway and clearance checks (step 16), the
+perspective view (17), and photorealism (18).
 
 [ROADMAP.md](ROADMAP.md) is a strict sequence, not a backlog. Steps 4 to 10 are
 the tool's whole reason for existing: what fits, and what it costs. Everything
