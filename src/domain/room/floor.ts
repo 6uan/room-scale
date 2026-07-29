@@ -2,8 +2,8 @@
  * The apartment: rectangular rooms laid out on one floor.
  *
  * A room is a building block — a rectangle with a name, a size, and a place to
- * stand. The floor holds them and the things true of all of them: how thick the
- * walls are, and the routes that have to stay walkable across them.
+ * stand. The floor holds them and the things true of all of them, such as how
+ * thick the walls are.
  *
  * ## Positions, not adjacency
  *
@@ -18,11 +18,11 @@
  *
  * ## One set of coordinates
  *
- * Everything on the floor — a room's corner, a piece of furniture, the end of a
- * walkway — is in floor coordinates. A room's origin is its north-west corner,
- * and its own walls and openings are placed relative to that, but nothing else
- * is: furniture belongs to the floor, and which room it is in is worked out
- * from where it sits.
+ * Everything on the floor — a room's corner or a piece of furniture — is in
+ * floor coordinates. A room's origin is its north-west corner, and its own
+ * walls and openings are placed relative to that, but nothing else is:
+ * furniture belongs to the floor, and which room it is in is worked out from
+ * where it sits.
  */
 
 import type { FloorExtent, FloorPoint, OrientedRect } from "@/domain/geometry";
@@ -32,14 +32,11 @@ import {
   createRoom,
   type Room,
 } from "./room";
-import type { Walkway } from "./walkways";
 
 export type Floor = {
   /** One thickness for the whole apartment: it has one kind of wall. */
   readonly wallThicknessMeters: number;
   readonly rooms: readonly Room[];
-  /** Routes that have to stay clear. They cross rooms, so they live here. */
-  readonly walkways: readonly Walkway[];
 };
 
 /** One living room, which is where every apartment plan starts. */
@@ -47,9 +44,6 @@ export const DEFAULT_FLOOR: Floor = {
   // 4.5 inches: a 2x4 stud wall with drywall on both faces.
   wallThicknessMeters: 0.1143,
   rooms: [DEFAULT_ROOM],
-  // Empty: a route is a fact about how a particular home is walked through, and
-  // guessing one would put a band across a plan nobody asked for.
-  walkways: [],
 };
 
 /** The floor rectangle of one room, in floor coordinates. */
@@ -136,13 +130,6 @@ export function roomsAt(floor: Floor, point: FloorPoint): readonly Room[] {
 
 export function withRooms(floor: Floor, rooms: readonly Room[]): Floor {
   return { ...floor, rooms };
-}
-
-export function withFloorWalkways(
-  floor: Floor,
-  walkways: readonly Walkway[],
-): Floor {
-  return { ...floor, walkways };
 }
 
 /** Replaces one room by id, leaving the order alone. */

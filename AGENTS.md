@@ -45,7 +45,7 @@ The MVP supports:
 - exact furniture dimensions,
 - top-down and perspective views,
 - furniture movement and rotation,
-- wall, furniture, doorway, and clearance-zone validation,
+- wall, furniture, and doorway validation,
 - multiple saved layouts,
 - prices, product links, purchase statuses,
 - IndexedDB persistence,
@@ -77,7 +77,7 @@ Wanted, but not yet:
   permanently, because page formats change and parsers rot.
 
 - **Photorealistic rendering.** It is a real goal, not a rejected one, and it is
-  step 22 — the last step, after the tool answers its question. Building it
+  step 21 — the last step, after the tool answers its question. Building it
   earlier trades the thing that makes RoomScale useful for the thing that makes
   it look useful.
 
@@ -160,7 +160,6 @@ Validation must detect:
 - furniture outside every room,
 - rooms overlapping one another,
 - blocked openings,
-- protected walkway intersection.
 
 Furniture is measured against the room it stands in, which is the room it
 overlaps most. Reaching past that room's walls is reported even when another
@@ -243,6 +242,3 @@ living room is the room being furnished first, and it contains:
 - an arc lamp,
 - an artificial olive tree,
 - olive accent pillows and a throw.
-
-The route from the living room to the guest room must remain at least
-36 inches wide, with 42 inches preferred.

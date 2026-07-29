@@ -1,7 +1,7 @@
 /**
  * What is selected in the workspace.
  *
- * One idea covers rooms, furniture, routes, and products, because the panel on
+ * One idea covers rooms, furniture, and products, because the panel on
  * the right shows whatever is selected and has to be told which kind of thing
  * that is. Selection is a fact about this session, never about the project, so
  * it is held in the workspace and never saved.
@@ -10,7 +10,6 @@
 export type Selection =
   | { readonly kind: "room"; readonly id: string }
   | { readonly kind: "instance"; readonly id: string }
-  | { readonly kind: "walkway"; readonly id: string }
   | { readonly kind: "product"; readonly id: string }
   /** A product being entered that does not exist yet. */
   | { readonly kind: "new-product" }

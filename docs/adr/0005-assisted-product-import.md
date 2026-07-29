@@ -47,7 +47,7 @@ Sources are tried in order of how much they can be trusted:
 1. **Pasted page text**, parsed for JSON-LD and then for dimension patterns.
    Pure, offline, unit tested. Always available, and the fallback whenever the
    later sources fail.
-2. **A pasted URL**, fetched by a Next route handler and run through the same
+2. **A pasted URL**, fetched by a Next server endpoint and run through the same
    parser. One page, one user action, no crawling and no bulk collection.
    Blocked or empty pages report that plainly and hand back to source 1.
 3. **A local language model** at `localhost:11434`, with output constrained to
@@ -74,7 +74,7 @@ Positive:
 
 Negative:
 
-- The application is no longer purely client-side. A route handler runs on a
+- The application is no longer purely client-side. A server endpoint runs on a
   server, which is a boundary that did not exist before, and anything it fetches
   arrives from an untrusted origin and has to be treated that way — size limits,
   timeouts, and no execution of anything retrieved.

@@ -83,6 +83,41 @@ test.describe("the workspace", () => {
     await inspector.getByLabel("Living room width").fill("120");
 
     await expect(planImage(page)).toHaveAccessibleName(/10' 0\.0" wide/);
+    await expect(
+      plan(page).getByText("Drag the room here or use X/Y and W/H/D"),
+    ).toBeVisible();
+  });
+
+  test("renames a room directly in the apartment list", async ({ page }) => {
+    await page.goto("/");
+
+    const room = contents(page).getByRole("button", { name: "Living room" });
+    await room.click();
+    await room.click();
+    await expect(contents(page).getByRole("textbox")).toHaveCount(0);
+
+    await room.dblclick();
+    const name = contents(page).getByRole("textbox", {
+      name: "Rename Living room",
+    });
+    await expect(name).toBeFocused();
+    await expect
+      .poll(() =>
+        name.evaluate((input: HTMLInputElement) => ({
+          start: input.selectionStart,
+          end: input.selectionEnd,
+        })),
+      )
+      .toEqual({ start: 11, end: 11 });
+    await name.fill("Great room");
+    await name.press("Enter");
+
+    await expect(
+      contents(page).getByRole("button", { name: "Great room" }),
+    ).toBeVisible();
+    await expect(
+      details(page).getByRole("region", { name: "Great room" }),
+    ).toBeVisible();
   });
 
   test("adds a room, and it appears in the list and the plan", async ({
@@ -148,21 +183,6 @@ test.describe("the workspace", () => {
       plan(page).getByText(
         /Sectional crosses the west wall of the Living room/,
       ),
-    ).toBeVisible();
-  });
-
-  test("adds a route and reports what narrows it", async ({ page }) => {
-    await page.goto("/");
-    await addProduct(page, { name: "Sectional", width: "94.5", depth: "63" });
-    await contents(page)
-      .getByRole("button", { name: "Place Sectional in the room" })
-      .click();
-
-    await contents(page).getByRole("button", { name: "Add route" }).click();
-
-    await expect(plan(page).getByText(/is down to/)).toBeVisible();
-    await expect(
-      details(page).getByRole("region", { name: "Route" }),
     ).toBeVisible();
   });
 
@@ -312,7 +332,7 @@ test.describe("the plan as a canvas", () => {
   });
 });
 
-test.describe("the routes it keeps", () => {
+test.describe("workspace navigation", () => {
   test("sends the old pages to where their work moved", async ({ page }) => {
     for (const [from, heading] of [
       ["/plan", "RoomScale"],
@@ -461,9 +481,9 @@ test.describe("laying the apartment out", () => {
     // The living room runs to 84 inches and the wall is 4.5 thick, so sharing
     // it means 88.5. Typing 87 is near enough to mean it.
     const room = details(page).getByRole("region", { name: "Room 2" });
-    await room.getByLabel("Room 2 from west").fill("87");
+    await room.getByLabel("Room 2 X position").fill("87");
 
-    await expect(room.getByLabel("Room 2 from west")).toHaveValue("88.5");
+    await expect(room.getByLabel("Room 2 X position")).toHaveValue("88.5");
   });
 
   test("leaves a room where it was put when nothing is near", async ({
@@ -473,9 +493,9 @@ test.describe("laying the apartment out", () => {
     await addRoom(page);
 
     const room = details(page).getByRole("region", { name: "Room 2" });
-    await room.getByLabel("Room 2 from west").fill("200");
+    await room.getByLabel("Room 2 X position").fill("200");
 
-    await expect(room.getByLabel("Room 2 from west")).toHaveValue("200");
+    await expect(room.getByLabel("Room 2 X position")).toHaveValue("200");
   });
 
   test("takes a negative position, so the apartment grows either way", async ({
@@ -485,9 +505,9 @@ test.describe("laying the apartment out", () => {
     await addRoom(page);
 
     const room = details(page).getByRole("region", { name: "Room 2" });
-    await room.getByLabel("Room 2 from west").fill("-300");
+    await room.getByLabel("Room 2 X position").fill("-300");
 
-    await expect(room.getByLabel("Room 2 from west")).toHaveValue("-300");
+    await expect(room.getByLabel("Room 2 X position")).toHaveValue("-300");
     await expect(planImage(page)).toHaveAccessibleName(/holding 2 rooms/);
   });
 
@@ -508,7 +528,7 @@ test.describe("laying the apartment out", () => {
     ).toBeVisible();
 
     const before = await details(page)
-      .getByLabel("Living room from west")
+      .getByLabel("Living room X position")
       .inputValue();
 
     await page.mouse.move(centre.x, centre.y);
@@ -518,7 +538,7 @@ test.describe("laying the apartment out", () => {
 
     expect(
       Number(
-        await details(page).getByLabel("Living room from west").inputValue(),
+        await details(page).getByLabel("Living room X position").inputValue(),
       ),
     ).toBeGreaterThan(Number(before));
   });
@@ -589,7 +609,7 @@ test.describe("laying the apartment out", () => {
     // Whole inches, not the seven decimals a pixel would give.
     expect(width % 1).toBe(0);
     // The east wall moved; the west one did not.
-    await expect(room.getByLabel("Living room from west")).toHaveValue("-84");
+    await expect(room.getByLabel("Living room X position")).toHaveValue("-84");
   });
 
   test("draws a room by dragging a rectangle on the plan", async ({ page }) => {
@@ -648,7 +668,9 @@ test.describe("laying the apartment out", () => {
     ).toBeVisible();
 
     const room = details(page).getByRole("region", { name: "Room 2" });
-    const west = Number(await room.getByLabel("Room 2 from west").inputValue());
+    const west = Number(
+      await room.getByLabel("Room 2 X position").inputValue(),
+    );
 
     // The drag straight afterwards moves the room that was just drawn. It used
     // to draw another one on top of it, which is what anybody trying to nudge
@@ -661,7 +683,7 @@ test.describe("laying the apartment out", () => {
 
     await expect(planImage(page)).toHaveAccessibleName(/holding 2 rooms/);
     expect(
-      Number(await room.getByLabel("Room 2 from west").inputValue()),
+      Number(await room.getByLabel("Room 2 X position").inputValue()),
     ).toBeGreaterThan(west);
   });
 
@@ -701,7 +723,7 @@ test.describe("laying the apartment out", () => {
     // West and north of the living room's own corner, which is where it was
     // clicked — the old behaviour put every new room east of everything.
     expect(
-      Number(await room.getByLabel("Room 2 from west").inputValue()),
+      Number(await room.getByLabel("Room 2 X position").inputValue()),
     ).toBeLessThan(-84);
   });
 
@@ -749,7 +771,7 @@ test.describe("laying the apartment out", () => {
 
     // The west wall moved by what the room gained; the east one did not move.
     const west = Number(
-      await room.getByLabel("Living room from west").inputValue(),
+      await room.getByLabel("Living room X position").inputValue(),
     );
     expect(west).toBeGreaterThan(-84 - grew - 2);
     expect(west).toBeLessThan(-84 - grew + 2);
@@ -843,6 +865,6 @@ test.describe("laying the apartment out", () => {
     // Fourteen by twelve feet, eight foot ceiling — not 165.35 by 141.73.
     await expect(room.getByLabel("Living room width")).toHaveValue("168");
     await expect(room.getByLabel("Living room depth")).toHaveValue("144");
-    await expect(room.getByLabel("Living room ceiling")).toHaveValue("96");
+    await expect(room.getByLabel("Living room height")).toHaveValue("96");
   });
 });

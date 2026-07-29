@@ -16,7 +16,7 @@
  * In a plan view screen Y follows Z, so that reads clockwise on screen, which
  * is also the direction a 2D canvas rotates in — the drawing and this module
  * agree without a correction. A right-handed Y-up scene turns the other way,
- * so the perspective view in step 14 takes the negative of this angle. That
+ * so the perspective view in step 20 takes the negative of this angle. That
  * sign lives at the renderer, not here.
  */
 
@@ -63,8 +63,8 @@ export function orientedRectContains(
 
 /**
  * A world point in the rectangle's own frame: X along its width, Z across its
- * depth, both measured from its center. Asking what is inside a corridor is
- * much easier once everything has been turned to face the same way.
+ * depth, both measured from its center. Point tests are simplest once the
+ * rectangle has been turned back to face the axes.
  */
 export function orientedRectLocalPoint(
   rect: OrientedRect,

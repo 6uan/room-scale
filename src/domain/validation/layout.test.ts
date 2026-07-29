@@ -6,7 +6,6 @@ import {
 } from "@/domain/furniture";
 import type { FurnitureProduct } from "@/domain/furniture";
 import { DEFAULT_FLOOR, DEFAULT_ROOM } from "@/domain/room";
-import { inchesFromMeters, metersFromInches } from "@/domain/units";
 import { checkLayout, troubledInstanceIds } from "./layout";
 
 /** A one-room apartment, four by three. */
@@ -197,117 +196,5 @@ describe("checkLayout: the order it reports in", () => {
             : problem.roomIds.join("+"),
       ),
     ).toEqual(["i2", "i1+i3"]);
-  });
-});
-
-describe("checkLayout: protected walkways", () => {
-  /**
-   * The route that matters: down the middle of the room from north to south,
-   * at least 36 inches wide and 42 preferred — the rule from AGENTS.md.
-   */
-  const GUEST_ROOM_ROUTE = {
-    id: "route-1",
-    name: "To the guest room",
-    start: { xMeters: 3, zMeters: 0 },
-    end: { xMeters: 3, zMeters: 3 },
-    minimumWidthMeters: metersFromInches(36),
-    preferredWidthMeters: metersFromInches(42),
-  };
-
-  const WITH_ROUTE = { ...FLOOR, walkways: [GUEST_ROOM_ROUTE] };
-
-  /** A piece `depthMeters` deep, pushed into the route from the west. */
-  function intoTheRouteFromTheWest(inchesOfIntrusion: number) {
-    // The preferred corridor runs 21 inches either side of the route, and the
-    // route is far enough east that a 2.4 m sectional fits beside it without
-    // also going through the west wall.
-    const westEdge = 3 - metersFromInches(21);
-    const half = SECTIONAL.footprint.widthMeters / 2;
-    return place(
-      "i1",
-      SECTIONAL,
-      westEdge + metersFromInches(inchesOfIntrusion) - half,
-      1.5,
-    );
-  }
-
-  it("says nothing about a route nothing is standing in", () => {
-    expect(checkLayout(WITH_ROUTE, [place("i1", TABLE, 0.6, 1.5)])).toEqual([]);
-  });
-
-  it("reports the shortfall when a sofa narrows the route below its minimum", () => {
-    // 42 inches wide, narrowed by 12 from one side: 30 inches left, which is
-    // 6 short of the 36 it needs.
-    const problems = checkLayout(WITH_ROUTE, [intoTheRouteFromTheWest(12)]);
-
-    expect(problems).toHaveLength(1);
-    const problem = problems[0];
-    expect(problem?.kind).toBe("walkway-blocked");
-    if (problem?.kind !== "walkway-blocked") {
-      throw new Error("expected the route to be blocked");
-    }
-    expect(inchesFromMeters(problem.clearMeters)).toBeCloseTo(30, 6);
-    expect(inchesFromMeters(problem.shortfallMeters)).toBeCloseTo(6, 6);
-    expect(problem.walkwayId).toBe("route-1");
-    expect(problem.instanceIds).toEqual(["i1"]);
-  });
-
-  it("calls a route that clears the minimum but misses the preferred tight", () => {
-    // 42 inches wide, narrowed by 4: 38 left. Past the 36 it needs, 4 short of
-    // the 42 that would be comfortable.
-    const problems = checkLayout(WITH_ROUTE, [intoTheRouteFromTheWest(4)]);
-
-    const problem = problems[0];
-    expect(problem?.kind).toBe("walkway-tight");
-    if (problem?.kind !== "walkway-tight") {
-      throw new Error("expected the route to be tight");
-    }
-    expect(inchesFromMeters(problem.clearMeters)).toBeCloseTo(38, 6);
-    expect(inchesFromMeters(problem.shortfallMeters)).toBeCloseTo(4, 6);
-  });
-
-  it("does not complain twice about one route", () => {
-    // Blocked is the whole story: a route you cannot walk down is not also
-    // worth calling less comfortable than you hoped.
-    const kinds = checkLayout(WITH_ROUTE, [intoTheRouteFromTheWest(12)]).map(
-      (problem) => problem.kind,
-    );
-
-    expect(kinds).toEqual(["walkway-blocked"]);
-  });
-
-  it("names every piece narrowing the route", () => {
-    const problems = checkLayout(WITH_ROUTE, [
-      intoTheRouteFromTheWest(12),
-      place("i2", TABLE, 2.4, 0.5),
-    ]);
-
-    expect(troubledInstanceIds(problems)).toEqual(new Set(["i1", "i2"]));
-  });
-
-  it("ignores a route whose own numbers do not make sense", () => {
-    // Both ends in the same place: there is no route to protect, and the form
-    // beside it says so rather than this inventing a corridor.
-    const broken = {
-      ...FLOOR,
-      walkways: [{ ...GUEST_ROOM_ROUTE, end: { ...GUEST_ROOM_ROUTE.start } }],
-    };
-
-    expect(checkLayout(broken, [intoTheRouteFromTheWest(12)])).toEqual([]);
-  });
-
-  it("still reports what else is wrong under a blocked route", () => {
-    const problems = checkLayout(WITH_ROUTE, [
-      place("i1", SECTIONAL, 1.5, 1.5),
-      place("i2", TABLE, 2.4, 1.5),
-    ]);
-
-    // A route problem does not swallow the overlap underneath it, and the
-    // pieces keep their order: each piece's own problems, then routes, then
-    // the pairs.
-    expect(problems.map((problem) => problem.kind)).toEqual([
-      "walkway-blocked",
-      "overlap",
-    ]);
   });
 });

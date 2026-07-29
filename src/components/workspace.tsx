@@ -34,15 +34,12 @@ import {
 import {
   createOpening,
   createRoom,
-  createWalkway,
   drawnRoom,
-  withFloorWalkways,
   withOpenings,
   withRoom,
   withRooms,
   type OpeningKind,
   type Room,
-  type Walkway,
 } from "@/domain/room";
 import { checkLayout, troubledInstanceIds } from "@/domain/validation";
 import { useProjectStore } from "@/state/project-store";
@@ -90,12 +87,6 @@ export function Workspace() {
     floor.rooms.map((room) => [
       room.id,
       room.name === "" ? "an unnamed room" : room.name,
-    ]),
-  );
-  const walkwayNames = new Map(
-    floor.walkways.map((walkway) => [
-      walkway.id,
-      walkway.name === "" ? "A route" : walkway.name,
     ]),
   );
   const namesById = new Map(
@@ -192,17 +183,6 @@ export function Workspace() {
     );
   }
 
-  function addWalkway(): void {
-    const id = nextId(
-      "walkway",
-      floor.walkways.map((one) => one.id),
-    );
-    setFloor(
-      withFloorWalkways(floor, [...floor.walkways, createWalkway(id, floor)]),
-    );
-    setSelection({ kind: "walkway", id });
-  }
-
   /** Puts a product in the room, either where it was dropped or in the middle. */
   function place(product: FurnitureProduct, at?: FloorPoint): void {
     const instance = createInstance(
@@ -239,16 +219,6 @@ export function Workspace() {
       }
       case "instance": {
         setInstances(instances.filter((one) => one.id !== selection.id));
-        setSelection(null);
-        return;
-      }
-      case "walkway": {
-        setFloor(
-          withFloorWalkways(
-            floor,
-            floor.walkways.filter((one) => one.id !== selection.id),
-          ),
-        );
         setSelection(null);
         return;
       }
@@ -398,9 +368,9 @@ export function Workspace() {
             selection={selection}
             troubledIds={troubledIds}
             onSelect={setSelection}
+            onRoomChange={(room) => setFloor(withRoom(floor, room))}
             onAddRoom={() => setDrawingRoom((on) => !on)}
             drawingRoom={drawingRoom}
-            onAddWalkway={addWalkway}
           />
           <CataloguePanel
             products={products}
@@ -452,7 +422,6 @@ export function Workspace() {
                 problems={problems}
                 names={namesById}
                 roomNames={roomNames}
-                walkwayNames={walkwayNames}
                 unit={unit}
               />
             </div>
@@ -472,7 +441,10 @@ export function Workspace() {
             onSelect={setSelection}
             onFloorChange={setFloor}
             onUnitChange={setUnit}
-            onRoomChange={(room) => setFloor(withRoom(floor, room))}
+            onRoomChange={(room, gesture) =>
+              setFloor(withRoom(floor, room), gesture)
+            }
+            onGestureEnd={endGesture}
             onRoomRemove={removeRoom}
             onAddOpening={addOpening}
             onInstanceChange={(instance: FurnitureInstance) =>
@@ -482,9 +454,6 @@ export function Workspace() {
               setInstances(instances.filter((one) => one.id !== instance.id));
               setSelection(null);
             }}
-            onWalkwaysChange={(walkways: readonly Walkway[]) =>
-              setFloor(withFloorWalkways(floor, walkways))
-            }
             onProductSave={saveProduct}
             onProductRemove={removeProduct}
             productProblem={productProblem}

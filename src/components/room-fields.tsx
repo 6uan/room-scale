@@ -16,14 +16,20 @@ import {
   type OpeningKind,
   type Room,
 } from "@/domain/room";
-import { formatArea, formatLength, type DisplayUnit } from "@/domain/units";
+import {
+  displayUnitSuffix,
+  formatArea,
+  formatLength,
+  type DisplayUnit,
+} from "@/domain/units";
 
 export type RoomFieldsProps = {
   /** The rest of the apartment, so a room can be snapped against it. */
   floor: Floor;
   room: Room;
   unit: DisplayUnit;
-  onChange: (room: Room) => void;
+  onChange: (room: Room, gesture?: string) => void;
+  onGestureEnd: () => void;
   onRemove: () => void;
   onAddOpening: (kind: OpeningKind) => void;
 };
@@ -33,90 +39,94 @@ export function RoomFields({
   room,
   unit,
   onChange,
+  onGestureEnd,
   onRemove,
   onAddOpening,
 }: RoomFieldsProps) {
   const name = room.name === "" ? "Room" : room.name;
 
   return (
-    <fieldset className="flex flex-col gap-4 rounded-lg border border-black/10 p-4 dark:border-white/15">
-      <legend className="px-1 text-sm font-medium">{name}</legend>
-
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor={`${room.id}-name`} className="text-sm font-medium">
-          Name
-        </label>
-        <input
-          id={`${room.id}-name`}
-          type="text"
-          value={room.name}
-          onChange={(event) => onChange({ ...room, name: event.target.value })}
-          placeholder="Living room"
-          className="rounded-md border border-black/15 bg-transparent px-2.5 py-1.5 text-sm dark:border-white/20"
-        />
-      </div>
-
-      <div className="flex flex-wrap gap-4">
+    <div className="flex flex-col gap-5">
+      {/* Design tools call the two axes of their canvas X and Y. The domain
+          keeps Three.js' X/Z floor plane; this Y field is only that plan-space
+          label, and still writes the room's z coordinate. */}
+      <CompactGroup title="Position" unit={unit} columns={2}>
         <NumberField
-          label={`${name} width`}
-          unit={unit}
-          meters={room.widthMeters}
-          limits={ROOM_LENGTH_LIMITS.widthMeters}
-          onMetersChange={(meters) =>
-            onChange(withRoomLength(room, "widthMeters", meters))
-          }
-        />
-        <NumberField
-          label={`${name} depth`}
-          unit={unit}
-          meters={room.depthMeters}
-          limits={ROOM_LENGTH_LIMITS.depthMeters}
-          onMetersChange={(meters) =>
-            onChange(withRoomLength(room, "depthMeters", meters))
-          }
-        />
-        <NumberField
-          label={`${name} ceiling`}
-          unit={unit}
-          meters={room.heightMeters}
-          limits={ROOM_LENGTH_LIMITS.heightMeters}
-          onMetersChange={(meters) =>
-            onChange(withRoomLength(room, "heightMeters", meters))
-          }
-        />
-      </div>
-
-      {/* Where the block stands, measured to its north-west corner. */}
-      <div className="flex flex-wrap gap-4">
-        <NumberField
-          label={`${name} from west`}
+          label={`${name} X position`}
+          compactLabel="X"
+          scrubGesture={`room-field:${room.id}:x`}
           unit={unit}
           meters={room.origin.xMeters}
           limits={ROOM_ORIGIN_LIMITS}
-          onMetersChange={(xMeters) =>
+          onMetersChange={(xMeters, gesture) =>
             onChange(
               withOrigin(
                 room,
                 snapRoomOrigin(floor, room, { ...room.origin, xMeters }),
               ),
+              gesture,
             )
           }
+          onGestureEnd={onGestureEnd}
         />
         <NumberField
-          label={`${name} from north`}
+          label={`${name} Y position`}
+          compactLabel="Y"
+          scrubGesture={`room-field:${room.id}:y`}
           unit={unit}
           meters={room.origin.zMeters}
           limits={ROOM_ORIGIN_LIMITS}
-          onMetersChange={(zMeters) =>
+          onMetersChange={(zMeters, gesture) =>
             onChange(
               withOrigin(
                 room,
                 snapRoomOrigin(floor, room, { ...room.origin, zMeters }),
               ),
+              gesture,
             )
           }
+          onGestureEnd={onGestureEnd}
         />
-      </div>
+      </CompactGroup>
+
+      <CompactGroup title="Size" unit={unit} columns={3}>
+        <NumberField
+          label={`${name} width`}
+          compactLabel="W"
+          scrubGesture={`room-field:${room.id}:width`}
+          unit={unit}
+          meters={room.widthMeters}
+          limits={ROOM_LENGTH_LIMITS.widthMeters}
+          onMetersChange={(meters, gesture) =>
+            onChange(withRoomLength(room, "widthMeters", meters), gesture)
+          }
+          onGestureEnd={onGestureEnd}
+        />
+        <NumberField
+          label={`${name} height`}
+          compactLabel="H"
+          scrubGesture={`room-field:${room.id}:height`}
+          unit={unit}
+          meters={room.heightMeters}
+          limits={ROOM_LENGTH_LIMITS.heightMeters}
+          onMetersChange={(meters, gesture) =>
+            onChange(withRoomLength(room, "heightMeters", meters), gesture)
+          }
+          onGestureEnd={onGestureEnd}
+        />
+        <NumberField
+          label={`${name} depth`}
+          compactLabel="D"
+          scrubGesture={`room-field:${room.id}:depth`}
+          unit={unit}
+          meters={room.depthMeters}
+          limits={ROOM_LENGTH_LIMITS.depthMeters}
+          onMetersChange={(meters, gesture) =>
+            onChange(withRoomLength(room, "depthMeters", meters), gesture)
+          }
+          onGestureEnd={onGestureEnd}
+        />
+      </CompactGroup>
 
       <p className="text-xs leading-relaxed opacity-60">
         {formatArea(roomFloorAreaSquareMeters(room), unit)} of floor. Bring a
@@ -142,6 +152,37 @@ export function RoomFields({
         >
           Remove room
         </button>
+      </div>
+    </div>
+  );
+}
+
+function CompactGroup({
+  title,
+  unit,
+  columns,
+  children,
+}: {
+  title: string;
+  unit: DisplayUnit;
+  columns: 2 | 3;
+  children: React.ReactNode;
+}) {
+  return (
+    <fieldset className="flex min-w-0 flex-col gap-2">
+      <legend className="sr-only">{title}</legend>
+      <div className="flex items-baseline justify-between gap-2">
+        <span aria-hidden="true" className="text-xs font-medium">
+          {title}
+        </span>
+        <span className="text-xs opacity-50">{displayUnitSuffix(unit)}</span>
+      </div>
+      <div
+        className={`grid min-w-0 gap-2 ${
+          columns === 2 ? "grid-cols-2" : "grid-cols-3"
+        }`}
+      >
+        {children}
       </div>
     </fieldset>
   );

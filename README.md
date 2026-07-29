@@ -11,10 +11,10 @@ your own machine.
 Measure the rooms once. Bring furniture in from the listing pages you already
 have open, at the dimensions the retailer printed. Arrange it in a plan drawn to
 scale, and RoomScale tells you what does not fit and by how much: a sectional
-overlapping the coffee table, a console pushed through a wall, the route to the
-bedroom narrowed below what a person can walk through. What you are left with is
-a shopping list whose total you can trust, because every price on it belongs to
-something that has a place in the room.
+overlapping the coffee table, a console pushed through a wall, or a chair
+standing outside every room. What you are left with is a shopping list whose
+total you can trust, because every price on it belongs to something that has a
+place in the room.
 
 Eventually you will be able to see it, rather than read it. A 3D view of the
 same data is the last step rather than the first, because a render that looks
@@ -42,16 +42,17 @@ about the furniture instead of the measurements.
    typing one in by hand stays a first-class path.
 3. **Put it in the room** — pieces are drawn at their true footprint, and moved
    and turned by dragging, by typing numbers, or with the arrow keys.
-4. **Find out what does not fit** — overlaps, wall crossings, and blocked
-   routes, reported in words with the amount, in your unit. Not a color on a
-   canvas you have to interpret.
+4. **Find out what does not fit** — overlaps, wall crossings, and furniture
+   outside every room, reported in words with the amount, in your unit. Not a
+   color on a canvas you have to interpret.
 5. **Keep the list** — every product with its quantity, price, link, and whether
    you have bought it yet, and a total that comes from what is actually in the
    room.
 
 ## Where it is now
 
-**Roadmap steps 1–15 of 18 are done.** What works today:
+**The core loop and workspace through step 17a are done; step 17b is next.**
+What works today:
 
 - One workspace: what is in the apartment on the left, the plan in the middle,
   and whatever you select on the right. The plan pans and zooms — scroll to pan,
@@ -68,15 +69,12 @@ about the furniture instead of the measurements.
   priced so they can be weighed against each other.
 - A printable overview at `/overview` — quantity, price, link, and purchase
   status per item, with what the room costs and what is still to buy.
-- Protected walkways: routes that must stay clear, each with a width you need
-  and a width you would rather have, reported with what is left and by how much
-  it falls short. The rules are live; the form for drawing one is written but
-  not yet on the page, and arrives with the workspace in step 13.
 - Everything saved in your browser, and nothing sent anywhere — and a way out:
   the whole project as a file to keep or reopen, and the list as a spreadsheet.
 
-Still to come, in this order: the doorway and clearance checks (step 16), the
-perspective view (17), and photorealism (18).
+Still to come, in this order: placing openings on the plan, rooms made from
+multiple rectangular parts, blocked-door checks, the perspective view, and
+photorealism.
 
 [ROADMAP.md](ROADMAP.md) is a strict sequence, not a backlog. Steps 4 to 10 are
 the tool's whole reason for existing: what fits, and what it costs. Everything
@@ -129,7 +127,7 @@ touched anything user-facing.
 
 ```
 src/
-  app/            Routes: the workspace at /, the overview at /overview
+  app/            Pages: the workspace at /, the overview at /overview
   components/     The workspace panels, the plan canvas, and the forms
   domain/         Pure logic — no React, no Three.js, no browser APIs
     units/        Meter, area, and integer-cent conversions (implemented)
@@ -138,10 +136,10 @@ src/
     project/      The saved document, and the checklist derived from it
     import/       Reading a product out of a pasted page (implemented)
     geometry/     Plan projection, oriented rectangles, SAT (implemented)
-    validation/   Fit rules (implemented); clearance rules (step 11)
+    validation/   Fit rules that explain what does not fit (implemented)
   persistence/    Dexie/IndexedDB schema and migrations (implemented)
   state/          Zustand store holding the active project (implemented)
-  scene/          React Three Fiber rendering (step 14)
+  scene/          React Three Fiber rendering (planned)
 e2e/              Playwright specs
 docs/adr/         Architecture decision records
 ```
