@@ -150,3 +150,65 @@ describe("unprojectPoint", () => {
     expect(unprojectPoint(EMPTY_PLAN_PROJECTION, { x: 10, y: 10 })).toBeNull();
   });
 });
+
+describe("an extent that does not start at the floor's zero", () => {
+  const APARTMENT = { widthMeters: 4, depthMeters: 4 };
+
+  it("puts the extent's own corner where the zero corner would have gone", () => {
+    const atZero = createPlanProjection(APARTMENT, SQUARE_VIEWPORT);
+    const moved = createPlanProjection(APARTMENT, SQUARE_VIEWPORT, 0, {
+      xMeters: -10,
+      zMeters: 6,
+    });
+
+    expect(projectPoint(moved, { xMeters: -10, zMeters: 6 })).toEqual(
+      projectPoint(atZero, { xMeters: 0, zMeters: 0 }),
+    );
+  });
+
+  it("scales the same however far from the zero it sits", () => {
+    const atZero = createPlanProjection(APARTMENT, SQUARE_VIEWPORT);
+    const moved = createPlanProjection(APARTMENT, SQUARE_VIEWPORT, 0, {
+      xMeters: -10,
+      zMeters: 6,
+    });
+
+    expect(moved.pixelsPerMeter).toBe(atZero.pixelsPerMeter);
+  });
+
+  it("takes a floor point straight to a pixel, with nothing to add back", () => {
+    const projection = createPlanProjection(APARTMENT, SQUARE_VIEWPORT, 0, {
+      xMeters: -10,
+      zMeters: 6,
+    });
+
+    // Two meters in from the corner, on both axes.
+    const point = { xMeters: -8, zMeters: 8 };
+    const corner = projectPoint(projection, { xMeters: -10, zMeters: 6 });
+    const inside = projectPoint(projection, point);
+
+    expect(inside.x - corner.x).toBe(2 * projection.pixelsPerMeter);
+    expect(inside.y - corner.y).toBe(2 * projection.pixelsPerMeter);
+  });
+
+  it("comes back through unproject to the point it started at", () => {
+    const projection = createPlanProjection(APARTMENT, SQUARE_VIEWPORT, 0, {
+      xMeters: -10,
+      zMeters: 6,
+    });
+    const point = { xMeters: -7.5, zMeters: 9.25 };
+
+    expect(unprojectPoint(projection, projectPoint(projection, point))).toEqual(
+      point,
+    );
+  });
+
+  it("defaults to the floor's zero, leaving every existing caller alone", () => {
+    expect(createPlanProjection(APARTMENT, SQUARE_VIEWPORT)).toEqual(
+      createPlanProjection(APARTMENT, SQUARE_VIEWPORT, 0, {
+        xMeters: 0,
+        zMeters: 0,
+      }),
+    );
+  });
+});

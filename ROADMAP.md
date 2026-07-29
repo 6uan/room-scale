@@ -452,9 +452,33 @@ while the roadmap still said the clearance checks were next. The roadmap is the
 build order, so it is the roadmap that was wrong, and this entry is it being
 made right rather than a step invented after the fact.
 
+Corrected afterwards, and worth recording because the fix was not the one the
+symptom suggested. Dragging felt violent — a wall pulled sixty pixels grew the
+room by four and a half times that, and a hard swipe lost the apartment off the
+edge with nothing but the fit key to find it again.
+
+The cause was that a `PlanProjection` was not the whole transform it claimed to
+be. It was built against the apartment's north-west corner, and everything
+reading it added that corner back on — but the corner is _derived from where
+the rooms are_. Dragging the west wall moved it, which moved the drawing, which
+moved the floor point under a pointer that had not itself moved, which dragged
+the wall further west. Pinning the view for the drag, which step 16b already
+did, could not help: the second term was never pinned.
+
+The projection now carries the origin it was fitted at, so a floor point goes
+straight to a pixel and a pinned view pins everything. Damping the drag would
+have hidden a feedback loop rather than closing it — a room has to track the
+pointer exactly or it is not being dragged.
+
+Two smaller things came with it. A view is held so at least a strip of the
+apartment stays reachable, because panning has no natural limit and a tool
+should not need rescuing. And one wheel notch is capped at fifteen percent:
+a notch reports a hundred units where a trackpad pinch reports one, so the rate
+that suited a pinch made a notch a third of the way in.
+
 Not carried out of this step: rooms are dragged and resized, but not **made**
 by pointer — "Add room" still puts a rectangle east of everything and leaves
-you to move it. That is step 17.
+you to move it. That is step 18.
 
 ---
 

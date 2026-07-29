@@ -578,6 +578,98 @@ test.describe("laying the apartment out", () => {
     await expect(room.getByLabel("Living room from west")).toHaveValue("-84");
   });
 
+  test("drags the west wall without the plan running away from the pointer", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await contents(page).getByRole("button", { name: "Living room" }).click();
+
+    const room = details(page).getByRole("region", { name: "Living room" });
+    await expect(room.getByLabel("Living room width")).toHaveValue("168");
+
+    const box = await planImage(page).boundingBox();
+    if (box === null) {
+      throw new Error("the plan has no box to point at");
+    }
+
+    const metres = (inches: number) => inches * 0.0254;
+    const padding = 40;
+    const across = metres(168) + metres(4.5) * 2;
+    const down = metres(144) + metres(4.5) * 2;
+    const scale = Math.min(
+      (box.width - padding * 2) / across,
+      (box.height - padding * 2) / down,
+    );
+    const middle = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const handle = { x: middle.x - (metres(168) / 2) * scale, y: middle.y };
+
+    await page.mouse.move(handle.x, handle.y);
+    await page.mouse.down();
+    await page.mouse.move(handle.x - 60, handle.y, { steps: 8 });
+    await page.mouse.up();
+
+    // The west wall is the one that used to run away. It is the apartment's
+    // own north-west corner, so dragging it moved the corner the whole
+    // projection was built against — which moved the drawing, which moved the
+    // floor out from under a pointer that had not itself moved, which dragged
+    // the wall further west again. Sixty pixels is sixty pixels now.
+    const grew = 60 / scale / 0.0254;
+    const width = Number(
+      await room.getByLabel("Living room width").inputValue(),
+    );
+    expect(width).toBeGreaterThan(168 + grew - 2);
+    expect(width).toBeLessThan(168 + grew + 2);
+
+    // The west wall moved by what the room gained; the east one did not move.
+    const west = Number(
+      await room.getByLabel("Living room from west").inputValue(),
+    );
+    expect(west).toBeGreaterThan(-84 - grew - 2);
+    expect(west).toBeLessThan(-84 - grew + 2);
+    expect(west + width).toBeGreaterThan(82);
+    expect(west + width).toBeLessThan(86);
+  });
+
+  test("will not let the apartment be panned off the screen", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    const box = await planImage(page).boundingBox();
+    if (box === null) {
+      throw new Error("the plan has no box to point at");
+    }
+    const middle = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+
+    // Clicked into, so the wheel belongs to the plan, then swiped hard enough
+    // to send the apartment into the next county.
+    await page.mouse.click(middle.x, middle.y);
+    for (let push = 0; push < 12; push += 1) {
+      await page.mouse.wheel(-600, -600);
+    }
+
+    // Still drawn. Asking the canvas what it is showing is the only honest
+    // question here: every number beside it comes from the project rather than
+    // from the view, so all of them would keep reading true with the plan
+    // three screens away.
+    const drawn = await page.evaluate(() => {
+      const canvas = document.querySelector("canvas");
+      const context = canvas?.getContext("2d");
+      if (!canvas || !context) {
+        return -1;
+      }
+      const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+      let painted = 0;
+      for (let alpha = 3; alpha < data.length; alpha += 4) {
+        if ((data[alpha] ?? 0) > 0) {
+          painted += 1;
+        }
+      }
+      return painted;
+    });
+
+    expect(drawn).toBeGreaterThan(0);
+  });
+
   test("says with the pointer what it is about to move", async ({ page }) => {
     await page.goto("/");
     await contents(page).getByRole("button", { name: "Living room" }).click();

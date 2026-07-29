@@ -47,11 +47,24 @@ export const EMPTY_PLAN_PROJECTION: PlanProjection = {
  * Padding is subtracted before scaling but not before centering, so the drawn
  * floor sits in the middle of the element with the padding available around it
  * for dimension labels.
+ *
+ * `origin` is the floor coordinate the extent starts at — the north-west corner
+ * of what is being fitted. It defaults to the floor's own zero, and passing the
+ * real one is what makes the result a **complete** transform: a projection that
+ * takes any floor point straight to a pixel, with no second term to remember.
+ *
+ * That mattered more than it sounds. When the origin was left out, everything
+ * reading the projection had to add the apartment's north-west corner back on —
+ * and that corner is derived from where the rooms are. Dragging a room west of
+ * everything else moved it, which moved the whole drawing, which moved the
+ * floor point under a pointer that had not itself moved, which dragged the room
+ * further west. The wall ran away from the hand dragging it.
  */
 export function createPlanProjection(
   extent: FloorExtent,
   viewport: PixelSize,
   paddingPixels = 0,
+  origin: FloorPoint = { xMeters: 0, zMeters: 0 },
 ): PlanProjection {
   const usableWidth = viewport.width - paddingPixels * 2;
   const usableHeight = viewport.height - paddingPixels * 2;
@@ -71,10 +84,17 @@ export function createPlanProjection(
     usableHeight / extent.depthMeters,
   );
 
+  // Centred, then shifted so the extent's own corner — rather than the floor's
+  // zero — lands in the middle. The two are the same only for an apartment
+  // whose north-west room happens to start at the origin.
   return {
     pixelsPerMeter,
-    originX: (viewport.width - extent.widthMeters * pixelsPerMeter) / 2,
-    originY: (viewport.height - extent.depthMeters * pixelsPerMeter) / 2,
+    originX:
+      (viewport.width - extent.widthMeters * pixelsPerMeter) / 2 -
+      origin.xMeters * pixelsPerMeter,
+    originY:
+      (viewport.height - extent.depthMeters * pixelsPerMeter) / 2 -
+      origin.zMeters * pixelsPerMeter,
   };
 }
 
