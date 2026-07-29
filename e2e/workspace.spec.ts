@@ -509,6 +509,23 @@ test.describe("laying the apartment out", () => {
     ).toBeGreaterThan(Number(before));
   });
 
+  test("reads out the selection's corner, and what the floor adds up to", async ({
+    page,
+  }) => {
+    await page.goto("/");
+
+    // A fourteen by twelve foot room is 168 square feet.
+    await expect(plan(page).getByText("168.0 sq ft")).toBeVisible();
+    // Nothing selected, nothing to give coordinates for.
+    await expect(plan(page).getByText("x —")).toBeVisible();
+
+    await contents(page).getByRole("button", { name: "Living room" }).click();
+
+    // Its north-west corner: the room is centred, so half of 168 by half of 144.
+    await expect(plan(page).getByText(`x -7' 0.0"`)).toBeVisible();
+    await expect(plan(page).getByText(`y -6' 0.0"`)).toBeVisible();
+  });
+
   test("opens on numbers somebody could have measured", async ({ page }) => {
     await page.goto("/");
     await contents(page).getByRole("button", { name: "Living room" }).click();

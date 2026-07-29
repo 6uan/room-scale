@@ -35,6 +35,7 @@ import { PRODUCT_DRAG_TYPE } from "@/components/catalogue-panel";
 import {
   checkOpening,
   checkWalkway,
+  floorAreaSquareMeters,
   floorBounds,
   openingEndpoints,
   pointOnFloor,
@@ -48,15 +49,19 @@ import {
   type Room,
   type Walkway,
 } from "@/domain/room";
-import { formatAngle, formatLength, type DisplayUnit } from "@/domain/units";
+import {
+  formatAngle,
+  formatArea,
+  formatLength,
+  type DisplayUnit,
+} from "@/domain/units";
 
-/** Space kept outside the walls for the dimension lines. */
-const DIMENSION_PADDING_PIXELS = 56;
-const DIMENSION_OFFSET_PIXELS = 26;
-const WITNESS_GAP_PIXELS = 5;
-const TICK_PIXELS = 4;
+/**
+ * Space kept around the apartment when it is fitted, so its walls are not
+ * against the edge of the panel.
+ */
+const PLAN_PADDING_PIXELS = 40;
 const LABEL_PIXELS = 12;
-const LABEL_GAP_PIXELS = 7;
 
 /**
  * Opacities, so a single foreground color carries the whole drawing and follows
@@ -69,8 +74,6 @@ const WALL_ALPHA = 0.88;
 const JAMB_ALPHA = 0.5;
 const SYMBOL_ALPHA = 0.55;
 const SWING_ALPHA = 0.28;
-const DIMENSION_ALPHA = 0.4;
-const LABEL_ALPHA = 0.75;
 const FURNITURE_FILL_ALPHA = 0.22;
 const FURNITURE_EDGE_ALPHA = 0.7;
 const SELECTED_FILL_ALPHA = 0.36;
@@ -192,6 +195,20 @@ export function RoomPlanCanvas({
    * and a stray trackpad swipe cannot send the drawing off somewhere. It also
    * costs nothing to explain — the focus ring already says which it is.
    */
+  /**
+   * The coordinates in the readout: the selected room's north-west corner, or
+   * the selected piece's centre.
+   *
+   * Not the pointer. A number that changes as the mouse drifts is one nobody
+   * can read off, and the corner is the same number the panel on the right
+   * holds — so the readout and the field agree rather than nearly agreeing.
+   */
+  const at =
+    floor.rooms.find((room) => room.id === selectedRoomId)?.origin ??
+    furniture.find(({ instance }) => instance.id === selectedId)?.instance
+      .position ??
+    null;
+
   const [active, setActive] = useState(false);
   const activeRef = useRef(active);
   useEffect(() => {
@@ -222,7 +239,6 @@ export function RoomPlanCanvas({
       projection,
       floor,
       furniture,
-      unit,
       selectedId,
       selectedRoomId,
       troubledIds,
@@ -371,6 +387,7 @@ export function RoomPlanCanvas({
   function handlePointerMove(event: PointerEvent<HTMLCanvasElement>): void {
     const drag = dragRef.current;
     const canvas = canvasRef.current;
+
     if (!drag || !canvas || drag.pointerId !== event.pointerId) {
       return;
     }
@@ -518,6 +535,25 @@ export function RoomPlanCanvas({
         }`}
       />
 
+      {/*
+        The measurements used to be drawn on the plan, in dimension lines
+        outside its walls. They cost the drawing its margins and told you the
+        same two numbers however far you zoomed in. Here they are text, beside
+        where the pointer is — which is the number you want while placing
+        something, and the one a drawing cannot show you at all.
+      */}
+      <div className="pointer-events-none absolute left-3 top-3 flex gap-3 rounded-md bg-black/70 px-2.5 py-1 font-mono text-xs tabular-nums text-white/90 dark:bg-white/10">
+        <span>
+          {at === null ? "x —" : `x ${formatLength(at.xMeters, unit)}`}
+        </span>
+        <span>
+          {at === null ? "y —" : `y ${formatLength(at.zMeters, unit)}`}
+        </span>
+        <span className="opacity-60">
+          {formatArea(floorAreaSquareMeters(floor), unit)}
+        </span>
+      </div>
+
       {/* Said once, where it is needed, and gone as soon as it is not. */}
       {active ? null : (
         <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1 text-xs text-white dark:bg-white/15">
@@ -575,7 +611,7 @@ function planProjectionFor(floor: Floor, viewport: PixelSize): PlanProjection {
       depthMeters: extent.depthMeters + thickness * 2,
     },
     viewport,
-    DIMENSION_PADDING_PIXELS,
+    PLAN_PADDING_PIXELS,
   );
 }
 
@@ -659,7 +695,6 @@ type DrawOptions = {
   projection: PlanProjection;
   floor: Floor;
   furniture: readonly PlacedFurniture[];
-  unit: DisplayUnit;
   selectedId: string | null;
   selectedRoomId: string | null;
   troubledIds: ReadonlySet<string>;
@@ -681,7 +716,6 @@ function drawPlan(
     projection,
     floor,
     furniture,
-    unit,
     selectedId,
     selectedRoomId,
     troubledIds,
@@ -693,7 +727,7 @@ function drawPlan(
   context.clearRect(0, 0, viewport.width, viewport.height);
 
   const thickness = floor.wallThicknessMeters;
-  const { origin, extent } = floorBounds(floor);
+  const { origin } = floorBounds(floor);
 
   // The projection arrives already fitted — and possibly panned and zoomed
   // since. Everything below works in whatever transform it is handed.
@@ -754,18 +788,6 @@ function drawPlan(
       troubled: troubledIds.has(placed.instance.id),
     });
   }
-
-  drawDimensions(context, {
-    widthMeters: extent.widthMeters,
-    depthMeters: extent.depthMeters,
-    unit,
-    color,
-    fontFamily,
-    inside: frame.toPixels(origin),
-    floorWidth: projectLength(projection, extent.widthMeters),
-    floorDepth: projectLength(projection, extent.depthMeters),
-    wallPixels: frame.wallPixels,
-  });
 }
 
 /** A frame that takes points in one room's own coordinates. */
@@ -1171,142 +1193,6 @@ function strokeSegments(
     context.lineTo(to.x, to.y);
   }
   context.stroke();
-}
-
-type DimensionOptions = {
-  widthMeters: number;
-  depthMeters: number;
-  unit: DisplayUnit;
-  color: string;
-  fontFamily: string;
-  inside: PixelPoint;
-  floorWidth: number;
-  floorDepth: number;
-  wallPixels: number;
-};
-
-/**
- * Dimension lines outside the walls, measuring the apartment end to end.
- *
- * One pair for the whole plan rather than a pair per room: a room's own numbers
- * are in the fields beside it, and five sets of dimension lines would bury the
- * drawing they are meant to explain.
- */
-function drawDimensions(
-  context: CanvasRenderingContext2D,
-  {
-    widthMeters,
-    depthMeters,
-    unit,
-    color,
-    fontFamily,
-    inside,
-    floorWidth,
-    floorDepth,
-    wallPixels,
-  }: DimensionOptions,
-): void {
-  context.save();
-  context.font = `${LABEL_PIXELS}px ${fontFamily}`;
-  context.strokeStyle = color;
-  context.fillStyle = color;
-  context.lineWidth = 1;
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-
-  const outerTop = inside.y - wallPixels;
-  const outerLeft = inside.x - wallPixels;
-
-  // Width, above the room.
-  const widthY = outerTop - DIMENSION_OFFSET_PIXELS;
-  const widthLabel = formatLength(widthMeters, unit);
-  const widthGap = context.measureText(widthLabel).width / 2 + LABEL_GAP_PIXELS;
-  const midX = inside.x + floorWidth / 2;
-
-  context.globalAlpha = DIMENSION_ALPHA;
-  strokeSegments(context, [
-    [
-      { x: inside.x, y: widthY },
-      { x: Math.max(inside.x, midX - widthGap), y: widthY },
-    ],
-    [
-      { x: Math.min(inside.x + floorWidth, midX + widthGap), y: widthY },
-      { x: inside.x + floorWidth, y: widthY },
-    ],
-    ...tickAt({ x: inside.x, y: widthY }),
-    ...tickAt({ x: inside.x + floorWidth, y: widthY }),
-    ...witness({ x: inside.x, y: widthY }, { x: inside.x, y: outerTop }, "y"),
-    ...witness(
-      { x: inside.x + floorWidth, y: widthY },
-      { x: inside.x + floorWidth, y: outerTop },
-      "y",
-    ),
-  ]);
-
-  context.globalAlpha = LABEL_ALPHA;
-  context.fillText(widthLabel, midX, widthY);
-
-  // Depth, up the left side, reading along the wall it measures.
-  const depthX = outerLeft - DIMENSION_OFFSET_PIXELS;
-  const depthLabel = formatLength(depthMeters, unit);
-  const depthGap = context.measureText(depthLabel).width / 2 + LABEL_GAP_PIXELS;
-  const midY = inside.y + floorDepth / 2;
-
-  context.globalAlpha = DIMENSION_ALPHA;
-  strokeSegments(context, [
-    [
-      { x: depthX, y: inside.y },
-      { x: depthX, y: Math.max(inside.y, midY - depthGap) },
-    ],
-    [
-      { x: depthX, y: Math.min(inside.y + floorDepth, midY + depthGap) },
-      { x: depthX, y: inside.y + floorDepth },
-    ],
-    ...tickAt({ x: depthX, y: inside.y }),
-    ...tickAt({ x: depthX, y: inside.y + floorDepth }),
-    ...witness({ x: depthX, y: inside.y }, { x: outerLeft, y: inside.y }, "x"),
-    ...witness(
-      { x: depthX, y: inside.y + floorDepth },
-      { x: outerLeft, y: inside.y + floorDepth },
-      "x",
-    ),
-  ]);
-
-  context.globalAlpha = LABEL_ALPHA;
-  context.translate(depthX, midY);
-  context.rotate(-Math.PI / 2);
-  context.fillText(depthLabel, 0, 0);
-
-  context.restore();
-}
-
-/** The slash an architect puts where a dimension line meets its extent. */
-function tickAt(
-  at: PixelPoint,
-): readonly (readonly [PixelPoint, PixelPoint])[] {
-  return [
-    [
-      { x: at.x - TICK_PIXELS, y: at.y - TICK_PIXELS },
-      { x: at.x + TICK_PIXELS, y: at.y + TICK_PIXELS },
-    ],
-  ];
-}
-
-/** The thin line joining a dimension line back to the wall it measures. */
-function witness(
-  from: PixelPoint,
-  to: PixelPoint,
-  axis: "x" | "y",
-): readonly (readonly [PixelPoint, PixelPoint])[] {
-  const gap = Math.sign(to[axis] - from[axis]) * WITNESS_GAP_PIXELS;
-  return [
-    [
-      axis === "y"
-        ? { x: from.x, y: from.y + gap }
-        : { x: from.x + gap, y: from.y },
-      to,
-    ],
-  ];
 }
 
 /** Tracks an element's CSS pixel size, so the canvas can match it. */
