@@ -6,7 +6,13 @@ import {
   type FurnitureProduct,
   type PurchaseStatus,
 } from "@/domain/furniture";
-import { buildChecklist, type Checklist } from "@/domain/project";
+import {
+  activeInstances,
+  activeLayout,
+  buildChecklist,
+  type Checklist,
+  type Layout,
+} from "@/domain/project";
 import { formatCents, formatLength } from "@/domain/units";
 import { useProjectStore } from "@/state/project-store";
 
@@ -23,8 +29,10 @@ import { useProjectStore } from "@/state/project-store";
  */
 export function ProjectChecklist() {
   const products = useProjectStore((state) => state.project.products);
-  const instances = useProjectStore((state) => state.project.instances);
+  const instances = useProjectStore((state) => activeInstances(state.project));
   const unit = useProjectStore((state) => state.project.displayUnit);
+  const layouts = useProjectStore((state) => state.project.layouts);
+  const current = useProjectStore((state) => activeLayout(state.project));
   const setProducts = useProjectStore((state) => state.setProducts);
 
   const checklist = buildChecklist(products, instances);
@@ -130,6 +138,7 @@ export function ProjectChecklist() {
       </div>
 
       <Totals checklist={checklist} />
+      <Comparison layouts={layouts} activeId={current.id} products={products} />
       <Unplaced products={checklist.unplaced} />
     </div>
   );
@@ -182,6 +191,83 @@ function Total({
       >
         {value}
       </dd>
+    </div>
+  );
+}
+
+/**
+ * What the other arrangements would cost.
+ *
+ * The reason to keep a second layout is to find out whether the cheaper sofa
+ * makes a room you would rather live in, and that is a question with two
+ * numbers in it. One arrangement is priced above in full; the rest are here as
+ * the totals to weigh it against.
+ */
+function Comparison({
+  layouts,
+  activeId,
+  products,
+}: {
+  layouts: readonly Layout[];
+  activeId: string;
+  products: readonly FurnitureProduct[];
+}) {
+  if (layouts.length < 2) {
+    return null;
+  }
+
+  const priced = layouts.map((layout) => ({
+    layout,
+    checklist: buildChecklist(products, layout.instances),
+  }));
+  const cheapest = Math.min(
+    ...priced.map(({ checklist }) => checklist.totalCents),
+  );
+
+  return (
+    <div className="flex flex-col gap-3">
+      <h3 className="text-sm font-medium">Against the other arrangements</h3>
+      <table className="w-full border-collapse text-sm">
+        <thead>
+          <tr className="border-b border-black/10 text-left dark:border-white/15">
+            <Th>Arrangement</Th>
+            <Th>Pieces</Th>
+            <Th>Total</Th>
+            <Th>Still to buy</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {priced.map(({ layout, checklist }) => (
+            <tr
+              key={layout.id}
+              className="border-b border-black/5 dark:border-white/10"
+            >
+              <Td>
+                <span
+                  className={layout.id === activeId ? "font-medium" : undefined}
+                >
+                  {layout.name}
+                </span>
+                {layout.id === activeId ? (
+                  <span className="ml-2 text-xs opacity-60">priced above</span>
+                ) : null}
+              </Td>
+              <Td className="tabular-nums">{layout.instances.length}</Td>
+              <Td className="tabular-nums">
+                {formatCents(checklist.totalCents)}
+                {/* Named, not just formatted: a column of numbers does not
+                    say which one is the bargain. */}
+                {checklist.totalCents === cheapest && layouts.length > 1 ? (
+                  <span className="ml-2 text-xs opacity-60">least</span>
+                ) : null}
+              </Td>
+              <Td className="tabular-nums">
+                {formatCents(checklist.remainingCents)}
+              </Td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

@@ -11,10 +11,13 @@ import { create } from "zustand";
 import type { FurnitureInstance, FurnitureProduct } from "@/domain/furniture";
 import {
   createProject,
+  withActiveLayout,
   withDisplayUnit,
   withFloor,
   withInstances,
+  withLayouts,
   withProducts,
+  type Layout,
   type Project,
 } from "@/domain/project";
 import type { Floor } from "@/domain/room";
@@ -35,7 +38,10 @@ export type ProjectState = {
   setStatus: (status: ProjectStatus) => void;
   setFloor: (floor: Floor) => void;
   setProducts: (products: readonly FurnitureProduct[]) => void;
+  /** Replaces what is placed, in the layout being worked on. */
   setInstances: (instances: readonly FurnitureInstance[]) => void;
+  setLayouts: (layouts: readonly Layout[]) => void;
+  setActiveLayout: (id: string) => void;
   setDisplayUnit: (unit: DisplayUnit) => void;
 };
 
@@ -50,6 +56,10 @@ export const useProjectStore = create<ProjectState>((set) => ({
     set((state) => ({ project: withProducts(state.project, products) })),
   setInstances: (instances) =>
     set((state) => ({ project: withInstances(state.project, instances) })),
+  setLayouts: (layouts) =>
+    set((state) => ({ project: withLayouts(state.project, layouts) })),
+  setActiveLayout: (id) =>
+    set((state) => ({ project: withActiveLayout(state.project, id) })),
   setDisplayUnit: (unit) =>
     set((state) => ({ project: withDisplayUnit(state.project, unit) })),
 }));

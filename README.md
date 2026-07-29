@@ -51,7 +51,7 @@ about the furniture instead of the measurements.
 
 ## Where it is now
 
-**Roadmap steps 1–13 of 18 are done.** What works today:
+**Roadmap steps 1–14 of 18 are done.** What works today:
 
 - One workspace: what is in the apartment on the left, the plan in the middle,
   and whatever you select on the right. The plan pans and zooms — scroll to pan,
@@ -64,6 +64,8 @@ about the furniture instead of the measurements.
   dragging, by typing a position, or with the arrow keys.
 - Overlaps, wall crossings, and pieces outside the room, reported in words with
   the amount they are out by.
+- Named arrangements of the same apartment, switched from the top bar, each
+  priced so they can be weighed against each other.
 - A printable overview at `/overview` — quantity, price, link, and purchase
   status per item, with what the room costs and what is still to buy.
 - Protected walkways: routes that must stay clear, each with a width you need
@@ -72,8 +74,7 @@ about the furniture instead of the measurements.
   not yet on the page, and arrives with the workspace in step 13.
 - Everything saved in your browser, and nothing sent anywhere.
 
-Still to come, in this order: **one workspace instead of a page of forms**
-(step 13), comparing layouts (14), JSON and CSV export (15), the doorway and
+Still to come, in this order: JSON and CSV export (step 15), the doorway and
 clearance checks (16), the perspective view (17), and photorealism (18).
 
 [ROADMAP.md](ROADMAP.md) is a strict sequence, not a backlog. Steps 4 to 10 are

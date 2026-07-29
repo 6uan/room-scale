@@ -272,3 +272,122 @@ test.describe("the routes it keeps", () => {
     await expect(page).toHaveTitle(/RoomScale/);
   });
 });
+
+test.describe("comparing layouts", () => {
+  /** Two products in the catalogue, one of them placed. */
+  async function withASofa(page: Page) {
+    await page.goto("/");
+    await addProduct(page, {
+      name: "Sectional",
+      width: "94.5",
+      depth: "63",
+      price: "1999.00",
+    });
+    await addProduct(page, {
+      name: "Loveseat",
+      width: "60",
+      depth: "38",
+      price: "899.00",
+    });
+    await contents(page)
+      .getByRole("button", { name: "Place Sectional in the room" })
+      .click();
+  }
+
+  test("duplicates an arrangement and keeps both", async ({ page }) => {
+    await withASofa(page);
+
+    await page.getByRole("button", { name: "Duplicate" }).click();
+
+    // The copy is the one being worked on, and it holds the same furniture.
+    await expect(page.getByLabel("Layout name")).toHaveValue("Second try");
+    await expect(planImage(page)).toHaveAccessibleName(
+      /1 piece placed: Sectional/,
+    );
+    await expect(page.getByLabel("Layout", { exact: true })).toHaveValue(
+      /layout-2/,
+    );
+  });
+
+  test("changes one arrangement without touching the other", async ({
+    page,
+  }) => {
+    await withASofa(page);
+    await page.getByRole("button", { name: "Duplicate" }).click();
+
+    // In the copy, swap the sectional for the loveseat.
+    await contents(page)
+      .getByRole("button", { name: "Sectional", exact: true })
+      .click();
+    await details(page)
+      .getByRole("button", { name: "Take Sectional out of the room" })
+      .click();
+    await contents(page)
+      .getByRole("button", { name: "Place Loveseat in the room" })
+      .click();
+    await expect(planImage(page)).toHaveAccessibleName(
+      /1 piece placed: Loveseat/,
+    );
+
+    // The first arrangement still has the sectional in it.
+    await page.getByLabel("Layout", { exact: true }).selectOption({ index: 0 });
+    await expect(planImage(page)).toHaveAccessibleName(
+      /1 piece placed: Sectional/,
+    );
+  });
+
+  test("names an arrangement, and the name sticks across a reload", async ({
+    page,
+  }) => {
+    await withASofa(page);
+    await page.getByRole("button", { name: "Duplicate" }).click();
+
+    await page.getByLabel("Layout name").fill("Loveseat instead");
+    await page.waitForTimeout(500);
+    await page.reload();
+
+    await expect(page.getByLabel("Layout name")).toHaveValue(
+      "Loveseat instead",
+    );
+  });
+
+  test("prices each arrangement, so they can be weighed against each other", async ({
+    page,
+  }) => {
+    await withASofa(page);
+    await page.getByRole("button", { name: "Duplicate" }).click();
+    await contents(page)
+      .getByRole("button", { name: "Sectional", exact: true })
+      .click();
+    await details(page)
+      .getByRole("button", { name: "Take Sectional out of the room" })
+      .click();
+    await contents(page)
+      .getByRole("button", { name: "Place Loveseat in the room" })
+      .click();
+    await page.waitForTimeout(500);
+
+    await page.goto("/overview");
+
+    // The cheaper arrangement is named as such rather than left to arithmetic.
+    const comparison = page.getByRole("row", { name: /First try/ });
+    await expect(comparison).toContainText("$1,999.00");
+    await expect(page.getByRole("row", { name: /Second try/ })).toContainText(
+      "$899.00",
+    );
+    await expect(page.getByText("least")).toBeVisible();
+  });
+
+  test("deletes an arrangement, but never the last one", async ({ page }) => {
+    await page.goto("/");
+
+    // One layout: there is nothing to delete.
+    await expect(page.getByRole("button", { name: /^Delete/ })).toBeHidden();
+
+    await page.getByRole("button", { name: "Duplicate" }).click();
+    await page.getByRole("button", { name: "Delete Second try" }).click();
+
+    await expect(page.getByLabel("Layout name")).toHaveValue("First try");
+    await expect(page.getByRole("button", { name: /^Delete/ })).toBeHidden();
+  });
+});

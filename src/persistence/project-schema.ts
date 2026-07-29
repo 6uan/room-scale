@@ -23,8 +23,9 @@ import type { Project } from "@/domain/project";
  * 2. Added `instances` — copies of products placed in the room.
  * 3. Added `room.walkways` — routes that have to stay clear.
  * 4. The room became a floor: an apartment of rooms, each with a place on it.
+ * 5. Furniture moved into named layouts, so arrangements can be compared.
  */
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 /** Meters, cents, and the rest are all plain finite numbers on the way in. */
 const finiteNumber = z
@@ -99,10 +100,19 @@ const instanceSchema = z.object({
   rotationRadians: finiteNumber,
 });
 
+const layoutSchema = z.object({
+  id: z.string().min(1),
+  name: z.string(),
+  instances: z.array(instanceSchema),
+});
+
 const projectSchema = z.object({
   floor: floorSchema,
   products: z.array(productSchema),
-  instances: z.array(instanceSchema),
+  // At least one: a project with nowhere to put furniture is not a project,
+  // and every accessor is written knowing there is one to fall back to.
+  layouts: z.array(layoutSchema).min(1),
+  activeLayoutId: z.string().min(1),
   displayUnit: z.enum(["metric", "imperial"]),
 });
 
@@ -203,6 +213,34 @@ const MIGRATIONS: Record<number, (document: object) => object> = {
             },
           ],
         },
+      },
+    };
+  },
+  4: (document) => {
+    const project = projectOf(document) as Record<string, unknown>;
+    // The instances key itself goes: what it held is now inside a layout.
+    const rest = Object.fromEntries(
+      Object.entries(project).filter(([key]) => key !== "instances"),
+    );
+
+    // Version 5 gave furniture somewhere to live other than the project
+    // itself. What a version 4 project held was one arrangement that nobody
+    // had needed to name yet, so that is what it becomes.
+    return {
+      ...document,
+      version: 5,
+      project: {
+        ...rest,
+        layouts: [
+          {
+            id: "layout-1",
+            name: "First try",
+            instances: Array.isArray(project.instances)
+              ? project.instances
+              : [],
+          },
+        ],
+        activeLayoutId: "layout-1",
       },
     };
   },

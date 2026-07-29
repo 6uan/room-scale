@@ -14,7 +14,7 @@ Two rules keep the order honest:
   Steps 4 to 10 are that question end to end. Everything after them makes the
   answer nicer to look at.
 
-Status: **step 14 is next.**
+Status: **step 15 is next.**
 
 ---
 
@@ -383,16 +383,31 @@ forty tests describing a page of forms became seventeen describing a tool. The
 e2e build also moved to its own directory, having clobbered the dev server
 three times.
 
-### 14. Compare layouts ◀ next
+### 14. Compare layouts ✅
 
-Multiple named arrangements of the same apartment: save, duplicate, rename,
-switch, compare. Products are shared across layouts; instances belong to one.
-The switcher lives in the workspace's top bar.
+Done. Named arrangements of the same apartment, switched from the top bar:
+duplicate, rename, delete. Products are shared across every one of them —
+marking the rug owned marks it owned everywhere, because you only buy it once —
+and instances belong to a layout, which is the split ADR 0003 was made for.
 
-Done when: two arrangements of the same furniture can be looked at side by side
-without losing either.
+Two decisions the step's own text did not settle:
 
-### 15. Take the data elsewhere
+- **Switching, not two canvases.** "Side by side" could have meant two plans
+  drawn at once, each in half the space. What the comparison is actually for is
+  choosing between furniture, and that is a question about money and fit rather
+  than about seeing both drawings at the same instant.
+- **The comparison is the price.** Each arrangement's total sits in the
+  switcher, and the overview lists them all against each other with the
+  cheapest named. A number you have to navigate to is a number nobody checks.
+
+The stored document goes to version 5, migrating a version 4 project into a
+single arrangement called "First try" — which is what it always was.
+
+Not carried out of this step: a layout cannot be started from an empty floor,
+only duplicated from one that exists. Comparing two plans visually, if it is
+ever wanted, is a different feature from comparing two prices.
+
+### 15. Take the data elsewhere ◀ next
 
 JSON export and import for the whole project, CSV export for the checklist,
 offered from the overview — the page that already exists to be taken away.
