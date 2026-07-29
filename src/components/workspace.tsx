@@ -294,6 +294,9 @@ export function Workspace() {
               onInstanceChange={(instance) =>
                 setInstances(withInstance(instances, instance))
               }
+              selectedRoomId={selection?.kind === "room" ? selection.id : null}
+              onSelectRoom={(id) => setSelection({ kind: "room", id })}
+              onRoomChange={(room) => setFloor(withRoom(floor, room))}
               onDropProduct={(productId, at) => {
                 const product = products.find((one) => one.id === productId);
                 if (product !== undefined) {

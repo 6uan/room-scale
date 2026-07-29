@@ -38,7 +38,10 @@ import {
   floorBounds,
   openingEndpoints,
   pointOnFloor,
+  roomsAt,
+  snapRoomOrigin,
   wallOutwardNormal,
+  withOrigin,
   type Floor,
   type FloorVector,
   type Opening,
@@ -97,6 +100,10 @@ export type RoomPlanCanvasProps = {
   troubledIds: ReadonlySet<string>;
   onSelect: (instanceId: string | null) => void;
   onInstanceChange: (instance: FurnitureInstance) => void;
+  /** Which room is being worked on, so the plan can mark and move it. */
+  selectedRoomId?: string | null;
+  onSelectRoom?: (roomId: string) => void;
+  onRoomChange?: (room: Room) => void;
   /** A product dragged in from the catalogue, dropped where it was let go. */
   onDropProduct?: (productId: string, at: FloorPoint) => void;
 };
@@ -113,6 +120,13 @@ type Drag =
       readonly kind: "move";
       readonly pointerId: number;
       readonly instanceId: string;
+      readonly grabOffset: FloorPoint;
+    }
+  | {
+      readonly kind: "room";
+      readonly pointerId: number;
+      readonly roomId: string;
+      /** Where in the room it was grabbed, so it does not jump under the pointer. */
       readonly grabOffset: FloorPoint;
     }
   | {
@@ -143,6 +157,9 @@ export function RoomPlanCanvas({
   onSelect,
   onInstanceChange,
   onDropProduct,
+  selectedRoomId = null,
+  onSelectRoom,
+  onRoomChange,
 }: RoomPlanCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const dragRef = useRef<Drag | null>(null);
@@ -207,12 +224,22 @@ export function RoomPlanCanvas({
       furniture,
       unit,
       selectedId,
+      selectedRoomId,
       troubledIds,
       viewport: size,
       color: style.color,
       fontFamily: style.fontFamily,
     });
-  }, [floor, furniture, unit, selectedId, troubledIds, size, projection]);
+  }, [
+    floor,
+    furniture,
+    unit,
+    selectedId,
+    selectedRoomId,
+    troubledIds,
+    size,
+    projection,
+  ]);
 
   /** Wheel: pan, unless a modifier makes it a zoom toward the pointer. */
   function handleWheel(
@@ -279,12 +306,19 @@ export function RoomPlanCanvas({
 
     const box = canvas.getBoundingClientRect();
     const hit = furnitureAt(furniture, point);
+    // Furniture first: it stands on the room, so it is what you are pointing
+    // at when the two are in the same place. Rooms later in the list win over
+    // earlier ones, being the ones drawn on top.
+    const room = hit === null ? (roomsAt(floor, point).at(-1) ?? null) : null;
 
-    // Space held, the middle button, or empty floor: the view moves instead of
-    // anything in it. Grabbing the background to pan is what makes a canvas
-    // feel like a canvas.
-    if (panningRef.current || event.button === 1 || hit === null) {
-      if (hit === null && !panningRef.current) {
+    // Space held, the middle button, or floor with nothing on it: the view
+    // moves instead of anything in it.
+    if (
+      panningRef.current ||
+      event.button === 1 ||
+      (hit === null && room === null)
+    ) {
+      if (hit === null && room === null && !panningRef.current) {
         onSelect(null);
       }
       dragRef.current = {
@@ -294,6 +328,26 @@ export function RoomPlanCanvas({
       };
       setDragging(true);
       canvas.setPointerCapture?.(event.pointerId);
+      return;
+    }
+
+    if (hit === null && room !== null) {
+      onSelectRoom?.(room.id);
+      dragRef.current = {
+        kind: "room",
+        pointerId: event.pointerId,
+        roomId: room.id,
+        grabOffset: {
+          xMeters: point.xMeters - room.origin.xMeters,
+          zMeters: point.zMeters - room.origin.zMeters,
+        },
+      };
+      setDragging(true);
+      canvas.focus();
+      canvas.setPointerCapture?.(event.pointerId);
+      return;
+    }
+    if (hit === null) {
       return;
     }
 
@@ -318,6 +372,26 @@ export function RoomPlanCanvas({
     const drag = dragRef.current;
     const canvas = canvasRef.current;
     if (!drag || !canvas || drag.pointerId !== event.pointerId) {
+      return;
+    }
+
+    if (drag.kind === "room") {
+      const moving = floor.rooms.find((one) => one.id === drag.roomId);
+      const point = floorPointAt(canvas, floor, event, projectionRef.current);
+      if (moving === undefined || point === null) {
+        return;
+      }
+      // Snapped as it is dragged, so a room shares a wall by being brought up
+      // against one rather than by arithmetic.
+      onRoomChange?.(
+        withOrigin(
+          moving,
+          snapRoomOrigin(floor, moving, {
+            xMeters: point.xMeters - drag.grabOffset.xMeters,
+            zMeters: point.zMeters - drag.grabOffset.zMeters,
+          }),
+        ),
+      );
       return;
     }
 
@@ -587,6 +661,7 @@ type DrawOptions = {
   furniture: readonly PlacedFurniture[];
   unit: DisplayUnit;
   selectedId: string | null;
+  selectedRoomId: string | null;
   troubledIds: ReadonlySet<string>;
   viewport: PixelSize;
   color: string;
@@ -608,6 +683,7 @@ function drawPlan(
     furniture,
     unit,
     selectedId,
+    selectedRoomId,
     troubledIds,
     viewport,
     color,
@@ -659,6 +735,9 @@ function drawPlan(
 
   for (const room of floor.rooms) {
     drawRoomName(context, frame, room, fontFamily);
+    if (room.id === selectedRoomId) {
+      markSelectedRoom(context, frame, room);
+    }
   }
 
   // Under the furniture, because a route is floor rather than a thing standing
@@ -777,6 +856,28 @@ function drawRoomName(
   context.textAlign = "center";
   context.textBaseline = "middle";
   context.fillText(room.name, center.x, center.y);
+  context.restore();
+}
+
+/** The selected room, outlined inside its own walls. */
+function markSelectedRoom(
+  context: CanvasRenderingContext2D,
+  frame: PlanFrame,
+  room: Room,
+): void {
+  const inside = frame.toPixels(room.origin);
+  const width = spanPixels(frame, room.widthMeters);
+  const depth = spanPixels(frame, room.depthMeters);
+
+  context.save();
+  context.globalAlpha = SELECTED_FILL_ALPHA;
+  context.fillStyle = frame.color;
+  context.fillRect(inside.x, inside.y, width, depth);
+  context.globalAlpha = 1;
+  context.strokeStyle = frame.color;
+  context.lineWidth = 2;
+  context.setLineDash([6, 4]);
+  context.strokeRect(inside.x, inside.y, width, depth);
   context.restore();
 }
 

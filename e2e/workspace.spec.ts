@@ -477,6 +477,38 @@ test.describe("laying the apartment out", () => {
     await expect(planImage(page)).toHaveAccessibleName(/holding 2 rooms/);
   });
 
+  test("selects a room by clicking the plan, and drags it", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    const box = await planImage(page).boundingBox();
+    if (box === null) {
+      throw new Error("the plan has no box to point at");
+    }
+    const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+
+    // The living room is the only thing on the plan, and it is in the middle.
+    await page.mouse.click(centre.x, centre.y);
+    await expect(
+      details(page).getByRole("region", { name: "Living room" }),
+    ).toBeVisible();
+
+    const before = await details(page)
+      .getByLabel("Living room from west")
+      .inputValue();
+
+    await page.mouse.move(centre.x, centre.y);
+    await page.mouse.down();
+    await page.mouse.move(centre.x + 120, centre.y, { steps: 10 });
+    await page.mouse.up();
+
+    expect(
+      Number(
+        await details(page).getByLabel("Living room from west").inputValue(),
+      ),
+    ).toBeGreaterThan(Number(before));
+  });
+
   test("opens on numbers somebody could have measured", async ({ page }) => {
     await page.goto("/");
     await contents(page).getByRole("button", { name: "Living room" }).click();
