@@ -38,8 +38,10 @@ import {
   withOpenings,
   withRoom,
   withRooms,
+  type Opening,
   type OpeningKind,
   type Room,
+  type WallSide,
 } from "@/domain/room";
 import { checkLayout, troubledInstanceIds } from "@/domain/validation";
 import { useProjectStore } from "@/state/project-store";
@@ -79,6 +81,11 @@ export function Workspace() {
   const [guideOpen, setGuideOpen] = useState(false);
   /** Whether a drag on the plan draws a room. One room, then off again. */
   const [drawingRoom, setDrawingRoom] = useState(false);
+  /** The kind and room whose next wall click places one opening. */
+  const [placingOpening, setPlacingOpening] = useState<{
+    readonly roomId: string;
+    readonly kind: OpeningKind;
+  } | null>(null);
 
   const furniture = placedFurniture(instances, products);
   const problems = checkLayout(floor, furniture);
@@ -170,17 +177,57 @@ export function Workspace() {
     setSelection(null);
   }
 
-  function addOpening(room: Room, kind: OpeningKind): void {
+  function startOpeningPlacement(room: Room, kind: OpeningKind): void {
+    setDrawingRoom(false);
+    setPlacingOpening((current) =>
+      current?.roomId === room.id && current.kind === kind
+        ? null
+        : { roomId: room.id, kind },
+    );
+  }
+
+  function placeOpening(
+    roomId: string,
+    kind: OpeningKind,
+    wall: WallSide,
+    centerMeters: number,
+  ): void {
+    const room = floor.rooms.find((one) => one.id === roomId);
+    if (room === undefined) {
+      return;
+    }
     const id = nextId(
       "opening",
       floor.rooms.flatMap((one) => one.openings.map((opening) => opening.id)),
     );
+    const opening = createOpening(kind, id, room, wall, centerMeters);
+    setFloor(withRoom(floor, withOpenings(room, [...room.openings, opening])));
+    setSelection({ kind: "opening", roomId: room.id, id });
+  }
+
+  function changeOpening(room: Room, opening: Opening): void {
     setFloor(
       withRoom(
         floor,
-        withOpenings(room, [...room.openings, createOpening(kind, id, room)]),
+        withOpenings(
+          room,
+          room.openings.map((one) => (one.id === opening.id ? opening : one)),
+        ),
       ),
     );
+  }
+
+  function removeOpening(room: Room, opening: Opening): void {
+    setFloor(
+      withRoom(
+        floor,
+        withOpenings(
+          room,
+          room.openings.filter((one) => one.id !== opening.id),
+        ),
+      ),
+    );
+    setSelection(null);
   }
 
   /** Puts a product in the room, either where it was dropped or in the middle. */
@@ -214,6 +261,14 @@ export function Workspace() {
         const room = floor.rooms.find((one) => one.id === selection.id);
         if (room !== undefined) {
           removeRoom(room);
+        }
+        return;
+      }
+      case "opening": {
+        const room = floor.rooms.find((one) => one.id === selection.roomId);
+        const opening = room?.openings.find((one) => one.id === selection.id);
+        if (room !== undefined && opening !== undefined) {
+          removeOpening(room, opening);
         }
         return;
       }
@@ -276,9 +331,13 @@ export function Workspace() {
       // Before everything else: Escape gets somebody out of a mode from
       // wherever they are. The plan handles it too, but pressing "Add room"
       // leaves focus on the button rather than on the plan.
-      if (drawingRoom && pressIs("deselect", event)) {
+      if (
+        (drawingRoom || placingOpening !== null) &&
+        pressIs("deselect", event)
+      ) {
         event.preventDefault();
         setDrawingRoom(false);
+        setPlacingOpening(null);
       } else if (pressIs("undo", event)) {
         event.preventDefault();
         undo();
@@ -369,7 +428,10 @@ export function Workspace() {
             troubledIds={troubledIds}
             onSelect={setSelection}
             onRoomChange={(room) => setFloor(withRoom(floor, room))}
-            onAddRoom={() => setDrawingRoom((on) => !on)}
+            onAddRoom={() => {
+              setPlacingOpening(null);
+              setDrawingRoom((on) => !on);
+            }}
             drawingRoom={drawingRoom}
           />
           <CataloguePanel
@@ -398,6 +460,12 @@ export function Workspace() {
               }
               selectedRoomId={selection?.kind === "room" ? selection.id : null}
               onSelectRoom={(id) => setSelection({ kind: "room", id })}
+              selectedOpeningId={
+                selection?.kind === "opening" ? selection.id : null
+              }
+              onSelectOpening={(roomId, id) =>
+                setSelection({ kind: "opening", roomId, id })
+              }
               onRoomChange={(room, gesture) =>
                 setFloor(withRoom(floor, room), gesture)
               }
@@ -405,6 +473,9 @@ export function Workspace() {
               drawing={drawingRoom}
               onDrawRoom={drawRoom}
               onDrawEnd={() => setDrawingRoom(false)}
+              placingOpening={placingOpening}
+              onPlaceOpening={placeOpening}
+              onPlaceOpeningEnd={() => setPlacingOpening(null)}
               onDropProduct={(productId, at) => {
                 const product = products.find((one) => one.id === productId);
                 if (product !== undefined) {
@@ -446,7 +517,10 @@ export function Workspace() {
             }
             onGestureEnd={endGesture}
             onRoomRemove={removeRoom}
-            onAddOpening={addOpening}
+            onAddOpening={startOpeningPlacement}
+            placingOpening={placingOpening}
+            onOpeningChange={changeOpening}
+            onOpeningRemove={removeOpening}
             onInstanceChange={(instance: FurnitureInstance) =>
               setInstances(withInstance(instances, instance))
             }

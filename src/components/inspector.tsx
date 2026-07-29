@@ -1,6 +1,8 @@
 "use client";
 
 import { NumberField } from "@/components/number-field";
+import { openingName } from "@/components/opening-name";
+import { OpeningFields } from "@/components/room-openings-form";
 import { ProductForm } from "@/components/product-form";
 import { RoomFields } from "@/components/room-fields";
 import { PlacementFields } from "@/components/placement-fields";
@@ -17,6 +19,7 @@ import {
   floorAreaSquareMeters,
   floorBounds,
   type Floor,
+  type Opening,
   type OpeningKind,
   type Room,
 } from "@/domain/room";
@@ -43,6 +46,12 @@ export type InspectorProps = {
   onGestureEnd: () => void;
   onRoomRemove: (room: Room) => void;
   onAddOpening: (room: Room, kind: OpeningKind) => void;
+  placingOpening: {
+    readonly roomId: string;
+    readonly kind: OpeningKind;
+  } | null;
+  onOpeningChange: (room: Room, opening: Opening) => void;
+  onOpeningRemove: (room: Room, opening: Opening) => void;
   onInstanceChange: (instance: FurnitureInstance) => void;
   onInstanceRemove: (instance: FurnitureInstance) => void;
   onProductSave: (product: FurnitureProduct) => void;
@@ -70,6 +79,8 @@ export function Inspector(props: InspectorProps) {
         <FloorInspector {...props} />
       ) : selection.kind === "room" ? (
         <RoomInspector {...props} selection={selection} />
+      ) : selection.kind === "opening" ? (
+        <OpeningInspector {...props} selection={selection} />
       ) : selection.kind === "instance" ? (
         <InstanceInspector {...props} selection={selection} />
       ) : (
@@ -146,6 +157,7 @@ function RoomInspector({
   onGestureEnd,
   onRoomRemove,
   onAddOpening,
+  placingOpening,
 }: InspectorProps & { selection: { kind: "room"; id: string } }) {
   const room = floor.rooms.find((one) => one.id === selection.id);
   if (room === undefined) {
@@ -162,6 +174,37 @@ function RoomInspector({
         onGestureEnd={onGestureEnd}
         onRemove={() => onRoomRemove(room)}
         onAddOpening={(kind) => onAddOpening(room, kind)}
+        placingOpeningKind={
+          placingOpening?.roomId === room.id ? placingOpening.kind : null
+        }
+      />
+    </Panel>
+  );
+}
+
+function OpeningInspector({
+  floor,
+  unit,
+  selection,
+  onOpeningChange,
+  onOpeningRemove,
+}: InspectorProps & {
+  selection: { kind: "opening"; roomId: string; id: string };
+}) {
+  const room = floor.rooms.find((one) => one.id === selection.roomId);
+  const opening = room?.openings.find((one) => one.id === selection.id);
+  if (room === undefined || opening === undefined) {
+    return <Missing what="opening" />;
+  }
+
+  return (
+    <Panel title={openingName(room, opening)} subtitle="Opening">
+      <OpeningFields
+        room={room}
+        opening={opening}
+        unit={unit}
+        onChange={(next) => onOpeningChange(room, next)}
+        onRemove={() => onOpeningRemove(room, opening)}
       />
     </Panel>
   );

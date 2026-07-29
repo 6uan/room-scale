@@ -5,11 +5,16 @@ import {
   MIN_OPENING_METERS,
   checkOpening,
   createOpening,
+  metersAlongWall,
+  moveOpening,
+  openingAtPoint,
   openingEndpoints,
   openingRangeMeters,
   pointAlongWall,
+  resizeOpeningJamb,
   wallLengthMeters,
   wallOutwardNormal,
+  wallPlacementAt,
   withOpeningWall,
   type Opening,
 } from "./openings";
@@ -71,6 +76,35 @@ describe("opening placement", () => {
 
     expect(start).toEqual({ xMeters: 4, zMeters: 1 });
     expect(end).toEqual({ xMeters: 4, zMeters: 2 });
+  });
+
+  it("measures pointer positions along horizontal and vertical walls", () => {
+    const point = { xMeters: 1.25, zMeters: 2.5 };
+
+    expect(metersAlongWall("north", point)).toBe(1.25);
+    expect(metersAlongWall("east", point)).toBe(2.5);
+  });
+
+  it("finds the nearest wall within the pointer's reach", () => {
+    expect(
+      wallPlacementAt(ROOM, { xMeters: 1.25, zMeters: -0.05 }, 0.1),
+    ).toEqual({ wall: "north", alongMeters: 1.25 });
+    expect(wallPlacementAt(ROOM, { xMeters: 4.04, zMeters: 2.5 }, 0.1)).toEqual(
+      { wall: "east", alongMeters: 2.5 },
+    );
+    expect(wallPlacementAt(ROOM, { xMeters: 2, zMeters: 1.5 }, 0.1)).toBeNull();
+  });
+
+  it("finds an opening through the gap it cuts in its wall", () => {
+    const opening = passage({ centerMeters: 2, widthMeters: 1 });
+    const room = { ...ROOM, openings: [opening] };
+
+    expect(openingAtPoint(room, { xMeters: 2.4, zMeters: 0.04 }, 0.1)).toEqual(
+      opening,
+    );
+    expect(
+      openingAtPoint(room, { xMeters: 0.5, zMeters: 0.04 }, 0.1),
+    ).toBeNull();
   });
 });
 
@@ -138,6 +172,14 @@ describe("createOpening", () => {
     expect(passageOpening.widthMeters).toBe(0.8);
     expect(checkOpening(narrow, passageOpening)).toBeNull();
   });
+
+  it("places a new opening where the wall was clicked", () => {
+    const door = createOpening("door", "d1", ROOM, "south", 0.25);
+
+    expect(door.wall).toBe("south");
+    expect(door.centerMeters).toBeCloseTo(door.widthMeters / 2, 10);
+    expect(checkOpening(ROOM, door)).toBeNull();
+  });
 });
 
 describe("withOpeningWall", () => {
@@ -158,5 +200,44 @@ describe("withOpeningWall", () => {
     const moved = withOpeningWall(ROOM, passage({ centerMeters: 1.5 }), "east");
 
     expect(moved.centerMeters).toBe(1.5);
+  });
+});
+
+describe("pointer editing", () => {
+  it("moves an opening along its wall and stops at either corner", () => {
+    const opening = passage({ centerMeters: 2, widthMeters: 1 });
+
+    expect(moveOpening(ROOM, opening, 2.75).centerMeters).toBe(2.75);
+    expect(moveOpening(ROOM, opening, -2).centerMeters).toBe(0.5);
+    expect(moveOpening(ROOM, opening, 9).centerMeters).toBe(3.5);
+  });
+
+  it("resizes from one jamb while leaving the other in place", () => {
+    const opening = passage({ centerMeters: 2, widthMeters: 1 });
+
+    const fromStart = resizeOpeningJamb(ROOM, opening, "start", 1);
+    expect(openingRangeMeters(fromStart)).toEqual({
+      startMeters: 1,
+      endMeters: 2.5,
+    });
+
+    const fromEnd = resizeOpeningJamb(ROOM, opening, "end", 3);
+    expect(openingRangeMeters(fromEnd)).toEqual({
+      startMeters: 1.5,
+      endMeters: 3,
+    });
+  });
+
+  it("keeps a resized jamb on the wall and preserves the minimum width", () => {
+    const opening = passage({ centerMeters: 2, widthMeters: 1 });
+
+    const pastStart = resizeOpeningJamb(ROOM, opening, "start", -5);
+    expect(openingRangeMeters(pastStart).startMeters).toBe(0);
+
+    const throughEnd = resizeOpeningJamb(ROOM, opening, "start", 9);
+    expect(throughEnd.widthMeters).toBeCloseTo(MIN_OPENING_METERS, 10);
+
+    const pastEnd = resizeOpeningJamb(ROOM, opening, "end", 9);
+    expect(openingRangeMeters(pastEnd).endMeters).toBe(4);
   });
 });

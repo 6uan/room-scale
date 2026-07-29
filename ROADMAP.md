@@ -14,7 +14,7 @@ Two rules keep the order honest:
   Steps 4 to 10 are that question end to end. Everything after them makes the
   answer nicer to look at.
 
-Status: **step 17b is next.**
+Status: **step 18, first slice is next.**
 
 ## Near-term pull requests
 
@@ -26,8 +26,8 @@ calendar time.
 | Order                 | Pull request boundary                                                                                                            | ROI         | Impact      | Why it is here                                                                                                   |
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------- | ----------- | ---------------------------------------------------------------------------------------------------------------- |
 | Done — #24            | Draw rooms directly; rename them in place; edit and scrub X/Y and W/H/D; remove the retired planning feature and its stored data | **Highest** | **High**    | It turns room entry into one coherent, pointer-first workflow and removes scope that distracts from furnishing.  |
-| Current follow-up     | Snap canvas resizing and scrubbed W/D changes to neighbouring room faces through one shared rule                                 | **Highest** | Medium      | Small, contained work that closes the last inconsistent transform path before more geometry is added.            |
-| Then — step 17b       | Place, select, move, and resize doors, windows, and passages on the plan while keeping every value typeable                      | **Highest** | **Highest** | Fourteen openings are the largest remaining source of repetitive arithmetic in entering the real apartment.      |
+| Done — #25            | Snap canvas resizing and scrubbed W/D changes to neighbouring room faces through one shared rule                                 | **Highest** | Medium      | Small, contained work that closes the last inconsistent transform path before more geometry is added.            |
+| Current — step 17b    | Place, select, move, and resize doors, windows, and passages on the plan while keeping every value typeable                      | **Highest** | **Highest** | Fourteen openings are the largest remaining source of repetitive arithmetic in entering the real apartment.      |
 | Step 18, first slice  | Build an L-shaped or notched room from multiple axis-aligned rectangular parts, including persistence and validation             | **High**    | **Highest** | This expresses most currently impossible rooms without taking on rotation at the same time.                      |
 | Step 18, second slice | Rotate room parts for diagonal walls                                                                                             | Medium      | High        | Required for the real plan, but only after the higher-leverage rectangular-part model is proven.                 |
 | Step 18, final slice  | Mark edges open and distinguish exterior from interior wall thickness                                                            | Medium      | High        | Completes balconies, open living areas, and an honest apartment shell without bloating the first room-parts PR.  |
@@ -543,7 +543,7 @@ gesture down through every field, which is worth doing when it annoys somebody
 rather than now. Undo also does not restore what was selected, for the same
 reason selection was never saved: it is not part of the project.
 
-### 17. Draw the plan instead of typing it ◀ 17a only
+### 17. Draw the plan instead of typing it ✅
 
 Recreating a real floor plan today is fifteen rounds of press "Add room", drag
 it across from wherever it landed, resize it, then type each door's distance
@@ -584,23 +584,28 @@ Three decisions the step's own text did not settle:
 `nextRoomOrigin` left with this: nothing puts a room east of everything any
 more.
 
-**17b — An opening is placed on the wall it belongs to.** Click a wall and a
-door goes there; drag it along the wall to move it; drag a jamb to widen it.
-The distance-from-the-corner field stays, because 32 inches is a figure
-somebody measured — but nobody should have to compute where along a wall that
-is in order to see a door appear.
+**17b — An opening is placed on the wall it belongs to. ✅** Done. A room's
+door, window, or passage button arms the plan for one wall click. The opening
+lands where it was clicked, stays selected, and the mode ends; like drawing a
+room, it does one concrete thing and then gives the plan back.
 
-Openings will want a place in the left-hand list at the same time. There are
-fourteen of them in the real plan and today the only way to reach one is to
-select its room first and find it in that room's own form.
+Every opening is now a row beneath its room in the Apartment list and a thing
+the canvas can hit-test. Drag the gap to move it along its wall, or select it
+and drag either jamb to resize it while the other jamb stays put. Pointer
+changes land on a value in the display unit and stop at corners or at the
+minimum opening width. The center and width fields remain the exact path:
+typing a measured number neither snaps nor approximates it, and the drawing
+follows.
 
-Openings are already cut from the finished wall band rather than room by room,
-so a door dropped on a shared wall opens through both rooms without being
-entered twice. That is the property this step is spending.
+Wall picking and opening transforms are pure room geometry with unit tests.
+The canvas supplies a fixed pixel reach converted through its current
+projection, so a wall and a jamb remain possible to hit at any zoom. Placement
+is scoped to the room whose button armed it; on a shared wall this avoids
+storing the same opening twice, while the existing finished-wall punch order
+still cuts it through both rooms.
 
-Done when: the apartment's rooms and its doors and windows can be laid down
-with a pointer, every one of them still shows its measurements, and typing a
-number still moves what the pointer drew.
+Not carried out of this step: **blocked-opening validation**, which remains
+step 19, and **multi-part rooms**, which begin in step 18.
 
 ### 18. Rooms that are not rectangles
 
