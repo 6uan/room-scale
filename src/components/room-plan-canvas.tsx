@@ -337,6 +337,16 @@ export function RoomPlanCanvas({
       return;
     }
 
+    // The view stops fitting itself the moment anything is dragged.
+    //
+    // While it fits, growing a room grows the apartment, which rescales the
+    // plan, which moves the floor point under a pointer that has not itself
+    // moved — so the room grows again, and a wall dragged outward runs away
+    // from the hand dragging it. Pinning the transform for the drag makes a
+    // pixel worth the same distance from the first frame to the last. Zoom to
+    // fit is one key away when the apartment has finished changing shape.
+    setView(projectionRef.current);
+
     const box = canvas.getBoundingClientRect();
 
     const grabbed = handleAt(

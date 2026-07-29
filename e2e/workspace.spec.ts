@@ -565,7 +565,13 @@ test.describe("laying the apartment out", () => {
     const width = Number(
       await room.getByLabel("Living room width").inputValue(),
     );
-    expect(width).toBeGreaterThan(168);
+    // Sixty pixels is worth a fixed number of inches, and the room grew by
+    // that and no more. It used to grow by far more: the plan was still
+    // fitting itself, so every inch of room zoomed the view out and moved the
+    // floor out from under a pointer that had not itself moved.
+    const expected = 168 + 60 / scale / 0.0254;
+    expect(width).toBeGreaterThan(expected - 2);
+    expect(width).toBeLessThan(expected + 2);
     // Whole inches, not the seven decimals a pixel would give.
     expect(width % 1).toBe(0);
     // The east wall moved; the west one did not.
