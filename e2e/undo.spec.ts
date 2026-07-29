@@ -8,6 +8,16 @@ function details(page: Page) {
   return page.getByRole("complementary", { name: "Details" });
 }
 
+/** "Add room" arms the plan; a click on it drops one. See workspace.spec. */
+async function addRoom(page: Page) {
+  await contents(page).getByRole("button", { name: "Add room" }).click();
+  const box = await page.getByRole("img", { name: /^Plan view/ }).boundingBox();
+  if (box === null) {
+    throw new Error("the plan has no box to point at");
+  }
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+}
+
 function undoButton(page: Page) {
   return page.getByRole("button", { name: "Undo" });
 }
@@ -24,7 +34,7 @@ test.describe("taking it back", () => {
 
   test("brings a deleted room back", async ({ page }) => {
     await page.goto("/");
-    await contents(page).getByRole("button", { name: "Add room" }).click();
+    await addRoom(page);
     const room = contents(page).getByRole("button", { name: "Room 2" });
     await expect(room).toBeVisible();
 
@@ -59,9 +69,34 @@ test.describe("taking it back", () => {
     await expect(width).toHaveValue(before);
   });
 
+  test("takes a scrubbed dimension back in one step", async ({ page }) => {
+    await page.goto("/");
+    await contents(page).getByRole("button", { name: "Living room" }).click();
+
+    const inspector = details(page);
+    const width = inspector.getByLabel("Living room width");
+    const scrubber = inspector.getByRole("slider", {
+      name: "W drag handle",
+    });
+    const box = await scrubber.boundingBox();
+    if (box === null) {
+      throw new Error("the width scrubber has no box to drag");
+    }
+
+    const y = box.y + box.height / 2;
+    await page.mouse.move(box.x + box.width / 2, y);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 12, y, { steps: 4 });
+    await page.mouse.up();
+
+    await expect(width).toHaveValue("180");
+    await undoButton(page).click();
+    await expect(width).toHaveValue("168");
+  });
+
   test("puts back what was taken back", async ({ page }) => {
     await page.goto("/");
-    await contents(page).getByRole("button", { name: "Add room" }).click();
+    await addRoom(page);
     await expect(
       contents(page).getByRole("button", { name: "Room 2" }),
     ).toBeVisible();

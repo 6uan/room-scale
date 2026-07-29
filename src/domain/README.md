@@ -10,7 +10,7 @@ without a browser.
 | `furniture/`  | Furniture products: dimensions, price, retailer, purchase status. |
 | `project/`    | The saved document: floor, products, unit, and the checklist.     |
 | `import/`     | Reading a product out of the text of the page selling it.         |
-| `geometry/`   | Oriented rectangles, SAT intersection, clearance zones.           |
+| `geometry/`   | Oriented rectangles, SAT intersection, bounds, and projection.    |
 | `validation/` | Rules that turn geometry facts into user-facing problems.         |
 
 Rules:

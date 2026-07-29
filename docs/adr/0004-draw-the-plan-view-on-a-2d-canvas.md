@@ -24,9 +24,8 @@ in unit tests the drawing does not happen at all.
 
 Canvas earns its place later. Step 7 adds pointer dragging, step 9 draws
 per-frame validation feedback, and step 14 fills the room with furniture, each
-piece with a footprint, a clearance zone, and a selection state. That is a
-per-frame repaint of many shapes, which is what canvas is for and what a growing
-SVG tree is not.
+piece with a footprint and a selection state. That is a per-frame repaint of
+many shapes, which is what canvas is for and what a growing SVG tree is not.
 
 ## Decision
 

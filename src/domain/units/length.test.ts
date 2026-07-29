@@ -31,7 +31,6 @@ describe("length conversions", () => {
   });
 
   it("converts feet and inches to meters", () => {
-    // The demo walkway minimum: 36 inches.
     expect(metersFromFeetAndInches(3)).toBeCloseTo(0.9144, 10);
     expect(metersFromFeetAndInches(3, 6)).toBeCloseTo(1.0668, 10);
   });

@@ -21,11 +21,12 @@ import type { Project } from "@/domain/project";
  *
  * 1. Room, products, and the display-unit preference.
  * 2. Added `instances` — copies of products placed in the room.
- * 3. Added `room.walkways` — routes that have to stay clear.
+ * 3. Historical document revision.
  * 4. The room became a floor: an apartment of rooms, each with a place on it.
  * 5. Furniture moved into named layouts, so arrangements can be compared.
+ * 6. Removed a retired floor-planning field.
  */
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 /** Meters, cents, and the rest are all plain finite numbers on the way in. */
 const finiteNumber = z
@@ -54,15 +55,6 @@ const openingSchema = z.discriminatedUnion("kind", [
   z.object({ ...openingFields, kind: z.literal("passage") }),
 ]);
 
-const walkwaySchema = z.object({
-  id: z.string().min(1),
-  name: z.string(),
-  start: z.object({ xMeters: finiteNumber, zMeters: finiteNumber }),
-  end: z.object({ xMeters: finiteNumber, zMeters: finiteNumber }),
-  minimumWidthMeters: finiteNumber,
-  preferredWidthMeters: finiteNumber,
-});
-
 const roomSchema = z.object({
   id: z.string().min(1),
   name: z.string(),
@@ -76,7 +68,6 @@ const roomSchema = z.object({
 const floorSchema = z.object({
   wallThicknessMeters: finiteNumber,
   rooms: z.array(roomSchema),
-  walkways: z.array(walkwaySchema),
 });
 
 const productSchema = z.object({
@@ -174,11 +165,7 @@ const MIGRATIONS: Record<number, (document: object) => object> = {
     return {
       ...document,
       version: 3,
-      // Version 3 added protected walkways, which live on the room beside its
-      // openings. Nobody had drawn one, so the list is empty rather than
-      // guessed at — a route invented here would be a red band across a plan
-      // its owner never asked for.
-      project: { ...project, room: { ...roomOf(project), walkways: [] } },
+      project,
     };
   },
   3: (document) => {
@@ -191,8 +178,7 @@ const MIGRATIONS: Record<number, (document: object) => object> = {
 
     // Version 4 made the apartment the unit of work. A version 3 project was
     // an apartment of exactly one room standing at the origin, which is what
-    // it always was — the wall thickness and the routes belonged to the whole
-    // place rather than to that room, so they move up to the floor.
+    // it always was.
     return {
       ...document,
       version: 4,
@@ -200,7 +186,6 @@ const MIGRATIONS: Record<number, (document: object) => object> = {
         ...rest,
         floor: {
           wallThicknessMeters: room.wallThicknessMeters,
-          walkways: Array.isArray(room.walkways) ? room.walkways : [],
           rooms: [
             {
               id: "room-1",
@@ -244,6 +229,8 @@ const MIGRATIONS: Record<number, (document: object) => object> = {
       },
     };
   },
+  // Parsing the next version strips fields its floor no longer recognizes.
+  5: (document) => ({ ...document, version: 6 }),
 };
 
 /**

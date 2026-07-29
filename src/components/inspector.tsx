@@ -4,7 +4,6 @@ import { NumberField } from "@/components/number-field";
 import { ProductForm } from "@/components/product-form";
 import { RoomFields } from "@/components/room-fields";
 import { PlacementFields } from "@/components/placement-fields";
-import { WalkwayFields } from "@/components/walkway-fields";
 import { UnitToggle } from "@/components/unit-toggle";
 import type { Selection } from "@/components/selection";
 import {
@@ -20,7 +19,6 @@ import {
   type Floor,
   type OpeningKind,
   type Room,
-  type Walkway,
 } from "@/domain/room";
 import {
   formatArea,
@@ -41,12 +39,12 @@ export type InspectorProps = {
   onSelect: (selection: Selection) => void;
   onFloorChange: (floor: Floor) => void;
   onUnitChange: (unit: DisplayUnit) => void;
-  onRoomChange: (room: Room) => void;
+  onRoomChange: (room: Room, gesture?: string) => void;
+  onGestureEnd: () => void;
   onRoomRemove: (room: Room) => void;
   onAddOpening: (room: Room, kind: OpeningKind) => void;
   onInstanceChange: (instance: FurnitureInstance) => void;
   onInstanceRemove: (instance: FurnitureInstance) => void;
-  onWalkwaysChange: (walkways: readonly Walkway[]) => void;
   onProductSave: (product: FurnitureProduct) => void;
   onProductRemove: (product: FurnitureProduct) => void;
   productProblem: string | null;
@@ -58,10 +56,10 @@ export type InspectorProps = {
  * Whatever is selected, in full.
  *
  * One panel rather than a form per thing, because at any moment there is one
- * question being asked — how big is this room, where does this sofa stand, how
- * wide does this route have to be — and the answer belongs in the same place
- * every time. Nothing selected is not an empty panel: it is the apartment
- * itself, which is what you were looking at anyway.
+ * question being asked — how big is this room, or where does this sofa stand —
+ * and the answer belongs in the same place every time. Nothing selected is not
+ * an empty panel: it is the apartment itself, which is what you were looking at
+ * anyway.
  */
 export function Inspector(props: InspectorProps) {
   const { selection } = props;
@@ -74,8 +72,6 @@ export function Inspector(props: InspectorProps) {
         <RoomInspector {...props} selection={selection} />
       ) : selection.kind === "instance" ? (
         <InstanceInspector {...props} selection={selection} />
-      ) : selection.kind === "walkway" ? (
-        <WalkwayInspector {...props} selection={selection} />
       ) : (
         <ProductInspector {...props} selection={selection} />
       )}
@@ -117,7 +113,7 @@ function FloorInspector({
   return (
     <Panel
       title="Apartment"
-      subtitle="Select a room, a piece of furniture, or a route to edit it."
+      subtitle="Select a room or a piece of furniture to edit it."
     >
       <UnitToggle unit={unit} onUnitChange={onUnitChange} />
       <NumberField
@@ -147,6 +143,7 @@ function RoomInspector({
   unit,
   selection,
   onRoomChange,
+  onGestureEnd,
   onRoomRemove,
   onAddOpening,
 }: InspectorProps & { selection: { kind: "room"; id: string } }) {
@@ -156,12 +153,13 @@ function RoomInspector({
   }
 
   return (
-    <Panel title={room.name === "" ? "Room" : room.name} subtitle="Room">
+    <Panel title={room.name === "" ? "Unnamed room" : room.name}>
       <RoomFields
         floor={floor}
         room={room}
         unit={unit}
         onChange={onRoomChange}
+        onGestureEnd={onGestureEnd}
         onRemove={() => onRoomRemove(room)}
         onAddOpening={(kind) => onAddOpening(room, kind)}
       />
@@ -231,41 +229,6 @@ function InstanceInspector({
       >
         Take out of the room
       </button>
-    </Panel>
-  );
-}
-
-function WalkwayInspector({
-  floor,
-  unit,
-  selection,
-  onWalkwaysChange,
-}: InspectorProps & { selection: { kind: "walkway"; id: string } }) {
-  const walkway = floor.walkways.find((one) => one.id === selection.id);
-  if (walkway === undefined) {
-    return <Missing what="route" />;
-  }
-
-  return (
-    <Panel
-      title={walkway.name === "" ? "Route" : walkway.name}
-      subtitle="Route"
-    >
-      <WalkwayFields
-        walkway={walkway}
-        floor={floor}
-        unit={unit}
-        onChange={(next) =>
-          onWalkwaysChange(
-            floor.walkways.map((one) => (one.id === next.id ? next : one)),
-          )
-        }
-        onRemove={() =>
-          onWalkwaysChange(
-            floor.walkways.filter((one) => one.id !== walkway.id),
-          )
-        }
-      />
     </Panel>
   );
 }

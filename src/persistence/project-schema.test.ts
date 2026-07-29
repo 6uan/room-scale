@@ -98,11 +98,9 @@ describe("readStoredProject", () => {
       1,
     );
     expect(result.ok && result.project.displayUnit).toBe("imperial");
-    // And it came all the way forward, not just one step.
-    expect(result.ok && result.project.floor.walkways).toEqual([]);
   });
 
-  it("upgrades a version 2 document, which predates protected walkways", () => {
+  it("upgrades a version 2 document", () => {
     // Captured from the version 2 schema, exactly as it sat in IndexedDB.
     const version2 = {
       id: "current",
@@ -151,9 +149,6 @@ describe("readStoredProject", () => {
     const result = readStoredProject(version2);
 
     expect(result.ok).toBe(true);
-    // Nobody had drawn a route, so there are none — not a guessed one across
-    // the middle of a room whose owner never asked for it.
-    expect(result.ok && result.project.floor.walkways).toEqual([]);
     // The room the document did describe is untouched.
     expect(result.ok && result.project.floor.rooms[0]?.openings).toHaveLength(
       1,
@@ -182,7 +177,6 @@ describe("readStoredProject", () => {
               openings: [],
             },
           ],
-          walkways: [],
         },
         products: [
           {
@@ -221,6 +215,29 @@ describe("readStoredProject", () => {
     expect(
       result.ok && result.project.layouts[0]?.instances[0]?.position,
     ).toEqual({ xMeters: 2.1, zMeters: 1.8 });
+  });
+
+  it("drops retired floor data when upgrading a version 5 document", () => {
+    const project = createProject();
+    const version5 = {
+      id: "current",
+      version: 5,
+      updatedAt: 1_700_000_000_000,
+      project: {
+        ...project,
+        floor: {
+          ...project.floor,
+          retiredFloorData: [{ id: "legacy-1" }],
+        },
+      },
+    };
+
+    const result = readStoredProject(version5);
+
+    expect(result).toEqual({ ok: true, project });
+    expect(
+      result.ok && "retiredFloorData" in (result.project.floor as object),
+    ).toBe(false);
   });
 
   it("refuses a project with no layout to put furniture in", () => {

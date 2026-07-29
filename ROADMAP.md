@@ -14,7 +14,28 @@ Two rules keep the order honest:
   Steps 4 to 10 are that question end to end. Everything after them makes the
   answer nicer to look at.
 
-Status: **step 18 is next.**
+Status: **finish room-size snapping, then step 17b.**
+
+## Near-term pull requests
+
+**Impact** is how much of the real apartment or furnishing decision a change
+unlocks. **ROI** weighs that impact against implementation cost and risk. These
+ratings compare the remaining work with itself; they are not promises about
+calendar time.
+
+| Order                 | Pull request boundary                                                                                                            | ROI         | Impact      | Why it is here                                                                                                   |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------- | ----------- | ---------------------------------------------------------------------------------------------------------------- |
+| Current — #24         | Draw rooms directly; rename them in place; edit and scrub X/Y and W/H/D; remove the retired planning feature and its stored data | **Highest** | **High**    | It turns room entry into one coherent, pointer-first workflow and removes scope that distracts from furnishing.  |
+| Next                  | Snap scrubbed W/D changes to neighbouring room faces, matching canvas resize and X/Y movement                                    | **Highest** | Medium      | Small, contained work that closes the one inconsistent transform path before more geometry is added.             |
+| Then — step 17b       | Place, select, move, and resize doors, windows, and passages on the plan while keeping every value typeable                      | **Highest** | **Highest** | Fourteen openings are the largest remaining source of repetitive arithmetic in entering the real apartment.      |
+| Step 18, first slice  | Build an L-shaped or notched room from multiple axis-aligned rectangular parts, including persistence and validation             | **High**    | **Highest** | This expresses most currently impossible rooms without taking on rotation at the same time.                      |
+| Step 18, second slice | Rotate room parts for diagonal walls                                                                                             | Medium      | High        | Required for the real plan, but only after the higher-leverage rectangular-part model is proven.                 |
+| Step 18, final slice  | Mark edges open and distinguish exterior from interior wall thickness                                                            | Medium      | High        | Completes balconies, open living areas, and an honest apartment shell without bloating the first room-parts PR.  |
+| Step 19               | Report furniture that blocks a door or passage                                                                                   | **High**    | **High**    | Once openings are correctly placed, this directly prevents a bad furnishing decision with bounded geometry work. |
+| Deferred import       | Try a pasted product URL, with the existing paste-text flow as the permanent fallback                                            | Medium      | Medium      | It can remove typing on cooperative sites, but retailer rendering and anti-bot behavior cap its reliability.     |
+| Step 20               | Add the dimensionally correct perspective view                                                                                   | Medium      | Medium      | It increases confidence and comprehension, but does not unlock a measurement the plan cannot already answer.     |
+| Optional import       | Try a local model when deterministic product parsing fails                                                                       | Low         | Low         | Setup cost and limited audience make this a fallback, not a near-term product dependency.                        |
+| Step 21               | Add materials, lighting, finishes, and eventually product geometry in separate stages                                            | Low now     | Medium      | Valuable presentation work, deliberately last because it cannot improve dimensional correctness.                 |
 
 ---
 
@@ -117,7 +138,7 @@ to prefer — the JSON-LD step was dropped. And it reads rendered text rather
 than HTML, because retail markup is full of stylesheet lengths and script
 numbers that look exactly like measurements.
 
-**6b — Paste a link.** A Next route handler fetches the page
+**6b — Paste a link.** A Next server endpoint fetches the page
 server-side, since a browser cannot fetch cross-origin, strips it to text, and
 runs the same parser. Both pages tried so far return 200, but Target's is a
 JavaScript shell whose markup carries no title, price, or dimensions — so this
@@ -198,9 +219,8 @@ because a console pushed against a sofa is a legitimate arrangement and a
 retailer's rounded inches are not precise enough to argue about less.
 
 Not carried out of this step: **blocked openings**. `AGENTS.md` lists them under
-validation but no step ever scheduled them, and a door needs its swing treated
-as a clearance zone — which is step 11's machinery. They belong there, and step
-11's text now says so.
+validation, but they depend on doors being placed correctly on the finished
+apartment plan. They are scheduled after the drawing steps.
 
 ### 10. Add the checklist and the budget ✅
 
@@ -230,48 +250,7 @@ standing in the plan".
 
 ## Making it usable for real
 
-### 11. Keep the routes clear ✅
-
-Two halves, each shipping on its own and in this order. They share one idea —
-a zone furniture has to stay out of — which is why they are one step.
-
-**11a — Protected walkways. ✅** Done. User-drawn routes that must stay clear, each with
-a minimum and a preferred width. A route is a line across the floor with a
-width, which makes it an oriented rectangle: the same shape step 9 already
-measures. Anything intruding is reported with the width it leaves behind and
-the shortfall against the minimum, in the reader's unit.
-
-The route from the living room to the guest room is the case that matters: at
-least 36 inches, 42 preferred.
-
-A route is stored on the room beside its openings, so the same routes hold for
-every layout step 12 will add. The document went to version 3, migrated from a
-version 2 payload with no routes rather than a guessed one.
-
-Measuring the width left is more than an intersection: in the corridor's own
-frame each intruder covers a band across a stretch, and sweeping the stretches
-finds the narrowest gap. Merging every intruder at once would have been simpler
-and wrong — a sofa at one end and a console at the other, on opposite sides,
-would report a corridor far narrower than the one you can walk down.
-
-Not carried out of this step: **the form is not mounted.** The rules are live —
-a project holding a route is measured against it and reported in the fit list —
-but `/plan`'s left-hand column already holds dimensions, furniture, placements
-and openings, and a fifth section would have made the case for step 14 by being
-unusable. `RoomWalkwaysForm` is written and tested; step 14 gives it somewhere
-to live. A route's ends are typed rather than dragged for the same reason the
-numbers came first: 36 inches is a figure somebody has been told, not one they
-can eyeball.
-
-**Blocked openings moved to step 20.** `AGENTS.md` lists them under validation and step 9
-deliberately left them: a door needs the arc it sweeps treated as a zone that
-must stay clear, which is 11a's machinery pointed at a door instead of a
-hallway. A piece standing in a doorway is a blocked route by another name.
-
-Done when: a console in front of the door says the door cannot open, and moving
-it six inches says the door clears it.
-
-### 12. Build the apartment out of rooms ✅
+### 11. Build the apartment out of rooms ✅
 
 A floor plan is a whole apartment, and until now RoomScale has drawn one
 rectangle. A sofa that fits the living room and blocks the hall is the wrong
@@ -291,9 +270,6 @@ Decisions this step makes, and why:
 - **Wall thickness belongs to the floor, not the room.** An apartment has one
   wall thickness, and asking for it per room would be asking the same question
   five times.
-- **Walkways move from the room to the floor.** The route that matters runs from
-  the living room to the guest room, and a route that cannot leave a room is not
-  the route anybody meant.
 - **Furniture is placed on the floor**, and the room it is in is worked out from
   where it sits. A rug half in the hallway is a real thing to do, and a piece
   owned by a room could not express it.
@@ -316,27 +292,26 @@ meeting exactly is a matter of typing the same number twice. Snapping wants a
 pointer, and rooms cannot be dragged yet either — both belong with the
 workspace.
 
-### 13. Make it one workspace ✅
+### 12. Make it one workspace ✅
 
 The plan is a third of the screen and everything else is a column you scroll
-past. Rooms made that worse, and the walkway form is sitting on `main`
-unmounted because there was nowhere honest to put it. The shape of the
-interface is now the thing holding the tool back.
+past. Rooms made that worse. The shape of the interface is now the thing
+holding the tool back.
 
-It moves ahead of comparing layouts and export because the two surfaces that
-argued for waiting — walkways and rooms — have both shipped. What is left adds
-a switcher and two buttons, and those land in a workspace far more easily than
-in a column that would then be torn out.
+It moves ahead of comparing layouts and export because the room list has made
+the old stack of forms untenable. What is left adds a switcher and two buttons,
+and those land in a workspace far more easily than in a column that would then
+be torn out.
 
 **One screen, three panels.**
 
-- **Left, split.** What is in the apartment — rooms, the furniture standing in
-  them, the routes — over the catalogue of things being considered. Selecting
-  anything selects it on the plan.
+- **Left, split.** What is in the apartment — rooms and the furniture standing
+  in them — over the catalogue of things being considered. Selecting anything
+  selects it on the plan.
 - **Centre.** The plan, given the room it deserves, pannable and zoomable.
-- **Right.** Whatever is selected, in full: a room's size and place, a piece's
-  position and rotation, a route's widths. Nothing is selected, and it shows
-  the apartment's own settings.
+- **Right.** Whatever is selected, in full: a room's size and place, or a
+  piece's position and rotation. Nothing is selected, and it shows the
+  apartment's own settings.
 
 **It pans and zooms like a design tool.** Scroll pans, ⌘ or Ctrl with scroll
 zooms toward the pointer, space and drag pans, pinch zooms. A plain scroll never
@@ -346,12 +321,12 @@ to fit is one key.
 **The catalogue folds in; the checklist becomes an overview.** Adding and
 picking furniture is part of arranging, so it happens here. What you leave with
 — the list, the prices, the total, and later the export — moves to its own
-route, which is the thing to print and take to a shop.
+page, which is the thing to print and take to a shop.
 
 **The drafting look stays.** Monochrome lines, real dimension lines, hatched
 walls, one accent for selection and red only for problems. Dimension text keeps
 its size as the plan zooms, the way a design tool keeps its own furniture
-constant. A measured plan is what makes the answers trustworthy; step 22 is
+constant. A measured plan is what makes the answers trustworthy; step 21 is
 where it stops looking like a drawing.
 
 **On the keyboard.** Earlier steps treated a key for every action as a gate on
@@ -363,12 +338,11 @@ can only drag is a dimension you cannot trust.
 Done. `/` is the workspace; `/plan`, `/furniture` and `/checklist` redirect to
 where their work moved.
 
-Selection turned out to be the spine. One idea — room, piece, route, or product
-— covers every kind of thing, so pressing a name in the list and pressing a
-piece on the plan do the same thing, and the panel on the right is always the
-editor for whatever that was. It is what let the walkway form come back after
-sitting unmounted since 11a, and what made the catalogue's own form just
-another selection rather than a page.
+Selection turned out to be the spine. One idea — room, piece, or product —
+covers every kind of thing, so pressing a name in the list and pressing a piece
+on the plan do the same thing, and the panel on the right is always the editor
+for whatever that was. It is what made the catalogue's own form just another
+selection rather than a page.
 
 The plan holds its projection now rather than fitting one on every paint, which
 is all panning and zooming turned out to be. One bug came of it that only the
@@ -383,7 +357,7 @@ forty tests describing a page of forms became seventeen describing a tool. The
 e2e build also moved to its own directory, having clobbered the dev server
 three times.
 
-### 14. Compare layouts ✅
+### 13. Compare layouts ✅
 
 Done. Named arrangements of the same apartment, switched from the top bar:
 duplicate, rename, delete. Products are shared across every one of them —
@@ -407,7 +381,7 @@ Not carried out of this step: a layout cannot be started from an empty floor,
 only duplicated from one that exists. Comparing two plans visually, if it is
 ever wanted, is a different feature from comparing two prices.
 
-### 15. Take the data elsewhere ✅
+### 14. Take the data elsewhere ✅
 
 Done. From the overview: save the project, save the list as a spreadsheet, open
 a project file.
@@ -427,30 +401,29 @@ Not carried out of this step: importing replaces what is there rather than
 merging, and says so before it happens. Merging two projects is a different
 feature and nobody has needed it.
 
-### 16. Lay the apartment out by hand ✅
+### 15. Lay the apartment out by hand ✅
 
-Step 12 made rooms building blocks and then left them to be typed: a new one
+Step 11 made rooms building blocks and then left them to be typed: a new one
 landed east of everything else, and putting it where it went meant working out
 its neighbour's edge plus a wall thickness. That is arithmetic in service of a
 drawing, which is the wrong way round.
 
 Done, in two halves.
 
-**16a — Drag a room, and share a wall by getting near one. ✅** A room is moved
+**15a — Drag a room, and share a wall by getting near one. ✅** A room is moved
 by dragging it on the plan, and let go within four inches of a neighbour it
 takes the neighbour's wall as its own — `SNAP_METERS` in `floor.ts`. Sharing
 wins over lining up, because sharing is what makes an apartment rather than a
 diagram: two rooms a wall thickness apart have their wall bands in exactly the
 same place, so one doorway cut in it opens through both.
 
-**16b — Resize a room by dragging its walls. ✅** Eight handles, an edge moving
+**15b — Resize a room by dragging its walls. ✅** Eight handles, an edge moving
 one wall and a corner moving two, snapping the same way and rounding to the
 unit on screen so a dragged wall lands on a number somebody would have typed.
 
-This step was built before it was written down: it shipped as PRs #18 and #19
-while the roadmap still said the clearance checks were next. The roadmap is the
-build order, so it is the roadmap that was wrong, and this entry is it being
-made right rather than a step invented after the fact.
+This step was built before it was written down: it shipped as PRs #18 and #19.
+The roadmap is the build order, so this entry records where that work actually
+belongs rather than inventing a step after the fact.
 
 Corrected afterwards, and worth recording because the fix was not the one the
 symptom suggested. Dragging felt violent — a wall pulled sixty pixels grew the
@@ -462,7 +435,7 @@ be. It was built against the apartment's north-west corner, and everything
 reading it added that corner back on — but the corner is _derived from where
 the rooms are_. Dragging the west wall moved it, which moved the drawing, which
 moved the floor point under a pointer that had not itself moved, which dragged
-the wall further west. Pinning the view for the drag, which step 16b already
+the wall further west. Pinning the view for the drag, which step 15b already
 did, could not help: the second term was never pinned.
 
 The projection now carries the origin it was fitted at, so a floor point goes
@@ -478,7 +451,7 @@ that suited a pinch made a notch a third of the way in.
 
 Not carried out of this step: rooms are dragged and resized, but not **made**
 by pointer — "Add room" still puts a rectangle east of everything and leaves
-you to move it. That is step 18.
+you to move it. That is step 17.
 
 ---
 
@@ -493,12 +466,12 @@ The tool can already express most of it. What it cannot do is let anybody enter
 it in an afternoon, and what it cannot express exactly is the handful of shapes
 that are not rectangles. One step each.
 
-### 17. Take it back ✅
+### 16. Take it back ✅
 
 Everything the last step made easy to do, it made easy to do by accident. A
 wall is dragged to a number nobody meant, a room is dropped on top of its
 neighbour, a room is deleted — and the only way back is to remember what it
-said and type it again. Step 18 puts a pointer on the one thing still safe from
+said and type it again. Step 17 puts a pointer on the one thing still safe from
 this, which is the wrong order to do it in.
 
 **Undo, rather than a way to restore deleted rooms.** A trash can would cover
@@ -516,7 +489,7 @@ Three decisions this step makes:
   at the machine, the same as which piece is selected, which step 8 also
   refused to save. A project opened on another machine does not come with
   somebody else's mistakes to undo.
-- **It covers the project, not the view.** Rooms, furniture, products, routes,
+- **It covers the project, not the view.** Rooms, furniture, products, and
   layouts. Not selection, not the display unit, not which layout is being
   looked at — undoing "I switched to inches" is a surprise rather than a mercy.
 - **One gesture is one entry.** A drag calls the store a couple of hundred
@@ -570,24 +543,56 @@ gesture down through every field, which is worth doing when it annoys somebody
 rather than now. Undo also does not restore what was selected, for the same
 reason selection was never saved: it is not part of the project.
 
-### 18. Draw the plan instead of typing it ◀ next
+### 17. Draw the plan instead of typing it ◀ 17a only
 
 Recreating a real floor plan today is fifteen rounds of press "Add room", drag
 it across from wherever it landed, resize it, then type each door's distance
 from that room's own north-west corner. The drawing is right at the end of it,
 and almost none of the effort went into the drawing.
 
-Two things become pointer work, and neither stops being a number:
+Two things become pointer work, and neither stops being a number. One each.
 
-- **A room is drawn.** Drag a rectangle on the plan and that is a room, sized
-  and placed where the drag ended, snapping to its neighbours the way a dragged
-  room already does. Its size and origin still appear in the inspector as
-  numbers to correct.
-- **An opening is placed on the wall it belongs to.** Click a wall and a door
-  goes there; drag it along the wall to move it; drag a jamb to widen it. The
-  distance-from-the-corner field stays, because 32 inches is a figure somebody
-  measured — but nobody should have to compute where along a wall that is in
-  order to see a door appear.
+**17a — A room is drawn. ✅** Done. "Add room" no longer drops a rectangle east
+of everything and leaves you to move it: it arms the plan for one room, and a
+drag on it is that room. Both corners snap independently through `snapRoomEdge`, so a rectangle
+pulled up against a neighbour shares its wall without anybody working out the
+neighbour's edge plus a thickness. The preview is run through the same
+`drawnRoom` the drop uses, because a preview that shows one rectangle and
+produces another is worse than none.
+
+Three decisions the step's own text did not settle:
+
+- **A mode, not a modifier, and not the plain drag.** Dragging empty floor
+  already pans, and a plan you cannot push around while laying rooms out would
+  be worse than one that needs a button pressed first.
+- **The mode lasts one room.** This was got wrong first, and the way it was
+  got wrong is worth keeping. Six end-to-end tests failed on "Add room" no
+  longer being a single press, and that was read as an argument for the mode
+  staying armed: an apartment is fifteen rooms, so one press should buy all
+  fifteen. It was a tidy argument about a task nobody performs. The thing
+  anybody does straight after drawing a room is drag it into place, and an
+  armed plan answers that by drawing another room on top of it — which is
+  exactly what happened the first time it was used. Test churn is not a design
+  signal. Escape still leaves the mode from anywhere, for a press that was a
+  mistake, and it is handled at the window because pressing the button leaves
+  focus on the button.
+- **A click is still a room.** Below six pixels of travel the press was a
+  click, and a click drops one the usual size, centred where it was put. The
+  canvas tells a click from a drag because it knows pixels; it has no business
+  knowing how big a room usually is, so the choice of size is made outside it.
+
+`nextRoomOrigin` left with this: nothing puts a room east of everything any
+more.
+
+**17b — An opening is placed on the wall it belongs to.** Click a wall and a
+door goes there; drag it along the wall to move it; drag a jamb to widen it.
+The distance-from-the-corner field stays, because 32 inches is a figure
+somebody measured — but nobody should have to compute where along a wall that
+is in order to see a door appear.
+
+Openings will want a place in the left-hand list at the same time. There are
+fourteen of them in the real plan and today the only way to reach one is to
+select its room first and find it in that room's own form.
 
 Openings are already cut from the finished wall band rather than room by room,
 so a door dropped on a shared wall opens through both rooms without being
@@ -597,7 +602,7 @@ Done when: the apartment's rooms and its doors and windows can be laid down
 with a pointer, every one of them still shows its measurements, and typing a
 number still moves what the pointer drew.
 
-### 19. Rooms that are not rectangles
+### 18. Rooms that are not rectangles
 
 The MVP said rectangular rooms, and for measuring a sofa against a wall that
 was right. It stops being right at the exact moment the plan is a real
@@ -622,13 +627,13 @@ What a room becomes, and why this shape rather than a polygon:
 - **An edge may be open.** A balcony is a room with a railing where a wall
   would be, and drawing it enclosed would say something false about the
   apartment.
-- **Interior and exterior wall thickness are two numbers, not one.** Step 12
+- **Interior and exterior wall thickness are two numbers, not one.** Step 11
   gave the floor one thickness because an apartment has one kind of wall. It
   has two: the shell is thicker than the partitions, and it is visible in every
   plan ever drawn.
 
 Area, bounds, containment, which-room-is-this-piece-in, and the plan's punch
-order all follow the parts. The stored document goes to version 6; a version 5
+order all follow the parts. The stored document goes to version 7; a version 6
 room becomes a room of one part, which is what it always was.
 
 Done when: the apartment above is on the screen at its real dimensions, with
@@ -639,19 +644,11 @@ you could check with a tape.
 
 ## Finishing the answer
 
-### 20. Finish the clearance checks
+### 19. Check blocked openings
 
-The half of step 11 that was deliberately left, now that a route can cross a
-whole apartment: a door's swing arc as a zone that must stay clear, and a piece
-standing in a doorway reported as the blocked route it is.
-
-It waits until here because a doorway between two rooms is only expressible once
-there are two rooms, because the workspace in step 13 is what gives a walkway
-somewhere to be drawn, and because step 18 is what makes putting a door where it
-really goes cheap enough to be worth checking.
-
-Done when: a console in front of the door says the door cannot open, and moving
-it six inches says the door clears it.
+Blocked openings are checked here, after doors can be placed on the finished
+apartment plan. A console in front of a door must say the door cannot open, and
+moving it out of the way must clear the problem.
 
 ---
 
@@ -659,7 +656,7 @@ it six inches says the door clears it.
 
 Nothing here changes an answer. It changes how easy the answer is to believe.
 
-### 21. Add a perspective view
+### 20. Add a perspective view
 
 React Three Fiber, Three.js, and Drei arrive here. The same data, seen from
 inside the room, with furniture as correctly sized boxes and the openings from
@@ -670,7 +667,7 @@ The plan view stays fully capable. Neither view is the only way in.
 Done when: the room can be walked around, and every box measures what its
 product says it measures.
 
-### 22. Move toward photorealism
+### 21. Move toward photorealism
 
 The long goal, gated behind a working tool, and taken in stages so each one can
 be judged on its own:
@@ -696,13 +693,12 @@ use.
 That is now the whole apartment rather than one room of it: two bedrooms, two
 bathrooms, a living room open to a kitchen and a dining area, a balcony, and
 the closets and halls between them. Getting it onto the screen at its real
-dimensions is what steps 18 and 19 are for, and it is the measure of whether
+dimensions is what steps 17 and 18 are for, and it is the measure of whether
 they worked.
 
 The living room is still the room being furnished first: an L-shaped sectional,
 a round coffee table, a television console, a 65-inch Hisense CanvasTV, a rug,
-an arc lamp, an artificial olive tree, and olive accent pillows and a throw,
-with the route to the guest room held at 36 inches minimum and 42 preferred.
+an arc lamp, an artificial olive tree, and olive accent pillows and a throw.
 
 If planning it needs a special case in the engine, the engine is not finished.
 
@@ -716,13 +712,13 @@ architecture, direct checkout.
 Non-rectangular furniture footprints, and an accessibility audit against WCAG
 2.2 AA.
 
-Non-rectangular **rooms** left this list at step 19: the apartment being planned
+Non-rectangular **rooms** left this list at step 18: the apartment being planned
 has them, so the engine has to.
 
 Also considered and not scheduled: tracing the plan over a photograph of the
 listing's floor plan, calibrated by drawing a line of known length. It would
 make entering an apartment far easier and it breaks no rule — the image never
 leaves the machine, and it changes no measurement. It waits because a traced
-dimension is an eyeballed one, and steps 18 and 19 are about the numbers being
+dimension is an eyeballed one, and steps 17 and 18 are about the numbers being
 right. Worth revisiting if entering the apartment still turns out to be the
 thing that stops people.

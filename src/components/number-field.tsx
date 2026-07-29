@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useRef, useState, type PointerEvent } from "react";
 import {
   checkLength,
   displayUnitSuffix,
@@ -18,13 +18,26 @@ import {
  * that the stored meters are not degraded by editing them.
  */
 const INPUT_DECIMALS: Record<DisplayUnit, number> = { metric: 1, imperial: 2 };
+const SCRUB_UNITS_PER_PIXEL = 1;
+
+type Scrub = {
+  readonly pointerId: number;
+  readonly startClientX: number;
+  readonly startDisplayValue: number;
+  lastMeters: number;
+};
 
 export type NumberFieldProps = {
   label: string;
+  /** A short prefix inside the field, for compact inspector rows such as X/Y. */
+  compactLabel?: string;
+  /** Groups the continuous scrub into one undo step. */
+  scrubGesture?: string;
   unit: DisplayUnit;
   meters: number;
   limits: LengthLimits;
-  onMetersChange: (meters: number) => void;
+  onMetersChange: (meters: number, gesture?: string) => void;
+  onGestureEnd?: () => void;
 };
 
 /**
@@ -37,16 +50,22 @@ export type NumberFieldProps = {
  */
 export function NumberField({
   label,
+  compactLabel,
+  scrubGesture,
   unit,
   meters,
   limits,
   onMetersChange,
+  onGestureEnd,
 }: NumberFieldProps) {
   const inputId = useId();
   const messageId = `${inputId}-message`;
 
   const [draft, setDraft] = useState(() => textFromMeters(meters, unit));
   const [applied, setApplied] = useState({ meters, unit });
+  const [scrubbing, setScrubbing] = useState(false);
+  // Pointer positions change too often to belong in render state.
+  const scrubRef = useRef<Scrub | null>(null);
 
   if (applied.unit !== unit || applied.meters !== meters) {
     setApplied({ meters, unit });
@@ -54,6 +73,7 @@ export function NumberField({
   }
 
   const problem = draftProblem(draft, unit, limits);
+  const compact = compactLabel !== undefined;
 
   function handleChange(text: string): void {
     setDraft(text);
@@ -67,12 +87,125 @@ export function NumberField({
     onMetersChange(parsed);
   }
 
+  function applyScrubbedDisplayValue(
+    displayValue: number,
+    gesture?: string,
+  ): void {
+    const next = clamp(
+      metersFromDisplayValue(displayValue, unit),
+      limits.minMeters,
+      limits.maxMeters,
+    );
+    const scrub = scrubRef.current;
+    if (scrub?.lastMeters === next || meters === next) {
+      return;
+    }
+    if (scrub !== null) {
+      scrub.lastMeters = next;
+    }
+    setApplied({ meters: next, unit });
+    setDraft(textFromMeters(next, unit));
+    onMetersChange(next, gesture);
+  }
+
+  function beginScrub(event: PointerEvent<HTMLSpanElement>): void {
+    if (event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    scrubRef.current = {
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startDisplayValue: displayedNumber(meters, unit),
+      lastMeters: meters,
+    };
+    setScrubbing(true);
+  }
+
+  function continueScrub(event: PointerEvent<HTMLSpanElement>): void {
+    const scrub = scrubRef.current;
+    if (scrub === null || scrub.pointerId !== event.pointerId) {
+      return;
+    }
+    const displayValue =
+      scrub.startDisplayValue +
+      Math.round((event.clientX - scrub.startClientX) * SCRUB_UNITS_PER_PIXEL);
+    applyScrubbedDisplayValue(displayValue, scrubGesture);
+  }
+
+  function finishScrub(event: PointerEvent<HTMLSpanElement>): void {
+    const scrub = scrubRef.current;
+    if (scrub === null || scrub.pointerId !== event.pointerId) {
+      return;
+    }
+    scrubRef.current = null;
+    setScrubbing(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    onGestureEnd?.();
+  }
+
+  function handleScrubKey(key: string): void {
+    const direction =
+      key === "ArrowRight" || key === "ArrowUp"
+        ? 1
+        : key === "ArrowLeft" || key === "ArrowDown"
+          ? -1
+          : 0;
+    if (direction === 0) {
+      return;
+    }
+    applyScrubbedDisplayValue(displayedNumber(meters, unit) + direction);
+  }
+
   return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={inputId} className="text-sm font-medium">
+    <div className={`flex min-w-0 flex-col ${compact ? "gap-1" : "gap-1.5"}`}>
+      <label
+        htmlFor={inputId}
+        className={compact ? "sr-only" : "text-sm font-medium"}
+      >
         {label}
       </label>
-      <div className="flex items-center gap-2">
+      <div
+        className={
+          compact
+            ? "flex min-w-0 items-center rounded-md border border-black/15 bg-transparent focus-within:border-black/40 dark:border-white/20 dark:focus-within:border-white/45"
+            : "flex items-center gap-2"
+        }
+      >
+        {compact ? (
+          <span
+            role="slider"
+            tabIndex={0}
+            aria-label={`${compactLabel} drag handle`}
+            aria-valuemin={displayValueFromMeters(limits.minMeters, unit)}
+            aria-valuemax={displayValueFromMeters(limits.maxMeters, unit)}
+            aria-valuenow={displayedNumber(meters, unit)}
+            aria-valuetext={formatLength(meters, unit)}
+            title={`Drag left or right to change ${label}`}
+            onPointerDown={beginScrub}
+            onPointerMove={continueScrub}
+            onPointerUp={finishScrub}
+            onPointerCancel={finishScrub}
+            onLostPointerCapture={finishScrub}
+            onKeyDown={(event) => {
+              if (event.key.startsWith("Arrow")) {
+                event.preventDefault();
+                handleScrubKey(event.key);
+              }
+            }}
+            className={`flex w-10 shrink-0 touch-none select-none items-center gap-0.5 pl-2 text-xs font-medium outline-none hover:opacity-100 focus-visible:opacity-100 ${
+              scrubbing
+                ? "cursor-ew-resize opacity-100"
+                : "cursor-ew-resize opacity-50"
+            }`}
+          >
+            <span aria-hidden="true">{compactLabel}</span>
+            <ScrubIcon />
+          </span>
+        ) : null}
         <input
           id={inputId}
           type="number"
@@ -80,24 +213,58 @@ export function NumberField({
           step="any"
           value={draft}
           aria-invalid={problem !== null}
-          aria-describedby={messageId}
+          aria-describedby={compact && problem === null ? undefined : messageId}
           onChange={(event) => handleChange(event.target.value)}
-          className="w-28 rounded-md border border-black/15 bg-transparent px-2.5 py-1.5 text-sm tabular-nums dark:border-white/20"
+          className={
+            compact
+              ? "compact-number-input min-w-0 flex-1 bg-transparent py-1.5 pr-1.5 text-sm tabular-nums outline-none"
+              : "w-28 rounded-md border border-black/15 bg-transparent px-2.5 py-1.5 text-sm tabular-nums dark:border-white/20"
+          }
         />
-        <span className="text-sm opacity-60">{displayUnitSuffix(unit)}</span>
+        {compact ? null : (
+          <span className="text-sm opacity-60">{displayUnitSuffix(unit)}</span>
+        )}
       </div>
-      <p
-        id={messageId}
-        className={
-          problem === null ? "text-xs opacity-60" : "text-xs text-red-600"
-        }
-      >
-        {problem === null
-          ? formatLength(meters, unit)
-          : problemMessage(problem, limits, unit)}
-      </p>
+      {compact && problem === null ? null : (
+        <p
+          id={messageId}
+          className={
+            problem === null ? "text-xs opacity-60" : "text-xs text-red-600"
+          }
+        >
+          {problem === null
+            ? formatLength(meters, unit)
+            : problemMessage(problem, limits, unit)}
+        </p>
+      )}
     </div>
   );
+}
+
+function ScrubIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 12 8"
+      className="h-2 w-3 shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M1 4h10M3 2 1 4l2 2M9 2l2 2-2 2" />
+    </svg>
+  );
+}
+
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
+/** The exact number the field shows, so scrubbing starts where the reader sees. */
+function displayedNumber(meters: number, unit: DisplayUnit): number {
+  return Number(textFromMeters(meters, unit));
 }
 
 function textFromMeters(meters: number, unit: DisplayUnit): string {

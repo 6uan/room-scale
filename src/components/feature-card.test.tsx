@@ -7,17 +7,17 @@ describe("FeatureCard", () => {
     render(
       <ul>
         <FeatureCard
-          title="Clearance zones"
-          description="Mark the walkways that must stay open."
+          title="Exact dimensions"
+          description="Enter every measurement as a number."
         />
       </ul>,
     );
 
     expect(
-      screen.getByRole("heading", { name: "Clearance zones" }),
+      screen.getByRole("heading", { name: "Exact dimensions" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Mark the walkways that must stay open."),
+      screen.getByText("Enter every measurement as a number."),
     ).toBeInTheDocument();
   });
 });

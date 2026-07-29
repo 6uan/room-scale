@@ -1,7 +1,8 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { placedNames, type PlacedFurniture } from "@/domain/furniture";
-import { roomsAt, type Floor } from "@/domain/room";
+import { roomsAt, type Floor, type Room } from "@/domain/room";
 import { isSelected, type Selection } from "@/components/selection";
 
 export type ApartmentLayersProps = {
@@ -10,8 +11,10 @@ export type ApartmentLayersProps = {
   selection: Selection;
   troubledIds: ReadonlySet<string>;
   onSelect: (selection: Selection) => void;
+  onRoomChange: (room: Room) => void;
   onAddRoom: () => void;
-  onAddWalkway: () => void;
+  /** Whether the plan is waiting for a room to be drawn on it. */
+  drawingRoom?: boolean;
 };
 
 /**
@@ -29,8 +32,9 @@ export function ApartmentLayers({
   selection,
   troubledIds,
   onSelect,
+  onRoomChange,
   onAddRoom,
-  onAddWalkway,
+  drawingRoom = false,
 }: ApartmentLayersProps) {
   const names = placedNames(furniture);
   const inRoom = (roomId: string | null) =>
@@ -45,15 +49,23 @@ export function ApartmentLayers({
 
   return (
     <div className="flex min-h-0 flex-col gap-4 overflow-y-auto p-4">
-      <Header title="Apartment" action="Add room" onAction={onAddRoom} />
+      {/* The button says what pressing it will do next, so the mode it turns
+          on is visible in the one place that turned it on. */}
+      <Header
+        title="Apartment"
+        action={drawingRoom ? "Drawing…" : "Add room"}
+        active={drawingRoom}
+        onAction={onAddRoom}
+      />
 
       <ul className="flex flex-col gap-1">
         {floor.rooms.map((room) => (
           <li key={room.id} className="flex flex-col">
-            <Row
-              label={room.name === "" ? "Unnamed room" : room.name}
+            <RoomRow
+              room={room}
               selected={isSelected(selection, "room", room.id)}
               onSelect={() => onSelect({ kind: "room", id: room.id })}
+              onChange={onRoomChange}
             />
             <ul className="flex flex-col">
               {inRoom(room.id).map(({ placed, name }) => (
@@ -103,37 +115,95 @@ export function ApartmentLayers({
           </ul>
         </div>
       )}
-
-      <Header title="Routes" action="Add route" onAction={onAddWalkway} />
-      {floor.walkways.length === 0 ? (
-        <p className="px-1 text-xs leading-relaxed opacity-50">
-          None yet. A route is a walk that has to stay clear — to the door, to
-          the guest room.
-        </p>
-      ) : (
-        <ul className="flex flex-col">
-          {floor.walkways.map((walkway) => (
-            <li key={walkway.id}>
-              <Row
-                label={walkway.name === "" ? "Route" : walkway.name}
-                selected={isSelected(selection, "walkway", walkway.id)}
-                onSelect={() => onSelect({ kind: "walkway", id: walkway.id })}
-              />
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
+  );
+}
+
+/**
+ * A layer name is also its editor, as it is in a design tool.
+ *
+ * A click selects a room and a double-click turns its name into editable text.
+ * Enter or leaving the field applies the name; Escape leaves it alone.
+ */
+function RoomRow({
+  room,
+  selected,
+  onSelect,
+  onChange,
+}: {
+  room: Room;
+  selected: boolean;
+  onSelect: () => void;
+  onChange: (room: Room) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(room.name);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) {
+      const input = inputRef.current;
+      input?.focus();
+      input?.setSelectionRange(input.value.length, input.value.length);
+    }
+  }, [editing]);
+
+  function beginRename(): void {
+    setDraft(room.name);
+    setEditing(true);
+  }
+
+  function applyRename(): void {
+    if (draft !== room.name) {
+      onChange({ ...room, name: draft });
+    }
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        type="text"
+        value={draft}
+        aria-label={`Rename ${room.name === "" ? "unnamed room" : room.name}`}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={applyRename}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            applyRename();
+          } else if (event.key === "Escape") {
+            event.preventDefault();
+            setDraft(room.name);
+            setEditing(false);
+          }
+        }}
+        className="w-full min-w-0 cursor-text rounded bg-black/15 px-2 py-1 text-sm font-medium outline-none caret-current dark:bg-white/20"
+      />
+    );
+  }
+
+  return (
+    <Row
+      label={room.name === "" ? "Unnamed room" : room.name}
+      selected={selected}
+      onSelect={onSelect}
+      onDoubleClick={beginRename}
+      title="Double-click to rename"
+    />
   );
 }
 
 function Header({
   title,
   action,
+  active = false,
   onAction,
 }: {
   title: string;
   action: string;
+  active?: boolean;
   onAction: () => void;
 }) {
   return (
@@ -144,7 +214,10 @@ function Header({
       <button
         type="button"
         onClick={onAction}
-        className="shrink-0 rounded px-1.5 py-0.5 text-xs opacity-60 hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10"
+        aria-pressed={active}
+        className={`shrink-0 rounded px-1.5 py-0.5 text-xs hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10 ${
+          active ? "bg-black/10 opacity-100 dark:bg-white/15" : "opacity-60"
+        }`}
       >
         {action}
       </button>
@@ -159,18 +232,24 @@ function Row({
   troubled = false,
   selected,
   onSelect,
+  onDoubleClick,
+  title,
 }: {
   label: string;
   depth?: boolean;
   troubled?: boolean;
   selected: boolean;
   onSelect: () => void;
+  onDoubleClick?: () => void;
+  title?: string;
 }) {
   return (
     <button
       type="button"
       aria-pressed={selected}
       onClick={onSelect}
+      onDoubleClick={onDoubleClick}
+      title={title}
       className={`flex w-full min-w-0 items-center gap-2 rounded px-2 py-1 text-left text-sm ${
         depth ? "pl-6" : ""
       } ${

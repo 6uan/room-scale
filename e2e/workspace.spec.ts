@@ -16,6 +16,20 @@ function planImage(page: Page) {
   return page.getByRole("img", { name: /^Plan view/ });
 }
 
+/**
+ * Adds a room the way the workspace does now: "Add room" turns the plan into a
+ * drawing surface, and a click on it drops one there. One room per press, so
+ * there is nothing to turn off afterwards.
+ */
+async function addRoom(page: Page) {
+  await contents(page).getByRole("button", { name: "Add room" }).click();
+  const box = await planImage(page).boundingBox();
+  if (box === null) {
+    throw new Error("the plan has no box to point at");
+  }
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+}
+
 /** Enters a product through the inspector, the way the workspace does it. */
 async function addProduct(
   page: Page,
@@ -69,6 +83,41 @@ test.describe("the workspace", () => {
     await inspector.getByLabel("Living room width").fill("120");
 
     await expect(planImage(page)).toHaveAccessibleName(/10' 0\.0" wide/);
+    await expect(
+      plan(page).getByText("Drag the room here or use X/Y and W/H/D"),
+    ).toBeVisible();
+  });
+
+  test("renames a room directly in the apartment list", async ({ page }) => {
+    await page.goto("/");
+
+    const room = contents(page).getByRole("button", { name: "Living room" });
+    await room.click();
+    await room.click();
+    await expect(contents(page).getByRole("textbox")).toHaveCount(0);
+
+    await room.dblclick();
+    const name = contents(page).getByRole("textbox", {
+      name: "Rename Living room",
+    });
+    await expect(name).toBeFocused();
+    await expect
+      .poll(() =>
+        name.evaluate((input: HTMLInputElement) => ({
+          start: input.selectionStart,
+          end: input.selectionEnd,
+        })),
+      )
+      .toEqual({ start: 11, end: 11 });
+    await name.fill("Great room");
+    await name.press("Enter");
+
+    await expect(
+      contents(page).getByRole("button", { name: "Great room" }),
+    ).toBeVisible();
+    await expect(
+      details(page).getByRole("region", { name: "Great room" }),
+    ).toBeVisible();
   });
 
   test("adds a room, and it appears in the list and the plan", async ({
@@ -76,7 +125,7 @@ test.describe("the workspace", () => {
   }) => {
     await page.goto("/");
 
-    await contents(page).getByRole("button", { name: "Add room" }).click();
+    await addRoom(page);
 
     await expect(
       contents(page).getByRole("button", { name: "Room 2" }),
@@ -134,21 +183,6 @@ test.describe("the workspace", () => {
       plan(page).getByText(
         /Sectional crosses the west wall of the Living room/,
       ),
-    ).toBeVisible();
-  });
-
-  test("adds a route and reports what narrows it", async ({ page }) => {
-    await page.goto("/");
-    await addProduct(page, { name: "Sectional", width: "94.5", depth: "63" });
-    await contents(page)
-      .getByRole("button", { name: "Place Sectional in the room" })
-      .click();
-
-    await contents(page).getByRole("button", { name: "Add route" }).click();
-
-    await expect(plan(page).getByText(/is down to/)).toBeVisible();
-    await expect(
-      details(page).getByRole("region", { name: "Route" }),
     ).toBeVisible();
   });
 
@@ -298,7 +332,7 @@ test.describe("the plan as a canvas", () => {
   });
 });
 
-test.describe("the routes it keeps", () => {
+test.describe("workspace navigation", () => {
   test("sends the old pages to where their work moved", async ({ page }) => {
     for (const [from, heading] of [
       ["/plan", "RoomScale"],
@@ -442,38 +476,38 @@ test.describe("laying the apartment out", () => {
     page,
   }) => {
     await page.goto("/");
-    await contents(page).getByRole("button", { name: "Add room" }).click();
+    await addRoom(page);
 
     // The living room runs to 84 inches and the wall is 4.5 thick, so sharing
     // it means 88.5. Typing 87 is near enough to mean it.
     const room = details(page).getByRole("region", { name: "Room 2" });
-    await room.getByLabel("Room 2 from west").fill("87");
+    await room.getByLabel("Room 2 X position").fill("87");
 
-    await expect(room.getByLabel("Room 2 from west")).toHaveValue("88.5");
+    await expect(room.getByLabel("Room 2 X position")).toHaveValue("88.5");
   });
 
   test("leaves a room where it was put when nothing is near", async ({
     page,
   }) => {
     await page.goto("/");
-    await contents(page).getByRole("button", { name: "Add room" }).click();
+    await addRoom(page);
 
     const room = details(page).getByRole("region", { name: "Room 2" });
-    await room.getByLabel("Room 2 from west").fill("200");
+    await room.getByLabel("Room 2 X position").fill("200");
 
-    await expect(room.getByLabel("Room 2 from west")).toHaveValue("200");
+    await expect(room.getByLabel("Room 2 X position")).toHaveValue("200");
   });
 
   test("takes a negative position, so the apartment grows either way", async ({
     page,
   }) => {
     await page.goto("/");
-    await contents(page).getByRole("button", { name: "Add room" }).click();
+    await addRoom(page);
 
     const room = details(page).getByRole("region", { name: "Room 2" });
-    await room.getByLabel("Room 2 from west").fill("-300");
+    await room.getByLabel("Room 2 X position").fill("-300");
 
-    await expect(room.getByLabel("Room 2 from west")).toHaveValue("-300");
+    await expect(room.getByLabel("Room 2 X position")).toHaveValue("-300");
     await expect(planImage(page)).toHaveAccessibleName(/holding 2 rooms/);
   });
 
@@ -494,7 +528,7 @@ test.describe("laying the apartment out", () => {
     ).toBeVisible();
 
     const before = await details(page)
-      .getByLabel("Living room from west")
+      .getByLabel("Living room X position")
       .inputValue();
 
     await page.mouse.move(centre.x, centre.y);
@@ -504,7 +538,7 @@ test.describe("laying the apartment out", () => {
 
     expect(
       Number(
-        await details(page).getByLabel("Living room from west").inputValue(),
+        await details(page).getByLabel("Living room X position").inputValue(),
       ),
     ).toBeGreaterThan(Number(before));
   });
@@ -575,7 +609,122 @@ test.describe("laying the apartment out", () => {
     // Whole inches, not the seven decimals a pixel would give.
     expect(width % 1).toBe(0);
     // The east wall moved; the west one did not.
-    await expect(room.getByLabel("Living room from west")).toHaveValue("-84");
+    await expect(room.getByLabel("Living room X position")).toHaveValue("-84");
+  });
+
+  test("draws a room by dragging a rectangle on the plan", async ({ page }) => {
+    await page.goto("/");
+    const box = await planImage(page).boundingBox();
+    if (box === null) {
+      throw new Error("the plan has no box to point at");
+    }
+
+    await contents(page).getByRole("button", { name: "Add room" }).click();
+
+    // Below and right of the living room, which is centred: clear of it, so
+    // the size that comes out is the size that was dragged.
+    const from = { x: box.x + 40, y: box.y + box.height - 90 };
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(from.x + 70, from.y + 50, { steps: 8 });
+    await page.mouse.up();
+
+    await expect(
+      contents(page).getByRole("button", { name: "Room 2" }),
+    ).toBeVisible();
+    await expect(planImage(page)).toHaveAccessibleName(/holding 2 rooms/);
+
+    // Drawn means selected, so the numbers are there to be corrected.
+    const room = details(page).getByRole("region", { name: "Room 2" });
+    await expect(room).toBeVisible();
+    // It took its size from the drag rather than from a default: a room
+    // dropped without drawing is a square, and this one is wider than deep.
+    const width = Number(await room.getByLabel("Room 2 width").inputValue());
+    const depth = Number(await room.getByLabel("Room 2 depth").inputValue());
+    expect(width).toBeGreaterThan(depth);
+  });
+
+  test("stops drawing after one room, so the next drag adjusts it", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    const box = await planImage(page).boundingBox();
+    if (box === null) {
+      throw new Error("the plan has no box to point at");
+    }
+
+    await contents(page).getByRole("button", { name: "Add room" }).click();
+
+    const from = { x: box.x + 60, y: box.y + box.height - 100 };
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(from.x + 80, from.y + 60, { steps: 6 });
+    await page.mouse.up();
+
+    // Out of the mode: the button offers to draw again rather than saying it
+    // already is.
+    await expect(
+      contents(page).getByRole("button", { name: "Add room" }),
+    ).toBeVisible();
+
+    const room = details(page).getByRole("region", { name: "Room 2" });
+    const west = Number(
+      await room.getByLabel("Room 2 X position").inputValue(),
+    );
+
+    // The drag straight afterwards moves the room that was just drawn. It used
+    // to draw another one on top of it, which is what anybody trying to nudge
+    // a room into place ran into first.
+    const middle = { x: from.x + 40, y: from.y + 30 };
+    await page.mouse.move(middle.x, middle.y);
+    await page.mouse.down();
+    await page.mouse.move(middle.x + 50, middle.y, { steps: 6 });
+    await page.mouse.up();
+
+    await expect(planImage(page)).toHaveAccessibleName(/holding 2 rooms/);
+    expect(
+      Number(await room.getByLabel("Room 2 X position").inputValue()),
+    ).toBeGreaterThan(west);
+  });
+
+  test("stops drawing on Escape, and the button says so", async ({ page }) => {
+    await page.goto("/");
+    const add = contents(page).getByRole("button", { name: "Add room" });
+
+    await add.click();
+    await expect(
+      contents(page).getByRole("button", { name: "Drawing…" }),
+    ).toBeVisible();
+
+    await page.keyboard.press("Escape");
+
+    await expect(add).toBeVisible();
+    // Nothing was drawn, so nothing was added.
+    await expect(planImage(page)).toHaveAccessibleName(/holding 1 room/);
+  });
+
+  test("drops a room where it is clicked, rather than east of everything", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    const box = await planImage(page).boundingBox();
+    if (box === null) {
+      throw new Error("the plan has no box to point at");
+    }
+
+    await contents(page).getByRole("button", { name: "Add room" }).click();
+    // A click, not a drag: the usual size, centred where it was put.
+    await page.mouse.click(box.x + 60, box.y + box.height - 60);
+
+    const room = details(page).getByRole("region", { name: "Room 2" });
+    // Ten feet square, which is what createRoom gives, rather than a drag.
+    await expect(room.getByLabel("Room 2 width")).toHaveValue("120");
+    await expect(room.getByLabel("Room 2 depth")).toHaveValue("120");
+    // West and north of the living room's own corner, which is where it was
+    // clicked — the old behaviour put every new room east of everything.
+    expect(
+      Number(await room.getByLabel("Room 2 X position").inputValue()),
+    ).toBeLessThan(-84);
   });
 
   test("drags the west wall without the plan running away from the pointer", async ({
@@ -622,7 +771,7 @@ test.describe("laying the apartment out", () => {
 
     // The west wall moved by what the room gained; the east one did not move.
     const west = Number(
-      await room.getByLabel("Living room from west").inputValue(),
+      await room.getByLabel("Living room X position").inputValue(),
     );
     expect(west).toBeGreaterThan(-84 - grew - 2);
     expect(west).toBeLessThan(-84 - grew + 2);
@@ -716,6 +865,6 @@ test.describe("laying the apartment out", () => {
     // Fourteen by twelve feet, eight foot ceiling — not 165.35 by 141.73.
     await expect(room.getByLabel("Living room width")).toHaveValue("168");
     await expect(room.getByLabel("Living room depth")).toHaveValue("144");
-    await expect(room.getByLabel("Living room ceiling")).toHaveValue("96");
+    await expect(room.getByLabel("Living room height")).toHaveValue("96");
   });
 });

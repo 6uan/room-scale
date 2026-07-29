@@ -11,7 +11,6 @@ takes measurements from at least three sources:
 
 - a person measuring a room, often in feet and inches,
 - retail product pages, which mix inches, centimeters, and millimetres,
-- clearance guidance, usually stated in inches (36" minimum, 42" preferred).
 
 Three.js has no units of its own; a unit is whatever the application says it
 is. Physically-based lighting, camera near/far planes, and shadow bias all
@@ -48,8 +47,7 @@ Positive:
   need unit fixtures.
 - Persisted documents are unambiguous years later, and JSON/CSV exports need no
   unit column per field.
-- Three.js, physics-style clearance offsets, and camera framing all work at a
-  natural scale.
+- Three.js, physical offsets, and camera framing all work at a natural scale.
 
 Negative:
 
