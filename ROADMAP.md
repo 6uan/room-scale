@@ -14,7 +14,7 @@ Two rules keep the order honest:
   Steps 4 to 10 are that question end to end. Everything after them makes the
   answer nicer to look at.
 
-Status: **step 15 is next.**
+Status: **step 16 is next.**
 
 ---
 
@@ -407,14 +407,27 @@ Not carried out of this step: a layout cannot be started from an empty floor,
 only duplicated from one that exists. Comparing two plans visually, if it is
 ever wanted, is a different feature from comparing two prices.
 
-### 15. Take the data elsewhere ◀ next
+### 15. Take the data elsewhere ✅
 
-JSON export and import for the whole project, CSV export for the checklist,
-offered from the overview — the page that already exists to be taken away.
+Done. From the overview: save the project, save the list as a spreadsheet, open
+a project file.
 
-Done when: a project exported, cleared, and re-imported is identical.
+An exported project is the same document IndexedDB holds, in the same versioned
+envelope, so importing goes through `readStoredProject` — a file written by an
+older build is migrated forward exactly the way a stored record is, and one from
+a newer build is refused rather than half-read. A second format would have been
+a second set of migrations to keep honest.
 
-### 16. Finish the clearance checks
+The CSV writes money as `1999.00` rather than `$1,999.00`, because a spreadsheet
+adds up the first and cannot add up the second, and it ends on the total, which
+is the number people opened it for. Names are quoted where they have to be:
+furniture is called things like `Sofa, 3-seat` often enough to matter.
+
+Not carried out of this step: importing replaces what is there rather than
+merging, and says so before it happens. Merging two projects is a different
+feature and nobody has needed it.
+
+### 16. Finish the clearance checks ◀ next
 
 The half of step 11 that was deliberately left, now that a route can cross a
 whole apartment: a door's swing arc as a zone that must stay clear, and a piece

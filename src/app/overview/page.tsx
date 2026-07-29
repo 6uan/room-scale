@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ProjectChecklist } from "@/components/project-checklist";
 import { ProjectGate } from "@/components/project-gate";
+import { ProjectTransferPanel } from "@/components/project-transfer-panel";
 
 export const metadata: Metadata = {
   title: "Overview — RoomScale",
@@ -32,6 +33,7 @@ export default function OverviewPage() {
 
       <ProjectGate>
         <ProjectChecklist />
+        <ProjectTransferPanel />
       </ProjectGate>
     </main>
   );
