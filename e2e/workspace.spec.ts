@@ -229,13 +229,30 @@ test.describe("the plan as a canvas", () => {
     ).toBeVisible();
   });
 
-  test("pans on a plain scroll, and comes back with the fit key", async ({
+  test("ignores the wheel until the plan is clicked into", async ({ page }) => {
+    await placeRug(page);
+    const centre = await planCentre(page);
+
+    // Hovering is not entering: a stray swipe over the plan leaves it alone.
+    await page.mouse.move(centre.x, centre.y);
+    await page.mouse.wheel(0, 200);
+
+    await expect(planImage(page)).not.toBeFocused();
+    // Still where it was, so the rug is still under the middle.
+    await page.mouse.click(centre.x, centre.y);
+    await expect(
+      details(page).getByRole("region", { name: "Rug" }),
+    ).toBeVisible();
+  });
+
+  test("pans on a plain scroll once clicked into, and fits again with 0", async ({
     page,
   }) => {
     await placeRug(page);
     const centre = await planCentre(page);
 
-    await page.mouse.move(centre.x, centre.y);
+    await page.mouse.click(centre.x, centre.y);
+    await expect(planImage(page)).toBeFocused();
     await page.mouse.wheel(0, 200);
 
     // The drawing moved up with the scroll, so the rug is 200 pixels higher.
@@ -244,7 +261,6 @@ test.describe("the plan as a canvas", () => {
       details(page).getByRole("region", { name: "Rug" }),
     ).toBeVisible();
 
-    await planImage(page).focus();
     await page.keyboard.press("0");
     await page.mouse.click(centre.x, centre.y);
     await expect(

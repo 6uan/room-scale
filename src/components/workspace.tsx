@@ -277,11 +277,8 @@ export function Workspace() {
           />
         </aside>
 
-        <main
-          aria-label="Plan"
-          className="flex min-h-0 flex-col gap-3 overflow-hidden p-4"
-        >
-          <div className="min-h-0 flex-1">
+        <main aria-label="Plan" className="relative min-h-0 overflow-hidden">
+          <div className="absolute inset-0">
             <RoomPlanCanvas
               floor={floor}
               furniture={furniture}
@@ -302,13 +299,20 @@ export function Workspace() {
               }}
             />
           </div>
-          <LayoutProblems
-            problems={problems}
-            names={namesById}
-            roomNames={roomNames}
-            walkwayNames={walkwayNames}
-            unit={unit}
-          />
+
+          {/* Over the plan rather than beside it: the drawing gets the room,
+              and the verdict is still the first thing under your eye. */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 p-4">
+            <div className="pointer-events-auto inline-block max-w-full rounded-lg bg-black/70 px-3 py-2 backdrop-blur dark:bg-white/10">
+              <LayoutProblems
+                problems={problems}
+                names={namesById}
+                roomNames={roomNames}
+                walkwayNames={walkwayNames}
+                unit={unit}
+              />
+            </div>
+          </div>
         </main>
 
         <aside
