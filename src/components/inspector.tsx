@@ -22,7 +22,12 @@ import {
   type Room,
   type Walkway,
 } from "@/domain/room";
-import { formatArea, formatLength, type DisplayUnit } from "@/domain/units";
+import {
+  formatArea,
+  formatCents,
+  formatLength,
+  type DisplayUnit,
+} from "@/domain/units";
 
 /** A stud wall is about 0.114 m; a masonry one is thicker. */
 const WALL_THICKNESS_LIMITS = { minMeters: 0.02, maxMeters: 0.6 };
@@ -168,6 +173,7 @@ function InstanceInspector({
   furniture,
   unit,
   selection,
+  onSelect,
   onInstanceChange,
   onInstanceRemove,
 }: InspectorProps & { selection: { kind: "instance"; id: string } }) {
@@ -189,6 +195,33 @@ function InstanceInspector({
         unit={unit}
         onInstanceChange={onInstanceChange}
       />
+      {/*
+        A placement and the thing placed are different objects, and the panel
+        was only ever showing one of them. Its size and its price are the
+        product's — so this is the way back to them, without hunting through
+        the catalogue for the row this piece came from.
+      */}
+      <div className="flex flex-col gap-2 border-t border-black/10 pt-4 dark:border-white/15">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+          <Fact
+            label="Size"
+            value={`${formatLength(placed.product.footprint.widthMeters, unit)} × ${formatLength(placed.product.footprint.depthMeters, unit)}`}
+          />
+          <Fact label="Price" value={formatCents(placed.product.priceCents)} />
+        </dl>
+        <button
+          type="button"
+          onClick={() => onSelect({ kind: "product", id: placed.product.id })}
+          className="self-start rounded-md border border-black/15 px-2.5 py-1 text-xs hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
+        >
+          Edit {placed.product.name}
+        </button>
+        <p className="text-xs leading-relaxed opacity-50">
+          Its size and price belong to the product, and changing them changes
+          every copy of it.
+        </p>
+      </div>
+
       <button
         type="button"
         onClick={() => onInstanceRemove(placed.instance)}

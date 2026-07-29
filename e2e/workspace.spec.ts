@@ -174,6 +174,33 @@ test.describe("the workspace", () => {
   });
 });
 
+test.describe("editing the product behind a piece", () => {
+  test("reaches the product from the piece standing in the room", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await addProduct(page, {
+      name: "Rug",
+      width: "96",
+      depth: "60",
+      price: "349.00",
+    });
+    await contents(page)
+      .getByRole("button", { name: "Place Rug in the room" })
+      .click();
+
+    // The piece is selected; its size and price belong to the product.
+    await expect(details(page).getByText("$349.00")).toBeVisible();
+    await details(page).getByRole("button", { name: "Edit Rug" }).click();
+
+    // Now editing the product itself, and a change reaches the plan.
+    await details(page).getByLabel("Width").fill("48");
+    await details(page).getByRole("button", { name: "Save changes" }).click();
+
+    await expect(planImage(page)).toHaveAccessibleName(/4' 0\.0" by 5' 0\.0"/);
+  });
+});
+
 test.describe("the plan as a canvas", () => {
   async function planCentre(page: Page) {
     const box = await planImage(page).boundingBox();

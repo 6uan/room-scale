@@ -138,13 +138,13 @@ function Header({
 }) {
   return (
     <div className="flex items-center justify-between gap-2">
-      <h2 className="text-xs uppercase tracking-[0.15em] opacity-50">
+      <h2 className="min-w-0 truncate text-xs uppercase tracking-[0.15em] opacity-50">
         {title}
       </h2>
       <button
         type="button"
         onClick={onAction}
-        className="rounded px-1.5 py-0.5 text-xs opacity-60 hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10"
+        className="shrink-0 rounded px-1.5 py-0.5 text-xs opacity-60 hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10"
       >
         {action}
       </button>
@@ -171,7 +171,7 @@ function Row({
       type="button"
       aria-pressed={selected}
       onClick={onSelect}
-      className={`flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm ${
+      className={`flex w-full min-w-0 items-center gap-2 rounded px-2 py-1 text-left text-sm ${
         depth ? "pl-6" : ""
       } ${
         selected
@@ -179,7 +179,7 @@ function Row({
           : "hover:bg-black/5 dark:hover:bg-white/10"
       } ${troubled ? "text-red-600" : ""}`}
     >
-      <span className="truncate">{label}</span>
+      <span className="min-w-0 truncate">{label}</span>
     </button>
   );
 }

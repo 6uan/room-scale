@@ -256,7 +256,7 @@ export function Workspace() {
       <div className="grid min-h-0 grid-cols-[minmax(0,16rem)_minmax(0,1fr)_minmax(0,20rem)]">
         <aside
           aria-label="Contents"
-          className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto] overflow-hidden border-r border-black/10 dark:border-white/15"
+          className="grid min-w-0 grid-rows-[minmax(0,1fr)_auto] overflow-hidden border-r border-black/10 dark:border-white/15"
         >
           <ApartmentLayers
             floor={floor}
