@@ -90,6 +90,36 @@ const HANDLE_PIXELS = 6;
 const HANDLE_GRAB_PIXELS = 9;
 
 /**
+ * What the pointer says it will do here.
+ *
+ * Written out in full because Tailwind reads class names as text: a name built
+ * out of pieces at runtime is a name it never sees and never generates.
+ */
+const CURSORS = {
+  none: "cursor-default",
+  pan: "cursor-grab",
+  panning: "cursor-grabbing",
+  move: "cursor-move",
+  "resize-x": "cursor-ew-resize",
+  "resize-y": "cursor-ns-resize",
+  "resize-nwse": "cursor-nwse-resize",
+  "resize-nesw": "cursor-nesw-resize",
+} as const;
+
+type Cursor = keyof typeof CURSORS;
+
+/** Which way a handle stretches the room, so the pointer can say so. */
+function cursorForEdges(edges: readonly RoomEdge[]): Cursor {
+  if (edges.length === 1) {
+    return edges[0] === "west" || edges[0] === "east" ? "resize-x" : "resize-y";
+  }
+  // A corner: north-west and south-east lie on one diagonal, the others on
+  // the opposite one.
+  const northWest = edges.includes("north") === edges.includes("west");
+  return northWest ? "resize-nwse" : "resize-nesw";
+}
+
+/**
  * The one color in the drawing that is not the foreground. A problem has to be
  * findable at a glance, and it reads on both the light and the dark theme —
  * the same red the forms use for a field that will not do.
@@ -183,7 +213,6 @@ export function RoomPlanCanvas({
 }: RoomPlanCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const dragRef = useRef<Drag | null>(null);
-  const [dragging, setDragging] = useState(false);
   const { ref: frameRef, size } = useElementSize<HTMLDivElement>();
 
   // Null until the view is moved, so the plan re-fits itself as the apartment
@@ -203,7 +232,6 @@ export function RoomPlanCanvas({
   // Space turns the pointer into a hand, as it does in every canvas tool. Held
   // in a ref for the handlers and in state for the cursor.
   const panningRef = useRef(false);
-  const [panReady, setPanReady] = useState(false);
 
   /**
    * Whether the plan is taking pointer input for the view.
@@ -225,6 +253,9 @@ export function RoomPlanCanvas({
     furniture.find(({ instance }) => instance.id === selectedId)?.instance
       .position ??
     null;
+
+  /** What the pointer is over, kept in state because it is only a cursor. */
+  const [cursor, setCursor] = useState<Cursor>("none");
 
   const [active, setActive] = useState(false);
   const activeRef = useRef(active);
@@ -364,7 +395,7 @@ export function RoomPlanCanvas({
         roomId: grabbed.roomId,
         edges: grabbed.edges,
       };
-      setDragging(true);
+      setCursor(cursorForEdges(grabbed.edges));
       canvas.focus();
       canvas.setPointerCapture?.(event.pointerId);
       return;
@@ -391,7 +422,7 @@ export function RoomPlanCanvas({
         pointerId: event.pointerId,
         from: { x: event.clientX - box.left, y: event.clientY - box.top },
       };
-      setDragging(true);
+      setCursor("panning");
       canvas.setPointerCapture?.(event.pointerId);
       return;
     }
@@ -407,7 +438,7 @@ export function RoomPlanCanvas({
           zMeters: point.zMeters - room.origin.zMeters,
         },
       };
-      setDragging(true);
+      setCursor("move");
       canvas.focus();
       canvas.setPointerCapture?.(event.pointerId);
       return;
@@ -426,16 +457,53 @@ export function RoomPlanCanvas({
         zMeters: point.zMeters - hit.instance.position.zMeters,
       },
     };
-    setDragging(true);
+    setCursor("move");
     // Focus follows the grab, so a piece can be dragged roughly into place and
     // then nudged the last centimeter without reaching for the mouse again.
     canvas.focus();
     canvas.setPointerCapture?.(event.pointerId);
   }
 
+  /** The cursor for whatever is under the pointer, when nothing is being moved. */
+  function hoverCursor(
+    canvas: HTMLCanvasElement,
+    event: PointerEvent<HTMLCanvasElement>,
+  ): Cursor {
+    if (panningRef.current) {
+      return "pan";
+    }
+
+    const box = canvas.getBoundingClientRect();
+    const grabbed = handleAt(
+      floor,
+      selectedRoomId,
+      projectionRef.current,
+      { x: event.clientX - box.left, y: event.clientY - box.top },
+      floorBounds(floor).origin,
+      floor.wallThicknessMeters,
+    );
+    if (grabbed !== null) {
+      return cursorForEdges(grabbed.edges);
+    }
+
+    const point = floorPointAt(canvas, floor, event, projectionRef.current);
+    if (point === null) {
+      return "none";
+    }
+    if (furnitureAt(furniture, point) !== null) {
+      return "move";
+    }
+    // Floor with nothing on it is where a drag pans, so it offers a hand.
+    return roomsAt(floor, point).length > 0 ? "move" : "pan";
+  }
+
   function handlePointerMove(event: PointerEvent<HTMLCanvasElement>): void {
     const drag = dragRef.current;
     const canvas = canvasRef.current;
+
+    if (canvas && drag === null) {
+      setCursor(hoverCursor(canvas, event));
+    }
 
     if (!drag || !canvas || drag.pointerId !== event.pointerId) {
       return;
@@ -531,7 +599,7 @@ export function RoomPlanCanvas({
   function handleKeyUp(event: KeyboardEvent<HTMLCanvasElement>): void {
     if (event.key === " ") {
       panningRef.current = false;
-      setPanReady(false);
+      setCursor("none");
     }
   }
 
@@ -540,7 +608,7 @@ export function RoomPlanCanvas({
       return;
     }
     dragRef.current = null;
-    setDragging(false);
+    setCursor("none");
     canvasRef.current?.releasePointerCapture?.(event.pointerId);
   }
 
@@ -560,7 +628,7 @@ export function RoomPlanCanvas({
     if (event.key === " ") {
       event.preventDefault();
       panningRef.current = true;
-      setPanReady(true);
+      setCursor("pan");
       return;
     }
 
@@ -599,15 +667,9 @@ export function RoomPlanCanvas({
         onBlur={() => {
           setActive(false);
           panningRef.current = false;
-          setPanReady(false);
+          setCursor("none");
         }}
-        className={`block h-full w-full touch-none outline-none ${
-          dragging
-            ? "cursor-grabbing"
-            : panReady
-              ? "cursor-grab"
-              : "cursor-pointer"
-        }`}
+        className={`block h-full w-full touch-none outline-none ${CURSORS[cursor]}`}
       />
 
       {/*

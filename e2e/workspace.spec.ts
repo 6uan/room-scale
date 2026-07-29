@@ -578,6 +578,44 @@ test.describe("laying the apartment out", () => {
     await expect(room.getByLabel("Living room from west")).toHaveValue("-84");
   });
 
+  test("says with the pointer what it is about to move", async ({ page }) => {
+    await page.goto("/");
+    await contents(page).getByRole("button", { name: "Living room" }).click();
+
+    const box = await planImage(page).boundingBox();
+    if (box === null) {
+      throw new Error("the plan has no box to point at");
+    }
+    const metres = (inches: number) => inches * 0.0254;
+    const padding = 40;
+    const scale = Math.min(
+      (box.width - padding * 2) / (metres(168) + metres(4.5) * 2),
+      (box.height - padding * 2) / (metres(144) + metres(4.5) * 2),
+    );
+    const middle = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const cursor = () =>
+      planImage(page).evaluate((element) => getComputedStyle(element).cursor);
+
+    // Over the room itself: something to move.
+    await page.mouse.move(middle.x, middle.y);
+    expect(await cursor()).toBe("move");
+
+    // Over the east wall's handle: something to stretch, and which way.
+    await page.mouse.move(middle.x + (metres(168) / 2) * scale, middle.y);
+    expect(await cursor()).toBe("ew-resize");
+
+    // Over its south-east corner: the other kind of stretch.
+    await page.mouse.move(
+      middle.x + (metres(168) / 2) * scale,
+      middle.y + (metres(144) / 2) * scale,
+    );
+    expect(await cursor()).toBe("nwse-resize");
+
+    // Off the apartment altogether: a hand, because a drag there pans.
+    await page.mouse.move(box.x + 8, box.y + 8);
+    expect(await cursor()).toBe("grab");
+  });
+
   test("opens on numbers somebody could have measured", async ({ page }) => {
     await page.goto("/");
     await contents(page).getByRole("button", { name: "Living room" }).click();
