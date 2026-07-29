@@ -37,7 +37,7 @@ export function CataloguePanel({
   onPlace,
 }: CataloguePanelProps) {
   return (
-    <div className="flex min-h-0 flex-col gap-3 overflow-y-auto border-t border-black/10 p-4 dark:border-white/15">
+    <div className="flex max-h-[70vh] min-h-0 flex-col gap-3 overflow-y-auto border-t border-black/10 p-4 dark:border-white/15">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-xs uppercase tracking-[0.15em] opacity-50">
           Catalogue
