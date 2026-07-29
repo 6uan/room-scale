@@ -486,6 +486,78 @@ test.describe("laying the apartment out", () => {
     await expect(room.getByLabel("Room 2 X position")).toHaveValue("88.5");
   });
 
+  test("snaps a scrubbed width to a neighbouring room's shared wall", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await addRoom(page);
+
+    // Put Room 2 east of the living room. Its west face is at 100", so the
+    // living room shares that wall when its east face reaches 95.5".
+    await details(page).getByLabel("Room 2 X position").fill("100");
+    await contents(page).getByRole("button", { name: "Living room" }).click();
+
+    const inspector = details(page);
+    const width = inspector.getByLabel("Living room width");
+    const scrubber = inspector.getByRole("slider", {
+      name: "W drag handle",
+    });
+    const box = await scrubber.boundingBox();
+    if (box === null) {
+      throw new Error("the width scrubber has no box to drag");
+    }
+
+    const y = box.y + box.height / 2;
+    await page.mouse.move(box.x + box.width / 2, y);
+    await page.mouse.down();
+    // 168" + 12" would be 180"; within the four-inch threshold, it lands on
+    // the exact 179.5" width that shares Room 2's wall.
+    await page.mouse.move(box.x + box.width / 2 + 12, y);
+    await page.mouse.up();
+
+    await expect(width).toHaveValue("179.5");
+  });
+
+  test("snaps a canvas resize to the same neighbouring wall", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await addRoom(page);
+    await details(page).getByLabel("Room 2 X position").fill("100");
+    await contents(page).getByRole("button", { name: "Living room" }).click();
+
+    const box = await planImage(page).boundingBox();
+    if (box === null) {
+      throw new Error("the plan has no box to point at");
+    }
+
+    // Drawing Room 2 pins the view that existed when the gesture began, so the
+    // handle remains on the original one-room projection while Room 2 is moved.
+    const metres = (inches: number) => inches * 0.0254;
+    const padding = 40;
+    const across = metres(168 + 4.5 * 2);
+    const down = metres(144 + 4.5 * 2);
+    const scale = Math.min(
+      (box.width - padding * 2) / across,
+      (box.height - padding * 2) / down,
+    );
+    const eastHandle = {
+      x: box.x + box.width / 2 + metres(84) * scale,
+      y: box.y + box.height / 2,
+    };
+
+    await page.mouse.move(eastHandle.x, eastHandle.y);
+    await page.mouse.down();
+    // A raw twelve-inch move reaches 180", then shares Room 2's west wall at
+    // the exact 179.5" room width.
+    await page.mouse.move(eastHandle.x + metres(12) * scale, eastHandle.y);
+    await page.mouse.up();
+
+    await expect(details(page).getByLabel("Living room width")).toHaveValue(
+      "179.5",
+    );
+  });
+
   test("leaves a room where it was put when nothing is near", async ({
     page,
   }) => {

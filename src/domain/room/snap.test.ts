@@ -6,6 +6,7 @@ import {
   drawnRoom,
   snapRoomEdge,
   snapRoomOrigin,
+  snapRoomResize,
 } from "./floor";
 import { ROOM_LENGTH_LIMITS, createRoom, type Room } from "./room";
 
@@ -134,6 +135,38 @@ describe("snapRoomEdge", () => {
     const empty = { ...FLOOR, rooms: [] };
 
     expect(snapRoomEdge(empty, "x", 4.06)).toBe(4.06);
+  });
+});
+
+describe("snapRoomResize", () => {
+  it("snaps an east resize to share the next room's west wall", () => {
+    const resized = snapRoomResize(FLOOR, FIRST, "east", 8.94);
+
+    // SECOND begins at 9, so FIRST's east wall shares it at 8.9.
+    expect(resized.widthMeters).toBeCloseTo(8.9, 10);
+    expect(resized.origin).toEqual(FIRST.origin);
+  });
+
+  it("snaps a south resize against room depth", () => {
+    const below = {
+      ...SECOND,
+      origin: { xMeters: 0, zMeters: 5 },
+    };
+    const floor = { ...FLOOR, rooms: [FIRST, below] };
+    const resized = snapRoomResize(floor, FIRST, "south", 4.94);
+
+    expect(resized.depthMeters).toBeCloseTo(4.9, 10);
+    expect(resized.origin).toEqual(FIRST.origin);
+  });
+
+  it("leaves a pointer resize exact when no neighboring face is near", () => {
+    expect(snapRoomResize(FLOOR, FIRST, "east", 6).widthMeters).toBe(6);
+  });
+
+  it("does not snap a room's moving edge back to itself", () => {
+    const alone = { ...FLOOR, rooms: [FIRST] };
+
+    expect(snapRoomResize(alone, FIRST, "east", 4.05).widthMeters).toBe(4.05);
   });
 });
 
