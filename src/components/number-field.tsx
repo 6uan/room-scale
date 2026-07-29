@@ -37,6 +37,8 @@ export type NumberFieldProps = {
   meters: number;
   limits: LengthLimits;
   onMetersChange: (meters: number, gesture?: string) => void;
+  /** Optional pointer/slider path when scrubbing has spatial behavior. */
+  onScrubbedMetersChange?: (meters: number, gesture?: string) => void;
   onGestureEnd?: () => void;
 };
 
@@ -56,6 +58,7 @@ export function NumberField({
   meters,
   limits,
   onMetersChange,
+  onScrubbedMetersChange = onMetersChange,
   onGestureEnd,
 }: NumberFieldProps) {
   const inputId = useId();
@@ -105,7 +108,7 @@ export function NumberField({
     }
     setApplied({ meters: next, unit });
     setDraft(textFromMeters(next, unit));
-    onMetersChange(next, gesture);
+    onScrubbedMetersChange(next, gesture);
   }
 
   function beginScrub(event: PointerEvent<HTMLSpanElement>): void {

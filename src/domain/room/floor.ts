@@ -30,7 +30,9 @@ import {
   DEFAULT_ROOM,
   ROOM_LENGTH_LIMITS,
   createRoom,
+  resizeRoomEdge,
   type Room,
+  type RoomEdge,
 } from "./room";
 
 export type Floor = {
@@ -295,6 +297,27 @@ export function snapRoomEdge(
     }
   }
   return best;
+}
+
+/**
+ * Resizes one room edge with the same neighboring-face snap used while drawing.
+ *
+ * Canvas handles and inspector scrubbers both call this so pointer resizing has
+ * one spatial rule. Typed dimensions deliberately keep using `withRoomLength`:
+ * a number somebody entered is exact rather than an approximate pointer intent.
+ */
+export function snapRoomResize(
+  floor: Floor,
+  room: Room,
+  edge: RoomEdge,
+  positionMeters: number,
+): Room {
+  const axis = edge === "west" || edge === "east" ? "x" : "z";
+  return resizeRoomEdge(
+    room,
+    edge,
+    snapRoomEdge(floor, axis, positionMeters, room.id),
+  );
 }
 
 /** One axis of the snap: the candidates, nearest first, or the value as given. */

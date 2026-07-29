@@ -8,6 +8,7 @@ import {
   roomFloorAreaSquareMeters,
   SNAP_METERS,
   snapRoomOrigin,
+  snapRoomResize,
   withOpenings,
   withOrigin,
   withRoomLength,
@@ -100,6 +101,12 @@ export function RoomFields({
           onMetersChange={(meters, gesture) =>
             onChange(withRoomLength(room, "widthMeters", meters), gesture)
           }
+          onScrubbedMetersChange={(meters, gesture) =>
+            onChange(
+              snapRoomResize(floor, room, "east", room.origin.xMeters + meters),
+              gesture,
+            )
+          }
           onGestureEnd={onGestureEnd}
         />
         <NumberField
@@ -123,6 +130,17 @@ export function RoomFields({
           limits={ROOM_LENGTH_LIMITS.depthMeters}
           onMetersChange={(meters, gesture) =>
             onChange(withRoomLength(room, "depthMeters", meters), gesture)
+          }
+          onScrubbedMetersChange={(meters, gesture) =>
+            onChange(
+              snapRoomResize(
+                floor,
+                room,
+                "south",
+                room.origin.zMeters + meters,
+              ),
+              gesture,
+            )
           }
           onGestureEnd={onGestureEnd}
         />

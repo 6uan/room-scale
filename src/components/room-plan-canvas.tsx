@@ -43,9 +43,9 @@ import {
   floorBounds,
   openingEndpoints,
   pointOnFloor,
-  resizeRoomEdge,
   roomsAt,
   snapRoomOrigin,
+  snapRoomResize,
   wallOutwardNormal,
   withOrigin,
   type Floor,
@@ -624,7 +624,8 @@ export function RoomPlanCanvas({
       // kind of number a typed one does.
       const next = drag.edges.reduce(
         (room, edge) =>
-          resizeRoomEdge(
+          snapRoomResize(
+            floor,
             room,
             edge,
             roundToDisplayUnit(

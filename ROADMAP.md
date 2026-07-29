@@ -14,7 +14,7 @@ Two rules keep the order honest:
   Steps 4 to 10 are that question end to end. Everything after them makes the
   answer nicer to look at.
 
-Status: **finish room-size snapping, then step 17b.**
+Status: **step 17b is next.**
 
 ## Near-term pull requests
 
@@ -25,8 +25,8 @@ calendar time.
 
 | Order                 | Pull request boundary                                                                                                            | ROI         | Impact      | Why it is here                                                                                                   |
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------- | ----------- | ---------------------------------------------------------------------------------------------------------------- |
-| Current — #24         | Draw rooms directly; rename them in place; edit and scrub X/Y and W/H/D; remove the retired planning feature and its stored data | **Highest** | **High**    | It turns room entry into one coherent, pointer-first workflow and removes scope that distracts from furnishing.  |
-| Next                  | Snap scrubbed W/D changes to neighbouring room faces, matching canvas resize and X/Y movement                                    | **Highest** | Medium      | Small, contained work that closes the one inconsistent transform path before more geometry is added.             |
+| Done — #24            | Draw rooms directly; rename them in place; edit and scrub X/Y and W/H/D; remove the retired planning feature and its stored data | **Highest** | **High**    | It turns room entry into one coherent, pointer-first workflow and removes scope that distracts from furnishing.  |
+| Current follow-up     | Snap canvas resizing and scrubbed W/D changes to neighbouring room faces through one shared rule                                 | **Highest** | Medium      | Small, contained work that closes the last inconsistent transform path before more geometry is added.            |
 | Then — step 17b       | Place, select, move, and resize doors, windows, and passages on the plan while keeping every value typeable                      | **Highest** | **Highest** | Fourteen openings are the largest remaining source of repetitive arithmetic in entering the real apartment.      |
 | Step 18, first slice  | Build an L-shaped or notched room from multiple axis-aligned rectangular parts, including persistence and validation             | **High**    | **Highest** | This expresses most currently impossible rooms without taking on rotation at the same time.                      |
 | Step 18, second slice | Rotate room parts for diagonal walls                                                                                             | Medium      | High        | Required for the real plan, but only after the higher-leverage rectangular-part model is proven.                 |
