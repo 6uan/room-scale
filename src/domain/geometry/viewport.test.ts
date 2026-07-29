@@ -4,7 +4,13 @@ import {
   projectPoint,
   unprojectPoint,
 } from "./plan-projection";
-import { panBy, zoomAt, zoomLevel } from "./viewport";
+import {
+  MIN_VISIBLE_PIXELS,
+  clampToViewport,
+  panBy,
+  zoomAt,
+  zoomLevel,
+} from "./viewport";
 
 /** Four meters across a 400 pixel viewport: 100 pixels to the meter. */
 const FITTED = createPlanProjection(
@@ -111,5 +117,98 @@ describe("zoomLevel", () => {
     );
 
     expect(zoomLevel(zoomed, FITTED)).toBeCloseTo(3, 10);
+  });
+});
+
+describe("clampToViewport", () => {
+  const VIEWPORT = { width: 400, height: 400 };
+  /** The four-meter apartment FITTED was built around, at the floor's zero. */
+  const RECT = {
+    origin: { xMeters: 0, zMeters: 0 },
+    extent: { widthMeters: 4, depthMeters: 4 },
+  };
+
+  it("leaves a plan that is already on screen exactly where it is", () => {
+    expect(clampToViewport(FITTED, RECT, VIEWPORT)).toEqual(FITTED);
+  });
+
+  it("leaves a plan pushed to the edge but still reachable", () => {
+    // Its right-hand strip is still on screen, which is all that is asked.
+    const pushed = panBy(FITTED, 400 - MIN_VISIBLE_PIXELS, 0);
+
+    expect(clampToViewport(pushed, RECT, VIEWPORT)).toEqual(pushed);
+  });
+
+  it("brings back a plan panned off to the east", () => {
+    const lost = panBy(FITTED, 5000, 0);
+
+    const held = clampToViewport(lost, RECT, VIEWPORT);
+
+    // Its western strip sits against the eastern edge of the viewport.
+    expect(projectPoint(held, RECT.origin).x).toBe(400 - MIN_VISIBLE_PIXELS);
+  });
+
+  it("brings back a plan panned off to the west", () => {
+    const lost = panBy(FITTED, -5000, 0);
+
+    const held = clampToViewport(lost, RECT, VIEWPORT);
+
+    // Its eastern strip sits against the western edge.
+    const drawn = 4 * held.pixelsPerMeter;
+    expect(projectPoint(held, RECT.origin).x).toBe(MIN_VISIBLE_PIXELS - drawn);
+  });
+
+  it("brings back a plan panned off the bottom", () => {
+    const lost = panBy(FITTED, 0, 5000);
+
+    const held = clampToViewport(lost, RECT, VIEWPORT);
+
+    expect(projectPoint(held, RECT.origin).y).toBe(400 - MIN_VISIBLE_PIXELS);
+  });
+
+  it("moves one axis without disturbing the other", () => {
+    const lost = panBy(FITTED, 5000, 0);
+
+    const held = clampToViewport(lost, RECT, VIEWPORT);
+
+    expect(held.originY).toBe(lost.originY);
+  });
+
+  it("never changes the scale, only where the plan sits", () => {
+    const held = clampToViewport(panBy(FITTED, 9000, 9000), RECT, VIEWPORT);
+
+    expect(held.pixelsPerMeter).toBe(FITTED.pixelsPerMeter);
+  });
+
+  it("holds a plan smaller than the visible strip whole", () => {
+    // A drawn plan 20 pixels across cannot show 48 of itself; asking for it
+    // would push a plan off the screen in the name of keeping it on.
+    const tiny = {
+      origin: { xMeters: 0, zMeters: 0 },
+      extent: { widthMeters: 0.2, depthMeters: 0.2 },
+    };
+    const lost = panBy(FITTED, 5000, 0);
+
+    const held = clampToViewport(lost, tiny, VIEWPORT);
+
+    expect(projectPoint(held, tiny.origin).x).toBe(400 - 20);
+  });
+
+  it("keeps a plan away from a zero-scale projection rather than dividing by it", () => {
+    const empty = { pixelsPerMeter: 0, originX: 0, originY: 0 };
+
+    expect(clampToViewport(empty, RECT, VIEWPORT)).toBe(empty);
+  });
+
+  it("holds an apartment that does not start at the floor's zero", () => {
+    const away = {
+      origin: { xMeters: -10, zMeters: -10 },
+      extent: { widthMeters: 4, depthMeters: 4 },
+    };
+    const fitted = createPlanProjection(away.extent, VIEWPORT, 0, away.origin);
+
+    const held = clampToViewport(panBy(fitted, 5000, 0), away, VIEWPORT);
+
+    expect(projectPoint(held, away.origin).x).toBe(400 - MIN_VISIBLE_PIXELS);
   });
 });

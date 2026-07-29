@@ -10,7 +10,9 @@ import {
 } from "react";
 import {
   MAX_ZOOM,
+  MAX_ZOOM_STEP,
   MIN_ZOOM,
+  clampToViewport,
   createPlanProjection,
   panBy,
   projectLength,
@@ -318,6 +320,33 @@ export function RoomPlanCanvas({
     projection,
   ]);
 
+  /**
+   * A view, moved back if it has pushed the apartment off the screen.
+   *
+   * Everything that changes the view goes through this. Panning has no natural
+   * limit — the origin is a number of pixels — so without it one hard swipe
+   * leaves an empty grid and no clue which way to go back. Zoom to fit is one
+   * key away, but a tool should not need rescuing.
+   */
+  function held(next: PlanProjection): PlanProjection {
+    const { origin, extent } = floorBounds(floor);
+    const thickness = floor.wallThicknessMeters;
+    return clampToViewport(
+      next,
+      {
+        origin: {
+          xMeters: origin.xMeters - thickness,
+          zMeters: origin.zMeters - thickness,
+        },
+        extent: {
+          widthMeters: extent.widthMeters + thickness * 2,
+          depthMeters: extent.depthMeters + thickness * 2,
+        },
+      },
+      size,
+    );
+  }
+
   /** Wheel: pan, unless a modifier makes it a zoom toward the pointer. */
   function handleWheel(
     event: WheelEventInit & { preventDefault(): void },
@@ -339,21 +368,26 @@ export function RoomPlanCanvas({
     const current = projectionRef.current;
 
     if (event.ctrlKey || event.metaKey) {
-      // A wheel notch is about 100 units; a trackpad pinch arrives in ones.
-      const factor = Math.exp(-(event.deltaY ?? 0) / 250);
+      // A wheel notch is about 100 units and a trackpad pinch arrives in ones,
+      // so the rate alone cannot serve both: one notch used to be a third of
+      // the way in. Capped per event, a notch is a step you can follow and a
+      // pinch is untouched, being far below the cap already.
+      const factor = clampZoomStep(Math.exp(-(event.deltaY ?? 0) / 250));
       setView(
-        zoomAt(
-          current,
-          factor,
-          at,
-          fitted.pixelsPerMeter * MIN_ZOOM,
-          fitted.pixelsPerMeter * MAX_ZOOM,
+        held(
+          zoomAt(
+            current,
+            factor,
+            at,
+            fitted.pixelsPerMeter * MIN_ZOOM,
+            fitted.pixelsPerMeter * MAX_ZOOM,
+          ),
         ),
       );
       return;
     }
 
-    setView(panBy(current, -(event.deltaX ?? 0), -(event.deltaY ?? 0)));
+    setView(held(panBy(current, -(event.deltaX ?? 0), -(event.deltaY ?? 0))));
   }
 
   // Held in a ref so the listener below never goes stale without being
@@ -375,8 +409,7 @@ export function RoomPlanCanvas({
 
   function handlePointerDown(event: PointerEvent<HTMLCanvasElement>): void {
     const canvas = canvasRef.current;
-    const point =
-      canvas && floorPointAt(canvas, floor, event, projectionRef.current);
+    const point = canvas && floorPointAt(canvas, event, projectionRef.current);
     if (!canvas || !point) {
       return;
     }
@@ -393,14 +426,10 @@ export function RoomPlanCanvas({
 
     const box = canvas.getBoundingClientRect();
 
-    const grabbed = handleAt(
-      floor,
-      selectedRoomId,
-      projectionRef.current,
-      { x: event.clientX - box.left, y: event.clientY - box.top },
-      floorBounds(floor).origin,
-      floor.wallThicknessMeters,
-    );
+    const grabbed = handleAt(floor, selectedRoomId, projectionRef.current, {
+      x: event.clientX - box.left,
+      y: event.clientY - box.top,
+    });
     if (grabbed !== null && !panningRef.current) {
       dragRef.current = {
         kind: "resize",
@@ -487,19 +516,15 @@ export function RoomPlanCanvas({
     }
 
     const box = canvas.getBoundingClientRect();
-    const grabbed = handleAt(
-      floor,
-      selectedRoomId,
-      projectionRef.current,
-      { x: event.clientX - box.left, y: event.clientY - box.top },
-      floorBounds(floor).origin,
-      floor.wallThicknessMeters,
-    );
+    const grabbed = handleAt(floor, selectedRoomId, projectionRef.current, {
+      x: event.clientX - box.left,
+      y: event.clientY - box.top,
+    });
     if (grabbed !== null) {
       return cursorForEdges(grabbed.edges);
     }
 
-    const point = floorPointAt(canvas, floor, event, projectionRef.current);
+    const point = floorPointAt(canvas, event, projectionRef.current);
     if (point === null) {
       return "none";
     }
@@ -524,7 +549,7 @@ export function RoomPlanCanvas({
 
     if (drag.kind === "resize") {
       const sizing = floor.rooms.find((one) => one.id === drag.roomId);
-      const point = floorPointAt(canvas, floor, event, projectionRef.current);
+      const point = floorPointAt(canvas, event, projectionRef.current);
       if (sizing === undefined || point === null) {
         return;
       }
@@ -550,7 +575,7 @@ export function RoomPlanCanvas({
 
     if (drag.kind === "room") {
       const moving = floor.rooms.find((one) => one.id === drag.roomId);
-      const point = floorPointAt(canvas, floor, event, projectionRef.current);
+      const point = floorPointAt(canvas, event, projectionRef.current);
       if (moving === undefined || point === null) {
         return;
       }
@@ -573,7 +598,9 @@ export function RoomPlanCanvas({
       const box = canvas.getBoundingClientRect();
       const to = { x: event.clientX - box.left, y: event.clientY - box.top };
       setView(
-        panBy(projectionRef.current, to.x - drag.from.x, to.y - drag.from.y),
+        held(
+          panBy(projectionRef.current, to.x - drag.from.x, to.y - drag.from.y),
+        ),
       );
       dragRef.current = { ...drag, from: to };
       return;
@@ -582,7 +609,7 @@ export function RoomPlanCanvas({
     const placed = furniture.find(
       ({ instance }) => instance.id === drag.instanceId,
     );
-    const point = floorPointAt(canvas, floor, event, projectionRef.current);
+    const point = floorPointAt(canvas, event, projectionRef.current);
     if (!placed || !point) {
       return;
     }
@@ -602,8 +629,7 @@ export function RoomPlanCanvas({
   function handleDrop(event: DragEvent<HTMLCanvasElement>): void {
     const canvas = canvasRef.current;
     const productId = event.dataTransfer.getData(PRODUCT_DRAG_TYPE);
-    const point =
-      canvas && floorPointAt(canvas, floor, event, projectionRef.current);
+    const point = canvas && floorPointAt(canvas, event, projectionRef.current);
     if (!canvas || !point || productId === "") {
       return;
     }
@@ -741,8 +767,6 @@ function handleAt(
   selectedRoomId: string | null,
   projection: PlanProjection,
   at: PixelPoint,
-  origin: FloorPoint,
-  thickness: number,
 ): { roomId: string; edges: readonly RoomEdge[] } | null {
   const room = floor.rooms.find((one) => one.id === selectedRoomId);
   if (room === undefined) {
@@ -750,10 +774,7 @@ function handleAt(
   }
 
   for (const handle of roomHandles(room)) {
-    const point = projectPoint(projection, {
-      xMeters: handle.at.xMeters - origin.xMeters + thickness,
-      zMeters: handle.at.zMeters - origin.zMeters + thickness,
-    });
+    const point = projectPoint(projection, handle.at);
     if (
       Math.abs(point.x - at.x) <= HANDLE_GRAB_PIXELS &&
       Math.abs(point.y - at.y) <= HANDLE_GRAB_PIXELS
@@ -773,7 +794,6 @@ function handleAt(
  */
 function floorPointAt(
   canvas: HTMLCanvasElement,
-  floor: Floor,
   event: { clientX: number; clientY: number },
   projection: PlanProjection,
 ): FloorPoint | null {
@@ -785,17 +805,11 @@ function floorPointAt(
     x: event.clientX - box.left,
     y: event.clientY - box.top,
   });
-  if (point === null) {
-    return null;
-  }
-
-  // The projection covers a wall all round the apartment, and starts at the
-  // north-west corner of everything on it rather than at the floor's zero.
-  const { origin } = floorBounds(floor);
-  return {
-    xMeters: point.xMeters + origin.xMeters - floor.wallThicknessMeters,
-    zMeters: point.zMeters + origin.zMeters - floor.wallThicknessMeters,
-  };
+  // No correction: the projection maps floor coordinates straight to pixels,
+  // and running it backwards gives floor coordinates straight back. This is
+  // what makes a pinned projection actually pin the drag — the mapping no
+  // longer depends on where the rooms happen to be.
+  return point;
 }
 
 /**
@@ -804,7 +818,10 @@ function floorPointAt(
  */
 function planProjectionFor(floor: Floor, viewport: PixelSize): PlanProjection {
   const thickness = floor.wallThicknessMeters;
-  const { extent } = floorBounds(floor);
+  const { origin, extent } = floorBounds(floor);
+  // The fitted rectangle is the apartment plus a wall all round it, and it
+  // starts where the apartment starts. Handing the origin over is what makes
+  // the result a complete transform, so nothing downstream adds it back.
   return createPlanProjection(
     {
       widthMeters: extent.widthMeters + thickness * 2,
@@ -812,6 +829,10 @@ function planProjectionFor(floor: Floor, viewport: PixelSize): PlanProjection {
     },
     viewport,
     PLAN_PADDING_PIXELS,
+    {
+      xMeters: origin.xMeters - thickness,
+      zMeters: origin.zMeters - thickness,
+    },
   );
 }
 
@@ -927,7 +948,6 @@ function drawPlan(
   context.clearRect(0, 0, viewport.width, viewport.height);
 
   const thickness = floor.wallThicknessMeters;
-  const { origin } = floorBounds(floor);
 
   // The projection arrives already fitted — and possibly panned and zoomed
   // since. Everything below works in whatever transform it is handed.
@@ -936,11 +956,7 @@ function drawPlan(
   }
 
   const frame: PlanFrame = {
-    toPixels: (point) =>
-      projectPoint(projection, {
-        xMeters: point.xMeters - origin.xMeters + thickness,
-        zMeters: point.zMeters - origin.zMeters + thickness,
-      }),
+    toPixels: (point) => projectPoint(projection, point),
     wallPixels: projectLength(projection, thickness),
     color,
   };
@@ -1468,4 +1484,12 @@ function useElementSize<T extends HTMLElement>() {
   }, []);
 
   return { ref, size };
+}
+
+/** One gesture's zoom, held to a step somebody can follow. See MAX_ZOOM_STEP. */
+function clampZoomStep(factor: number): number {
+  if (!(factor > 0)) {
+    return 1;
+  }
+  return Math.min(MAX_ZOOM_STEP, Math.max(1 / MAX_ZOOM_STEP, factor));
 }
