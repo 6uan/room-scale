@@ -6,6 +6,7 @@ import {
   useState,
   type DragEvent,
   type KeyboardEvent,
+  type MouseEvent,
   type PointerEvent,
 } from "react";
 import {
@@ -33,6 +34,7 @@ import {
   type PlacedFurniture,
 } from "@/domain/furniture";
 import { instanceFromKeyPress } from "@/components/placement-keys";
+import { roomGridLines } from "@/components/room-grid";
 import { pressIs } from "@/components/shortcuts";
 import type { Gesture } from "@/state/project-store";
 import { PRODUCT_DRAG_TYPE } from "@/components/catalogue-panel";
@@ -41,20 +43,25 @@ import {
   drawnRoom,
   floorAreaSquareMeters,
   floorBounds,
-  metersAlongWall,
+  metersAlongOpeningWall,
   moveOpening,
   openingAtPoint,
   openingEndpoints,
   pointAlongWall,
   pointInRoom,
   pointOnFloor,
+  primaryRoomPart,
   resizeOpeningJamb,
   roomsAt,
+  roomBounds,
   snapRoomOrigin,
+  snapRoomPartOrigin,
+  snapRoomPartResize,
   snapRoomResize,
   wallPlacementAt,
   wallOutwardNormal,
   withOrigin,
+  withRoomPartOrigin,
   type Floor,
   type FloorVector,
   type Opening,
@@ -62,6 +69,7 @@ import {
   type OpeningKind,
   type Room,
   type RoomEdge,
+  type RoomPart,
   type WallSide,
 } from "@/domain/room";
 import {
@@ -176,7 +184,10 @@ export type RoomPlanCanvasProps = {
   onInstanceChange: (instance: FurnitureInstance, gesture?: Gesture) => void;
   /** Which room is being worked on, so the plan can mark and move it. */
   selectedRoomId?: string | null;
+  /** A selected rectangle inside the room; null means the whole room module. */
+  selectedRoomPartId?: string | null;
   onSelectRoom?: (roomId: string) => void;
+  onSelectRoomPart?: (roomId: string, partId: string) => void;
   onRoomChange?: (room: Room, gesture?: Gesture) => void;
   /** Which wall opening is being worked on. */
   selectedOpeningId?: string | null;
@@ -218,6 +229,7 @@ export type RoomPlanCanvasProps = {
   onPlaceOpening?: (
     roomId: string,
     kind: OpeningKind,
+    partId: string,
     wall: WallSide,
     centerMeters: number,
   ) => void;
@@ -246,9 +258,18 @@ type Drag =
       readonly grabOffset: FloorPoint;
     }
   | {
+      readonly kind: "part";
+      readonly pointerId: number;
+      readonly roomId: string;
+      readonly partId: string;
+      readonly grabOffset: FloorPoint;
+    }
+  | {
       readonly kind: "resize";
       readonly pointerId: number;
       readonly roomId: string;
+      /** Null means the one-part room itself; otherwise resize this part. */
+      readonly partId: string | null;
       /** One or two walls: an edge moves one, a corner moves both. */
       readonly edges: readonly RoomEdge[];
     }
@@ -303,7 +324,9 @@ export function RoomPlanCanvas({
   onInstanceChange,
   onDropProduct,
   selectedRoomId = null,
+  selectedRoomPartId = null,
   onSelectRoom,
+  onSelectRoomPart,
   onRoomChange,
   selectedOpeningId = null,
   onSelectOpening,
@@ -353,8 +376,13 @@ export function RoomPlanCanvas({
    * holds — so the readout and the field agree rather than nearly agreeing.
    */
   const selectedOpening = findOpening(floor, selectedOpeningId);
+  const selectedRoom = floor.rooms.find((room) => room.id === selectedRoomId);
+  const selectedPart = selectedRoom?.parts.find(
+    (part) => part.id === selectedRoomPartId,
+  );
   const at =
-    floor.rooms.find((room) => room.id === selectedRoomId)?.origin ??
+    selectedPart?.origin ??
+    (selectedRoom === undefined ? null : roomBounds(selectedRoom).origin) ??
     (selectedOpening === null
       ? null
       : pointOnFloor(
@@ -363,6 +391,7 @@ export function RoomPlanCanvas({
             selectedOpening.room,
             selectedOpening.opening.wall,
             selectedOpening.opening.centerMeters,
+            selectedOpening.opening.partId,
           ),
         )) ??
     furniture.find(({ instance }) => instance.id === selectedId)?.instance
@@ -413,6 +442,7 @@ export function RoomPlanCanvas({
       furniture,
       selectedId,
       selectedRoomId,
+      selectedRoomPartId,
       selectedOpeningId,
       troubledIds,
       viewport: size,
@@ -429,6 +459,7 @@ export function RoomPlanCanvas({
     unit,
     selectedId,
     selectedRoomId,
+    selectedRoomPartId,
     selectedOpeningId,
     troubledIds,
     size,
@@ -558,6 +589,7 @@ export function RoomPlanCanvas({
         onPlaceOpening?.(
           room.id,
           placingOpening.kind,
+          placement.partId,
           placement.wall,
           roundToDisplayUnit(placement.alongMeters, unit),
         );
@@ -618,7 +650,7 @@ export function RoomPlanCanvas({
         roomId: openingHit.room.id,
         openingId: openingHit.opening.id,
         grabOffsetMeters:
-          metersAlongWall(openingHit.opening.wall, local) -
+          metersAlongOpeningWall(openingHit.room, openingHit.opening, local) -
           openingHit.opening.centerMeters,
       };
       setCursor("move");
@@ -627,15 +659,22 @@ export function RoomPlanCanvas({
       return;
     }
 
-    const grabbed = handleAt(floor, selectedRoomId, projectionRef.current, {
-      x: event.clientX - box.left,
-      y: event.clientY - box.top,
-    });
+    const grabbed = handleAt(
+      floor,
+      selectedRoomId,
+      selectedRoomPartId,
+      projectionRef.current,
+      {
+        x: event.clientX - box.left,
+        y: event.clientY - box.top,
+      },
+    );
     if (grabbed !== null && !panningRef.current) {
       dragRef.current = {
         kind: "resize",
         pointerId: event.pointerId,
         roomId: grabbed.roomId,
+        partId: grabbed.partId,
         edges: grabbed.edges,
       };
       setCursor(cursorForEdges(grabbed.edges));
@@ -671,14 +710,35 @@ export function RoomPlanCanvas({
     }
 
     if (hit === null && room !== null) {
+      const part =
+        room.id === selectedRoomId && selectedRoomPartId !== null
+          ? roomPartAt(room, point)
+          : null;
+      if (part !== null) {
+        onSelectRoomPart?.(room.id, part.id);
+        dragRef.current = {
+          kind: "part",
+          pointerId: event.pointerId,
+          roomId: room.id,
+          partId: part.id,
+          grabOffset: {
+            xMeters: point.xMeters - part.origin.xMeters,
+            zMeters: point.zMeters - part.origin.zMeters,
+          },
+        };
+        setCursor("move");
+        canvas.focus();
+        canvas.setPointerCapture?.(event.pointerId);
+        return;
+      }
       onSelectRoom?.(room.id);
       dragRef.current = {
         kind: "room",
         pointerId: event.pointerId,
         roomId: room.id,
         grabOffset: {
-          xMeters: point.xMeters - room.origin.xMeters,
-          zMeters: point.zMeters - room.origin.zMeters,
+          xMeters: point.xMeters - roomBounds(room).origin.xMeters,
+          zMeters: point.zMeters - roomBounds(room).origin.zMeters,
         },
       };
       setCursor("move");
@@ -730,10 +790,16 @@ export function RoomPlanCanvas({
       return cursorForWall(openingHandle.wall);
     }
 
-    const grabbed = handleAt(floor, selectedRoomId, projectionRef.current, {
-      x: event.clientX - box.left,
-      y: event.clientY - box.top,
-    });
+    const grabbed = handleAt(
+      floor,
+      selectedRoomId,
+      selectedRoomPartId,
+      projectionRef.current,
+      {
+        x: event.clientX - box.left,
+        y: event.clientY - box.top,
+      },
+    );
     if (grabbed !== null) {
       return cursorForEdges(grabbed.edges);
     }
@@ -778,7 +844,7 @@ export function RoomPlanCanvas({
       }
       const local = pointInRoom(found.room, point);
       const alongMeters = roundToDisplayUnit(
-        metersAlongWall(found.opening.wall, local) -
+        metersAlongOpeningWall(found.room, found.opening, local) -
           (drag.kind === "opening-move" ? drag.grabOffsetMeters : 0),
         unit,
       );
@@ -808,20 +874,62 @@ export function RoomPlanCanvas({
       // kind of number a typed one does.
       const next = drag.edges.reduce(
         (room, edge) =>
-          snapRoomResize(
-            floor,
-            room,
-            edge,
-            roundToDisplayUnit(
-              edge === "west" || edge === "east"
-                ? point.xMeters
-                : point.zMeters,
-              unit,
-            ),
-          ),
+          drag.partId === null
+            ? snapRoomResize(
+                floor,
+                room,
+                edge,
+                roundToDisplayUnit(
+                  edge === "west" || edge === "east"
+                    ? point.xMeters
+                    : point.zMeters,
+                  unit,
+                ),
+              )
+            : snapRoomPartResize(
+                floor,
+                room,
+                drag.partId,
+                edge,
+                roundToDisplayUnit(
+                  edge === "west" || edge === "east"
+                    ? point.xMeters
+                    : point.zMeters,
+                  unit,
+                ),
+              ),
         sizing,
       );
-      onRoomChange?.(next, `room-resize:${drag.roomId}`);
+      onRoomChange?.(
+        next,
+        drag.partId === null
+          ? `room-resize:${drag.roomId}`
+          : `room-part-resize:${drag.partId}`,
+      );
+      return;
+    }
+
+    if (drag.kind === "part") {
+      const room = floor.rooms.find((one) => one.id === drag.roomId);
+      const part = room?.parts.find((one) => one.id === drag.partId);
+      const point = floorPointAt(canvas, event, projectionRef.current);
+      if (room === undefined || part === undefined || point === null) {
+        return;
+      }
+      const origin = snapRoomPartOrigin(floor, room, part, {
+        xMeters: roundToDisplayUnit(
+          point.xMeters - drag.grabOffset.xMeters,
+          unit,
+        ),
+        zMeters: roundToDisplayUnit(
+          point.zMeters - drag.grabOffset.zMeters,
+          unit,
+        ),
+      });
+      onRoomChange?.(
+        withRoomPartOrigin(room, part.id, origin),
+        `room-part-move:${part.id}`,
+      );
       return;
     }
 
@@ -881,6 +989,41 @@ export function RoomPlanCanvas({
       ),
       `piece-move:${drag.instanceId}`,
     );
+  }
+
+  /**
+   * A double-click drills into a compound room without changing what a normal
+   * room drag means. Hit testing the parts here unconditionally is important:
+   * the first part must be selectable from the canvas before any part is
+   * already selected in the sidebar.
+   */
+  function handleDoubleClick(event: MouseEvent<HTMLCanvasElement>): void {
+    if (
+      event.button !== 0 ||
+      drawing ||
+      placingOpening !== null ||
+      panningRef.current
+    ) {
+      return;
+    }
+    const canvas = canvasRef.current;
+    const point =
+      canvas === null
+        ? null
+        : floorPointAt(canvas, event, projectionRef.current);
+    const room = point === null ? null : (roomsAt(floor, point).at(-1) ?? null);
+    const part =
+      room === null || point === null ? null : roomPartAt(room, point);
+    if (room === null || part === null) {
+      return;
+    }
+    event.preventDefault();
+    if (room.parts.length === 1) {
+      onSelectRoom?.(room.id);
+    } else {
+      onSelectRoomPart?.(room.id, part.id);
+    }
+    canvas?.focus();
   }
 
   function handleDrop(event: DragEvent<HTMLCanvasElement>): void {
@@ -999,6 +1142,7 @@ export function RoomPlanCanvas({
         onPointerMove={handlePointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
+        onDoubleClick={handleDoubleClick}
         onKeyDown={handleKeyDown}
         onKeyUp={handleKeyUp}
         onDragOver={(event) => {
@@ -1061,11 +1205,15 @@ export function RoomPlanCanvas({
       {/* Said once, where it is needed, and gone as soon as it is not. */}
       {active || drawing || placingOpening !== null ? null : (
         <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1 text-xs text-white dark:bg-white/15">
-          {selectedRoomId !== null
-            ? "Drag the room here or use X/Y and W/H/D"
-            : selectedOpeningId !== null
-              ? "Drag the opening or a jamb, or type its measurements"
-              : "Click the plan to pan and zoom"}
+          {selectedRoomPartId !== null
+            ? "Drag or resize this section here, or type its X/Y and W/D"
+            : selectedRoomId !== null
+              ? selectedRoom?.parts.length === 1
+                ? "Drag or resize the room here, or type its X/Y and W/D"
+                : "Drag the room, or double-click a section to edit it"
+              : selectedOpeningId !== null
+                ? "Drag the opening or a jamb, or type its measurements"
+                : "Click the plan to pan and zoom"}
         </p>
       )}
     </div>
@@ -1082,24 +1230,57 @@ export function RoomPlanCanvas({
 function handleAt(
   floor: Floor,
   selectedRoomId: string | null,
+  selectedRoomPartId: string | null,
   projection: PlanProjection,
   at: PixelPoint,
-): { roomId: string; edges: readonly RoomEdge[] } | null {
+): {
+  roomId: string;
+  partId: string | null;
+  edges: readonly RoomEdge[];
+} | null {
   const room = floor.rooms.find((one) => one.id === selectedRoomId);
   if (room === undefined) {
     return null;
   }
+  const part =
+    selectedRoomPartId === null
+      ? room.parts.length === 1
+        ? primaryRoomPart(room)
+        : undefined
+      : room.parts.find((one) => one.id === selectedRoomPartId);
+  if (part === undefined) {
+    return null;
+  }
 
-  for (const handle of roomHandles(room)) {
+  for (const handle of roomPartHandles(part)) {
     const point = projectPoint(projection, handle.at);
     if (
       Math.abs(point.x - at.x) <= HANDLE_GRAB_PIXELS &&
       Math.abs(point.y - at.y) <= HANDLE_GRAB_PIXELS
     ) {
-      return { roomId: room.id, edges: handle.edges };
+      return {
+        roomId: room.id,
+        partId: selectedRoomPartId,
+        edges: handle.edges,
+      };
     }
   }
   return null;
+}
+
+/** The last-authored part under a floor point, matching canvas draw order. */
+function roomPartAt(room: Room, point: FloorPoint): RoomPart | null {
+  return (
+    room.parts
+      .filter(
+        (part) =>
+          point.xMeters >= part.origin.xMeters &&
+          point.xMeters <= part.origin.xMeters + part.widthMeters &&
+          point.zMeters >= part.origin.zMeters &&
+          point.zMeters <= part.origin.zMeters + part.depthMeters,
+      )
+      .at(-1) ?? null
+  );
 }
 
 type FoundOpening = { readonly room: Room; readonly opening: Opening };
@@ -1277,12 +1458,16 @@ function describeFloor(
 /** One room: how big it is, where it stands, and what is cut into its walls. */
 function describeRoom(room: Room, unit: DisplayUnit): string {
   const name = room.name === "" ? "an unnamed room" : room.name;
+  const bounds = roomBounds(room);
   const size =
-    `${formatLength(room.widthMeters, unit)} wide by ` +
-    `${formatLength(room.depthMeters, unit)} deep`;
+    room.parts.length === 1
+      ? `${formatLength(bounds.widthMeters, unit)} wide by ` +
+        `${formatLength(bounds.depthMeters, unit)} deep`
+      : `${formatLength(bounds.widthMeters, unit)} across by ` +
+        `${formatLength(bounds.depthMeters, unit)} down, built from ${room.parts.length} rectangles`;
   const at =
-    `${formatLength(room.origin.xMeters, unit)} from the west and ` +
-    `${formatLength(room.origin.zMeters, unit)} from the north`;
+    `${formatLength(bounds.origin.xMeters, unit)} from the west and ` +
+    `${formatLength(bounds.origin.zMeters, unit)} from the north`;
 
   if (room.openings.length === 0) {
     return `${name}, ${size}, at ${at}, with no openings`;
@@ -1336,6 +1521,7 @@ type DrawOptions = {
   furniture: readonly PlacedFurniture[];
   selectedId: string | null;
   selectedRoomId: string | null;
+  selectedRoomPartId: string | null;
   selectedOpeningId: string | null;
   troubledIds: ReadonlySet<string>;
   viewport: PixelSize;
@@ -1360,6 +1546,7 @@ function drawPlan(
     furniture,
     selectedId,
     selectedRoomId,
+    selectedRoomPartId,
     selectedOpeningId,
     troubledIds,
     viewport,
@@ -1394,7 +1581,7 @@ function drawPlan(
     punchRoomFloor(context, frame, room);
   }
   for (const room of floor.rooms) {
-    drawMeterGrid(context, inRoom(frame, room), room);
+    drawMeterGrid(context, frame, room);
   }
 
   // Openings are cut from the finished wall band, which is the order a plan is
@@ -1421,7 +1608,7 @@ function drawPlan(
   for (const room of floor.rooms) {
     drawRoomName(context, frame, room, fontFamily);
     if (room.id === selectedRoomId) {
-      markSelectedRoom(context, frame, room);
+      markSelectedRoom(context, frame, room, selectedRoomPartId);
     }
   }
 
@@ -1453,9 +1640,10 @@ function drawRoomPreview(
   corners: { readonly from: FloorPoint; readonly to: FloorPoint },
 ): void {
   const room = drawnRoom(floor, "preview", "", corners.from, corners.to);
-  const inside = frame.toPixels(room.origin);
-  const width = spanPixels(frame, room.widthMeters);
-  const depth = spanPixels(frame, room.depthMeters);
+  const part = primaryRoomPart(room);
+  const inside = frame.toPixels(part.origin);
+  const width = spanPixels(frame, part.widthMeters);
+  const depth = spanPixels(frame, part.depthMeters);
 
   context.save();
   context.globalAlpha = FLOOR_ALPHA;
@@ -1496,19 +1684,20 @@ function drawRoomWalls(
   frame: PlanFrame,
   room: Room,
 ): void {
-  const inside = frame.toPixels(room.origin);
-  const width = spanPixels(frame, room.widthMeters);
-  const depth = spanPixels(frame, room.depthMeters);
-
   context.save();
   context.globalAlpha = WALL_ALPHA;
   context.fillStyle = frame.color;
-  context.fillRect(
-    inside.x - frame.wallPixels,
-    inside.y - frame.wallPixels,
-    width + frame.wallPixels * 2,
-    depth + frame.wallPixels * 2,
-  );
+  for (const part of room.parts) {
+    const inside = frame.toPixels(part.origin);
+    const width = spanPixels(frame, part.widthMeters);
+    const depth = spanPixels(frame, part.depthMeters);
+    context.fillRect(
+      inside.x - frame.wallPixels,
+      inside.y - frame.wallPixels,
+      width + frame.wallPixels * 2,
+      depth + frame.wallPixels * 2,
+    );
+  }
   context.restore();
 }
 
@@ -1518,16 +1707,17 @@ function punchRoomFloor(
   frame: PlanFrame,
   room: Room,
 ): void {
-  const inside = frame.toPixels(room.origin);
-  const width = spanPixels(frame, room.widthMeters);
-  const depth = spanPixels(frame, room.depthMeters);
-
-  context.clearRect(inside.x, inside.y, width, depth);
-  context.save();
-  context.globalAlpha = FLOOR_ALPHA;
-  context.fillStyle = frame.color;
-  context.fillRect(inside.x, inside.y, width, depth);
-  context.restore();
+  for (const part of room.parts) {
+    const inside = frame.toPixels(part.origin);
+    const width = spanPixels(frame, part.widthMeters);
+    const depth = spanPixels(frame, part.depthMeters);
+    context.clearRect(inside.x, inside.y, width, depth);
+    context.save();
+    context.globalAlpha = FLOOR_ALPHA;
+    context.fillStyle = frame.color;
+    context.fillRect(inside.x, inside.y, width, depth);
+    context.restore();
+  }
 }
 
 /**
@@ -1547,9 +1737,15 @@ function drawRoomName(
     return;
   }
 
+  const labelPart = room.parts.reduce((largest, part) =>
+    part.widthMeters * part.depthMeters >
+    largest.widthMeters * largest.depthMeters
+      ? part
+      : largest,
+  );
   const center = frame.toPixels({
-    xMeters: room.origin.xMeters + room.widthMeters / 2,
-    zMeters: room.origin.zMeters + room.depthMeters / 2,
+    xMeters: labelPart.origin.xMeters + labelPart.widthMeters / 2,
+    zMeters: labelPart.origin.zMeters + labelPart.depthMeters / 2,
   });
 
   context.save();
@@ -1571,12 +1767,24 @@ function drawRoomName(
 export function roomHandles(
   room: Room,
 ): readonly { edges: readonly RoomEdge[]; at: FloorPoint }[] {
-  const west = room.origin.xMeters;
-  const east = west + room.widthMeters;
-  const north = room.origin.zMeters;
-  const south = north + room.depthMeters;
-  const middleX = west + room.widthMeters / 2;
-  const middleZ = north + room.depthMeters / 2;
+  // Resizing the union bounds would be ambiguous once a room has several
+  // parts. Those parts stay fully numeric in the inspector; one-part rooms
+  // retain the direct canvas handles they have always had.
+  if (room.parts.length !== 1) {
+    return [];
+  }
+  return roomPartHandles(primaryRoomPart(room));
+}
+
+export function roomPartHandles(
+  part: RoomPart,
+): readonly { edges: readonly RoomEdge[]; at: FloorPoint }[] {
+  const west = part.origin.xMeters;
+  const east = west + part.widthMeters;
+  const north = part.origin.zMeters;
+  const south = north + part.depthMeters;
+  const middleX = west + part.widthMeters / 2;
+  const middleZ = north + part.depthMeters / 2;
 
   return [
     { edges: ["north", "west"], at: { xMeters: west, zMeters: north } },
@@ -1595,24 +1803,34 @@ function markSelectedRoom(
   context: CanvasRenderingContext2D,
   frame: PlanFrame,
   room: Room,
+  selectedPartId: string | null,
 ): void {
-  const inside = frame.toPixels(room.origin);
-  const width = spanPixels(frame, room.widthMeters);
-  const depth = spanPixels(frame, room.depthMeters);
-
+  const selectedPart = room.parts.find((part) => part.id === selectedPartId);
+  const markedParts = selectedPart === undefined ? room.parts : [selectedPart];
   context.save();
   context.globalAlpha = SELECTED_FILL_ALPHA;
   context.fillStyle = frame.color;
-  context.fillRect(inside.x, inside.y, width, depth);
   context.globalAlpha = 1;
   context.strokeStyle = frame.color;
   context.lineWidth = 2;
   context.setLineDash([6, 4]);
-  context.strokeRect(inside.x, inside.y, width, depth);
+  for (const part of markedParts) {
+    const inside = frame.toPixels(part.origin);
+    const width = spanPixels(frame, part.widthMeters);
+    const depth = spanPixels(frame, part.depthMeters);
+    context.globalAlpha = SELECTED_FILL_ALPHA;
+    context.fillRect(inside.x, inside.y, width, depth);
+    context.globalAlpha = 1;
+    context.strokeRect(inside.x, inside.y, width, depth);
+  }
 
   context.setLineDash([]);
   context.fillStyle = frame.color;
-  for (const { at } of roomHandles(room)) {
+  const handles =
+    selectedPart === undefined
+      ? roomHandles(room)
+      : roomPartHandles(selectedPart);
+  for (const { at } of handles) {
     const point = frame.toPixels(at);
     context.fillRect(
       point.x - HANDLE_PIXELS / 2,
@@ -1739,24 +1957,39 @@ function drawMeterGrid(
   room: Room,
 ): void {
   context.save();
+
+  // Parts are an authoring detail; the visible grid belongs to the room. A
+  // compound clip makes one continuous floor-coordinate grid occupy exactly
+  // the union, including an L shape while leaving its notch empty.
+  context.beginPath();
+  for (const part of room.parts) {
+    const inside = frame.toPixels(part.origin);
+    context.rect(
+      inside.x,
+      inside.y,
+      spanPixels(frame, part.widthMeters),
+      spanPixels(frame, part.depthMeters),
+    );
+  }
+  context.clip();
+
   context.globalAlpha = GRID_ALPHA;
   context.strokeStyle = frame.color;
   context.lineWidth = 1;
   context.beginPath();
 
-  for (let xMeters = 1; xMeters < room.widthMeters; xMeters += 1) {
-    const top = frame.toPixels({ xMeters, zMeters: 0 });
-    const bottom = frame.toPixels({ xMeters, zMeters: room.depthMeters });
-    // Half-pixel offset keeps a one-pixel line on one pixel rather than two.
-    context.moveTo(Math.round(top.x) + 0.5, top.y);
-    context.lineTo(Math.round(bottom.x) + 0.5, bottom.y);
-  }
-
-  for (let zMeters = 1; zMeters < room.depthMeters; zMeters += 1) {
-    const left = frame.toPixels({ xMeters: 0, zMeters });
-    const right = frame.toPixels({ xMeters: room.widthMeters, zMeters });
-    context.moveTo(left.x, Math.round(left.y) + 0.5);
-    context.lineTo(right.x, Math.round(right.y) + 0.5);
+  for (const line of roomGridLines(room)) {
+    const from = frame.toPixels(line.from);
+    const to = frame.toPixels(line.to);
+    if (line.from.xMeters === line.to.xMeters) {
+      const x = Math.round(from.x) + 0.5;
+      context.moveTo(x, from.y);
+      context.lineTo(x, to.y);
+    } else {
+      const y = Math.round(from.y) + 0.5;
+      context.moveTo(from.x, y);
+      context.lineTo(to.x, y);
+    }
   }
 
   context.stroke();

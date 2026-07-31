@@ -7,7 +7,9 @@ import {
   ROOM_LENGTH_LIMITS,
   checkRoomLength,
   isValidRoom,
+  primaryRoomPart,
   roomFloorAreaSquareMeters,
+  withRoomPart,
   withOpenings,
   withRoomLength,
 } from "./room";
@@ -74,10 +76,14 @@ describe("room", () => {
   it("replaces one dimension without mutating the original", () => {
     const updated = withRoomLength(DEFAULT_ROOM, "widthMeters", 5);
 
-    expect(updated.widthMeters).toBe(5);
-    expect(updated.depthMeters).toBe(DEFAULT_ROOM.depthMeters);
+    expect(primaryRoomPart(updated).widthMeters).toBe(5);
+    expect(primaryRoomPart(updated).depthMeters).toBe(
+      primaryRoomPart(DEFAULT_ROOM).depthMeters,
+    );
     // Fourteen feet, which is where the default started.
-    expect(DEFAULT_ROOM.widthMeters).toBe(metersFromInches(168));
+    expect(primaryRoomPart(DEFAULT_ROOM).widthMeters).toBe(
+      metersFromInches(168),
+    );
   });
 
   it("replaces the openings without mutating the original", () => {
@@ -90,9 +96,38 @@ describe("room", () => {
   });
 
   it("computes floor area from width and depth only", () => {
-    const room = { ...DEFAULT_ROOM, widthMeters: 4, depthMeters: 3 };
+    const room = withRoomPart(
+      DEFAULT_ROOM,
+      primaryRoomPart(DEFAULT_ROOM).id,
+      (part) => ({ ...part, widthMeters: 4, depthMeters: 3 }),
+    );
 
     expect(roomFloorAreaSquareMeters(room)).toBeCloseTo(12, 10);
+  });
+
+  it("counts overlapping rectangular parts once", () => {
+    const first = primaryRoomPart(DEFAULT_ROOM);
+    const room = {
+      ...DEFAULT_ROOM,
+      parts: [
+        {
+          ...first,
+          origin: { xMeters: 0, zMeters: 0 },
+          widthMeters: 4,
+          depthMeters: 3,
+        },
+        {
+          ...first,
+          id: "part-2",
+          origin: { xMeters: 2, zMeters: 2 },
+          widthMeters: 3,
+          depthMeters: 2,
+        },
+      ],
+      openings: [],
+    };
+
+    expect(roomFloorAreaSquareMeters(room)).toBe(16);
   });
 
   it("measures floor area inside the walls, from the numbers a tape gives", () => {

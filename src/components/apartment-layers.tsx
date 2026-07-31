@@ -69,6 +69,24 @@ export function ApartmentLayers({
               onChange={onRoomChange}
             />
             <ul className="flex flex-col">
+              {room.parts.length === 1
+                ? null
+                : room.parts.map((part, index) => (
+                    <li key={part.id}>
+                      <Row
+                        label={`Section ${index + 1}`}
+                        depth
+                        selected={isSelected(selection, "room-part", part.id)}
+                        onSelect={() =>
+                          onSelect({
+                            kind: "room-part",
+                            roomId: room.id,
+                            id: part.id,
+                          })
+                        }
+                      />
+                    </li>
+                  ))}
               {room.openings.map((opening) => (
                 <li key={opening.id}>
                   <Row

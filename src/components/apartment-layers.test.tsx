@@ -2,13 +2,33 @@ import { useState } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import { withRoom, type Floor, type Room } from "@/domain/room";
+import { withParts, withRoom, type Floor, type Room } from "@/domain/room";
 import { createProject } from "@/domain/project";
 import type { Selection } from "@/components/selection";
 import { ApartmentLayers } from "./apartment-layers";
 
-function LayersHarness() {
-  const [floor, setFloor] = useState<Floor>(createProject().floor);
+function LayersHarness({ compound = false }: { compound?: boolean }) {
+  const [floor, setFloor] = useState<Floor>(() => {
+    const initial = createProject().floor;
+    const room = initial.rooms[0];
+    if (!compound || room === undefined) {
+      return initial;
+    }
+    return {
+      ...initial,
+      rooms: [
+        withParts(room, [
+          ...room.parts,
+          {
+            id: `${room.id}-part-2`,
+            origin: { xMeters: 2, zMeters: 2 },
+            widthMeters: 2,
+            depthMeters: 2,
+          },
+        ]),
+      ],
+    };
+  });
   const [selection, setSelection] = useState<Selection>(null);
 
   return (
@@ -75,5 +95,30 @@ describe("ApartmentLayers room names", () => {
 
     expect(window).toHaveAttribute("aria-pressed", "true");
     expect(door).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("does not repeat the only rectangle as Section 1", () => {
+    render(<LayersHarness />);
+
+    expect(
+      screen.queryByRole("button", { name: "Section 1" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("lists and selects sections once the room is compound", async () => {
+    const user = userEvent.setup();
+    render(<LayersHarness compound />);
+
+    const section = screen.getByRole("button", { name: "Section 1" });
+    expect(
+      screen.getByRole("button", { name: "Section 2" }),
+    ).toBeInTheDocument();
+    await user.click(section);
+
+    expect(section).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Living room" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
   });
 });

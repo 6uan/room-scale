@@ -9,9 +9,15 @@ const FLOOR = {
   rooms: [
     {
       ...DEFAULT_ROOM,
-      origin: { xMeters: 0, zMeters: 0 },
-      widthMeters: 4,
-      depthMeters: 3,
+      parts: [
+        {
+          id: "room-1-part-1",
+          origin: { xMeters: 0, zMeters: 0 },
+          widthMeters: 4,
+          depthMeters: 3,
+        },
+      ],
+      openings: [],
     },
   ],
 };

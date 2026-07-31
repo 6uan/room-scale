@@ -11,12 +11,18 @@ import { checkLayout, troubledInstanceIds } from "./layout";
 /** A one-room apartment, four by three. */
 const ROOM = {
   ...DEFAULT_ROOM,
-  origin: { xMeters: 0, zMeters: 0 },
-  widthMeters: 4,
-  depthMeters: 3,
+  parts: [
+    {
+      id: "room-1-part-1",
+      origin: { xMeters: 0, zMeters: 0 },
+      widthMeters: 4,
+      depthMeters: 3,
+    },
+  ],
   openings: [],
 };
 const FLOOR = { ...DEFAULT_FLOOR, rooms: [ROOM] };
+const BASE_PART = ROOM.parts[0]!;
 
 function product(id: string, widthMeters: number, depthMeters: number) {
   const made: FurnitureProduct = {
@@ -175,6 +181,44 @@ describe("checkLayout: furniture against the room", () => {
       "crosses-wall",
       "overlap",
     ]);
+  });
+
+  it("accepts furniture spanning the internal seam of an L-shaped room", () => {
+    const lRoom = {
+      ...ROOM,
+      parts: [
+        { ...BASE_PART, widthMeters: 4, depthMeters: 2 },
+        {
+          id: "room-1-part-2",
+          origin: { xMeters: 0, zMeters: 2 },
+          widthMeters: 2,
+          depthMeters: 2,
+        },
+      ],
+    };
+    const floor = { ...FLOOR, rooms: [lRoom] };
+
+    expect(checkLayout(floor, [place("i1", TABLE, 1, 2)])).toEqual([]);
+  });
+
+  it("reports furniture reaching into the missing notch", () => {
+    const lRoom = {
+      ...ROOM,
+      parts: [
+        { ...BASE_PART, widthMeters: 4, depthMeters: 2 },
+        {
+          id: "room-1-part-2",
+          origin: { xMeters: 0, zMeters: 2 },
+          widthMeters: 2,
+          depthMeters: 2,
+        },
+      ],
+    };
+    const floor = { ...FLOOR, rooms: [lRoom] };
+
+    expect(checkLayout(floor, [place("i1", TABLE, 2, 2.25)])).toContainEqual(
+      expect.objectContaining({ kind: "crosses-wall", roomId: lRoom.id }),
+    );
   });
 });
 

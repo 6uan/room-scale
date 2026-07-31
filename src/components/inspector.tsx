@@ -77,7 +77,7 @@ export function Inspector(props: InspectorProps) {
     <div className="flex h-full flex-col overflow-y-auto">
       {selection === null ? (
         <FloorInspector {...props} />
-      ) : selection.kind === "room" ? (
+      ) : selection.kind === "room" || selection.kind === "room-part" ? (
         <RoomInspector {...props} selection={selection} />
       ) : selection.kind === "opening" ? (
         <OpeningInspector {...props} selection={selection} />
@@ -158,8 +158,14 @@ function RoomInspector({
   onRoomRemove,
   onAddOpening,
   placingOpening,
-}: InspectorProps & { selection: { kind: "room"; id: string } }) {
-  const room = floor.rooms.find((one) => one.id === selection.id);
+  onSelect,
+}: InspectorProps & {
+  selection:
+    | { kind: "room"; id: string }
+    | { kind: "room-part"; roomId: string; id: string };
+}) {
+  const roomId = selection.kind === "room" ? selection.id : selection.roomId;
+  const room = floor.rooms.find((one) => one.id === roomId);
   if (room === undefined) {
     return <Missing what="room" />;
   }
@@ -176,6 +182,14 @@ function RoomInspector({
         onAddOpening={(kind) => onAddOpening(room, kind)}
         placingOpeningKind={
           placingOpening?.roomId === room.id ? placingOpening.kind : null
+        }
+        selectedPartId={selection.kind === "room-part" ? selection.id : null}
+        onSelectPart={(partId) =>
+          onSelect(
+            partId === null
+              ? { kind: "room", id: room.id }
+              : { kind: "room-part", roomId: room.id, id: partId },
+          )
         }
       />
     </Panel>

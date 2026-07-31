@@ -14,7 +14,7 @@ Two rules keep the order honest:
   Steps 4 to 10 are that question end to end. Everything after them makes the
   answer nicer to look at.
 
-Status: **step 18, first slice is next.**
+Status: **step 18, second slice is next.**
 
 ## Near-term pull requests
 
@@ -28,7 +28,7 @@ calendar time.
 | Done — #24            | Draw rooms directly; rename them in place; edit and scrub X/Y and W/H/D; remove the retired planning feature and its stored data | **Highest** | **High**    | It turns room entry into one coherent, pointer-first workflow and removes scope that distracts from furnishing.  |
 | Done — #25            | Snap canvas resizing and scrubbed W/D changes to neighbouring room faces through one shared rule                                 | **Highest** | Medium      | Small, contained work that closes the last inconsistent transform path before more geometry is added.            |
 | Done — #26            | Place, select, move, and resize doors, windows, and passages on the plan while keeping every value typeable                      | **Highest** | **Highest** | Fourteen openings are the largest remaining source of repetitive arithmetic in entering the real apartment.      |
-| Step 18, first slice  | Build an L-shaped or notched room from multiple axis-aligned rectangular parts, including persistence and validation             | **High**    | **Highest** | This expresses most currently impossible rooms without taking on rotation at the same time.                      |
+| Done — Step 18a       | Build an L-shaped or notched room from multiple axis-aligned rectangular parts, including persistence and validation             | **High**    | **Highest** | This expresses most currently impossible rooms without taking on rotation at the same time.                      |
 | Step 18, second slice | Rotate room parts for diagonal walls                                                                                             | Medium      | High        | Required for the real plan, but only after the higher-leverage rectangular-part model is proven.                 |
 | Step 18, final slice  | Mark edges open and distinguish exterior from interior wall thickness                                                            | Medium      | High        | Completes balconies, open living areas, and an honest apartment shell without bloating the first room-parts PR.  |
 | Step 19               | Report furniture that blocks a door or passage                                                                                   | **High**    | **High**    | Once openings are correctly placed, this directly prevents a bad furnishing decision with bounded geometry work. |
@@ -640,6 +640,17 @@ What a room becomes, and why this shape rather than a polygon:
 Area, bounds, containment, which-room-is-this-piece-in, and the plan's punch
 order all follow the parts. The stored document goes to version 7; a version 6
 room becomes a room of one part, which is what it always was.
+
+**18a — Axis-aligned parts. ✅** Done. A room now owns one or more rectangular
+parts in floor coordinates. The inspector adds, removes, and numerically edits
+every part; the plan draws their union and moves it as one room. Area counts
+overlap once, furniture is assigned to the room it overlaps most, validation
+measures footprints against the union instead of its bounding box, and
+openings remember the part whose exterior wall they occupy. Stored projects
+migrate from version 6 to version 7 as one-part rooms. A room remains one module
+when selected and moved, while selecting one of its parts exposes that
+rectangle's native move and resize handles on the plan as well as its exact
+numeric fields.
 
 Done when: the apartment above is on the screen at its real dimensions, with
 nothing squared off that is not square, and every measurement it reports is one

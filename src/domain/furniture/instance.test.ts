@@ -22,18 +22,31 @@ const FLOOR = {
   rooms: [
     {
       ...DEFAULT_ROOM,
-      origin: { xMeters: 0, zMeters: 0 },
-      widthMeters: 4,
-      depthMeters: 3,
+      parts: [
+        {
+          id: "room-1-part-1",
+          origin: { xMeters: 0, zMeters: 0 },
+          widthMeters: 4,
+          depthMeters: 3,
+        },
+      ],
+      openings: [],
     },
   ],
 };
 const ROOM = {
   ...DEFAULT_ROOM,
-  origin: { xMeters: 0, zMeters: 0 },
-  widthMeters: 4,
-  depthMeters: 3,
+  parts: [
+    {
+      id: "room-1-part-1",
+      origin: { xMeters: 0, zMeters: 0 },
+      widthMeters: 4,
+      depthMeters: 3,
+    },
+  ],
+  openings: [],
 };
+const ROOM_PART = ROOM.parts[0]!;
 
 const RUG: FurnitureProduct = {
   id: "rug",
@@ -65,8 +78,8 @@ describe("placementFor", () => {
   it("keeps the starting point inside the room however many are placed", () => {
     const far = placementFor(FLOOR, 100);
 
-    expect(far.xMeters).toBeLessThanOrEqual(ROOM.widthMeters);
-    expect(far.zMeters).toBeLessThanOrEqual(ROOM.depthMeters);
+    expect(far.xMeters).toBeLessThanOrEqual(ROOM_PART.widthMeters);
+    expect(far.zMeters).toBeLessThanOrEqual(ROOM_PART.depthMeters);
   });
 });
 
@@ -235,7 +248,7 @@ describe("clampToFloor", () => {
   it("keeps a center on the floor when it is dragged past a wall", () => {
     expect(clampToFloor(FLOOR, { xMeters: -3, zMeters: 99 })).toEqual({
       xMeters: 0,
-      zMeters: ROOM.depthMeters,
+      zMeters: ROOM_PART.depthMeters,
     });
   });
 });

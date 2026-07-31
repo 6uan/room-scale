@@ -84,7 +84,9 @@ test.describe("the workspace", () => {
 
     await expect(planImage(page)).toHaveAccessibleName(/10' 0\.0" wide/);
     await expect(
-      plan(page).getByText("Drag the room here or use X/Y and W/H/D"),
+      plan(page).getByText(
+        "Drag or resize the room here, or type its X/Y and W/D",
+      ),
     ).toBeVisible();
   });
 
@@ -571,6 +573,100 @@ test.describe("laying the apartment out", () => {
     await expect(room.getByLabel("Room 2 X position")).toHaveValue("88.5");
   });
 
+  test("builds an L-shaped room from a second editable rectangle", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await contents(page).getByRole("button", { name: "Living room" }).click();
+
+    const room = details(page).getByRole("region", { name: "Living room" });
+    await room.getByRole("button", { name: "Add section" }).click();
+
+    await expect(room.getByLabel("Living room section 2 width")).toBeVisible();
+    await expect(
+      contents(page).getByRole("button", { name: "Section 2" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(planImage(page)).toHaveAccessibleName(
+      /built from 2 rectangles/,
+    );
+
+    // Sections toggle independently without turning into separate rooms.
+    await contents(page).getByRole("button", { name: "Section 1" }).click();
+    await expect(
+      room.getByRole("button", { name: "Select Living room section 1" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await contents(page).getByRole("button", { name: "Section 2" }).click();
+
+    // The selected section gets the same canvas handles as an ordinary
+    // rectangle. Drag its east handle and only Section 2 grows.
+    const box = await planImage(page).boundingBox();
+    if (box === null) {
+      throw new Error("the plan has no box to point at");
+    }
+    const inches = (value: number) => value * 0.0254;
+    const wall = inches(4.5);
+    const partTwoWest = 0;
+    const partTwoNorth = 72 - 0.1 / 0.0254;
+    const partTwoWidth = 126;
+    const partTwoDepth = 72;
+    const bounds = {
+      west: -84,
+      north: -72,
+      east: partTwoWest + partTwoWidth,
+      south: partTwoNorth + partTwoDepth,
+    };
+    const scale = Math.min(
+      (box.width - 80) / (inches(bounds.east - bounds.west) + wall * 2),
+      (box.height - 80) / (inches(bounds.south - bounds.north) + wall * 2),
+    );
+    const center = {
+      x: box.x + box.width / 2,
+      y: box.y + box.height / 2,
+    };
+    const floorCenter = {
+      x: (bounds.west + bounds.east) / 2,
+      y: (bounds.north + bounds.south) / 2,
+    };
+    const pointOnPlan = (xInches: number, yInches: number) => ({
+      x: center.x + inches(xInches - floorCenter.x) * scale,
+      y: center.y + inches(yInches - floorCenter.y) * scale,
+    });
+
+    // Double-click drills into either rectangle directly from whole-room
+    // selection, so editing a compound room does not depend on the layer list.
+    await contents(page).getByRole("button", { name: "Living room" }).click();
+    const partOneOnly = pointOnPlan(-50, 0);
+    await page.mouse.dblclick(partOneOnly.x, partOneOnly.y);
+    await expect(
+      room.getByRole("button", { name: "Select Living room section 1" }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    const partTwoOnly = pointOnPlan(100, 100);
+    await page.mouse.dblclick(partTwoOnly.x, partTwoOnly.y);
+    await expect(
+      room.getByRole("button", { name: "Select Living room section 2" }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    const eastHandle = {
+      x: center.x + inches(partTwoWest + partTwoWidth - floorCenter.x) * scale,
+      y:
+        center.y +
+        inches(partTwoNorth + partTwoDepth / 2 - floorCenter.y) * scale,
+    };
+
+    await page.mouse.move(eastHandle.x, eastHandle.y);
+    await page.mouse.down();
+    await page.mouse.move(eastHandle.x + 40, eastHandle.y, { steps: 6 });
+    await page.mouse.up();
+
+    expect(
+      Number(await room.getByLabel("Living room section 2 width").inputValue()),
+    ).toBeGreaterThan(partTwoWidth);
+    await expect(room.getByLabel("Living room section 1 width")).toHaveValue(
+      "168",
+    );
+  });
+
   test("snaps a scrubbed width to a neighbouring room's shared wall", async ({
     page,
   }) => {
@@ -683,6 +779,16 @@ test.describe("laying the apartment out", () => {
     await expect(
       details(page).getByRole("region", { name: "Living room" }),
     ).toBeVisible();
+
+    // A one-rectangle room has no redundant Section 1 editing level, even when
+    // the canvas receives the double-click used to drill into compound rooms.
+    await page.mouse.dblclick(centre.x, centre.y);
+    await expect(
+      contents(page).getByRole("button", { name: "Living room" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      contents(page).getByRole("button", { name: "Section 1" }),
+    ).toHaveCount(0);
 
     const before = await details(page)
       .getByLabel("Living room X position")

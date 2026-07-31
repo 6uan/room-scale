@@ -56,7 +56,8 @@ describe("loadProject", () => {
 
     const result = await loadProject(database);
     expect(
-      result.status === "loaded" && result.project.floor.rooms[0]?.widthMeters,
+      result.status === "loaded" &&
+        result.project.floor.rooms[0]?.parts[0]?.widthMeters,
     ).toBe(5.5);
   });
 

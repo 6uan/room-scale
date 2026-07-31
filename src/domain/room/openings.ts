@@ -11,7 +11,7 @@
  */
 
 import type { FloorPoint } from "@/domain/geometry";
-import type { Room } from "./room";
+import { primaryRoomPart, roomBounds, roomPart, type Room } from "./room";
 
 export type WallSide = "north" | "east" | "south" | "west";
 
@@ -31,6 +31,8 @@ export type DoorSwing = "inward" | "outward";
 
 type OpeningPlacement = {
   readonly id: string;
+  /** The rectangular part whose wall carries this opening. */
+  readonly partId: string;
   readonly wall: WallSide;
   readonly centerMeters: number;
   readonly widthMeters: number;
@@ -62,10 +64,15 @@ export const DEFAULT_OPENING_WIDTH_METERS: Record<OpeningKind, number> = {
 /** A direction on the floor plane, as a unit vector. */
 export type FloorVector = { readonly dx: number; readonly dz: number };
 
-export function wallLengthMeters(room: Room, wall: WallSide): number {
+export function wallLengthMeters(
+  room: Room,
+  wall: WallSide,
+  partId = primaryRoomPart(room).id,
+): number {
+  const part = roomPart(room, partId) ?? primaryRoomPart(room);
   return wall === "north" || wall === "south"
-    ? room.widthMeters
-    : room.depthMeters;
+    ? part.widthMeters
+    : part.depthMeters;
 }
 
 /** Where the opening starts and ends, measured along its wall. */
@@ -96,7 +103,12 @@ export function checkOpening(
     return "too-narrow";
   }
   const { startMeters, endMeters } = openingRangeMeters(opening);
-  if (startMeters < 0 || endMeters > wallLengthMeters(room, opening.wall)) {
+  if (
+    roomPart(room, opening.partId) === undefined ||
+    startMeters < 0 ||
+    endMeters > wallLengthMeters(room, opening.wall, opening.partId) ||
+    !openingSegmentIsExterior(room, opening)
+  ) {
     return "off-wall";
   }
   return null;
@@ -128,16 +140,27 @@ export function pointAlongWall(
   room: Room,
   wall: WallSide,
   alongMeters: number,
+  partId = primaryRoomPart(room).id,
 ): FloorPoint {
+  const part = roomPart(room, partId) ?? primaryRoomPart(room);
+  const roomOrigin = roomBounds(room).origin;
+  const x = part.origin.xMeters - roomOrigin.xMeters;
+  const z = part.origin.zMeters - roomOrigin.zMeters;
   switch (wall) {
     case "north":
-      return { xMeters: alongMeters, zMeters: 0 };
+      return { xMeters: x + alongMeters, zMeters: z };
     case "south":
-      return { xMeters: alongMeters, zMeters: room.depthMeters };
+      return {
+        xMeters: x + alongMeters,
+        zMeters: z + part.depthMeters,
+      };
     case "west":
-      return { xMeters: 0, zMeters: alongMeters };
+      return { xMeters: x, zMeters: z + alongMeters };
     case "east":
-      return { xMeters: room.widthMeters, zMeters: alongMeters };
+      return {
+        xMeters: x + part.widthMeters,
+        zMeters: z + alongMeters,
+      };
   }
 }
 
@@ -152,7 +175,22 @@ export function metersAlongWall(wall: WallSide, point: FloorPoint): number {
   return wall === "north" || wall === "south" ? point.xMeters : point.zMeters;
 }
 
+/** Distance along an opening's own part wall from a room-local pointer. */
+export function metersAlongOpeningWall(
+  room: Room,
+  opening: Opening,
+  point: FloorPoint,
+): number {
+  const part = roomPart(room, opening.partId) ?? primaryRoomPart(room);
+  const origin = roomBounds(room).origin;
+  return metersAlongWall(opening.wall, {
+    xMeters: point.xMeters - (part.origin.xMeters - origin.xMeters),
+    zMeters: point.zMeters - (part.origin.zMeters - origin.zMeters),
+  });
+}
+
 export type WallPlacement = {
+  readonly partId: string;
   readonly wall: WallSide;
   readonly alongMeters: number;
 };
@@ -169,24 +207,43 @@ export function wallPlacementAt(
   point: FloorPoint,
   reachMeters: number,
 ): WallPlacement | null {
-  const candidates = WALL_SIDES.map((wall) => {
-    const alongMeters = metersAlongWall(wall, point);
-    const length = wallLengthMeters(room, wall);
-    const distanceMeters = distanceFromWall(room, wall, point);
-    return { wall, alongMeters, length, distanceMeters };
-  })
+  const bounds = roomBounds(room);
+  const candidates = room.parts
+    .flatMap((part) => {
+      const local = {
+        xMeters: point.xMeters - (part.origin.xMeters - bounds.origin.xMeters),
+        zMeters: point.zMeters - (part.origin.zMeters - bounds.origin.zMeters),
+      };
+      return WALL_SIDES.map((wall) => {
+        const alongMeters = metersAlongWall(wall, local);
+        const length = wallLengthMeters(room, wall, part.id);
+        const distanceMeters = distanceFromWall(part, wall, local);
+        return {
+          partId: part.id,
+          wall,
+          alongMeters,
+          length,
+          distanceMeters,
+        };
+      });
+    })
     .filter(
-      ({ alongMeters, length, distanceMeters }) =>
+      ({ partId, wall, alongMeters, length, distanceMeters }) =>
         distanceMeters <= reachMeters &&
         alongMeters >= 0 &&
-        alongMeters <= length,
+        alongMeters <= length &&
+        wallPointIsExterior(room, partId, wall, alongMeters),
     )
     .sort((a, b) => a.distanceMeters - b.distanceMeters);
 
   const nearest = candidates[0];
   return nearest === undefined
     ? null
-    : { wall: nearest.wall, alongMeters: nearest.alongMeters };
+    : {
+        partId: nearest.partId,
+        wall: nearest.wall,
+        alongMeters: nearest.alongMeters,
+      };
 }
 
 /** The topmost opening under a room-local point, if there is one. */
@@ -202,7 +259,11 @@ export function openingAtPoint(
 
   return (
     room.openings
-      .filter((opening) => opening.wall === placement.wall)
+      .filter(
+        (opening) =>
+          opening.partId === placement.partId &&
+          opening.wall === placement.wall,
+      )
       .filter((opening) => checkOpening(room, opening) === null)
       .filter((opening) => {
         const { startMeters, endMeters } = openingRangeMeters(opening);
@@ -225,8 +286,8 @@ export function openingEndpoints(
 ): { start: FloorPoint; end: FloorPoint } {
   const { startMeters, endMeters } = openingRangeMeters(opening);
   return {
-    start: pointAlongWall(room, opening.wall, startMeters),
-    end: pointAlongWall(room, opening.wall, endMeters),
+    start: pointAlongWall(room, opening.wall, startMeters, opening.partId),
+    end: pointAlongWall(room, opening.wall, endMeters, opening.partId),
   };
 }
 
@@ -237,12 +298,14 @@ export function createOpening(
   room: Room,
   wall: WallSide = "north",
   centerMeters?: number,
+  partId = primaryRoomPart(room).id,
 ): Opening {
-  const wallLength = wallLengthMeters(room, wall);
+  const wallLength = wallLengthMeters(room, wall, partId);
   const widthMeters = Math.min(DEFAULT_OPENING_WIDTH_METERS[kind], wallLength);
   const half = widthMeters / 2;
   const placement = {
     id,
+    partId,
     wall,
     centerMeters: clamp(
       centerMeters ?? wallLength / 2,
@@ -271,7 +334,7 @@ export function withOpeningWall(
   opening: Opening,
   wall: WallSide,
 ): Opening {
-  const wallLength = wallLengthMeters(room, wall);
+  const wallLength = wallLengthMeters(room, wall, opening.partId);
   const widthMeters = Math.min(opening.widthMeters, wallLength);
   const half = widthMeters / 2;
   return {
@@ -288,7 +351,7 @@ export function moveOpening(
   opening: Opening,
   centerMeters: number,
 ): Opening {
-  const wallLength = wallLengthMeters(room, opening.wall);
+  const wallLength = wallLengthMeters(room, opening.wall, opening.partId);
   const half = opening.widthMeters / 2;
   return {
     ...opening,
@@ -310,7 +373,7 @@ export function resizeOpeningJamb(
   jamb: OpeningJamb,
   alongMeters: number,
 ): Opening {
-  const wallLength = wallLengthMeters(room, opening.wall);
+  const wallLength = wallLengthMeters(room, opening.wall, opening.partId);
   const { startMeters, endMeters } = openingRangeMeters(opening);
   const start =
     jamb === "start"
@@ -329,7 +392,7 @@ export function resizeOpeningJamb(
 }
 
 function distanceFromWall(
-  room: Room,
+  part: { readonly widthMeters: number; readonly depthMeters: number },
   wall: WallSide,
   point: FloorPoint,
 ): number {
@@ -337,12 +400,52 @@ function distanceFromWall(
     case "north":
       return Math.abs(point.zMeters);
     case "south":
-      return Math.abs(point.zMeters - room.depthMeters);
+      return Math.abs(point.zMeters - part.depthMeters);
     case "west":
       return Math.abs(point.xMeters);
     case "east":
-      return Math.abs(point.xMeters - room.widthMeters);
+      return Math.abs(point.xMeters - part.widthMeters);
   }
+}
+
+/** A wall sample is exterior when another part does not continue through it. */
+function wallPointIsExterior(
+  room: Room,
+  partId: string,
+  wall: WallSide,
+  alongMeters: number,
+): boolean {
+  const part = roomPart(room, partId);
+  if (part === undefined) {
+    return false;
+  }
+  const epsilon = 0.000001;
+  const local = pointAlongWall(room, wall, alongMeters, partId);
+  const floorPoint = {
+    xMeters: local.xMeters + roomBounds(room).origin.xMeters,
+    zMeters: local.zMeters + roomBounds(room).origin.zMeters,
+  };
+  const normal = wallOutwardNormal(wall);
+  const outside = {
+    xMeters: floorPoint.xMeters + normal.dx * epsilon,
+    zMeters: floorPoint.zMeters + normal.dz * epsilon,
+  };
+  return !room.parts.some(
+    (other) =>
+      other.id !== part.id &&
+      outside.xMeters >= other.origin.xMeters &&
+      outside.xMeters <= other.origin.xMeters + other.widthMeters &&
+      outside.zMeters >= other.origin.zMeters &&
+      outside.zMeters <= other.origin.zMeters + other.depthMeters,
+  );
+}
+
+function openingSegmentIsExterior(room: Room, opening: Opening): boolean {
+  const range = openingRangeMeters(opening);
+  return [range.startMeters, opening.centerMeters, range.endMeters].every(
+    (alongMeters) =>
+      wallPointIsExterior(room, opening.partId, opening.wall, alongMeters),
+  );
 }
 
 function clamp(value: number, low: number, high: number): number {
