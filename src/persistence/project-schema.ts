@@ -25,8 +25,9 @@ import type { Project } from "@/domain/project";
  * 4. The room became a floor: an apartment of rooms, each with a place on it.
  * 5. Furniture moved into named layouts, so arrangements can be compared.
  * 6. Removed a retired floor-planning field.
+ * 7. A room became a union of rectangular parts; openings name their part.
  */
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 /** Meters, cents, and the rest are all plain finite numbers on the way in. */
 const finiteNumber = z
@@ -39,6 +40,7 @@ const wholeNumber = z
 
 const openingFields = {
   id: z.string().min(1),
+  partId: z.string().min(1),
   wall: z.enum(["north", "east", "south", "west"]),
   centerMeters: finiteNumber,
   widthMeters: finiteNumber,
@@ -55,13 +57,18 @@ const openingSchema = z.discriminatedUnion("kind", [
   z.object({ ...openingFields, kind: z.literal("passage") }),
 ]);
 
-const roomSchema = z.object({
+const roomPartSchema = z.object({
   id: z.string().min(1),
-  name: z.string(),
   origin: z.object({ xMeters: finiteNumber, zMeters: finiteNumber }),
   widthMeters: finiteNumber,
   depthMeters: finiteNumber,
+});
+
+const roomSchema = z.object({
+  id: z.string().min(1),
+  name: z.string(),
   heightMeters: finiteNumber,
+  parts: z.array(roomPartSchema).min(1),
   openings: z.array(openingSchema),
 });
 
@@ -231,6 +238,44 @@ const MIGRATIONS: Record<number, (document: object) => object> = {
   },
   // Parsing the next version strips fields its floor no longer recognizes.
   5: (document) => ({ ...document, version: 6 }),
+  6: (document) => {
+    const project = projectOf(document) as Record<string, unknown>;
+    const floor = objectOf(project.floor);
+    const rooms = Array.isArray(floor.rooms) ? floor.rooms : [];
+    return {
+      ...document,
+      version: 7,
+      project: {
+        ...project,
+        floor: {
+          ...floor,
+          rooms: rooms.map((value) => {
+            const room = objectOf(value);
+            const roomId = typeof room.id === "string" ? room.id : "room";
+            const partId = `${roomId}-part-1`;
+            const openings = Array.isArray(room.openings) ? room.openings : [];
+            return {
+              id: room.id,
+              name: room.name,
+              heightMeters: room.heightMeters,
+              parts: [
+                {
+                  id: partId,
+                  origin: room.origin,
+                  widthMeters: room.widthMeters,
+                  depthMeters: room.depthMeters,
+                },
+              ],
+              openings: openings.map((opening) => ({
+                ...objectOf(opening),
+                partId,
+              })),
+            };
+          }),
+        },
+      },
+    };
+  },
 };
 
 /**
@@ -277,6 +322,12 @@ function projectOf(document: object): object {
 function roomOf(project: object): object {
   const room = (project as { room?: unknown }).room;
   return typeof room === "object" && room !== null ? room : {};
+}
+
+function objectOf(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
 /** Reads the version without trusting anything else about the value. */

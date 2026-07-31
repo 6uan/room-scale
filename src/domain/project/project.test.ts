@@ -6,6 +6,7 @@ import {
   withProducts,
   withFloor,
 } from "./project";
+import { primaryRoomPart } from "@/domain/room";
 
 describe("project", () => {
   it("starts with an apartment, no furniture, and a reading preference", () => {
@@ -14,7 +15,8 @@ describe("project", () => {
     expect(project.products).toEqual([]);
     expect(project.displayUnit).toBe("imperial");
     expect(project.floor.rooms).toHaveLength(1);
-    expect(project.floor.rooms[0]?.widthMeters).toBeGreaterThan(0);
+    const room = project.floor.rooms[0];
+    expect(room && primaryRoomPart(room).widthMeters).toBeGreaterThan(0);
   });
 
   it("replaces each part without mutating the original", () => {

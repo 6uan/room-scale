@@ -3,6 +3,7 @@ import { metersFromInches, roundToDisplayUnit } from "@/domain/units";
 import {
   ROOM_LENGTH_LIMITS,
   createRoom,
+  primaryRoomPart,
   resizeRoomEdge,
   roomEdgePosition,
   type Room,
@@ -11,9 +12,17 @@ import {
 /** Four metres by three, with its north-west corner at the origin. */
 const ROOM: Room = {
   ...createRoom("room-1", "Living room", { xMeters: 0, zMeters: 0 }),
-  widthMeters: 4,
-  depthMeters: 3,
+  parts: [
+    {
+      id: "room-1-part-1",
+      origin: { xMeters: 0, zMeters: 0 },
+      widthMeters: 4,
+      depthMeters: 3,
+    },
+  ],
 };
+
+const part = (room: Room) => primaryRoomPart(room);
 
 describe("roomEdgePosition", () => {
   it("says where each wall stands", () => {
@@ -28,48 +37,48 @@ describe("resizeRoomEdge", () => {
   it("grows the room eastward without moving its west wall", () => {
     const wider = resizeRoomEdge(ROOM, "east", 5);
 
-    expect(wider.widthMeters).toBe(5);
-    expect(wider.origin.xMeters).toBe(0);
+    expect(part(wider).widthMeters).toBe(5);
+    expect(part(wider).origin.xMeters).toBe(0);
   });
 
   it("moves the origin when the west wall is the one dragged", () => {
     const wider = resizeRoomEdge(ROOM, "west", -1);
 
     // The east wall stayed at 4, so the room is five metres across now.
-    expect(wider.origin.xMeters).toBe(-1);
-    expect(wider.widthMeters).toBe(5);
+    expect(part(wider).origin.xMeters).toBe(-1);
+    expect(part(wider).widthMeters).toBe(5);
     expect(roomEdgePosition(wider, "east")).toBe(4);
   });
 
   it("does the same on the other axis", () => {
-    expect(resizeRoomEdge(ROOM, "south", 4).depthMeters).toBe(4);
+    expect(part(resizeRoomEdge(ROOM, "south", 4)).depthMeters).toBe(4);
 
     const taller = resizeRoomEdge(ROOM, "north", -2);
-    expect(taller.origin.zMeters).toBe(-2);
-    expect(taller.depthMeters).toBe(5);
+    expect(part(taller).origin.zMeters).toBe(-2);
+    expect(part(taller).depthMeters).toBe(5);
     expect(roomEdgePosition(taller, "south")).toBe(3);
   });
 
   it("shrinks as well as grows", () => {
-    expect(resizeRoomEdge(ROOM, "east", 2).widthMeters).toBe(2);
-    expect(resizeRoomEdge(ROOM, "west", 1).widthMeters).toBe(3);
+    expect(part(resizeRoomEdge(ROOM, "east", 2)).widthMeters).toBe(2);
+    expect(part(resizeRoomEdge(ROOM, "west", 1)).widthMeters).toBe(3);
   });
 
   it("will not turn a room inside out", () => {
     const smallest = ROOM_LENGTH_LIMITS.widthMeters.minMeters;
 
     // Dragging the east wall past the west one, and the other way round.
-    expect(resizeRoomEdge(ROOM, "east", -10).widthMeters).toBe(smallest);
+    expect(part(resizeRoomEdge(ROOM, "east", -10)).widthMeters).toBe(smallest);
     const squashed = resizeRoomEdge(ROOM, "west", 99);
-    expect(squashed.widthMeters).toBe(smallest);
+    expect(part(squashed).widthMeters).toBe(smallest);
     expect(roomEdgePosition(squashed, "east")).toBe(4);
   });
 
   it("leaves the other axis alone", () => {
     const wider = resizeRoomEdge(ROOM, "east", 6);
 
-    expect(wider.depthMeters).toBe(ROOM.depthMeters);
-    expect(wider.origin.zMeters).toBe(ROOM.origin.zMeters);
+    expect(part(wider).depthMeters).toBe(part(ROOM).depthMeters);
+    expect(part(wider).origin.zMeters).toBe(part(ROOM).origin.zMeters);
   });
 });
 

@@ -10,6 +10,11 @@
 export type Selection =
   | { readonly kind: "room"; readonly id: string }
   | {
+      readonly kind: "room-part";
+      readonly roomId: string;
+      readonly id: string;
+    }
+  | {
       readonly kind: "opening";
       readonly roomId: string;
       readonly id: string;

@@ -19,12 +19,19 @@ import {
   type Opening,
 } from "./openings";
 
-const ROOM = { ...DEFAULT_ROOM, widthMeters: 4, depthMeters: 3, openings: [] };
+const PART = {
+  id: "room-1-part-1",
+  origin: { xMeters: 0, zMeters: 0 },
+  widthMeters: 4,
+  depthMeters: 3,
+};
+const ROOM = { ...DEFAULT_ROOM, parts: [PART], openings: [] };
 
 function passage(overrides: Partial<Opening> = {}): Opening {
   return {
     id: "test",
     kind: "passage",
+    partId: PART.id,
     wall: "north",
     centerMeters: 2,
     widthMeters: 0.9144,
@@ -88,9 +95,9 @@ describe("opening placement", () => {
   it("finds the nearest wall within the pointer's reach", () => {
     expect(
       wallPlacementAt(ROOM, { xMeters: 1.25, zMeters: -0.05 }, 0.1),
-    ).toEqual({ wall: "north", alongMeters: 1.25 });
+    ).toEqual({ partId: PART.id, wall: "north", alongMeters: 1.25 });
     expect(wallPlacementAt(ROOM, { xMeters: 4.04, zMeters: 2.5 }, 0.1)).toEqual(
-      { wall: "east", alongMeters: 2.5 },
+      { partId: PART.id, wall: "east", alongMeters: 2.5 },
     );
     expect(wallPlacementAt(ROOM, { xMeters: 2, zMeters: 1.5 }, 0.1)).toBeNull();
   });
@@ -166,7 +173,10 @@ describe("createOpening", () => {
   });
 
   it("narrows an opening that would not fit the wall it is created on", () => {
-    const narrow = { ...ROOM, depthMeters: 0.8 };
+    const narrow = {
+      ...ROOM,
+      parts: [{ ...PART, depthMeters: 0.8 }],
+    };
     const passageOpening = createOpening("passage", "p1", narrow, "east");
 
     expect(passageOpening.widthMeters).toBe(0.8);

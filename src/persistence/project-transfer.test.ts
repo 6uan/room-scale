@@ -103,7 +103,9 @@ describe("importProject", () => {
 
     expect(result.ok).toBe(true);
     // Carried all the way forward: a floor, holding that room, in one layout.
-    expect(result.ok && result.project.floor.rooms[0]?.widthMeters).toBe(4.2);
+    expect(
+      result.ok && result.project.floor.rooms[0]?.parts[0]?.widthMeters,
+    ).toBe(4.2);
     expect(result.ok && result.project.layouts).toHaveLength(1);
     expect(result.ok && result.project.displayUnit).toBe("metric");
   });

@@ -219,6 +219,25 @@ describe("readStoredProject", () => {
 
   it("drops retired floor data when upgrading a version 5 document", () => {
     const project = createProject();
+    const legacyRooms = project.floor.rooms.map((room) => {
+      const part = room.parts[0];
+      if (part === undefined) {
+        throw new Error("a room has a part");
+      }
+      return {
+        id: room.id,
+        name: room.name,
+        origin: part.origin,
+        widthMeters: part.widthMeters,
+        depthMeters: part.depthMeters,
+        heightMeters: room.heightMeters,
+        openings: room.openings.map((opening) => {
+          const { partId, ...legacy } = opening;
+          void partId;
+          return legacy;
+        }),
+      };
+    });
     const version5 = {
       id: "current",
       version: 5,
@@ -227,6 +246,7 @@ describe("readStoredProject", () => {
         ...project,
         floor: {
           ...project.floor,
+          rooms: legacyRooms,
           retiredFloorData: [{ id: "legacy-1" }],
         },
       },
@@ -238,6 +258,49 @@ describe("readStoredProject", () => {
     expect(
       result.ok && "retiredFloorData" in (result.project.floor as object),
     ).toBe(false);
+  });
+
+  it("upgrades a version 6 rectangle to one room part", () => {
+    const project = createProject();
+    const room = project.floor.rooms[0];
+    const part = room?.parts[0];
+    if (room === undefined || part === undefined) {
+      throw new Error("a new project starts with one room part");
+    }
+    const version6 = {
+      id: "current",
+      version: 6,
+      updatedAt: 1_700_000_000_000,
+      project: {
+        ...project,
+        floor: {
+          ...project.floor,
+          rooms: [
+            {
+              id: room.id,
+              name: room.name,
+              origin: part.origin,
+              widthMeters: part.widthMeters,
+              depthMeters: part.depthMeters,
+              heightMeters: room.heightMeters,
+              openings: room.openings.map((opening) => {
+                const { partId, ...legacy } = opening;
+                void partId;
+                return legacy;
+              }),
+            },
+          ],
+        },
+      },
+    };
+
+    const result = readStoredProject(version6);
+
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.project.floor.rooms[0]?.parts).toEqual([part]);
+    expect(
+      result.ok && result.project.floor.rooms[0]?.openings[0]?.partId,
+    ).toBe(part.id);
   });
 
   it("refuses a project with no layout to put furniture in", () => {
@@ -300,7 +363,15 @@ describe("readStoredProject", () => {
         floor: {
           ...STORED.project.floor,
           rooms: [
-            { ...STORED.project.floor.rooms[0], widthMeters: Number.NaN },
+            {
+              ...STORED.project.floor.rooms[0],
+              parts: [
+                {
+                  ...STORED.project.floor.rooms[0]?.parts[0],
+                  widthMeters: Number.NaN,
+                },
+              ],
+            },
           ],
         },
       },

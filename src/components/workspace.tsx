@@ -35,6 +35,8 @@ import {
   createOpening,
   createRoom,
   drawnRoom,
+  roomBounds,
+  withOrigin,
   withOpenings,
   withRoom,
   withRooms,
@@ -189,6 +191,7 @@ export function Workspace() {
   function placeOpening(
     roomId: string,
     kind: OpeningKind,
+    partId: string,
     wall: WallSide,
     centerMeters: number,
   ): void {
@@ -200,7 +203,7 @@ export function Workspace() {
       "opening",
       floor.rooms.flatMap((one) => one.openings.map((opening) => opening.id)),
     );
-    const opening = createOpening(kind, id, room, wall, centerMeters);
+    const opening = createOpening(kind, id, room, wall, centerMeters, partId);
     setFloor(withRoom(floor, withOpenings(room, [...room.openings, opening])));
     setSelection({ kind: "opening", roomId: room.id, id });
   }
@@ -262,6 +265,23 @@ export function Workspace() {
         if (room !== undefined) {
           removeRoom(room);
         }
+        return;
+      }
+      case "room-part": {
+        const room = floor.rooms.find((one) => one.id === selection.roomId);
+        if (room === undefined || room.parts.length === 1) {
+          return;
+        }
+        setFloor(
+          withRoom(floor, {
+            ...room,
+            parts: room.parts.filter((part) => part.id !== selection.id),
+            openings: room.openings.filter(
+              (opening) => opening.partId !== selection.id,
+            ),
+          }),
+        );
+        setSelection({ kind: "room", id: room.id });
         return;
       }
       case "opening": {
@@ -458,8 +478,20 @@ export function Workspace() {
               onInstanceChange={(instance, gesture) =>
                 setInstances(withInstance(instances, instance), gesture)
               }
-              selectedRoomId={selection?.kind === "room" ? selection.id : null}
+              selectedRoomId={
+                selection?.kind === "room"
+                  ? selection.id
+                  : selection?.kind === "room-part"
+                    ? selection.roomId
+                    : null
+              }
+              selectedRoomPartId={
+                selection?.kind === "room-part" ? selection.id : null
+              }
               onSelectRoom={(id) => setSelection({ kind: "room", id })}
+              onSelectRoomPart={(roomId, id) =>
+                setSelection({ kind: "room-part", roomId, id })
+              }
               selectedOpeningId={
                 selection?.kind === "opening" ? selection.id : null
               }
@@ -590,11 +622,9 @@ function isTyping(target: EventTarget | null): boolean {
 
 /** The same room, moved so the point given is its middle rather than a corner. */
 function centredRoom(room: Room, at: FloorPoint): Room {
-  return {
-    ...room,
-    origin: {
-      xMeters: at.xMeters - room.widthMeters / 2,
-      zMeters: at.zMeters - room.depthMeters / 2,
-    },
-  };
+  const bounds = roomBounds(room);
+  return withOrigin(room, {
+    xMeters: at.xMeters - bounds.widthMeters / 2,
+    zMeters: at.zMeters - bounds.depthMeters / 2,
+  });
 }

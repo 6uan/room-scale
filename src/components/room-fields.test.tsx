@@ -4,16 +4,20 @@ import { createProject } from "@/domain/project";
 import {
   createRoom,
   DEFAULT_FLOOR,
+  primaryRoomPart,
+  withParts,
+  withRoomLength,
   type Floor,
   type Room,
 } from "@/domain/room";
 import { RoomFields } from "./room-fields";
 
 function snappingFloor(): { floor: Floor; room: Room } {
-  const room = {
-    ...createRoom("room-1", "Living room", { xMeters: 0, zMeters: 0 }),
-    widthMeters: 3.9,
-  };
+  const room = withRoomLength(
+    createRoom("room-1", "Living room", { xMeters: 0, zMeters: 0 }),
+    "widthMeters",
+    3.9,
+  );
   const neighbor = createRoom("room-2", "Study", {
     xMeters: 4.1,
     zMeters: 0,
@@ -90,10 +94,12 @@ describe("RoomFields", () => {
     const size = screen.getByRole("group", { name: "Size" });
     expect(within(size).getAllByRole("spinbutton")).toEqual([
       within(size).getByRole("spinbutton", { name: "Living room width" }),
-      within(size).getByRole("spinbutton", { name: "Living room height" }),
       within(size).getByRole("spinbutton", { name: "Living room depth" }),
     ]);
-    expect(within(size).getAllByRole("slider")).toHaveLength(3);
+    expect(within(size).getAllByRole("slider")).toHaveLength(2);
+    expect(
+      screen.getByRole("spinbutton", { name: "Living room height" }),
+    ).toBeInTheDocument();
     expect(
       within(size).getByRole("slider", {
         name: "W drag handle",
@@ -119,7 +125,7 @@ describe("RoomFields", () => {
     fireEvent.pointerMove(scrubber, { pointerId: 3, clientX: 105 });
 
     const changed = onChange.mock.lastCall?.[0] as Room | undefined;
-    expect(changed?.widthMeters).toBeCloseTo(4, 10);
+    expect(changed && primaryRoomPart(changed).widthMeters).toBeCloseTo(4, 10);
     expect(onChange.mock.lastCall?.[1]).toBe("room-field:room-1:width");
   });
 
@@ -134,7 +140,136 @@ describe("RoomFields", () => {
     );
 
     const changed = onChange.mock.lastCall?.[0] as Room | undefined;
-    expect(changed?.widthMeters).toBeCloseTo(3.95, 10);
+    expect(changed && primaryRoomPart(changed).widthMeters).toBeCloseTo(
+      3.95,
+      10,
+    );
     expect(onChange.mock.lastCall?.[1]).toBeUndefined();
+  });
+
+  it("adds an editable rectangular section to the room", () => {
+    const floor = createProject().floor;
+    const room = floor.rooms[0];
+    if (room === undefined) {
+      throw new Error("a new project starts with a room");
+    }
+    const onChange = vi.fn();
+    const onSelectPart = vi.fn();
+    render(
+      <RoomFields
+        floor={floor}
+        room={room}
+        unit="metric"
+        onChange={onChange}
+        onGestureEnd={vi.fn()}
+        onRemove={vi.fn()}
+        onAddOpening={vi.fn()}
+        onSelectPart={onSelectPart}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Add section" }));
+
+    const changed = onChange.mock.lastCall?.[0] as Room | undefined;
+    expect(changed?.parts).toHaveLength(2);
+    expect(changed?.parts[1]?.id).toBe("room-1-part-2");
+    expect(onSelectPart).toHaveBeenCalledWith("room-1-part-2");
+  });
+
+  it("shows a plain footprint instead of Section 1 for a rectangular room", () => {
+    const floor = createProject().floor;
+    const room = floor.rooms[0];
+    if (room === undefined) {
+      throw new Error("a new project starts with a room");
+    }
+    render(
+      <RoomFields
+        floor={floor}
+        room={room}
+        unit="metric"
+        onChange={vi.fn()}
+        onGestureEnd={vi.fn()}
+        onRemove={vi.fn()}
+        onAddOpening={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Footprint")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Select Living room" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Section 1")).not.toBeInTheDocument();
+  });
+
+  it("selects a section from its sidebar card once the room is compound", () => {
+    const floor = createProject().floor;
+    const base = floor.rooms[0];
+    if (base === undefined) {
+      throw new Error("a new project starts with a room");
+    }
+    const room = withParts(base, [
+      ...base.parts,
+      {
+        id: "room-1-part-2",
+        origin: { xMeters: 2, zMeters: 2 },
+        widthMeters: 2,
+        depthMeters: 2,
+      },
+    ]);
+    const onSelectPart = vi.fn();
+    render(
+      <RoomFields
+        floor={{ ...floor, rooms: [room] }}
+        room={room}
+        unit="metric"
+        onChange={vi.fn()}
+        onGestureEnd={vi.fn()}
+        onRemove={vi.fn()}
+        onAddOpening={vi.fn()}
+        onSelectPart={onSelectPart}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Select Living room section 1" }),
+    );
+    expect(onSelectPart).toHaveBeenCalledWith("room-1-part-1");
+  });
+
+  it("collapses selection back to the room when one part remains", () => {
+    const floor = createProject().floor;
+    const base = floor.rooms[0];
+    if (base === undefined) {
+      throw new Error("a new project starts with a room");
+    }
+    const room = withParts(base, [
+      ...base.parts,
+      {
+        id: "room-1-part-2",
+        origin: { xMeters: 2, zMeters: 2 },
+        widthMeters: 2,
+        depthMeters: 2,
+      },
+    ]);
+    const onSelectPart = vi.fn();
+    render(
+      <RoomFields
+        floor={{ ...floor, rooms: [room] }}
+        room={room}
+        unit="metric"
+        selectedPartId="room-1-part-1"
+        onChange={vi.fn()}
+        onGestureEnd={vi.fn()}
+        onRemove={vi.fn()}
+        onAddOpening={vi.fn()}
+        onSelectPart={onSelectPart}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Remove Living room section 2" }),
+    );
+
+    expect(onSelectPart).toHaveBeenCalledWith(null);
   });
 });

@@ -30,9 +30,15 @@ import {
   DEFAULT_ROOM,
   ROOM_LENGTH_LIMITS,
   createRoom,
+  primaryRoomPart,
   resizeRoomEdge,
+  resizeRoomPartEdge,
+  roomBounds,
+  roomFloorAreaSquareMeters,
+  withRoomPart,
   type Room,
   type RoomEdge,
+  type RoomPart,
 } from "./room";
 
 export type Floor = {
@@ -50,13 +56,14 @@ export const DEFAULT_FLOOR: Floor = {
 
 /** The floor rectangle of one room, in floor coordinates. */
 export function roomRect(room: Room): OrientedRect {
+  const bounds = roomBounds(room);
   return {
     center: {
-      xMeters: room.origin.xMeters + room.widthMeters / 2,
-      zMeters: room.origin.zMeters + room.depthMeters / 2,
+      xMeters: bounds.origin.xMeters + bounds.widthMeters / 2,
+      zMeters: bounds.origin.zMeters + bounds.depthMeters / 2,
     },
-    widthMeters: room.widthMeters,
-    depthMeters: room.depthMeters,
+    widthMeters: bounds.widthMeters,
+    depthMeters: bounds.depthMeters,
     // Rooms are square to the plan during the MVP. A turned room would change
     // nothing here and a great deal in the drawing.
     rotationRadians: 0,
@@ -65,17 +72,19 @@ export function roomRect(room: Room): OrientedRect {
 
 /** A floor point in one room's own frame, measured from its north-west corner. */
 export function pointInRoom(room: Room, point: FloorPoint): FloorPoint {
+  const origin = roomBounds(room).origin;
   return {
-    xMeters: point.xMeters - room.origin.xMeters,
-    zMeters: point.zMeters - room.origin.zMeters,
+    xMeters: point.xMeters - origin.xMeters,
+    zMeters: point.zMeters - origin.zMeters,
   };
 }
 
 /** The same point put back into floor coordinates. */
 export function pointOnFloor(room: Room, point: FloorPoint): FloorPoint {
+  const origin = roomBounds(room).origin;
   return {
-    xMeters: point.xMeters + room.origin.xMeters,
-    zMeters: point.zMeters + room.origin.zMeters,
+    xMeters: point.xMeters + origin.xMeters,
+    zMeters: point.zMeters + origin.zMeters,
   };
 }
 
@@ -96,14 +105,11 @@ export function floorBounds(floor: Floor): {
     };
   }
 
-  const lefts = floor.rooms.map((room) => room.origin.xMeters);
-  const tops = floor.rooms.map((room) => room.origin.zMeters);
-  const rights = floor.rooms.map(
-    (room) => room.origin.xMeters + room.widthMeters,
-  );
-  const bottoms = floor.rooms.map(
-    (room) => room.origin.zMeters + room.depthMeters,
-  );
+  const bounds = floor.rooms.map(roomBounds);
+  const lefts = bounds.map((room) => room.origin.xMeters);
+  const tops = bounds.map((room) => room.origin.zMeters);
+  const rights = bounds.map((room) => room.origin.xMeters + room.widthMeters);
+  const bottoms = bounds.map((room) => room.origin.zMeters + room.depthMeters);
 
   const west = Math.min(...lefts);
   const north = Math.min(...tops);
@@ -119,15 +125,15 @@ export function floorBounds(floor: Floor): {
 
 /** Every room a point falls inside. Usually one; two means they overlap. */
 export function roomsAt(floor: Floor, point: FloorPoint): readonly Room[] {
-  return floor.rooms.filter((room) => {
-    const local = pointInRoom(room, point);
-    return (
-      local.xMeters >= 0 &&
-      local.xMeters <= room.widthMeters &&
-      local.zMeters >= 0 &&
-      local.zMeters <= room.depthMeters
-    );
-  });
+  return floor.rooms.filter((room) =>
+    room.parts.some(
+      (part) =>
+        point.xMeters >= part.origin.xMeters &&
+        point.xMeters <= part.origin.xMeters + part.widthMeters &&
+        point.zMeters >= part.origin.zMeters &&
+        point.zMeters <= part.origin.zMeters + part.depthMeters,
+    ),
+  );
 }
 
 export function withRooms(floor: Floor, rooms: readonly Room[]): Floor {
@@ -151,7 +157,7 @@ export function withRoom(floor: Floor, next: Room): Floor {
  */
 export function floorAreaSquareMeters(floor: Floor): number {
   return floor.rooms.reduce(
-    (total, room) => total + room.widthMeters * room.depthMeters,
+    (total, room) => total + roomFloorAreaSquareMeters(room),
     0,
   );
 }
@@ -186,24 +192,29 @@ export function snapRoomOrigin(
 ): FloorPoint {
   const others = floor.rooms.filter((one) => one.id !== room.id);
   const thickness = floor.wallThicknessMeters;
+  const bounds = roomBounds(room);
 
   return {
     xMeters: snapAxis(
       origin.xMeters,
-      room.widthMeters,
-      others.map((one) => ({
-        start: one.origin.xMeters,
-        length: one.widthMeters,
-      })),
+      bounds.widthMeters,
+      others.flatMap((one) =>
+        one.parts.map((part) => ({
+          start: part.origin.xMeters,
+          length: part.widthMeters,
+        })),
+      ),
       thickness,
     ),
     zMeters: snapAxis(
       origin.zMeters,
-      room.depthMeters,
-      others.map((one) => ({
-        start: one.origin.zMeters,
-        length: one.depthMeters,
-      })),
+      bounds.depthMeters,
+      others.flatMap((one) =>
+        one.parts.map((part) => ({
+          start: part.origin.zMeters,
+          length: part.depthMeters,
+        })),
+      ),
       thickness,
     ),
   };
@@ -242,11 +253,13 @@ export function drawnRoom(
   const north = zs[0] ?? 0;
   const minimum = ROOM_LENGTH_LIMITS.widthMeters.minMeters;
 
-  return {
-    ...createRoom(id, name, { xMeters: west, zMeters: north }),
+  const room = createRoom(id, name, { xMeters: west, zMeters: north });
+  const part = primaryRoomPart(room);
+  return withRoomPart(room, part.id, (one) => ({
+    ...one,
     widthMeters: Math.max(minimum, (xs[1] ?? 0) - west),
     depthMeters: Math.max(minimum, (zs[1] ?? 0) - north),
-  };
+  }));
 }
 
 /**
@@ -274,18 +287,13 @@ export function snapRoomEdge(
   const thickness = floor.wallThicknessMeters;
   const others = floor.rooms.filter((one) => one.id !== exceptRoomId);
 
-  const candidates = others.flatMap((room) => {
-    const start = axis === "x" ? room.origin.xMeters : room.origin.zMeters;
-    const end = start + (axis === "x" ? room.widthMeters : room.depthMeters);
-    return [
-      // Sharing a wall with it: a thickness clear of either face.
-      start - thickness,
-      end + thickness,
-      // Flush against it, which is what a room drawn inside another wants.
-      start,
-      end,
-    ];
-  });
+  const candidates = others.flatMap((room) =>
+    room.parts.flatMap((part) => {
+      const start = axis === "x" ? part.origin.xMeters : part.origin.zMeters;
+      const end = start + (axis === "x" ? part.widthMeters : part.depthMeters);
+      return [start - thickness, end + thickness, start, end];
+    }),
+  );
 
   let best = value;
   let nearest = SNAP_METERS;
@@ -318,6 +326,132 @@ export function snapRoomResize(
     edge,
     snapRoomEdge(floor, axis, positionMeters, room.id),
   );
+}
+
+/**
+ * Resizes one part against every other visible part edge.
+ *
+ * Parts in the same room meet directly because no wall exists at their seam.
+ * Parts in another room keep the floor's wall thickness, matching ordinary
+ * room resizing.
+ */
+export function snapRoomPartResize(
+  floor: Floor,
+  room: Room,
+  partId: string,
+  edge: RoomEdge,
+  positionMeters: number,
+): Room {
+  const axis = edge === "west" || edge === "east" ? "x" : "z";
+  return resizeRoomPartEdge(
+    room,
+    partId,
+    edge,
+    snapPartEdge(floor, room.id, partId, axis, positionMeters),
+  );
+}
+
+/** A dragged part origin, snapped flush to its siblings and neighbouring rooms. */
+export function snapRoomPartOrigin(
+  floor: Floor,
+  room: Room,
+  part: RoomPart,
+  origin: FloorPoint,
+): FloorPoint {
+  return {
+    xMeters: snapPartOriginAxis(
+      floor,
+      room.id,
+      part.id,
+      "x",
+      origin.xMeters,
+      part.widthMeters,
+    ),
+    zMeters: snapPartOriginAxis(
+      floor,
+      room.id,
+      part.id,
+      "z",
+      origin.zMeters,
+      part.depthMeters,
+    ),
+  };
+}
+
+function snapPartEdge(
+  floor: Floor,
+  roomId: string,
+  partId: string,
+  axis: "x" | "z",
+  value: number,
+): number {
+  const candidates = floor.rooms.flatMap((room) =>
+    room.parts.flatMap((part) => {
+      if (room.id === roomId && part.id === partId) {
+        return [];
+      }
+      const start = partAxisStart(part, axis);
+      const end = start + partAxisLength(part, axis);
+      return room.id === roomId
+        ? [start, end]
+        : [
+            start - floor.wallThicknessMeters,
+            end + floor.wallThicknessMeters,
+            start,
+            end,
+          ];
+    }),
+  );
+  return nearestSnap(value, candidates);
+}
+
+function snapPartOriginAxis(
+  floor: Floor,
+  roomId: string,
+  partId: string,
+  axis: "x" | "z",
+  value: number,
+  length: number,
+): number {
+  const candidates = floor.rooms.flatMap((room) =>
+    room.parts.flatMap((part) => {
+      if (room.id === roomId && part.id === partId) {
+        return [];
+      }
+      const start = partAxisStart(part, axis);
+      const theirs = partAxisLength(part, axis);
+      return room.id === roomId
+        ? [start + theirs, start - length, start, start + theirs - length]
+        : [
+            start + theirs + floor.wallThicknessMeters,
+            start - floor.wallThicknessMeters - length,
+            start,
+            start + theirs - length,
+          ];
+    }),
+  );
+  return nearestSnap(value, candidates);
+}
+
+function partAxisStart(part: RoomPart, axis: "x" | "z"): number {
+  return axis === "x" ? part.origin.xMeters : part.origin.zMeters;
+}
+
+function partAxisLength(part: RoomPart, axis: "x" | "z"): number {
+  return axis === "x" ? part.widthMeters : part.depthMeters;
+}
+
+function nearestSnap(value: number, candidates: readonly number[]): number {
+  let best = value;
+  let nearest = SNAP_METERS;
+  for (const candidate of candidates) {
+    const distance = Math.abs(candidate - value);
+    if (distance < nearest) {
+      best = candidate;
+      nearest = distance;
+    }
+  }
+  return best;
 }
 
 /** One axis of the snap: the candidates, nearest first, or the value as given. */

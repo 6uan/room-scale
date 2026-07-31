@@ -13,16 +13,19 @@
 
 import { footprintRect, type PlacedFurniture } from "@/domain/furniture";
 import {
+  orientedRectContains,
+  orientedRectCorners,
   orientedRectOverlap,
+  orientedRectUnionOverlapArea,
   overhangs,
+  rectUnionContains,
   rectOutsideFloor,
   rectOverhang,
 } from "@/domain/geometry";
 import {
-  pointInRoom,
-  roomRect,
-  roomsAt,
+  primaryRoomPart,
   type Floor,
+  type Room,
   type WallSide,
 } from "@/domain/room";
 
@@ -96,10 +99,9 @@ export function checkLayout(
 /**
  * Where one piece stands, and whether it stands there properly.
  *
- * The room a piece is in is the one its center falls in. A piece is a rectangle
- * on a floor, not a thing owned by a room, and its center is the one point that
- * cannot be in two rooms at once unless the rooms themselves overlap — which is
- * reported separately.
+ * The room a piece is in is the room its footprint overlaps most. That remains
+ * true at a doorway or in a concave outline where the center alone can give the
+ * wrong answer.
  *
  * Reaching past that room's walls is reported even when another room is on the
  * far side. Furniture cannot occupy a wall.
@@ -110,28 +112,57 @@ function pieceProblems(
 ): readonly LayoutProblem[] {
   const rect = footprintRect(placed);
   const instanceId = placed.instance.id;
-  const room = roomsAt(floor, placed.instance.position)[0];
-
-  if (room === undefined) {
+  const overlaps = floor.rooms
+    .map((room) => ({
+      room,
+      area: orientedRectUnionOverlapArea(rect, room.parts),
+    }))
+    .sort((a, b) => b.area - a.area);
+  const best = overlaps[0];
+  if (best === undefined || best.area <= 0.000001) {
     return [{ kind: "outside-room", instanceId }];
   }
+  const room = best.room;
 
-  // Measured in the room's own frame, where its north-west corner is (0, 0).
-  const local = { ...rect, center: pointInRoom(room, rect.center) };
-  const extent = {
-    widthMeters: room.widthMeters,
-    depthMeters: room.depthMeters,
-  };
-
-  if (rectOutsideFloor(local, extent)) {
-    return [{ kind: "outside-room", instanceId }];
-  }
-
-  const overhang = rectOverhang(local, extent);
-  if (!overhangs(overhang)) {
+  const footprintArea = rect.widthMeters * rect.depthMeters;
+  if (best.area >= footprintArea - 0.000001) {
     return [];
   }
 
+  if (room.parts.length === 1) {
+    const part = primaryRoomPart(room);
+    const local = {
+      ...rect,
+      center: {
+        xMeters: rect.center.xMeters - part.origin.xMeters,
+        zMeters: rect.center.zMeters - part.origin.zMeters,
+      },
+    };
+    const extent = {
+      widthMeters: part.widthMeters,
+      depthMeters: part.depthMeters,
+    };
+
+    if (rectOutsideFloor(local, extent)) {
+      return [{ kind: "outside-room", instanceId }];
+    }
+
+    const overhang = rectOverhang(local, extent);
+    if (!overhangs(overhang)) {
+      return [];
+    }
+
+    return wallProblems(room, instanceId, overhang);
+  }
+
+  return unionWallProblems(room, rect, instanceId);
+}
+
+function wallProblems(
+  room: Room,
+  instanceId: string,
+  overhang: Record<WallSide, number>,
+): readonly LayoutProblem[] {
   return (["north", "east", "south", "west"] as const)
     .filter((wall) => overhang[wall] > 0)
     .map((wall) => ({
@@ -141,6 +172,103 @@ function pieceProblems(
       wall,
       overhangMeters: overhang[wall],
     }));
+}
+
+/** Reports the nearest union boundary for footprint samples outside a room. */
+function unionWallProblems(
+  room: Room,
+  rect: ReturnType<typeof footprintRect>,
+  instanceId: string,
+): readonly LayoutProblem[] {
+  const corners = orientedRectCorners(rect);
+  const samples = [
+    ...corners,
+    ...corners.map((point, index) => {
+      const next = corners[(index + 1) % corners.length] ?? point;
+      return {
+        xMeters: (point.xMeters + next.xMeters) / 2,
+        zMeters: (point.zMeters + next.zMeters) / 2,
+      };
+    }),
+  ].filter((point) => !rectUnionContains(room.parts, point));
+
+  // A convex footprint can bridge a concave notch with every corner inside.
+  // Part-edge grid cells provide an interior sample for that case.
+  if (samples.length === 0) {
+    const xs = room.parts.flatMap((part) => [
+      part.origin.xMeters,
+      part.origin.xMeters + part.widthMeters,
+    ]);
+    const zs = room.parts.flatMap((part) => [
+      part.origin.zMeters,
+      part.origin.zMeters + part.depthMeters,
+    ]);
+    for (const x of xs) {
+      for (const z of zs) {
+        const point = { xMeters: x, zMeters: z };
+        if (
+          orientedRectContains(rect, point) &&
+          !rectUnionContains(room.parts, point)
+        ) {
+          samples.push(point);
+        }
+      }
+    }
+  }
+
+  const greatest: Partial<Record<WallSide, number>> = {};
+  for (const point of samples) {
+    const nearest = room.parts
+      .flatMap((part) => {
+        const west = part.origin.xMeters;
+        const east = west + part.widthMeters;
+        const north = part.origin.zMeters;
+        const south = north + part.depthMeters;
+        const choices: { wall: WallSide; distance: number }[] = [];
+        if (point.xMeters < west) {
+          choices.push({ wall: "west", distance: west - point.xMeters });
+        } else if (point.xMeters > east) {
+          choices.push({ wall: "east", distance: point.xMeters - east });
+        }
+        if (point.zMeters < north) {
+          choices.push({ wall: "north", distance: north - point.zMeters });
+        } else if (point.zMeters > south) {
+          choices.push({ wall: "south", distance: point.zMeters - south });
+        }
+        return choices;
+      })
+      .sort((a, b) => a.distance - b.distance)[0];
+    if (nearest !== undefined) {
+      greatest[nearest.wall] = Math.max(
+        greatest[nearest.wall] ?? 0,
+        nearest.distance,
+      );
+    }
+  }
+
+  const problems = wallProblems(
+    room,
+    instanceId,
+    Object.fromEntries(
+      (["north", "east", "south", "west"] as const).map((wall) => [
+        wall,
+        greatest[wall] ?? 0,
+      ]),
+    ) as Record<WallSide, number>,
+  );
+  // The overlap-area test proved a crossing. Keep that fact visible even in a
+  // degenerate sampling case caused by coincident floating-point edges.
+  return problems.length > 0
+    ? problems
+    : [
+        {
+          kind: "crosses-wall",
+          instanceId,
+          roomId: room.id,
+          wall: "north",
+          overhangMeters: 0,
+        },
+      ];
 }
 
 /**
@@ -161,12 +289,26 @@ function roomProblems(floor: Floor): readonly LayoutProblem[] {
         continue;
       }
 
-      const overlap = orientedRectOverlap(roomRect(a), roomRect(b));
-      if (overlap !== null) {
+      const overlaps = a.parts.flatMap((partA) =>
+        b.parts.flatMap((partB) => {
+          const asRect = (part: typeof partA) => ({
+            center: {
+              xMeters: part.origin.xMeters + part.widthMeters / 2,
+              zMeters: part.origin.zMeters + part.depthMeters / 2,
+            },
+            widthMeters: part.widthMeters,
+            depthMeters: part.depthMeters,
+            rotationRadians: 0,
+          });
+          const overlap = orientedRectOverlap(asRect(partA), asRect(partB));
+          return overlap === null ? [] : [overlap.depthMeters];
+        }),
+      );
+      if (overlaps.length > 0) {
         problems.push({
           kind: "rooms-overlap",
           roomIds: [a.id, b.id],
-          depthMeters: overlap.depthMeters,
+          depthMeters: Math.min(...overlaps),
         });
       }
     }
