@@ -14,7 +14,7 @@ Two rules keep the order honest:
   Steps 4 to 10 are that question end to end. Everything after them makes the
   answer nicer to look at.
 
-Status: **step 18, second slice is next.**
+Status: **step 18, final slice is next.**
 
 ## Near-term pull requests
 
@@ -23,19 +23,19 @@ unlocks. **ROI** weighs that impact against implementation cost and risk. These
 ratings compare the remaining work with itself; they are not promises about
 calendar time.
 
-| Order                 | Pull request boundary                                                                                                            | ROI         | Impact      | Why it is here                                                                                                   |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------- | ----------- | ---------------------------------------------------------------------------------------------------------------- |
-| Done — #24            | Draw rooms directly; rename them in place; edit and scrub X/Y and W/H/D; remove the retired planning feature and its stored data | **Highest** | **High**    | It turns room entry into one coherent, pointer-first workflow and removes scope that distracts from furnishing.  |
-| Done — #25            | Snap canvas resizing and scrubbed W/D changes to neighbouring room faces through one shared rule                                 | **Highest** | Medium      | Small, contained work that closes the last inconsistent transform path before more geometry is added.            |
-| Done — #26            | Place, select, move, and resize doors, windows, and passages on the plan while keeping every value typeable                      | **Highest** | **Highest** | Fourteen openings are the largest remaining source of repetitive arithmetic in entering the real apartment.      |
-| Done — Step 18a       | Build an L-shaped or notched room from multiple axis-aligned rectangular parts, including persistence and validation             | **High**    | **Highest** | This expresses most currently impossible rooms without taking on rotation at the same time.                      |
-| Step 18, second slice | Rotate room parts for diagonal walls                                                                                             | Medium      | High        | Required for the real plan, but only after the higher-leverage rectangular-part model is proven.                 |
-| Step 18, final slice  | Mark edges open and distinguish exterior from interior wall thickness                                                            | Medium      | High        | Completes balconies, open living areas, and an honest apartment shell without bloating the first room-parts PR.  |
-| Step 19               | Report furniture that blocks a door or passage                                                                                   | **High**    | **High**    | Once openings are correctly placed, this directly prevents a bad furnishing decision with bounded geometry work. |
-| Deferred import       | Try a pasted product URL, with the existing paste-text flow as the permanent fallback                                            | Medium      | Medium      | It can remove typing on cooperative sites, but retailer rendering and anti-bot behavior cap its reliability.     |
-| Step 20               | Add the dimensionally correct perspective view                                                                                   | Medium      | Medium      | It increases confidence and comprehension, but does not unlock a measurement the plan cannot already answer.     |
-| Optional import       | Try a local model when deterministic product parsing fails                                                                       | Low         | Low         | Setup cost and limited audience make this a fallback, not a near-term product dependency.                        |
-| Step 21               | Add materials, lighting, finishes, and eventually product geometry in separate stages                                            | Low now     | Medium      | Valuable presentation work, deliberately last because it cannot improve dimensional correctness.                 |
+| Order                | Pull request boundary                                                                                                            | ROI         | Impact      | Why it is here                                                                                                   |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------- | ----------- | ---------------------------------------------------------------------------------------------------------------- |
+| Done — #24           | Draw rooms directly; rename them in place; edit and scrub X/Y and W/H/D; remove the retired planning feature and its stored data | **Highest** | **High**    | It turns room entry into one coherent, pointer-first workflow and removes scope that distracts from furnishing.  |
+| Done — #25           | Snap canvas resizing and scrubbed W/D changes to neighbouring room faces through one shared rule                                 | **Highest** | Medium      | Small, contained work that closes the last inconsistent transform path before more geometry is added.            |
+| Done — #26           | Place, select, move, and resize doors, windows, and passages on the plan while keeping every value typeable                      | **Highest** | **Highest** | Fourteen openings are the largest remaining source of repetitive arithmetic in entering the real apartment.      |
+| Done — Step 18a      | Build an L-shaped or notched room from multiple axis-aligned rectangular parts, including persistence and validation             | **High**    | **Highest** | This expresses most currently impossible rooms without taking on rotation at the same time.                      |
+| Done — Step 18b      | Rotate room parts for diagonal walls                                                                                             | Medium      | High        | Required for the real plan, but only after the higher-leverage rectangular-part model is proven.                 |
+| Step 18, final slice | Mark edges open and distinguish exterior from interior wall thickness                                                            | Medium      | High        | Completes balconies, open living areas, and an honest apartment shell without bloating the first room-parts PR.  |
+| Step 19              | Report furniture that blocks a door or passage                                                                                   | **High**    | **High**    | Once openings are correctly placed, this directly prevents a bad furnishing decision with bounded geometry work. |
+| Deferred import      | Try a pasted product URL, with the existing paste-text flow as the permanent fallback                                            | Medium      | Medium      | It can remove typing on cooperative sites, but retailer rendering and anti-bot behavior cap its reliability.     |
+| Step 20              | Add the dimensionally correct perspective view                                                                                   | Medium      | Medium      | It increases confidence and comprehension, but does not unlock a measurement the plan cannot already answer.     |
+| Optional import      | Try a local model when deterministic product parsing fails                                                                       | Low         | Low         | Setup cost and limited audience make this a fallback, not a near-term product dependency.                        |
+| Step 21              | Add materials, lighting, finishes, and eventually product geometry in separate stages                                            | Low now     | Medium      | Valuable presentation work, deliberately last because it cannot improve dimensional correctness.                 |
 
 ---
 
@@ -627,8 +627,8 @@ What a room becomes, and why this shape rather than a polygon:
   what the Separating Axis Theorem needs. A free polygon would have taken all
   four of those away at once and bought only the shapes nobody's apartment has.
 - **A part may be turned.** Rotation about the vertical axis, which
-  `OrientedRect` and `sat.ts` already carry and `roomRect` currently hard-codes
-  to zero. This is where the forty-five degree walls come from.
+  `OrientedRect` and `sat.ts` already carry and the plan long hard-coded to
+  zero. This is where the forty-five degree walls come from.
 - **An edge may be open.** A balcony is a room with a railing where a wall
   would be, and drawing it enclosed would say something false about the
   apartment.
@@ -651,6 +651,36 @@ migrate from version 6 to version 7 as one-part rooms. A room remains one module
 when selected and moved, while selecting one of its parts exposes that
 rectangle's native move and resize handles on the plan as well as its exact
 numeric fields.
+
+**18b — Turned parts. ✅** Done. Every section carries an exact angle, typed in
+degrees beside its X/Y and W/D, or dragged by a round handle past its north
+wall. The stored document goes to version 8; every existing part is square,
+which is what a rotation of zero says.
+
+The decision the step's own text did not settle: **a section spins in place,
+about its center** — typed or dragged, the way a piece of furniture already
+turns, instead of sweeping across the plan around one corner. The stored X
+and Y still read the section's real north-west corner; a turn recomputes that
+corner to follow, so it remains a point a tape measure could find. Walls,
+openings, resize handles, and containment all live in the section's own
+frame, so an opening's center on a 45° wall means the same tape measurement
+it means on a square one, and moving the room still moves every section
+together.
+
+Nothing measures with a bounding box. Sections square to the plan keep the
+exact cell-decomposition arithmetic they have always used; a turned section
+switches area and footprint overlap to inclusion–exclusion over convex clips,
+room overlap to the Separating Axis Theorem at the true angle, and wall
+crossings to distances in the section's local frame. The dragged angle lands
+on whole degrees with a pull to 45° steps — the reason sections turn at all —
+while the typed angle snaps to nothing.
+
+Not carried out of this step: **turned sections neither give nor take axis
+snaps.** Their edges lie on no axis line, so a snap to their bounding box
+would share a wall with air; meeting a diagonal wall exactly is done by
+typing, which stays exact. The problem list still names a turned section's
+walls by their local compass — the "south" wall of a 45° section is its own
+south, wherever it points on the floor.
 
 Done when: the apartment above is on the screen at its real dimensions, with
 nothing squared off that is not square, and every measurement it reports is one

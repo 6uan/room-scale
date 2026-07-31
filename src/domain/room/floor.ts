@@ -25,7 +25,7 @@
  * where it sits.
  */
 
-import type { FloorExtent, FloorPoint, OrientedRect } from "@/domain/geometry";
+import type { FloorExtent, FloorPoint } from "@/domain/geometry";
 import {
   DEFAULT_ROOM,
   ROOM_LENGTH_LIMITS,
@@ -35,6 +35,7 @@ import {
   resizeRoomPartEdge,
   roomBounds,
   roomFloorAreaSquareMeters,
+  roomPartContains,
   withRoomPart,
   type Room,
   type RoomEdge,
@@ -53,22 +54,6 @@ export const DEFAULT_FLOOR: Floor = {
   wallThicknessMeters: 0.1143,
   rooms: [DEFAULT_ROOM],
 };
-
-/** The floor rectangle of one room, in floor coordinates. */
-export function roomRect(room: Room): OrientedRect {
-  const bounds = roomBounds(room);
-  return {
-    center: {
-      xMeters: bounds.origin.xMeters + bounds.widthMeters / 2,
-      zMeters: bounds.origin.zMeters + bounds.depthMeters / 2,
-    },
-    widthMeters: bounds.widthMeters,
-    depthMeters: bounds.depthMeters,
-    // Rooms are square to the plan during the MVP. A turned room would change
-    // nothing here and a great deal in the drawing.
-    rotationRadians: 0,
-  };
-}
 
 /** A floor point in one room's own frame, measured from its north-west corner. */
 export function pointInRoom(room: Room, point: FloorPoint): FloorPoint {
@@ -126,13 +111,7 @@ export function floorBounds(floor: Floor): {
 /** Every room a point falls inside. Usually one; two means they overlap. */
 export function roomsAt(floor: Floor, point: FloorPoint): readonly Room[] {
   return floor.rooms.filter((room) =>
-    room.parts.some(
-      (part) =>
-        point.xMeters >= part.origin.xMeters &&
-        point.xMeters <= part.origin.xMeters + part.widthMeters &&
-        point.zMeters >= part.origin.zMeters &&
-        point.zMeters <= part.origin.zMeters + part.depthMeters,
-    ),
+    room.parts.some((part) => roomPartContains(part, point)),
   );
 }
 
@@ -199,7 +178,7 @@ export function snapRoomOrigin(
       origin.xMeters,
       bounds.widthMeters,
       others.flatMap((one) =>
-        one.parts.map((part) => ({
+        squareParts(one).map((part) => ({
           start: part.origin.xMeters,
           length: part.widthMeters,
         })),
@@ -210,7 +189,7 @@ export function snapRoomOrigin(
       origin.zMeters,
       bounds.depthMeters,
       others.flatMap((one) =>
-        one.parts.map((part) => ({
+        squareParts(one).map((part) => ({
           start: part.origin.zMeters,
           length: part.depthMeters,
         })),
@@ -218,6 +197,17 @@ export function snapRoomOrigin(
       thickness,
     ),
   };
+}
+
+/**
+ * The parts that offer a wall to snap to: the ones square to the plan.
+ *
+ * A turned part's edges do not lie on any axis line, so pretending its
+ * bounding box is a wall would snap things flush against air. Meeting a
+ * diagonal wall exactly is done by typing the number, which stays exact.
+ */
+function squareParts(room: Room): readonly RoomPart[] {
+  return room.parts.filter((part) => part.rotationRadians === 0);
 }
 
 /**
@@ -288,7 +278,7 @@ export function snapRoomEdge(
   const others = floor.rooms.filter((one) => one.id !== exceptRoomId);
 
   const candidates = others.flatMap((room) =>
-    room.parts.flatMap((part) => {
+    squareParts(room).flatMap((part) => {
       const start = axis === "x" ? part.origin.xMeters : part.origin.zMeters;
       const end = start + (axis === "x" ? part.widthMeters : part.depthMeters);
       return [start - thickness, end + thickness, start, end];
@@ -334,6 +324,10 @@ export function snapRoomResize(
  * Parts in the same room meet directly because no wall exists at their seam.
  * Parts in another room keep the floor's wall thickness, matching ordinary
  * room resizing.
+ *
+ * The part being resized must be square to the plan: `positionMeters` is an
+ * axis position, which a turned edge never lies on. A turned part resizes
+ * through `resizeRoomPartEdgeToPoint`, unsnapped.
  */
 export function snapRoomPartResize(
   floor: Floor,
@@ -351,13 +345,21 @@ export function snapRoomPartResize(
   );
 }
 
-/** A dragged part origin, snapped flush to its siblings and neighbouring rooms. */
+/**
+ * A dragged part origin, snapped flush to its siblings and neighbouring rooms.
+ *
+ * A turned part is left exactly where the hand put it: its own edges are not
+ * axis lines, so none of the axis candidates would mean a shared wall.
+ */
 export function snapRoomPartOrigin(
   floor: Floor,
   room: Room,
   part: RoomPart,
   origin: FloorPoint,
 ): FloorPoint {
+  if (part.rotationRadians !== 0) {
+    return origin;
+  }
   return {
     xMeters: snapPartOriginAxis(
       floor,
@@ -386,7 +388,7 @@ function snapPartEdge(
   value: number,
 ): number {
   const candidates = floor.rooms.flatMap((room) =>
-    room.parts.flatMap((part) => {
+    squareParts(room).flatMap((part) => {
       if (room.id === roomId && part.id === partId) {
         return [];
       }
@@ -414,7 +416,7 @@ function snapPartOriginAxis(
   length: number,
 ): number {
   const candidates = floor.rooms.flatMap((room) =>
-    room.parts.flatMap((part) => {
+    squareParts(room).flatMap((part) => {
       if (room.id === roomId && part.id === partId) {
         return [];
       }

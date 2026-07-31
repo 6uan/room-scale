@@ -16,16 +16,21 @@ import {
   orientedRectContains,
   orientedRectCorners,
   orientedRectOverlap,
-  orientedRectUnionOverlapArea,
+  orientedRectTurnedUnionOverlapArea,
   overhangs,
-  rectUnionContains,
   rectOutsideFloor,
   rectOverhang,
+  turnedUnionContains,
+  type FloorPoint,
 } from "@/domain/geometry";
 import {
+  pointInRoomPart,
   primaryRoomPart,
+  roomPartCorners,
+  roomPartRect,
   type Floor,
   type Room,
+  type RoomPart,
   type WallSide,
 } from "@/domain/room";
 
@@ -115,7 +120,7 @@ function pieceProblems(
   const overlaps = floor.rooms
     .map((room) => ({
       room,
-      area: orientedRectUnionOverlapArea(rect, room.parts),
+      area: orientedRectTurnedUnionOverlapArea(rect, room.parts),
     }))
     .sort((a, b) => b.area - a.area);
   const best = overlaps[0];
@@ -130,13 +135,14 @@ function pieceProblems(
   }
 
   if (room.parts.length === 1) {
+    // Carried into the part's own frame, where the part is a plain box from
+    // (0, 0) to its width and depth however it is turned on the floor. The
+    // footprint keeps only the turn it has relative to the part.
     const part = primaryRoomPart(room);
     const local = {
       ...rect,
-      center: {
-        xMeters: rect.center.xMeters - part.origin.xMeters,
-        zMeters: rect.center.zMeters - part.origin.zMeters,
-      },
+      center: pointInRoomPart(part, rect.center),
+      rotationRadians: rect.rotationRadians - part.rotationRadians,
     };
     const extent = {
       widthMeters: part.widthMeters,
@@ -190,28 +196,18 @@ function unionWallProblems(
         zMeters: (point.zMeters + next.zMeters) / 2,
       };
     }),
-  ].filter((point) => !rectUnionContains(room.parts, point));
+  ].filter((point) => !turnedUnionContains(room.parts, point));
 
   // A convex footprint can bridge a concave notch with every corner inside.
-  // Part-edge grid cells provide an interior sample for that case.
+  // Every reflex corner of the union is a part corner or a crossing of two
+  // part edges, so those points provide an interior sample for that case.
   if (samples.length === 0) {
-    const xs = room.parts.flatMap((part) => [
-      part.origin.xMeters,
-      part.origin.xMeters + part.widthMeters,
-    ]);
-    const zs = room.parts.flatMap((part) => [
-      part.origin.zMeters,
-      part.origin.zMeters + part.depthMeters,
-    ]);
-    for (const x of xs) {
-      for (const z of zs) {
-        const point = { xMeters: x, zMeters: z };
-        if (
-          orientedRectContains(rect, point) &&
-          !rectUnionContains(room.parts, point)
-        ) {
-          samples.push(point);
-        }
+    for (const point of unionVertexCandidates(room.parts)) {
+      if (
+        orientedRectContains(rect, point) &&
+        !turnedUnionContains(room.parts, point)
+      ) {
+        samples.push(point);
       }
     }
   }
@@ -220,20 +216,25 @@ function unionWallProblems(
   for (const point of samples) {
     const nearest = room.parts
       .flatMap((part) => {
-        const west = part.origin.xMeters;
-        const east = west + part.widthMeters;
-        const north = part.origin.zMeters;
-        const south = north + part.depthMeters;
+        // In the part's own frame the walls face the axes again, wherever the
+        // part is turned, so the distances stay real tape measurements.
+        const local = pointInRoomPart(part, point);
         const choices: { wall: WallSide; distance: number }[] = [];
-        if (point.xMeters < west) {
-          choices.push({ wall: "west", distance: west - point.xMeters });
-        } else if (point.xMeters > east) {
-          choices.push({ wall: "east", distance: point.xMeters - east });
+        if (local.xMeters < 0) {
+          choices.push({ wall: "west", distance: -local.xMeters });
+        } else if (local.xMeters > part.widthMeters) {
+          choices.push({
+            wall: "east",
+            distance: local.xMeters - part.widthMeters,
+          });
         }
-        if (point.zMeters < north) {
-          choices.push({ wall: "north", distance: north - point.zMeters });
-        } else if (point.zMeters > south) {
-          choices.push({ wall: "south", distance: point.zMeters - south });
+        if (local.zMeters < 0) {
+          choices.push({ wall: "north", distance: -local.zMeters });
+        } else if (local.zMeters > part.depthMeters) {
+          choices.push({
+            wall: "south",
+            distance: local.zMeters - part.depthMeters,
+          });
         }
         return choices;
       })
@@ -272,6 +273,83 @@ function unionWallProblems(
 }
 
 /**
+ * Every point where the union's outline can turn back on itself: part corners
+ * and the crossings of two parts' edges. The Separating Axis Theorem cannot
+ * answer "does this footprint bridge the notch", but the notch's own corner
+ * always sits at one of these.
+ */
+function unionVertexCandidates(
+  parts: readonly RoomPart[],
+): readonly FloorPoint[] {
+  const candidates: FloorPoint[] = [];
+  const outlines = parts.map((part) => roomPartCorners(part));
+
+  for (const corners of outlines) {
+    candidates.push(...corners);
+  }
+
+  for (let i = 0; i < outlines.length; i += 1) {
+    for (let j = i + 1; j < outlines.length; j += 1) {
+      const a = outlines[i];
+      const b = outlines[j];
+      if (a === undefined || b === undefined) {
+        continue;
+      }
+      for (let p = 0; p < a.length; p += 1) {
+        for (let q = 0; q < b.length; q += 1) {
+          const aFrom = a[p];
+          const aTo = a[(p + 1) % a.length];
+          const bFrom = b[q];
+          const bTo = b[(q + 1) % b.length];
+          if (
+            aFrom === undefined ||
+            aTo === undefined ||
+            bFrom === undefined ||
+            bTo === undefined
+          ) {
+            continue;
+          }
+          const crossing = segmentCrossing(aFrom, aTo, bFrom, bTo);
+          if (crossing !== null) {
+            candidates.push(crossing);
+          }
+        }
+      }
+    }
+  }
+
+  return candidates;
+}
+
+/** Where two segments cross, or null when they do not. */
+function segmentCrossing(
+  aFrom: FloorPoint,
+  aTo: FloorPoint,
+  bFrom: FloorPoint,
+  bTo: FloorPoint,
+): FloorPoint | null {
+  const dax = aTo.xMeters - aFrom.xMeters;
+  const daz = aTo.zMeters - aFrom.zMeters;
+  const dbx = bTo.xMeters - bFrom.xMeters;
+  const dbz = bTo.zMeters - bFrom.zMeters;
+  const denominator = dax * dbz - daz * dbx;
+  if (denominator === 0) {
+    return null;
+  }
+  const fx = bFrom.xMeters - aFrom.xMeters;
+  const fz = bFrom.zMeters - aFrom.zMeters;
+  const t = (fx * dbz - fz * dbx) / denominator;
+  const u = (fx * daz - fz * dax) / denominator;
+  if (t < 0 || t > 1 || u < 0 || u > 1) {
+    return null;
+  }
+  return {
+    xMeters: aFrom.xMeters + dax * t,
+    zMeters: aFrom.zMeters + daz * t,
+  };
+}
+
+/**
  * Rooms standing on top of one another.
  *
  * Blocks carry their own positions, so two can be dropped in the same place.
@@ -289,18 +367,14 @@ function roomProblems(floor: Floor): readonly LayoutProblem[] {
         continue;
       }
 
+      // Each part at its true turn: the theorem separates what is actually
+      // apart, where the parts' bounding boxes would cry wolf.
       const overlaps = a.parts.flatMap((partA) =>
         b.parts.flatMap((partB) => {
-          const asRect = (part: typeof partA) => ({
-            center: {
-              xMeters: part.origin.xMeters + part.widthMeters / 2,
-              zMeters: part.origin.zMeters + part.depthMeters / 2,
-            },
-            widthMeters: part.widthMeters,
-            depthMeters: part.depthMeters,
-            rotationRadians: 0,
-          });
-          const overlap = orientedRectOverlap(asRect(partA), asRect(partB));
+          const overlap = orientedRectOverlap(
+            roomPartRect(partA),
+            roomPartRect(partB),
+          );
           return overlap === null ? [] : [overlap.depthMeters];
         }),
       );

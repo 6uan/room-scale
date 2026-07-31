@@ -12,12 +12,14 @@ describe("roomGridLines", () => {
           origin: { xMeters: 0, zMeters: 0 },
           widthMeters: 4,
           depthMeters: 4,
+          rotationRadians: 0,
         },
         {
           id: "room-1-part-2",
           origin: { xMeters: 2.5, zMeters: 2.5 },
           widthMeters: 3,
           depthMeters: 2.5,
+          rotationRadians: 0,
         },
       ],
     );

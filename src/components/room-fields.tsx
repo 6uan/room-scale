@@ -1,5 +1,6 @@
 "use client";
 
+import { AngleField } from "@/components/angle-field";
 import { NumberField } from "@/components/number-field";
 import { RoomOpeningsForm } from "@/components/room-openings-form";
 import {
@@ -13,6 +14,7 @@ import {
   withRoomLength,
   withRoomPartLength,
   withRoomPartOrigin,
+  withRoomPartRotation,
   type Floor,
   type OpeningKind,
   type Room,
@@ -78,6 +80,7 @@ export function RoomFields({
           },
           widthMeters,
           depthMeters,
+          rotationRadians: 0,
         },
       ]),
     );
@@ -198,6 +201,10 @@ function RoomPartFields({
   const roomName = room.name === "" ? "Room" : room.name;
   const compound = room.parts.length > 1;
   const label = compound ? `${roomName} section ${index + 1}` : roomName;
+  // A turned section's edges lie on no axis line, so the axis-snapping paths
+  // below would aim it at walls it cannot share. Its numbers stay exact and
+  // unsnapped instead.
+  const square = part.rotationRadians === 0;
   const fields = (
     <>
       <CompactGroup title="Position" unit={unit} columns={2}>
@@ -210,7 +217,7 @@ function RoomPartFields({
           limits={ROOM_ORIGIN_LIMITS}
           onMetersChange={(xMeters, gesture) =>
             onChange(
-              room.parts.length === 1
+              room.parts.length === 1 && square
                 ? withOrigin(
                     room,
                     snapRoomOrigin(floor, room, {
@@ -236,7 +243,7 @@ function RoomPartFields({
           limits={ROOM_ORIGIN_LIMITS}
           onMetersChange={(zMeters, gesture) =>
             onChange(
-              room.parts.length === 1
+              room.parts.length === 1 && square
                 ? withOrigin(
                     room,
                     snapRoomOrigin(floor, room, {
@@ -274,7 +281,7 @@ function RoomPartFields({
           }
           onScrubbedMetersChange={(meters, gesture) =>
             onChange(
-              room.parts.length === 1
+              room.parts.length === 1 && square
                 ? snapRoomResize(
                     floor,
                     room,
@@ -306,7 +313,7 @@ function RoomPartFields({
           }
           onScrubbedMetersChange={(meters, gesture) =>
             onChange(
-              room.parts.length === 1
+              room.parts.length === 1 && square
                 ? snapRoomResize(
                     floor,
                     room,
@@ -320,6 +327,13 @@ function RoomPartFields({
           onGestureEnd={onGestureEnd}
         />
       </CompactGroup>
+      <AngleField
+        label={`${label} angle`}
+        radians={part.rotationRadians}
+        onRadiansChange={(radians) =>
+          onChange(withRoomPartRotation(room, part.id, radians))
+        }
+      />
     </>
   );
 

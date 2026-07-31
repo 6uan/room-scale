@@ -5,6 +5,7 @@ import {
   MIN_OPENING_METERS,
   checkOpening,
   createOpening,
+  metersAlongOpeningWall,
   metersAlongWall,
   moveOpening,
   openingAtPoint,
@@ -14,6 +15,7 @@ import {
   resizeOpeningJamb,
   wallLengthMeters,
   wallOutwardNormal,
+  wallOutwardNormalOnFloor,
   wallPlacementAt,
   withOpeningWall,
   type Opening,
@@ -24,6 +26,7 @@ const PART = {
   origin: { xMeters: 0, zMeters: 0 },
   widthMeters: 4,
   depthMeters: 3,
+  rotationRadians: 0,
 };
 const ROOM = { ...DEFAULT_ROOM, parts: [PART], openings: [] };
 
@@ -210,6 +213,104 @@ describe("withOpeningWall", () => {
     const moved = withOpeningWall(ROOM, passage({ centerMeters: 1.5 }), "east");
 
     expect(moved.centerMeters).toBe(1.5);
+  });
+});
+
+describe("openings on a turned wall", () => {
+  /**
+   * The same 4 × 3 part turned 45° about its anchor at the floor origin. The
+   * room's own north-west bounds corner moves to (−3/√2, 0), which is what
+   * room-local coordinates are measured from.
+   */
+  const TURNED_PART = { ...PART, rotationRadians: Math.PI / 4 };
+  const TURNED = { ...ROOM, parts: [TURNED_PART] };
+  const boundsWest = -3 * (Math.SQRT2 / 2);
+
+  it("measures the wall with the tape, not the bounding box", () => {
+    expect(wallLengthMeters(TURNED, "north")).toBe(4);
+    expect(wallLengthMeters(TURNED, "east")).toBe(3);
+  });
+
+  it("places a point along the diagonal the wall actually runs", () => {
+    const along = pointAlongWall(TURNED, "north", 2);
+
+    // Two meters down the turned north wall: 2/√2 east and south of the
+    // anchor, expressed from the room's bounds corner.
+    expect(along.xMeters).toBeCloseTo(Math.SQRT2 - boundsWest, 10);
+    expect(along.zMeters).toBeCloseTo(Math.SQRT2, 10);
+  });
+
+  it("turns the outward normal with the part", () => {
+    const normal = wallOutwardNormalOnFloor(TURNED_PART, "north");
+
+    expect(normal.dx).toBeCloseTo(Math.SQRT2 / 2, 10);
+    expect(normal.dz).toBeCloseTo(-Math.SQRT2 / 2, 10);
+  });
+
+  it("still accepts an opening on the turned wall and rejects one past its corner", () => {
+    expect(
+      checkOpening(TURNED, passage({ centerMeters: 2, widthMeters: 1 })),
+    ).toBeNull();
+    expect(
+      checkOpening(TURNED, passage({ centerMeters: 3.8, widthMeters: 1 })),
+    ).toBe("off-wall");
+  });
+
+  it("finds the turned wall under a pointer near it", () => {
+    // One meter along the turned north wall, nudged just outside it.
+    const roomLocal = {
+      xMeters: Math.SQRT2 / 2 - boundsWest + 0.03,
+      zMeters: Math.SQRT2 / 2 - 0.03,
+    };
+    const placement = wallPlacementAt(TURNED, roomLocal, 0.1);
+
+    expect(placement?.partId).toBe(TURNED_PART.id);
+    expect(placement?.wall).toBe("north");
+    expect(placement?.alongMeters).toBeCloseTo(1, 2);
+  });
+
+  it("reads a dragged pointer as meters along the turned wall", () => {
+    const opening = passage({ centerMeters: 2, widthMeters: 1 });
+    const roomLocal = {
+      xMeters: 3 * (Math.SQRT2 / 2) - boundsWest,
+      zMeters: 3 * (Math.SQRT2 / 2),
+    };
+
+    expect(metersAlongOpeningWall(TURNED, opening, roomLocal)).toBeCloseTo(
+      3,
+      10,
+    );
+  });
+
+  it("keeps a shared seam interior when a turned sibling continues past it", () => {
+    // A square part whose east wall runs from the turned part's anchor. The
+    // turned part covers that wall down to z = 3√2 ≈ 4.24, where its south
+    // wall crosses; past the crossing the wall faces open floor again.
+    const sibling = {
+      id: "part-2",
+      origin: { xMeters: -2, zMeters: 0 },
+      widthMeters: 2,
+      depthMeters: 5,
+      rotationRadians: 0,
+    };
+    const room = { ...ROOM, parts: [sibling, TURNED_PART] };
+
+    // Where the turned part continues through the wall, no opening belongs…
+    expect(
+      checkOpening(room, {
+        ...passage({ centerMeters: 1.6, widthMeters: 0.35 }),
+        partId: "part-2",
+        wall: "east",
+      }),
+    ).toBe("off-wall");
+    // …while below the turned part's south wall the seam is exterior again.
+    expect(
+      checkOpening(room, {
+        ...passage({ centerMeters: 4.8, widthMeters: 0.35 }),
+        partId: "part-2",
+        wall: "east",
+      }),
+    ).toBeNull();
   });
 });
 

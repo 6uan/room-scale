@@ -303,6 +303,56 @@ describe("readStoredProject", () => {
     ).toBe(part.id);
   });
 
+  it("upgrades a version 7 part, which could not yet be turned", () => {
+    const project = createProject();
+    const room = project.floor.rooms[0];
+    const part = room?.parts[0];
+    if (room === undefined || part === undefined) {
+      throw new Error("a new project starts with one room part");
+    }
+    const { rotationRadians, ...squarePart } = part;
+    void rotationRadians;
+    const version7 = {
+      id: "current",
+      version: 7,
+      updatedAt: 1_700_000_000_000,
+      project: {
+        ...project,
+        floor: {
+          ...project.floor,
+          rooms: [{ ...room, parts: [squarePart] }],
+        },
+      },
+    };
+
+    const result = readStoredProject(version7);
+
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.project.floor.rooms[0]?.parts).toEqual([
+      { ...squarePart, rotationRadians: 0 },
+    ]);
+  });
+
+  it("refuses a part whose rotation is missing at the current version", () => {
+    const project = createProject();
+    const room = project.floor.rooms[0];
+    const part = room?.parts[0];
+    if (room === undefined || part === undefined) {
+      throw new Error("a new project starts with one room part");
+    }
+    const { rotationRadians, ...squarePart } = part;
+    void rotationRadians;
+    const current = {
+      ...STORED,
+      project: {
+        ...project,
+        floor: { ...project.floor, rooms: [{ ...room, parts: [squarePart] }] },
+      },
+    };
+
+    expect(readStoredProject(current).ok).toBe(false);
+  });
+
   it("refuses a project with no layout to put furniture in", () => {
     const empty = {
       ...STORED,

@@ -6,12 +6,23 @@
  * runs the way a plan is read: north and south walls are measured from their
  * west end, east and west walls from their north end.
  *
- * In plan, north is the top of the drawing and Z increases downward, so the
- * north wall is at z = 0 and the south wall at z = depth.
+ * Walls are named in the part's own frame — its north wall is at local z = 0
+ * whichever way the part is turned — so an opening's center and width mean
+ * exactly the same tape measurement on a diagonal wall as on a square one.
+ * Only the step between the part's frame and the floor knows about rotation.
  */
 
 import type { FloorPoint } from "@/domain/geometry";
-import { primaryRoomPart, roomBounds, roomPart, type Room } from "./room";
+import {
+  pointInRoomPart,
+  pointOnRoomPart,
+  primaryRoomPart,
+  roomBounds,
+  roomPart,
+  roomPartContains,
+  type Room,
+  type RoomPart,
+} from "./room";
 
 export type WallSide = "north" | "east" | "south" | "west";
 
@@ -121,7 +132,7 @@ export function wallDirection(wall: WallSide): FloorVector {
     : { dx: 0, dz: 1 };
 }
 
-/** The unit vector pointing out of the room, through the wall. */
+/** The unit vector pointing out of the part, in the part's own frame. */
 export function wallOutwardNormal(wall: WallSide): FloorVector {
   switch (wall) {
     case "north":
@@ -135,6 +146,38 @@ export function wallOutwardNormal(wall: WallSide): FloorVector {
   }
 }
 
+/** The same normal carried onto the floor, turned the way its part is. */
+export function wallOutwardNormalOnFloor(
+  part: RoomPart,
+  wall: WallSide,
+): FloorVector {
+  const local = wallOutwardNormal(wall);
+  const cos = Math.cos(part.rotationRadians);
+  const sin = Math.sin(part.rotationRadians);
+  return {
+    dx: local.dx * cos - local.dz * sin,
+    dz: local.dx * sin + local.dz * cos,
+  };
+}
+
+/** A wall point in the part's own frame, `alongMeters` from its start corner. */
+function localWallPoint(
+  part: RoomPart,
+  wall: WallSide,
+  alongMeters: number,
+): FloorPoint {
+  switch (wall) {
+    case "north":
+      return { xMeters: alongMeters, zMeters: 0 };
+    case "south":
+      return { xMeters: alongMeters, zMeters: part.depthMeters };
+    case "west":
+      return { xMeters: 0, zMeters: alongMeters };
+    case "east":
+      return { xMeters: part.widthMeters, zMeters: alongMeters };
+  }
+}
+
 /** A point on the inside face of a wall, `alongMeters` from its start corner. */
 export function pointAlongWall(
   room: Room,
@@ -144,28 +187,18 @@ export function pointAlongWall(
 ): FloorPoint {
   const part = roomPart(room, partId) ?? primaryRoomPart(room);
   const roomOrigin = roomBounds(room).origin;
-  const x = part.origin.xMeters - roomOrigin.xMeters;
-  const z = part.origin.zMeters - roomOrigin.zMeters;
-  switch (wall) {
-    case "north":
-      return { xMeters: x + alongMeters, zMeters: z };
-    case "south":
-      return {
-        xMeters: x + alongMeters,
-        zMeters: z + part.depthMeters,
-      };
-    case "west":
-      return { xMeters: x, zMeters: z + alongMeters };
-    case "east":
-      return {
-        xMeters: x + part.widthMeters,
-        zMeters: z + alongMeters,
-      };
-  }
+  const floorPoint = pointOnRoomPart(
+    part,
+    localWallPoint(part, wall, alongMeters),
+  );
+  return {
+    xMeters: floorPoint.xMeters - roomOrigin.xMeters,
+    zMeters: floorPoint.zMeters - roomOrigin.zMeters,
+  };
 }
 
 /**
- * How far along one wall a room-local point lies.
+ * How far along one wall a part-local point lies.
  *
  * The perpendicular coordinate is deliberately ignored: a pointer moving an
  * opening may stray away from the narrow wall band, but it still changes only
@@ -183,10 +216,11 @@ export function metersAlongOpeningWall(
 ): number {
   const part = roomPart(room, opening.partId) ?? primaryRoomPart(room);
   const origin = roomBounds(room).origin;
-  return metersAlongWall(opening.wall, {
-    xMeters: point.xMeters - (part.origin.xMeters - origin.xMeters),
-    zMeters: point.zMeters - (part.origin.zMeters - origin.zMeters),
+  const local = pointInRoomPart(part, {
+    xMeters: point.xMeters + origin.xMeters,
+    zMeters: point.zMeters + origin.zMeters,
   });
+  return metersAlongWall(opening.wall, local);
 }
 
 export type WallPlacement = {
@@ -210,10 +244,10 @@ export function wallPlacementAt(
   const bounds = roomBounds(room);
   const candidates = room.parts
     .flatMap((part) => {
-      const local = {
-        xMeters: point.xMeters - (part.origin.xMeters - bounds.origin.xMeters),
-        zMeters: point.zMeters - (part.origin.zMeters - bounds.origin.zMeters),
-      };
+      const local = pointInRoomPart(part, {
+        xMeters: point.xMeters + bounds.origin.xMeters,
+        zMeters: point.zMeters + bounds.origin.zMeters,
+      });
       return WALL_SIDES.map((wall) => {
         const alongMeters = metersAlongWall(wall, local);
         const length = wallLengthMeters(room, wall, part.id);
@@ -420,23 +454,17 @@ function wallPointIsExterior(
     return false;
   }
   const epsilon = 0.000001;
-  const local = pointAlongWall(room, wall, alongMeters, partId);
-  const floorPoint = {
-    xMeters: local.xMeters + roomBounds(room).origin.xMeters,
-    zMeters: local.zMeters + roomBounds(room).origin.zMeters,
-  };
-  const normal = wallOutwardNormal(wall);
+  const floorPoint = pointOnRoomPart(
+    part,
+    localWallPoint(part, wall, alongMeters),
+  );
+  const normal = wallOutwardNormalOnFloor(part, wall);
   const outside = {
     xMeters: floorPoint.xMeters + normal.dx * epsilon,
     zMeters: floorPoint.zMeters + normal.dz * epsilon,
   };
   return !room.parts.some(
-    (other) =>
-      other.id !== part.id &&
-      outside.xMeters >= other.origin.xMeters &&
-      outside.xMeters <= other.origin.xMeters + other.widthMeters &&
-      outside.zMeters >= other.origin.zMeters &&
-      outside.zMeters <= other.origin.zMeters + other.depthMeters,
+    (other) => other.id !== part.id && roomPartContains(other, outside),
   );
 }
 

@@ -27,6 +27,7 @@ const FIRST: Room = {
       origin: { xMeters: 0, zMeters: 0 },
       widthMeters: 4,
       depthMeters: 3,
+      rotationRadians: 0,
     },
   ],
 };
@@ -194,6 +195,7 @@ describe("room part snapping", () => {
         origin: { xMeters: 6, zMeters: 0 },
         widthMeters: 2,
         depthMeters: 2,
+        rotationRadians: 0,
       },
     ],
   };
@@ -220,6 +222,34 @@ describe("room part snapping", () => {
     );
 
     expect(origin).toEqual({ xMeters: 4, zMeters: 0 });
+  });
+
+  it("leaves a turned part exactly where the hand put it", () => {
+    const turned = { ...multi.parts[1]!, rotationRadians: Math.PI / 4 };
+    const room = { ...multi, parts: [part(FIRST), turned] };
+    const origin = snapRoomPartOrigin(
+      { ...FLOOR, rooms: [room] },
+      room,
+      turned,
+      { xMeters: 4.06, zMeters: 0.03 },
+    );
+
+    expect(origin).toEqual({ xMeters: 4.06, zMeters: 0.03 });
+  });
+
+  it("offers no phantom wall where a turned part's bounding box would be", () => {
+    // The sibling is turned, so its box edge near 6 is air, not a wall.
+    const turned = { ...multi.parts[1]!, rotationRadians: Math.PI / 4 };
+    const room = { ...multi, parts: [part(FIRST), turned] };
+    const resized = snapRoomPartResize(
+      { ...FLOOR, rooms: [room] },
+      room,
+      part(FIRST).id,
+      "east",
+      5.95,
+    );
+
+    expect(part(resized).widthMeters).toBe(5.95);
   });
 });
 

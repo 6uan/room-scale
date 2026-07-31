@@ -17,6 +17,7 @@ const ROOM = {
       origin: { xMeters: 0, zMeters: 0 },
       widthMeters: 4,
       depthMeters: 3,
+      rotationRadians: 0,
     },
   ],
   openings: [],
@@ -193,6 +194,7 @@ describe("checkLayout: furniture against the room", () => {
           origin: { xMeters: 0, zMeters: 2 },
           widthMeters: 2,
           depthMeters: 2,
+          rotationRadians: 0,
         },
       ],
     };
@@ -211,6 +213,7 @@ describe("checkLayout: furniture against the room", () => {
           origin: { xMeters: 0, zMeters: 2 },
           widthMeters: 2,
           depthMeters: 2,
+          rotationRadians: 0,
         },
       ],
     };
@@ -218,6 +221,138 @@ describe("checkLayout: furniture against the room", () => {
 
     expect(checkLayout(floor, [place("i1", TABLE, 2, 2.25)])).toContainEqual(
       expect.objectContaining({ kind: "crosses-wall", roomId: lRoom.id }),
+    );
+  });
+});
+
+describe("checkLayout: turned sections", () => {
+  /** The one-room apartment above, turned 45° about its corner at the origin. */
+  const TURNED_ROOM = {
+    ...ROOM,
+    parts: [{ ...BASE_PART, rotationRadians: Math.PI / 4 }],
+  };
+  const TURNED_FLOOR = { ...FLOOR, rooms: [TURNED_ROOM] };
+
+  /** The floor point at (x, z) in the turned part's own frame. */
+  const onPart = (xMeters: number, zMeters: number) => ({
+    xMeters: (xMeters - zMeters) * (Math.SQRT2 / 2),
+    zMeters: (xMeters + zMeters) * (Math.SQRT2 / 2),
+  });
+
+  it("accepts a piece standing square to the turned room", () => {
+    const at = onPart(2, 1.5);
+
+    expect(
+      checkLayout(TURNED_FLOOR, [
+        place("i1", TABLE, at.xMeters, at.zMeters, Math.PI / 4),
+      ]),
+    ).toEqual([]);
+  });
+
+  it("measures a crossing through the turned wall with the tape, not a box", () => {
+    // The 0.9 m table sits 0.2 m from the turned south wall, so it reaches
+    // exactly 0.25 m through it — however the room is turned on the floor.
+    const at = onPart(2, 2.8);
+
+    expect(
+      checkLayout(TURNED_FLOOR, [
+        place("i1", TABLE, at.xMeters, at.zMeters, Math.PI / 4),
+      ]),
+    ).toEqual([
+      {
+        kind: "crosses-wall",
+        instanceId: "i1",
+        roomId: TURNED_ROOM.id,
+        wall: "south",
+        overhangMeters: expect.closeTo(0.25, 10),
+      },
+    ]);
+  });
+
+  it("keeps a piece square on the floor honest against the turned walls", () => {
+    // Fully inside: the square table's corners all stay within the part.
+    const inside = onPart(2, 1.5);
+    expect(
+      checkLayout(TURNED_FLOOR, [
+        place("i1", TABLE, inside.xMeters, inside.zMeters),
+      ]),
+    ).toEqual([]);
+
+    // Near the anchor corner the unturned table pokes through two walls.
+    expect(checkLayout(TURNED_FLOOR, [place("i2", TABLE, 0, 0.4)])).not.toEqual(
+      [],
+    );
+  });
+
+  it("does not cry wolf where only the bounding boxes of two rooms meet", () => {
+    // The turned room's bounding box reaches well into the square room, but
+    // its west wall passes the square room's corner with 7 cm to spare.
+    const square = {
+      ...ROOM,
+      id: "room-2",
+      parts: [
+        {
+          id: "room-2-part-1",
+          origin: { xMeters: -4, zMeters: -1 },
+          widthMeters: 6,
+          depthMeters: 3,
+          rotationRadians: 0,
+        },
+      ],
+    };
+    const clear = {
+      ...TURNED_ROOM,
+      parts: [{ ...BASE_PART, origin: { xMeters: 2.6, zMeters: 1.5 } }].map(
+        (part) => ({ ...part, rotationRadians: Math.PI / 4 }),
+      ),
+    };
+
+    expect(checkLayout({ ...FLOOR, rooms: [square, clear] }, [])).toEqual([]);
+
+    // Moved so its anchor corner actually stands inside the square room.
+    const overlapping = {
+      ...clear,
+      parts: clear.parts.map((part) => ({
+        ...part,
+        origin: { xMeters: 1.5, zMeters: 1.5 },
+      })),
+    };
+    expect(
+      checkLayout({ ...FLOOR, rooms: [square, overlapping] }, []).map(
+        (problem) => problem.kind,
+      ),
+    ).toEqual(["rooms-overlap"]);
+  });
+
+  it("accepts furniture spanning the seam of a square and a turned part", () => {
+    const mixed = {
+      ...ROOM,
+      parts: [
+        { ...BASE_PART, depthMeters: 2 },
+        {
+          id: "room-1-part-2",
+          origin: { xMeters: 2, zMeters: 1 },
+          widthMeters: 3,
+          depthMeters: 2,
+          rotationRadians: Math.PI / 4,
+        },
+      ],
+    };
+    const floor = { ...FLOOR, rooms: [mixed] };
+
+    // Straddles the square part's south wall over floor the turned part owns.
+    expect(
+      checkLayout(floor, [place("i1", product("stool", 0.6, 0.6), 2.2, 1.8)]),
+    ).toEqual([]);
+    // Further east the turned part has swept away and the wall is real again.
+    // Near the seam's end a crossing can name a wall of either part, but it
+    // is a crossing and nothing else.
+    const problems = checkLayout(floor, [
+      place("i2", product("stool", 0.6, 0.6), 3.6, 2.2),
+    ]);
+    expect(problems.length).toBeGreaterThan(0);
+    expect(new Set(problems.map((problem) => problem.kind))).toEqual(
+      new Set(["crosses-wall"]),
     );
   });
 });

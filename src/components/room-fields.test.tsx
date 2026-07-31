@@ -5,6 +5,7 @@ import {
   createRoom,
   DEFAULT_FLOOR,
   primaryRoomPart,
+  roomPartRect,
   withParts,
   withRoomLength,
   type Floor,
@@ -147,6 +148,64 @@ describe("RoomFields", () => {
     expect(onChange.mock.lastCall?.[1]).toBeUndefined();
   });
 
+  it("turns a section by its typed angle, spinning it in place", () => {
+    const floor = createProject().floor;
+    const room = floor.rooms[0];
+    if (room === undefined) {
+      throw new Error("a new project starts with a room");
+    }
+    const onChange = vi.fn();
+    renderFields(floor, room, onChange);
+
+    fireEvent.change(
+      screen.getByRole("spinbutton", { name: "Living room angle" }),
+      { target: { value: "45" } },
+    );
+
+    const changed = onChange.mock.lastCall?.[0] as Room | undefined;
+    expect(changed && primaryRoomPart(changed).rotationRadians).toBeCloseTo(
+      Math.PI / 4,
+      10,
+    );
+    const before = roomPartRect(primaryRoomPart(room)).center;
+    const after = changed && roomPartRect(primaryRoomPart(changed)).center;
+    expect(after?.xMeters).toBeCloseTo(before.xMeters, 10);
+    expect(after?.zMeters).toBeCloseTo(before.zMeters, 10);
+  });
+
+  it("keeps a turned room's scrubbed width exact instead of axis-snapping it", () => {
+    const { floor, room } = snappingFloor();
+    const turned = {
+      ...room,
+      parts: room.parts.map((part) => ({
+        ...part,
+        rotationRadians: Math.PI / 4,
+      })),
+    };
+    const onChange = vi.fn();
+    renderFields(
+      { ...floor, rooms: [turned, ...floor.rooms.slice(1)] },
+      turned,
+      onChange,
+    );
+
+    const scrubber = screen.getByRole("slider", { name: "W drag handle" });
+    mockPointerCapture(scrubber);
+    fireEvent.pointerDown(scrubber, {
+      pointerId: 3,
+      button: 0,
+      clientX: 100,
+    });
+    fireEvent.pointerMove(scrubber, { pointerId: 3, clientX: 105 });
+
+    // 3.9 m scrubbed up by five hundredths: exactly 3.95, nothing pulled to 4.
+    const changed = onChange.mock.lastCall?.[0] as Room | undefined;
+    expect(changed && primaryRoomPart(changed).widthMeters).toBeCloseTo(
+      3.95,
+      10,
+    );
+  });
+
   it("adds an editable rectangular section to the room", () => {
     const floor = createProject().floor;
     const room = floor.rooms[0];
@@ -214,6 +273,7 @@ describe("RoomFields", () => {
         origin: { xMeters: 2, zMeters: 2 },
         widthMeters: 2,
         depthMeters: 2,
+        rotationRadians: 0,
       },
     ]);
     const onSelectPart = vi.fn();
@@ -249,6 +309,7 @@ describe("RoomFields", () => {
         origin: { xMeters: 2, zMeters: 2 },
         widthMeters: 2,
         depthMeters: 2,
+        rotationRadians: 0,
       },
     ]);
     const onSelectPart = vi.fn();
