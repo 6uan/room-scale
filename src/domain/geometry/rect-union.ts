@@ -206,7 +206,8 @@ function edgeIntersection(
   };
 }
 
-function polygonArea(points: readonly FloorPoint[]): number {
+/** Shoelace area of a simple polygon, in either winding. */
+export function polygonArea(points: readonly FloorPoint[]): number {
   let twiceArea = 0;
   for (let index = 0; index < points.length; index += 1) {
     const point = points[index];

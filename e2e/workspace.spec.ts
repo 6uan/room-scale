@@ -667,6 +667,98 @@ test.describe("laying the apartment out", () => {
     );
   });
 
+  test("turns a section to an exact typed angle, which survives a reload", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await contents(page).getByRole("button", { name: "Living room" }).click();
+
+    const room = details(page).getByRole("region", { name: "Living room" });
+    await room.getByLabel("Living room angle").fill("45");
+
+    // A turn changes no measurement: the tape still reads the same sizes.
+    await expect(room.getByLabel("Living room width")).toHaveValue("168");
+    await expect(plan(page).getByText("168.0 sq ft")).toBeVisible();
+
+    await page.reload();
+    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await expect(
+      details(page)
+        .getByRole("region", { name: "Living room" })
+        .getByLabel("Living room angle"),
+    ).toHaveValue("45");
+  });
+
+  test("turns one section without turning its neighbour", async ({ page }) => {
+    await page.goto("/");
+    await contents(page).getByRole("button", { name: "Living room" }).click();
+    const room = details(page).getByRole("region", { name: "Living room" });
+    await room.getByRole("button", { name: "Add section" }).click();
+
+    await room.getByLabel("Living room section 2 angle").fill("45");
+
+    await expect(room.getByLabel("Living room section 2 angle")).toHaveValue(
+      "45",
+    );
+    await expect(room.getByLabel("Living room section 1 angle")).toHaveValue(
+      "0",
+    );
+  });
+
+  test("rotates a section by dragging the round handle past its north wall", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await contents(page).getByRole("button", { name: "Living room" }).click();
+
+    const box = await planImage(page).boundingBox();
+    if (box === null) {
+      throw new Error("the plan has no box to point at");
+    }
+    const inches = (value: number) => value * 0.0254;
+    const wall = inches(4.5);
+    const scale = Math.min(
+      (box.width - 80) / (inches(168) + wall * 2),
+      (box.height - 80) / (inches(144) + wall * 2),
+    );
+    const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const toPixel = (xInches: number, yInches: number) => ({
+      x: centre.x + inches(xInches) * scale,
+      y: centre.y + inches(yInches) * scale,
+    });
+
+    // The round handle floats past the middle of the north wall — the wall
+    // band plus its fixed clearance — and the drag spins the section about
+    // its center, so the target is the handle swung 45° about that.
+    const handle = {
+      x: toPixel(0, -72).x,
+      y: toPixel(0, -72).y - wall * scale - 18,
+    };
+    const pivot = toPixel(0, 0);
+    const eighth = Math.PI / 4;
+    const target = {
+      x:
+        pivot.x +
+        (handle.x - pivot.x) * Math.cos(eighth) -
+        (handle.y - pivot.y) * Math.sin(eighth),
+      y:
+        pivot.y +
+        (handle.x - pivot.x) * Math.sin(eighth) +
+        (handle.y - pivot.y) * Math.cos(eighth),
+    };
+
+    await page.mouse.move(handle.x, handle.y);
+    await page.mouse.down();
+    await page.mouse.move(target.x, target.y, { steps: 8 });
+    await page.mouse.up();
+
+    const room = details(page).getByRole("region", { name: "Living room" });
+    await expect(room.getByLabel("Living room angle")).toHaveValue("45");
+    // A turn is not a resize: the tape still reads the same everywhere.
+    await expect(room.getByLabel("Living room width")).toHaveValue("168");
+    await expect(plan(page).getByText("168.0 sq ft")).toBeVisible();
+  });
+
   test("snaps a scrubbed width to a neighbouring room's shared wall", async ({
     page,
   }) => {

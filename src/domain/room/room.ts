@@ -1,7 +1,20 @@
-/** A room built from one or more axis-aligned rectangular parts. */
+/** A room built from one or more rectangular parts, any of which may be turned. */
 
-import type { AxisAlignedRect, FloorPoint } from "@/domain/geometry";
-import { rectUnionArea, rectUnionBounds } from "@/domain/geometry";
+import type {
+  AxisAlignedRect,
+  FloorPoint,
+  OrientedRect,
+  TurnedRect,
+} from "@/domain/geometry";
+import {
+  turnedRectAsOriented,
+  turnedRectContains,
+  turnedRectCorners,
+  turnedRectFloorPoint,
+  turnedRectLocalPoint,
+  turnedUnionArea,
+  turnedUnionBounds,
+} from "@/domain/geometry";
 import {
   checkLength,
   metersFromInches,
@@ -10,7 +23,16 @@ import {
 } from "@/domain/units";
 import { checkOpening, type Opening } from "./openings";
 
-export type RoomPart = AxisAlignedRect & {
+/**
+ * One rectangular section of a room.
+ *
+ * The stored origin is the part's own north-west corner — always a physical
+ * point a tape measure could find, wherever the turn has carried it. Editing
+ * the angle spins the part about its center (`withRoomPartRotation`), and the
+ * corner is recomputed to follow. Walls, openings, and resizing all live in
+ * the part's local frame, which the rotation carries whole.
+ */
+export type RoomPart = TurnedRect & {
   readonly id: string;
 };
 
@@ -50,6 +72,7 @@ const DEFAULT_PART: RoomPart = {
   },
   widthMeters: metersFromInches(168),
   depthMeters: metersFromInches(144),
+  rotationRadians: 0,
 };
 
 export const DEFAULT_ROOM: Room = {
@@ -85,7 +108,7 @@ export function createRoomPart(
   widthMeters = metersFromInches(120),
   depthMeters = metersFromInches(120),
 ): RoomPart {
-  return { id, origin, widthMeters, depthMeters };
+  return { id, origin, widthMeters, depthMeters, rotationRadians: 0 };
 }
 
 export function createRoom(id: string, name: string, origin: FloorPoint): Room {
@@ -112,12 +135,35 @@ export function roomPart(room: Room, partId: string): RoomPart | undefined {
 
 export function roomBounds(room: Room): AxisAlignedRect {
   return (
-    rectUnionBounds(room.parts) ?? {
+    turnedUnionBounds(room.parts) ?? {
       origin: { xMeters: 0, zMeters: 0 },
       widthMeters: 0,
       depthMeters: 0,
     }
   );
+}
+
+/** The part described by its center, for the theorems and the drawing. */
+export function roomPartRect(part: RoomPart): OrientedRect {
+  return turnedRectAsOriented(part);
+}
+
+export function roomPartCorners(part: RoomPart): readonly FloorPoint[] {
+  return turnedRectCorners(part);
+}
+
+export function roomPartContains(part: RoomPart, point: FloorPoint): boolean {
+  return turnedRectContains(part, point);
+}
+
+/** A floor point in the part's own frame, measured from its anchor corner. */
+export function pointInRoomPart(part: RoomPart, point: FloorPoint): FloorPoint {
+  return turnedRectLocalPoint(part, point);
+}
+
+/** The same point put back into floor coordinates. */
+export function pointOnRoomPart(part: RoomPart, local: FloorPoint): FloorPoint {
+  return turnedRectFloorPoint(part, local);
 }
 
 export function checkRoomLength(
@@ -170,6 +216,34 @@ export function withRoomPartOrigin(
   origin: FloorPoint,
 ): Room {
   return withRoomPart(room, partId, (part) => ({ ...part, origin }));
+}
+
+/**
+ * Turns one part in place: its center holds still and the anchor corner is
+ * recomputed to follow, the way a turned sofa spins where it stands. The X
+ * and Y fields keep reading a physical corner — it travels with the turn.
+ */
+export function withRoomPartRotation(
+  room: Room,
+  partId: string,
+  rotationRadians: number,
+): Room {
+  return withRoomPart(room, partId, (part) => {
+    const half = {
+      xMeters: part.widthMeters / 2,
+      zMeters: part.depthMeters / 2,
+    };
+    const center = pointOnRoomPart(part, half);
+    const turned = { ...part, rotationRadians };
+    const moved = pointOnRoomPart(turned, half);
+    return {
+      ...turned,
+      origin: {
+        xMeters: part.origin.xMeters + (center.xMeters - moved.xMeters),
+        zMeters: part.origin.zMeters + (center.zMeters - moved.zMeters),
+      },
+    };
+  });
 }
 
 export function withRoomPart(
@@ -234,6 +308,60 @@ export function resizeRoomEdge(
   );
 }
 
+/**
+ * Resizes one edge of a turned part to where a floor point lands in its own
+ * frame. The edges keep their local names — "west" is the edge the anchor
+ * corner sits on however the part is turned — and moving the west or north
+ * edge slides the anchor along the turned axis so the rest of the part stays
+ * put, exactly as it does for an unturned one.
+ */
+export function resizeRoomPartEdgeToPoint(
+  room: Room,
+  partId: string,
+  edge: RoomEdge,
+  point: FloorPoint,
+  roundMeters: (meters: number) => number = (meters) => meters,
+): Room {
+  return withRoomPart(room, partId, (part) => {
+    const local = pointInRoomPart(part, point);
+    const smallest = ROOM_LENGTH_LIMITS.widthMeters.minMeters;
+    switch (edge) {
+      case "west": {
+        const shift = Math.min(
+          roundMeters(local.xMeters),
+          part.widthMeters - smallest,
+        );
+        return {
+          ...part,
+          origin: pointOnRoomPart(part, { xMeters: shift, zMeters: 0 }),
+          widthMeters: part.widthMeters - shift,
+        };
+      }
+      case "east":
+        return {
+          ...part,
+          widthMeters: Math.max(smallest, roundMeters(local.xMeters)),
+        };
+      case "north": {
+        const shift = Math.min(
+          roundMeters(local.zMeters),
+          part.depthMeters - smallest,
+        );
+        return {
+          ...part,
+          origin: pointOnRoomPart(part, { xMeters: 0, zMeters: shift }),
+          depthMeters: part.depthMeters - shift,
+        };
+      }
+      case "south":
+        return {
+          ...part,
+          depthMeters: Math.max(smallest, roundMeters(local.zMeters)),
+        };
+    }
+  });
+}
+
 function resizePartEdge(
   part: RoomPart,
   edge: RoomEdge,
@@ -287,5 +415,5 @@ export function roomEdgePosition(room: Room, edge: RoomEdge): number {
 }
 
 export function roomFloorAreaSquareMeters(room: Room): number {
-  return rectUnionArea(room.parts);
+  return turnedUnionArea(room.parts);
 }

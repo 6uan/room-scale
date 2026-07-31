@@ -50,8 +50,13 @@ import {
   pointAlongWall,
   pointInRoom,
   pointOnFloor,
+  pointOnRoomPart,
   primaryRoomPart,
   resizeOpeningJamb,
+  resizeRoomPartEdgeToPoint,
+  roomPart,
+  roomPartContains,
+  roomPartRect,
   roomsAt,
   roomBounds,
   snapRoomOrigin,
@@ -59,9 +64,10 @@ import {
   snapRoomPartResize,
   snapRoomResize,
   wallPlacementAt,
-  wallOutwardNormal,
+  wallOutwardNormalOnFloor,
   withOrigin,
   withRoomPartOrigin,
+  withRoomPartRotation,
   type Floor,
   type FloorVector,
   type Opening,
@@ -73,9 +79,12 @@ import {
   type WallSide,
 } from "@/domain/room";
 import {
+  degreesFromRadians,
   formatAngle,
   formatArea,
   formatLength,
+  normalizeRadians,
+  radiansFromDegrees,
   roundToDisplayUnit,
   type DisplayUnit,
 } from "@/domain/units";
@@ -121,6 +130,7 @@ const CURSORS = {
   pan: "cursor-grab",
   panning: "cursor-grabbing",
   move: "cursor-move",
+  rotate: "cursor-crosshair",
   "resize-x": "cursor-ew-resize",
   "resize-y": "cursor-ns-resize",
   "resize-nwse": "cursor-nwse-resize",
@@ -272,6 +282,15 @@ type Drag =
       readonly partId: string | null;
       /** One or two walls: an edge moves one, a corner moves both. */
       readonly edges: readonly RoomEdge[];
+    }
+  | {
+      readonly kind: "part-rotate";
+      readonly pointerId: number;
+      readonly roomId: string;
+      readonly partId: string;
+      /** The pointer's bearing from the pivot when the handle was grabbed. */
+      readonly grabAngleRadians: number;
+      readonly startRotationRadians: number;
     }
   | {
       readonly kind: "opening-move";
@@ -670,14 +689,36 @@ export function RoomPlanCanvas({
       },
     );
     if (grabbed !== null && !panningRef.current) {
-      dragRef.current = {
-        kind: "resize",
-        pointerId: event.pointerId,
-        roomId: grabbed.roomId,
-        partId: grabbed.partId,
-        edges: grabbed.edges,
-      };
-      setCursor(cursorForEdges(grabbed.edges));
+      if (grabbed.kind === "rotate") {
+        const room = floor.rooms.find((one) => one.id === grabbed.roomId);
+        const part = room?.parts.find((one) => one.id === grabbed.partId);
+        if (room === undefined || part === undefined) {
+          return;
+        }
+        // The drag pivots on the section's center: it spins where it stands.
+        const pivot = roomPartRect(part).center;
+        dragRef.current = {
+          kind: "part-rotate",
+          pointerId: event.pointerId,
+          roomId: grabbed.roomId,
+          partId: grabbed.partId,
+          grabAngleRadians: Math.atan2(
+            point.zMeters - pivot.zMeters,
+            point.xMeters - pivot.xMeters,
+          ),
+          startRotationRadians: part.rotationRadians,
+        };
+        setCursor("rotate");
+      } else {
+        dragRef.current = {
+          kind: "resize",
+          pointerId: event.pointerId,
+          roomId: grabbed.roomId,
+          partId: grabbed.partId,
+          edges: grabbed.edges,
+        };
+        setCursor(cursorForEdges(grabbed.edges));
+      }
       canvas.focus();
       canvas.setPointerCapture?.(event.pointerId);
       return;
@@ -801,7 +842,9 @@ export function RoomPlanCanvas({
       },
     );
     if (grabbed !== null) {
-      return cursorForEdges(grabbed.edges);
+      return grabbed.kind === "rotate"
+        ? "rotate"
+        : cursorForEdges(grabbed.edges);
     }
 
     const point = floorPointAt(canvas, event, projectionRef.current);
@@ -864,10 +907,58 @@ export function RoomPlanCanvas({
       return;
     }
 
+    if (drag.kind === "part-rotate") {
+      const room = floor.rooms.find((one) => one.id === drag.roomId);
+      const part = room?.parts.find((one) => one.id === drag.partId);
+      const point = floorPointAt(canvas, event, projectionRef.current);
+      if (room === undefined || part === undefined || point === null) {
+        return;
+      }
+      const pivot = roomPartRect(part).center;
+      const angle = Math.atan2(
+        point.zMeters - pivot.zMeters,
+        point.xMeters - pivot.xMeters,
+      );
+      onRoomChange?.(
+        withRoomPartRotation(
+          room,
+          drag.partId,
+          draggedRotation(
+            drag.startRotationRadians + angle - drag.grabAngleRadians,
+          ),
+        ),
+        `room-part-rotate:${drag.partId}`,
+      );
+      return;
+    }
+
     if (drag.kind === "resize") {
       const sizing = floor.rooms.find((one) => one.id === drag.roomId);
       const point = floorPointAt(canvas, event, projectionRef.current);
       if (sizing === undefined || point === null) {
+        return;
+      }
+      // A turned part's walls lie on no axis line, so its edges chase the
+      // pointer in the part's own frame instead — exactly under the hand,
+      // rounded to the unit on screen, with nothing to axis-snap to.
+      const turnedPart =
+        drag.partId === null
+          ? primaryRoomPart(sizing)
+          : sizing.parts.find((one) => one.id === drag.partId);
+      if (turnedPart !== undefined && turnedPart.rotationRadians !== 0) {
+        const next = drag.edges.reduce(
+          (room, edge) =>
+            resizeRoomPartEdgeToPoint(room, turnedPart.id, edge, point, (m) =>
+              roundToDisplayUnit(m, unit),
+            ),
+          sizing,
+        );
+        onRoomChange?.(
+          next,
+          drag.partId === null
+            ? `room-resize:${drag.roomId}`
+            : `room-part-resize:${drag.partId}`,
+        );
         return;
       }
       // Rounded to the unit on screen, so a dragged wall lands on the same
@@ -1220,6 +1311,20 @@ export function RoomPlanCanvas({
   );
 }
 
+/** What a pointer near the selected room can take hold of. */
+type GrabbedHandle =
+  | {
+      readonly kind: "resize";
+      readonly roomId: string;
+      readonly partId: string | null;
+      readonly edges: readonly RoomEdge[];
+    }
+  | {
+      readonly kind: "rotate";
+      readonly roomId: string;
+      readonly partId: string;
+    };
+
 /**
  * The handle under a pointer, if the selected room has one there.
  *
@@ -1233,11 +1338,7 @@ function handleAt(
   selectedRoomPartId: string | null,
   projection: PlanProjection,
   at: PixelPoint,
-): {
-  roomId: string;
-  partId: string | null;
-  edges: readonly RoomEdge[];
-} | null {
+): GrabbedHandle | null {
   const room = floor.rooms.find((one) => one.id === selectedRoomId);
   if (room === undefined) {
     return null;
@@ -1252,6 +1353,18 @@ function handleAt(
     return null;
   }
 
+  const rotate = rotateHandlePixel(
+    part,
+    (point) => projectPoint(projection, point),
+    projectLength(projection, floor.wallThicknessMeters),
+  );
+  if (
+    Math.abs(rotate.x - at.x) <= HANDLE_GRAB_PIXELS &&
+    Math.abs(rotate.y - at.y) <= HANDLE_GRAB_PIXELS
+  ) {
+    return { kind: "rotate", roomId: room.id, partId: part.id };
+  }
+
   for (const handle of roomPartHandles(part)) {
     const point = projectPoint(projection, handle.at);
     if (
@@ -1259,6 +1372,7 @@ function handleAt(
       Math.abs(point.y - at.y) <= HANDLE_GRAB_PIXELS
     ) {
       return {
+        kind: "resize",
         roomId: room.id,
         partId: selectedRoomPartId,
         edges: handle.edges,
@@ -1271,15 +1385,7 @@ function handleAt(
 /** The last-authored part under a floor point, matching canvas draw order. */
 function roomPartAt(room: Room, point: FloorPoint): RoomPart | null {
   return (
-    room.parts
-      .filter(
-        (part) =>
-          point.xMeters >= part.origin.xMeters &&
-          point.xMeters <= part.origin.xMeters + part.widthMeters &&
-          point.zMeters >= part.origin.zMeters &&
-          point.zMeters <= part.origin.zMeters + part.depthMeters,
-      )
-      .at(-1) ?? null
+    room.parts.filter((part) => roomPartContains(part, point)).at(-1) ?? null
   );
 }
 
@@ -1678,6 +1784,29 @@ function drawableOpenings(
   );
 }
 
+/**
+ * Runs `draw` with the canvas turned into one part's own frame: the origin at
+ * the part's anchor corner, X running down its width, in pixels. Every rect
+ * drawn or cleared inside follows the part's turn, because the canvas
+ * transforms rectangles — including `clearRect` — through the current matrix.
+ */
+function inPartFrame(
+  context: CanvasRenderingContext2D,
+  frame: PlanFrame,
+  part: RoomPart,
+  draw: (widthPixels: number, depthPixels: number) => void,
+): void {
+  const anchor = frame.toPixels(part.origin);
+  context.save();
+  context.translate(anchor.x, anchor.y);
+  context.rotate(part.rotationRadians);
+  draw(
+    spanPixels(frame, part.widthMeters),
+    spanPixels(frame, part.depthMeters),
+  );
+  context.restore();
+}
+
 /** One room's walls, as a solid ring around the space it measures. */
 function drawRoomWalls(
   context: CanvasRenderingContext2D,
@@ -1688,15 +1817,14 @@ function drawRoomWalls(
   context.globalAlpha = WALL_ALPHA;
   context.fillStyle = frame.color;
   for (const part of room.parts) {
-    const inside = frame.toPixels(part.origin);
-    const width = spanPixels(frame, part.widthMeters);
-    const depth = spanPixels(frame, part.depthMeters);
-    context.fillRect(
-      inside.x - frame.wallPixels,
-      inside.y - frame.wallPixels,
-      width + frame.wallPixels * 2,
-      depth + frame.wallPixels * 2,
-    );
+    inPartFrame(context, frame, part, (width, depth) => {
+      context.fillRect(
+        -frame.wallPixels,
+        -frame.wallPixels,
+        width + frame.wallPixels * 2,
+        depth + frame.wallPixels * 2,
+      );
+    });
   }
   context.restore();
 }
@@ -1708,15 +1836,14 @@ function punchRoomFloor(
   room: Room,
 ): void {
   for (const part of room.parts) {
-    const inside = frame.toPixels(part.origin);
-    const width = spanPixels(frame, part.widthMeters);
-    const depth = spanPixels(frame, part.depthMeters);
-    context.clearRect(inside.x, inside.y, width, depth);
-    context.save();
-    context.globalAlpha = FLOOR_ALPHA;
-    context.fillStyle = frame.color;
-    context.fillRect(inside.x, inside.y, width, depth);
-    context.restore();
+    inPartFrame(context, frame, part, (width, depth) => {
+      context.clearRect(0, 0, width, depth);
+      context.save();
+      context.globalAlpha = FLOOR_ALPHA;
+      context.fillStyle = frame.color;
+      context.fillRect(0, 0, width, depth);
+      context.restore();
+    });
   }
 }
 
@@ -1743,10 +1870,9 @@ function drawRoomName(
       ? part
       : largest,
   );
-  const center = frame.toPixels({
-    xMeters: labelPart.origin.xMeters + labelPart.widthMeters / 2,
-    zMeters: labelPart.origin.zMeters + labelPart.depthMeters / 2,
-  });
+  // The part's true center, wherever its turn has carried it. The text itself
+  // stays level: a label is furniture of the screen, not of the room.
+  const center = frame.toPixels(roomPartRect(labelPart).center);
 
   context.save();
   context.globalAlpha = ROOM_NAME_ALPHA;
@@ -1779,23 +1905,73 @@ export function roomHandles(
 export function roomPartHandles(
   part: RoomPart,
 ): readonly { edges: readonly RoomEdge[]; at: FloorPoint }[] {
-  const west = part.origin.xMeters;
-  const east = west + part.widthMeters;
-  const north = part.origin.zMeters;
-  const south = north + part.depthMeters;
-  const middleX = west + part.widthMeters / 2;
-  const middleZ = north + part.depthMeters / 2;
+  const width = part.widthMeters;
+  const depth = part.depthMeters;
+  const middleX = width / 2;
+  const middleZ = depth / 2;
 
-  return [
-    { edges: ["north", "west"], at: { xMeters: west, zMeters: north } },
-    { edges: ["north"], at: { xMeters: middleX, zMeters: north } },
-    { edges: ["north", "east"], at: { xMeters: east, zMeters: north } },
-    { edges: ["east"], at: { xMeters: east, zMeters: middleZ } },
-    { edges: ["south", "east"], at: { xMeters: east, zMeters: south } },
-    { edges: ["south"], at: { xMeters: middleX, zMeters: south } },
-    { edges: ["south", "west"], at: { xMeters: west, zMeters: south } },
-    { edges: ["west"], at: { xMeters: west, zMeters: middleZ } },
+  // Placed in the part's own frame and carried onto the floor, so a turned
+  // section keeps its handles on its actual corners and walls. Edge names stay
+  // local too: "north" is the wall the anchor corner sits on, however turned.
+  const local: readonly { edges: readonly RoomEdge[]; at: FloorPoint }[] = [
+    { edges: ["north", "west"], at: { xMeters: 0, zMeters: 0 } },
+    { edges: ["north"], at: { xMeters: middleX, zMeters: 0 } },
+    { edges: ["north", "east"], at: { xMeters: width, zMeters: 0 } },
+    { edges: ["east"], at: { xMeters: width, zMeters: middleZ } },
+    { edges: ["south", "east"], at: { xMeters: width, zMeters: depth } },
+    { edges: ["south"], at: { xMeters: middleX, zMeters: depth } },
+    { edges: ["south", "west"], at: { xMeters: 0, zMeters: depth } },
+    { edges: ["west"], at: { xMeters: 0, zMeters: middleZ } },
   ];
+  return local.map(({ edges, at }) => ({
+    edges,
+    at: pointOnRoomPart(part, at),
+  }));
+}
+
+/**
+ * Screen pixels kept between the wall band and the rotation handle, so the
+ * handle stays clear of the north wall's own resize handle at any zoom.
+ */
+export const ROTATE_HANDLE_CLEARANCE_PIXELS = 18;
+
+/**
+ * Where the rotation handle sits: past the middle of the part's north wall,
+ * along the wall's own outward direction. A fixed pixel reach, like every
+ * other handle, so it is equally grabbable however far out the plan is.
+ */
+export function rotateHandlePixel(
+  part: RoomPart,
+  toPixels: (point: FloorPoint) => PixelPoint,
+  wallPixels: number,
+): PixelPoint {
+  const anchor = toPixels(
+    pointOnRoomPart(part, { xMeters: part.widthMeters / 2, zMeters: 0 }),
+  );
+  const out = wallOutwardNormalOnFloor(part, "north");
+  const reach = wallPixels + ROTATE_HANDLE_CLEARANCE_PIXELS;
+  return { x: anchor.x + out.dx * reach, y: anchor.y + out.dz * reach };
+}
+
+/** How close a dragged angle has to be to land on a 45° step. */
+const ROTATE_SNAP_DEGREES = 3;
+
+/**
+ * A dragged rotation, landed on a number somebody would type.
+ *
+ * Whole degrees always — a wall at 44.7183° is a number nobody can check —
+ * and within a few degrees of a quarter or eighth turn, that turn exactly,
+ * because 45° walls are the reason sections rotate at all. The typed angle
+ * field remains the exact path and snaps to nothing.
+ */
+function draggedRotation(radians: number): number {
+  const degrees = degreesFromRadians(normalizeRadians(radians));
+  const nearestEighth = Math.round(degrees / 45) * 45;
+  const landed =
+    Math.abs(degrees - nearestEighth) <= ROTATE_SNAP_DEGREES
+      ? nearestEighth
+      : Math.round(degrees);
+  return radiansFromDegrees(landed % 360);
 }
 
 /** The selected room, outlined inside its own walls, with its handles. */
@@ -1815,13 +1991,12 @@ function markSelectedRoom(
   context.lineWidth = 2;
   context.setLineDash([6, 4]);
   for (const part of markedParts) {
-    const inside = frame.toPixels(part.origin);
-    const width = spanPixels(frame, part.widthMeters);
-    const depth = spanPixels(frame, part.depthMeters);
-    context.globalAlpha = SELECTED_FILL_ALPHA;
-    context.fillRect(inside.x, inside.y, width, depth);
-    context.globalAlpha = 1;
-    context.strokeRect(inside.x, inside.y, width, depth);
+    inPartFrame(context, frame, part, (width, depth) => {
+      context.globalAlpha = SELECTED_FILL_ALPHA;
+      context.fillRect(0, 0, width, depth);
+      context.globalAlpha = 1;
+      context.strokeRect(0, 0, width, depth);
+    });
   }
 
   context.setLineDash([]);
@@ -1838,6 +2013,28 @@ function markSelectedRoom(
       HANDLE_PIXELS,
       HANDLE_PIXELS,
     );
+  }
+
+  // The rotation handle, wherever resize handles are shown: a round grab past
+  // the north wall, tethered to the wall it turns.
+  const rotatable =
+    selectedPart ??
+    (room.parts.length === 1 ? primaryRoomPart(room) : undefined);
+  if (rotatable !== undefined) {
+    const anchor = frame.toPixels(
+      pointOnRoomPart(rotatable, {
+        xMeters: rotatable.widthMeters / 2,
+        zMeters: 0,
+      }),
+    );
+    const at = rotateHandlePixel(rotatable, frame.toPixels, frame.wallPixels);
+    context.globalAlpha = JAMB_ALPHA;
+    context.lineWidth = 1;
+    strokeSegments(context, [[anchor, at]]);
+    context.globalAlpha = 1;
+    context.beginPath();
+    context.arc(at.x, at.y, HANDLE_PIXELS / 2 + 1, 0, Math.PI * 2);
+    context.fill();
   }
   context.restore();
 }
@@ -1960,16 +2157,14 @@ function drawMeterGrid(
 
   // Parts are an authoring detail; the visible grid belongs to the room. A
   // compound clip makes one continuous floor-coordinate grid occupy exactly
-  // the union, including an L shape while leaving its notch empty.
+  // the union — an L keeps its notch empty, and a turned part is clipped to
+  // the parallelogram it actually stands on, because path points are carried
+  // through the part's transform as they are added.
   context.beginPath();
   for (const part of room.parts) {
-    const inside = frame.toPixels(part.origin);
-    context.rect(
-      inside.x,
-      inside.y,
-      spanPixels(frame, part.widthMeters),
-      spanPixels(frame, part.depthMeters),
-    );
+    inPartFrame(context, frame, part, (width, depth) => {
+      context.rect(0, 0, width, depth);
+    });
   }
   context.clip();
 
@@ -2003,29 +2198,39 @@ function cutOpening(
   room: Room,
   opening: Opening,
 ): void {
+  const part = roomPart(room, opening.partId);
+  if (part === undefined) {
+    return;
+  }
   const { start, end } = openingEndpoints(room, opening);
-  const normal = wallOutwardNormal(opening.wall);
+  const normal = wallOutwardNormalOnFloor(part, opening.wall);
   const a = frame.toPixels(start);
   const b = frame.toPixels(end);
+  const length = Math.hypot(b.x - a.x, b.y - a.y);
+  if (length <= 0) {
+    return;
+  }
+
+  // Lay the canvas along the wall — X from jamb to jamb, the wall band along
+  // ±Y — and clear through it. The cleared rectangle follows the transform,
+  // so the hole runs with the wall whichever way its part is turned.
+  const angle = Math.atan2(b.y - a.y, b.x - a.x);
   const outX = normal.dx * frame.wallPixels;
   const outY = normal.dz * frame.wallPixels;
+  const throughPixels = -Math.sin(angle) * outX + Math.cos(angle) * outY;
 
-  const xs = [a.x, b.x, a.x + outX, b.x + outX];
-  const ys = [a.y, b.y, a.y + outY, b.y + outY];
-  const minX = Math.min(...xs);
-  const minY = Math.min(...ys);
-
+  context.save();
+  context.translate(a.x, a.y);
+  context.rotate(angle);
   // Bleed half a pixel through the wall only. Widening across the opening
   // instead would make it measure wider than it is.
-  const bleedX = normal.dx === 0 ? 0 : 0.5;
-  const bleedY = normal.dz === 0 ? 0 : 0.5;
-
   context.clearRect(
-    minX - bleedX,
-    minY - bleedY,
-    Math.max(...xs) - minX + bleedX * 2,
-    Math.max(...ys) - minY + bleedY * 2,
+    0,
+    Math.min(0, throughPixels) - 0.5,
+    length,
+    Math.abs(throughPixels) + 1,
   );
+  context.restore();
 }
 
 function drawOpeningSymbol(
@@ -2034,8 +2239,14 @@ function drawOpeningSymbol(
   room: Room,
   opening: Opening,
 ): void {
+  const part = roomPart(room, opening.partId);
+  if (part === undefined) {
+    return;
+  }
   const { start, end } = openingEndpoints(room, opening);
-  const normal = wallOutwardNormal(opening.wall);
+  // On the floor — and so on the screen, whose axes follow it — the normal
+  // leans with the part the wall belongs to.
+  const normal = wallOutwardNormalOnFloor(part, opening.wall);
   const a = frame.toPixels(start);
   const b = frame.toPixels(end);
   const through = (point: PixelPoint, fraction: number): PixelPoint => ({

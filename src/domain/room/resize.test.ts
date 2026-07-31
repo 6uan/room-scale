@@ -18,6 +18,7 @@ const ROOM: Room = {
       origin: { xMeters: 0, zMeters: 0 },
       widthMeters: 4,
       depthMeters: 3,
+      rotationRadians: 0,
     },
   ],
 };

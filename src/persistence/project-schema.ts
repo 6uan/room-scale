@@ -26,8 +26,9 @@ import type { Project } from "@/domain/project";
  * 5. Furniture moved into named layouts, so arrangements can be compared.
  * 6. Removed a retired floor-planning field.
  * 7. A room became a union of rectangular parts; openings name their part.
+ * 8. A part may be turned about its corner. Existing parts are square: zero.
  */
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 /** Meters, cents, and the rest are all plain finite numbers on the way in. */
 const finiteNumber = z
@@ -62,6 +63,7 @@ const roomPartSchema = z.object({
   origin: z.object({ xMeters: finiteNumber, zMeters: finiteNumber }),
   widthMeters: finiteNumber,
   depthMeters: finiteNumber,
+  rotationRadians: finiteNumber,
 });
 
 const roomSchema = z.object({
@@ -269,6 +271,34 @@ const MIGRATIONS: Record<number, (document: object) => object> = {
               openings: openings.map((opening) => ({
                 ...objectOf(opening),
                 partId,
+              })),
+            };
+          }),
+        },
+      },
+    };
+  },
+  7: (document) => {
+    const project = projectOf(document) as Record<string, unknown>;
+    const floor = objectOf(project.floor);
+    const rooms = Array.isArray(floor.rooms) ? floor.rooms : [];
+    return {
+      ...document,
+      version: 8,
+      project: {
+        ...project,
+        floor: {
+          ...floor,
+          // Version 8 let a part turn. Every stored part was square to the
+          // plan, which is exactly what a rotation of zero says.
+          rooms: rooms.map((value) => {
+            const room = objectOf(value);
+            const parts = Array.isArray(room.parts) ? room.parts : [];
+            return {
+              ...room,
+              parts: parts.map((part) => ({
+                ...objectOf(part),
+                rotationRadians: 0,
               })),
             };
           }),

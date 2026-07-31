@@ -24,6 +24,7 @@ function LayersHarness({ compound = false }: { compound?: boolean }) {
             origin: { xMeters: 2, zMeters: 2 },
             widthMeters: 2,
             depthMeters: 2,
+            rotationRadians: 0,
           },
         ]),
       ],
