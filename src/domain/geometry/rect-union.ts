@@ -127,6 +127,14 @@ function uniqueSorted(values: readonly number[]): number[] {
 
 type ClipEdge = "west" | "east" | "north" | "south";
 
+/** The polygon clipped to an axis-aligned rectangle, Sutherland–Hodgman. */
+export function clipPolygonToRect(
+  polygon: readonly FloorPoint[],
+  rect: AxisAlignedRect,
+): FloorPoint[] {
+  return clipToRect(polygon, rect);
+}
+
 function clipToRect(
   polygon: readonly FloorPoint[],
   rect: AxisAlignedRect,

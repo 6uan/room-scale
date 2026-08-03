@@ -244,8 +244,9 @@ describe("readStoredProject", () => {
       updatedAt: 1_700_000_000_000,
       project: {
         ...project,
+        // The one thickness a version 5 floor carried, and nothing split yet.
         floor: {
-          ...project.floor,
+          wallThicknessMeters: 0.1143,
           rooms: legacyRooms,
           retiredFloorData: [{ id: "legacy-1" }],
         },
@@ -274,7 +275,7 @@ describe("readStoredProject", () => {
       project: {
         ...project,
         floor: {
-          ...project.floor,
+          wallThicknessMeters: 0.1143,
           rooms: [
             {
               id: room.id,
@@ -310,8 +311,9 @@ describe("readStoredProject", () => {
     if (room === undefined || part === undefined) {
       throw new Error("a new project starts with one room part");
     }
-    const { rotationRadians, ...squarePart } = part;
+    const { rotationRadians, openWalls, ...legacyPart } = part;
     void rotationRadians;
+    void openWalls;
     const version7 = {
       id: "current",
       version: 7,
@@ -319,8 +321,8 @@ describe("readStoredProject", () => {
       project: {
         ...project,
         floor: {
-          ...project.floor,
-          rooms: [{ ...room, parts: [squarePart] }],
+          wallThicknessMeters: 0.1143,
+          rooms: [{ ...room, parts: [legacyPart] }],
         },
       },
     };
@@ -328,9 +330,46 @@ describe("readStoredProject", () => {
     const result = readStoredProject(version7);
 
     expect(result.ok).toBe(true);
-    expect(result.ok && result.project.floor.rooms[0]?.parts).toEqual([
-      { ...squarePart, rotationRadians: 0 },
-    ]);
+    expect(result.ok && result.project.floor.rooms[0]?.parts).toEqual([part]);
+  });
+
+  it("splits a version 8 wall thickness into shell and partitions", () => {
+    const project = createProject();
+    const room = project.floor.rooms[0];
+    const part = room?.parts[0];
+    if (room === undefined || part === undefined) {
+      throw new Error("a new project starts with one room part");
+    }
+    const { openWalls, ...closedPart } = part;
+    void openWalls;
+    const version8 = {
+      id: "current",
+      version: 8,
+      updatedAt: 1_700_000_000_000,
+      project: {
+        ...project,
+        floor: {
+          wallThicknessMeters: 0.2,
+          rooms: [{ ...room, parts: [closedPart] }],
+        },
+      },
+    };
+
+    const result = readStoredProject(version8);
+
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.project.floor.exteriorWallThicknessMeters).toBe(
+      0.2,
+    );
+    expect(result.ok && result.project.floor.interiorWallThicknessMeters).toBe(
+      0.2,
+    );
+    expect(
+      result.ok && result.project.floor.rooms[0]?.parts[0]?.openWalls,
+    ).toEqual([]);
+    expect(
+      result.ok && "wallThicknessMeters" in (result.project.floor as object),
+    ).toBe(false);
   });
 
   it("refuses a part whose rotation is missing at the current version", () => {

@@ -14,7 +14,9 @@ Two rules keep the order honest:
   Steps 4 to 10 are that question end to end. Everything after them makes the
   answer nicer to look at.
 
-Status: **step 18, final slice is next.**
+Status: **step 18 is done.** Blocked openings (step 19) are set aside for
+now — the apartment on the screen matters more than that check — so the next
+work is entering the real apartment end to end, then step 20.
 
 ## Near-term pull requests
 
@@ -23,19 +25,19 @@ unlocks. **ROI** weighs that impact against implementation cost and risk. These
 ratings compare the remaining work with itself; they are not promises about
 calendar time.
 
-| Order                | Pull request boundary                                                                                                            | ROI         | Impact      | Why it is here                                                                                                   |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------- | ----------- | ---------------------------------------------------------------------------------------------------------------- |
-| Done — #24           | Draw rooms directly; rename them in place; edit and scrub X/Y and W/H/D; remove the retired planning feature and its stored data | **Highest** | **High**    | It turns room entry into one coherent, pointer-first workflow and removes scope that distracts from furnishing.  |
-| Done — #25           | Snap canvas resizing and scrubbed W/D changes to neighbouring room faces through one shared rule                                 | **Highest** | Medium      | Small, contained work that closes the last inconsistent transform path before more geometry is added.            |
-| Done — #26           | Place, select, move, and resize doors, windows, and passages on the plan while keeping every value typeable                      | **Highest** | **Highest** | Fourteen openings are the largest remaining source of repetitive arithmetic in entering the real apartment.      |
-| Done — Step 18a      | Build an L-shaped or notched room from multiple axis-aligned rectangular parts, including persistence and validation             | **High**    | **Highest** | This expresses most currently impossible rooms without taking on rotation at the same time.                      |
-| Done — Step 18b      | Rotate room parts for diagonal walls                                                                                             | Medium      | High        | Required for the real plan, but only after the higher-leverage rectangular-part model is proven.                 |
-| Step 18, final slice | Mark edges open and distinguish exterior from interior wall thickness                                                            | Medium      | High        | Completes balconies, open living areas, and an honest apartment shell without bloating the first room-parts PR.  |
-| Step 19              | Report furniture that blocks a door or passage                                                                                   | **High**    | **High**    | Once openings are correctly placed, this directly prevents a bad furnishing decision with bounded geometry work. |
-| Deferred import      | Try a pasted product URL, with the existing paste-text flow as the permanent fallback                                            | Medium      | Medium      | It can remove typing on cooperative sites, but retailer rendering and anti-bot behavior cap its reliability.     |
-| Step 20              | Add the dimensionally correct perspective view                                                                                   | Medium      | Medium      | It increases confidence and comprehension, but does not unlock a measurement the plan cannot already answer.     |
-| Optional import      | Try a local model when deterministic product parsing fails                                                                       | Low         | Low         | Setup cost and limited audience make this a fallback, not a near-term product dependency.                        |
-| Step 21              | Add materials, lighting, finishes, and eventually product geometry in separate stages                                            | Low now     | Medium      | Valuable presentation work, deliberately last because it cannot improve dimensional correctness.                 |
+| Order                | Pull request boundary                                                                                                            | ROI         | Impact      | Why it is here                                                                                                  |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------- | ----------- | --------------------------------------------------------------------------------------------------------------- |
+| Done — #24           | Draw rooms directly; rename them in place; edit and scrub X/Y and W/H/D; remove the retired planning feature and its stored data | **Highest** | **High**    | It turns room entry into one coherent, pointer-first workflow and removes scope that distracts from furnishing. |
+| Done — #25           | Snap canvas resizing and scrubbed W/D changes to neighbouring room faces through one shared rule                                 | **Highest** | Medium      | Small, contained work that closes the last inconsistent transform path before more geometry is added.           |
+| Done — #26           | Place, select, move, and resize doors, windows, and passages on the plan while keeping every value typeable                      | **Highest** | **Highest** | Fourteen openings are the largest remaining source of repetitive arithmetic in entering the real apartment.     |
+| Done — Step 18a      | Build an L-shaped or notched room from multiple axis-aligned rectangular parts, including persistence and validation             | **High**    | **Highest** | This expresses most currently impossible rooms without taking on rotation at the same time.                     |
+| Done — Step 18b      | Rotate room parts for diagonal walls                                                                                             | Medium      | High        | Required for the real plan, but only after the higher-leverage rectangular-part model is proven.                |
+| Done — Step 18 final | Mark edges open and distinguish exterior from interior wall thickness                                                            | Medium      | High        | Completes balconies, open living areas, and an honest apartment shell without bloating the first room-parts PR. |
+| Deferred — 19        | Report furniture that blocks a door or passage                                                                                   | Medium      | Medium      | Set aside: a useful check, but the apartment on the screen and the furnishing answer matter more right now.     |
+| Deferred import      | Try a pasted product URL, with the existing paste-text flow as the permanent fallback                                            | Medium      | Medium      | It can remove typing on cooperative sites, but retailer rendering and anti-bot behavior cap its reliability.    |
+| Step 20              | Add the dimensionally correct perspective view                                                                                   | Medium      | Medium      | It increases confidence and comprehension, but does not unlock a measurement the plan cannot already answer.    |
+| Optional import      | Try a local model when deterministic product parsing fails                                                                       | Low         | Low         | Setup cost and limited audience make this a fallback, not a near-term product dependency.                       |
+| Step 21              | Add materials, lighting, finishes, and eventually product geometry in separate stages                                            | Low now     | Medium      | Valuable presentation work, deliberately last because it cannot improve dimensional correctness.                |
 
 ---
 
@@ -681,6 +683,24 @@ would share a wall with air; meeting a diagonal wall exactly is done by
 typing, which stays exact. The problem list still names a turned section's
 walls by their local compass — the "south" wall of a 45° section is its own
 south, wherever it points on the floor.
+
+**18 — final slice: open edges, and two kinds of wall. ✅** Done. A section
+wall can be marked open from its inspector: it draws as a railing line, takes
+no doors or windows — an opening left on one says so in words — and the floor
+still ends there, so furniture reaching past a balcony rail is still reported.
+The apartment carries two wall thicknesses, shell and partition, and **which
+walls are which is derived rather than typed**: every part side is split into
+stretches — seam where the room's own floor continues, interior where another
+room stands within the interior thickness beyond it, exterior otherwise — by
+exact clipping in the wall's own frame, so it holds for turned sections too.
+The drawing follows the stretches, an opening cuts as deep as the wall it
+actually sits in, rooms snap one interior thickness apart, and the stored
+document goes to version 9 with the old single thickness becoming both.
+
+Not carried out of this step: a wall reads as interior only within the
+interior thickness, so two rooms deliberately built a shell's width apart
+read as shell between them — which is what the drawing then shows, and
+arguably what the tape would say.
 
 Done when: the apartment above is on the screen at its real dimensions, with
 nothing squared off that is not square, and every measurement it reports is one

@@ -39,6 +39,7 @@ import { pressIs } from "@/components/shortcuts";
 import type { Gesture } from "@/state/project-store";
 import { PRODUCT_DRAG_TYPE } from "@/components/catalogue-panel";
 import {
+  WALL_SIDES,
   checkOpening,
   drawnRoom,
   floorAreaSquareMeters,
@@ -47,6 +48,7 @@ import {
   moveOpening,
   openingAtPoint,
   openingEndpoints,
+  openingWallThicknessMeters,
   pointAlongWall,
   pointInRoom,
   pointOnFloor,
@@ -63,8 +65,10 @@ import {
   snapRoomPartOrigin,
   snapRoomPartResize,
   snapRoomResize,
+  wallKindThicknessMeters,
   wallPlacementAt,
   wallOutwardNormalOnFloor,
+  wallStretches,
   withOrigin,
   withRoomPartOrigin,
   withRoomPartRotation,
@@ -77,6 +81,7 @@ import {
   type RoomEdge,
   type RoomPart,
   type WallSide,
+  type WallStretch,
 } from "@/domain/room";
 import {
   degreesFromRadians,
@@ -496,7 +501,7 @@ export function RoomPlanCanvas({
    */
   function held(next: PlanProjection): PlanProjection {
     const { origin, extent } = floorBounds(floor);
-    const thickness = floor.wallThicknessMeters;
+    const thickness = floor.exteriorWallThicknessMeters;
     return clampToViewport(
       next,
       {
@@ -1356,7 +1361,7 @@ function handleAt(
   const rotate = rotateHandlePixel(
     part,
     (point) => projectPoint(projection, point),
-    projectLength(projection, floor.wallThicknessMeters),
+    projectLength(projection, maxWallThicknessMeters(floor)),
   );
   if (
     Math.abs(rotate.x - at.x) <= HANDLE_GRAB_PIXELS &&
@@ -1476,8 +1481,16 @@ function openingHandleAt(
 /** Fixed pointer reach converted from screen pixels into floor meters. */
 function pointerReachMeters(floor: Floor, projection: PlanProjection): number {
   return Math.max(
-    floor.wallThicknessMeters,
+    maxWallThicknessMeters(floor),
     HANDLE_GRAB_PIXELS / projection.pixelsPerMeter,
+  );
+}
+
+/** The thicker of the two walls: the reach that always spans a band. */
+function maxWallThicknessMeters(floor: Floor): number {
+  return Math.max(
+    floor.exteriorWallThicknessMeters,
+    floor.interiorWallThicknessMeters,
   );
 }
 
@@ -1522,9 +1535,9 @@ function floorPointAt(
  * testing, so a click lands where the piece appears rather than near it.
  */
 function planProjectionFor(floor: Floor, viewport: PixelSize): PlanProjection {
-  const thickness = floor.wallThicknessMeters;
+  const thickness = floor.exteriorWallThicknessMeters;
   const { origin, extent } = floorBounds(floor);
-  // The fitted rectangle is the apartment plus a wall all round it, and it
+  // The fitted rectangle is the apartment plus its shell all round it, and it
   // starts where the apartment starts. Handing the origin over is what makes
   // the result a complete transform, so nothing downstream adds it back.
   return createPlanProjection(
@@ -1640,7 +1653,8 @@ type DrawOptions = {
 /** Everything the drawing helpers need to place a floor coordinate in pixels. */
 type PlanFrame = {
   toPixels: (point: FloorPoint) => PixelPoint;
-  wallPixels: number;
+  /** The thicker wall, in pixels: the clearance handles keep from any band. */
+  maxWallPixels: number;
   color: string;
 };
 
@@ -1663,8 +1677,6 @@ function drawPlan(
 ): void {
   context.clearRect(0, 0, viewport.width, viewport.height);
 
-  const thickness = floor.wallThicknessMeters;
-
   // The projection arrives already fitted — and possibly panned and zoomed
   // since. Everything below works in whatever transform it is handed.
   if (projection.pixelsPerMeter <= 0) {
@@ -1673,15 +1685,15 @@ function drawPlan(
 
   const frame: PlanFrame = {
     toPixels: (point) => projectPoint(projection, point),
-    wallPixels: projectLength(projection, thickness),
+    maxWallPixels: projectLength(projection, maxWallThicknessMeters(floor)),
     color,
   };
 
-  // Every room's walls first, as solid rings, then every floor punched out of
-  // them. Doing it room by room would leave one room's wall drawn over the
-  // next room's floor wherever two of them share one.
+  // Every room's walls first, then every floor punched out of them. Doing it
+  // room by room would leave one room's wall drawn over the next room's floor
+  // wherever two of them share one.
   for (const room of floor.rooms) {
-    drawRoomWalls(context, frame, room);
+    drawRoomWalls(context, frame, floor, room);
   }
   for (const room of floor.rooms) {
     punchRoomFloor(context, frame, room);
@@ -1689,14 +1701,18 @@ function drawPlan(
   for (const room of floor.rooms) {
     drawMeterGrid(context, frame, room);
   }
+  // Railings after the punches: a line a floor clear would have erased.
+  for (const room of floor.rooms) {
+    drawRoomRailings(context, frame, floor, room);
+  }
 
   // Openings are cut from the finished wall band, which is the order a plan is
   // read in — and the only order that opens a doorway through a shared wall.
   for (const { room, opening } of drawableOpenings(floor)) {
-    cutOpening(context, inRoom(frame, room), room, opening);
+    cutOpening(context, inRoom(frame, room), floor, room, opening);
   }
   for (const { room, opening } of drawableOpenings(floor)) {
-    drawOpeningSymbol(context, inRoom(frame, room), room, opening);
+    drawOpeningSymbol(context, inRoom(frame, room), floor, room, opening);
   }
   const selectedOpening = findOpening(floor, selectedOpeningId);
   if (
@@ -1807,25 +1823,168 @@ function inPartFrame(
   context.restore();
 }
 
-/** One room's walls, as a solid ring around the space it measures. */
+/**
+ * One room's walls: each stretch of each part side, at the thickness of the
+ * wall that actually stands there — the shell, a partition, or nothing where
+ * the side is a seam or was left open.
+ *
+ * Every band rectangle goes into one path and is filled once, so translucent
+ * ink never doubles where bands of different thickness meet at a corner.
+ */
 function drawRoomWalls(
   context: CanvasRenderingContext2D,
   frame: PlanFrame,
+  floor: Floor,
   room: Room,
 ): void {
+  const pixelsPerMeter = spanPixels(frame, 1);
   context.save();
   context.globalAlpha = WALL_ALPHA;
   context.fillStyle = frame.color;
+  context.beginPath();
   for (const part of room.parts) {
-    inPartFrame(context, frame, part, (width, depth) => {
-      context.fillRect(
-        -frame.wallPixels,
-        -frame.wallPixels,
-        width + frame.wallPixels * 2,
-        depth + frame.wallPixels * 2,
+    const sides = partWallStretches(floor, room, part);
+    /** The band thickness standing on `wall` at `along`, in meters. */
+    const thicknessAt = (wall: WallSide, alongMeters: number): number => {
+      const stretch = sides[wall].find(
+        (one) =>
+          alongMeters >= one.startMeters - 0.002 &&
+          alongMeters <= one.endMeters + 0.002,
       );
+      return stretch === undefined
+        ? 0
+        : wallKindThicknessMeters(floor, stretch.kind);
+    };
+
+    inPartFrame(context, frame, part, (widthPixels, depthPixels) => {
+      for (const wall of WALL_SIDES) {
+        const lengthMeters =
+          wall === "north" || wall === "south"
+            ? part.widthMeters
+            : part.depthMeters;
+        for (const stretch of sides[wall]) {
+          const thickness = wallKindThicknessMeters(floor, stretch.kind);
+          if (thickness <= 0) {
+            continue;
+          }
+          // A stretch reaching a corner grows into it by the thickness of
+          // the wall standing on the adjacent side, so corners close without
+          // anybody drawing them twice.
+          const intoStart =
+            stretch.startMeters <= 0.002
+              ? thicknessAt(...cornerNeighbour(part, wall, "start"))
+              : 0;
+          const intoEnd =
+            stretch.endMeters >= lengthMeters - 0.002
+              ? thicknessAt(...cornerNeighbour(part, wall, "end"))
+              : 0;
+          const from = (stretch.startMeters - intoStart) * pixelsPerMeter;
+          const span =
+            (stretch.endMeters - stretch.startMeters + intoStart + intoEnd) *
+            pixelsPerMeter;
+          const band = thickness * pixelsPerMeter;
+          switch (wall) {
+            case "north":
+              context.rect(from, -band, span, band);
+              break;
+            case "south":
+              context.rect(from, depthPixels, span, band);
+              break;
+            case "west":
+              context.rect(-band, from, band, span);
+              break;
+            case "east":
+              context.rect(widthPixels, from, band, span);
+              break;
+          }
+        }
+      }
     });
   }
+  context.fill();
+  context.restore();
+}
+
+/** All four sides' stretches of one part, computed once. */
+function partWallStretches(
+  floor: Floor,
+  room: Room,
+  part: RoomPart,
+): Record<WallSide, readonly WallStretch[]> {
+  return Object.fromEntries(
+    WALL_SIDES.map((wall) => [wall, wallStretches(floor, room, part, wall)]),
+  ) as Record<WallSide, readonly WallStretch[]>;
+}
+
+/** The adjacent side and position that share a corner with one end of a wall. */
+function cornerNeighbour(
+  part: RoomPart,
+  wall: WallSide,
+  end: "start" | "end",
+): [WallSide, number] {
+  const alongWidth = wall === "north" || wall === "south";
+  const neighbour: WallSide = alongWidth
+    ? end === "start"
+      ? "west"
+      : "east"
+    : end === "start"
+      ? "north"
+      : "south";
+  const at = alongWidth
+    ? wall === "north"
+      ? 0
+      : part.depthMeters
+    : wall === "west"
+      ? 0
+      : part.widthMeters;
+  return [neighbour, at];
+}
+
+/** Open edges drawn as the railings they are: a line where a wall is not. */
+function drawRoomRailings(
+  context: CanvasRenderingContext2D,
+  frame: PlanFrame,
+  floor: Floor,
+  room: Room,
+): void {
+  const pixelsPerMeter = spanPixels(frame, 1);
+  context.save();
+  context.strokeStyle = frame.color;
+  context.globalAlpha = SYMBOL_ALPHA;
+  context.lineWidth = 1.5;
+  context.beginPath();
+  for (const part of room.parts) {
+    inPartFrame(context, frame, part, (widthPixels, depthPixels) => {
+      for (const wall of WALL_SIDES) {
+        for (const stretch of wallStretches(floor, room, part, wall)) {
+          if (stretch.kind !== "open") {
+            continue;
+          }
+          const from = stretch.startMeters * pixelsPerMeter;
+          const to = stretch.endMeters * pixelsPerMeter;
+          switch (wall) {
+            case "north":
+              context.moveTo(from, 0);
+              context.lineTo(to, 0);
+              break;
+            case "south":
+              context.moveTo(from, depthPixels);
+              context.lineTo(to, depthPixels);
+              break;
+            case "west":
+              context.moveTo(0, from);
+              context.lineTo(0, to);
+              break;
+            case "east":
+              context.moveTo(widthPixels, from);
+              context.lineTo(widthPixels, to);
+              break;
+          }
+        }
+      }
+    });
+  }
+  context.stroke();
   context.restore();
 }
 
@@ -2027,7 +2186,11 @@ function markSelectedRoom(
         zMeters: 0,
       }),
     );
-    const at = rotateHandlePixel(rotatable, frame.toPixels, frame.wallPixels);
+    const at = rotateHandlePixel(
+      rotatable,
+      frame.toPixels,
+      frame.maxWallPixels,
+    );
     context.globalAlpha = JAMB_ALPHA;
     context.lineWidth = 1;
     strokeSegments(context, [[anchor, at]]);
@@ -2195,6 +2358,7 @@ function drawMeterGrid(
 function cutOpening(
   context: CanvasRenderingContext2D,
   frame: PlanFrame,
+  floor: Floor,
   room: Room,
   opening: Opening,
 ): void {
@@ -2211,12 +2375,19 @@ function cutOpening(
     return;
   }
 
+  // As deep as the wall actually standing here — a doorway through the shell
+  // cuts further than one through a partition.
+  const wallPixels = spanPixels(
+    frame,
+    openingWallThicknessMeters(floor, room, opening),
+  );
+
   // Lay the canvas along the wall — X from jamb to jamb, the wall band along
   // ±Y — and clear through it. The cleared rectangle follows the transform,
   // so the hole runs with the wall whichever way its part is turned.
   const angle = Math.atan2(b.y - a.y, b.x - a.x);
-  const outX = normal.dx * frame.wallPixels;
-  const outY = normal.dz * frame.wallPixels;
+  const outX = normal.dx * wallPixels;
+  const outY = normal.dz * wallPixels;
   const throughPixels = -Math.sin(angle) * outX + Math.cos(angle) * outY;
 
   context.save();
@@ -2236,6 +2407,7 @@ function cutOpening(
 function drawOpeningSymbol(
   context: CanvasRenderingContext2D,
   frame: PlanFrame,
+  floor: Floor,
   room: Room,
   opening: Opening,
 ): void {
@@ -2247,11 +2419,15 @@ function drawOpeningSymbol(
   // On the floor — and so on the screen, whose axes follow it — the normal
   // leans with the part the wall belongs to.
   const normal = wallOutwardNormalOnFloor(part, opening.wall);
+  const wallPixels = spanPixels(
+    frame,
+    openingWallThicknessMeters(floor, room, opening),
+  );
   const a = frame.toPixels(start);
   const b = frame.toPixels(end);
   const through = (point: PixelPoint, fraction: number): PixelPoint => ({
-    x: point.x + normal.dx * frame.wallPixels * fraction,
-    y: point.y + normal.dz * frame.wallPixels * fraction,
+    x: point.x + normal.dx * wallPixels * fraction,
+    y: point.y + normal.dz * wallPixels * fraction,
   });
 
   context.save();

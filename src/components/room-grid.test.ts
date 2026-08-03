@@ -13,6 +13,7 @@ describe("roomGridLines", () => {
           widthMeters: 4,
           depthMeters: 4,
           rotationRadians: 0,
+          openWalls: [],
         },
         {
           id: "room-1-part-2",
@@ -20,6 +21,7 @@ describe("roomGridLines", () => {
           widthMeters: 3,
           depthMeters: 2.5,
           rotationRadians: 0,
+          openWalls: [],
         },
       ],
     );

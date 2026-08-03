@@ -43,15 +43,24 @@ import {
 } from "./room";
 
 export type Floor = {
-  /** One thickness for the whole apartment: it has one kind of wall. */
-  readonly wallThicknessMeters: number;
+  /**
+   * Two thicknesses, not one: the shell is thicker than the partitions, and
+   * it is visible in every plan ever drawn. Which walls are which is derived
+   * from the rooms — a wall is interior where another room stands on its far
+   * side — so nobody types it twice. See `walls.ts`.
+   */
+  readonly exteriorWallThicknessMeters: number;
+  readonly interiorWallThicknessMeters: number;
   readonly rooms: readonly Room[];
 };
 
 /** One living room, which is where every apartment plan starts. */
 export const DEFAULT_FLOOR: Floor = {
-  // 4.5 inches: a 2x4 stud wall with drywall on both faces.
-  wallThicknessMeters: 0.1143,
+  // 4.5 inches — a 2x4 stud wall with drywall on both faces — for both until
+  // the real shell is measured. Equal values are also what every project made
+  // before there were two numbers means.
+  exteriorWallThicknessMeters: 0.1143,
+  interiorWallThicknessMeters: 0.1143,
   rooms: [DEFAULT_ROOM],
 };
 
@@ -170,7 +179,7 @@ export function snapRoomOrigin(
   origin: FloorPoint,
 ): FloorPoint {
   const others = floor.rooms.filter((one) => one.id !== room.id);
-  const thickness = floor.wallThicknessMeters;
+  const thickness = floor.interiorWallThicknessMeters;
   const bounds = roomBounds(room);
 
   return {
@@ -274,7 +283,7 @@ export function snapRoomEdge(
   value: number,
   exceptRoomId?: string,
 ): number {
-  const thickness = floor.wallThicknessMeters;
+  const thickness = floor.interiorWallThicknessMeters;
   const others = floor.rooms.filter((one) => one.id !== exceptRoomId);
 
   const candidates = others.flatMap((room) =>
@@ -397,8 +406,8 @@ function snapPartEdge(
       return room.id === roomId
         ? [start, end]
         : [
-            start - floor.wallThicknessMeters,
-            end + floor.wallThicknessMeters,
+            start - floor.interiorWallThicknessMeters,
+            end + floor.interiorWallThicknessMeters,
             start,
             end,
           ];
@@ -425,8 +434,8 @@ function snapPartOriginAxis(
       return room.id === roomId
         ? [start + theirs, start - length, start, start + theirs - length]
         : [
-            start + theirs + floor.wallThicknessMeters,
-            start - floor.wallThicknessMeters - length,
+            start + theirs + floor.interiorWallThicknessMeters,
+            start - floor.interiorWallThicknessMeters - length,
             start,
             start + theirs - length,
           ];

@@ -21,7 +21,7 @@ import {
   type LengthLimits,
   type LengthProblem,
 } from "@/domain/units";
-import { checkOpening, type Opening } from "./openings";
+import { checkOpening, type Opening, type WallSide } from "./openings";
 
 /**
  * One rectangular section of a room.
@@ -31,9 +31,15 @@ import { checkOpening, type Opening } from "./openings";
  * the angle spins the part about its center (`withRoomPartRotation`), and the
  * corner is recomputed to follow. Walls, openings, and resizing all live in
  * the part's local frame, which the rotation carries whole.
+ *
+ * `openWalls` are the sides left without a wall on purpose — a balcony's
+ * railing, the open side of a living area. The floor still ends there: an
+ * open edge bounds the room exactly as a wall does, it just is not drawn as
+ * one and cannot carry a door or a window.
  */
 export type RoomPart = TurnedRect & {
   readonly id: string;
+  readonly openWalls: readonly WallSide[];
 };
 
 export type Room = {
@@ -73,6 +79,7 @@ const DEFAULT_PART: RoomPart = {
   widthMeters: metersFromInches(168),
   depthMeters: metersFromInches(144),
   rotationRadians: 0,
+  openWalls: [],
 };
 
 export const DEFAULT_ROOM: Room = {
@@ -108,7 +115,29 @@ export function createRoomPart(
   widthMeters = metersFromInches(120),
   depthMeters = metersFromInches(120),
 ): RoomPart {
-  return { id, origin, widthMeters, depthMeters, rotationRadians: 0 };
+  return {
+    id,
+    origin,
+    widthMeters,
+    depthMeters,
+    rotationRadians: 0,
+    openWalls: [],
+  };
+}
+
+/** Marks one wall of a part open or walled again. */
+export function withRoomPartWallOpen(
+  room: Room,
+  partId: string,
+  wall: WallSide,
+  open: boolean,
+): Room {
+  return withRoomPart(room, partId, (part) => ({
+    ...part,
+    openWalls: open
+      ? [...part.openWalls.filter((one) => one !== wall), wall]
+      : part.openWalls.filter((one) => one !== wall),
+  }));
 }
 
 export function createRoom(id: string, name: string, origin: FloorPoint): Room {
