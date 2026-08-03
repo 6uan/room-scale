@@ -28,13 +28,15 @@ const FIRST: Room = {
       widthMeters: 4,
       depthMeters: 3,
       rotationRadians: 0,
+      openWalls: [],
     },
   ],
 };
 const SECOND = createRoom("room-2", "Hall", { xMeters: 9, zMeters: 9 });
 const FLOOR = {
   ...DEFAULT_FLOOR,
-  wallThicknessMeters: 0.1,
+  exteriorWallThicknessMeters: 0.1,
+  interiorWallThicknessMeters: 0.1,
   rooms: [FIRST, SECOND],
 };
 const part = (room: Room) => primaryRoomPart(room);
@@ -196,6 +198,7 @@ describe("room part snapping", () => {
         widthMeters: 2,
         depthMeters: 2,
         rotationRadians: 0,
+        openWalls: [],
       },
     ],
   };

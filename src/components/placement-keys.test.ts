@@ -16,6 +16,7 @@ const FLOOR = {
           widthMeters: 4,
           depthMeters: 3,
           rotationRadians: 0,
+          openWalls: [],
         },
       ],
       openings: [],

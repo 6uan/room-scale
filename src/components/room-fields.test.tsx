@@ -27,7 +27,8 @@ function snappingFloor(): { floor: Floor; room: Room } {
     room,
     floor: {
       ...DEFAULT_FLOOR,
-      wallThicknessMeters: 0.1,
+      exteriorWallThicknessMeters: 0.1,
+      interiorWallThicknessMeters: 0.1,
       rooms: [room, neighbor],
     },
   };
@@ -206,6 +207,55 @@ describe("RoomFields", () => {
     );
   });
 
+  it("opens a wall from its toggle, and closes it again", () => {
+    const floor = createProject().floor;
+    const room = floor.rooms[0];
+    if (room === undefined) {
+      throw new Error("a new project starts with a room");
+    }
+    const onChange = vi.fn();
+    renderFields(floor, room, onChange);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Living room north wall open" }),
+    );
+
+    const opened = onChange.mock.lastCall?.[0] as Room | undefined;
+    if (opened === undefined) {
+      throw new Error("the toggle reported no change");
+    }
+    expect(primaryRoomPart(opened).openWalls).toEqual(["north"]);
+    expect(
+      screen.getByRole("button", { name: "Living room north wall open" }),
+    ).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("closes an opened wall from the same toggle", () => {
+    const floor = createProject().floor;
+    const base = floor.rooms[0];
+    if (base === undefined) {
+      throw new Error("a new project starts with a room");
+    }
+    const room = {
+      ...base,
+      parts: base.parts.map((part) => ({
+        ...part,
+        openWalls: ["north" as const],
+      })),
+    };
+    const onChange = vi.fn();
+    renderFields({ ...floor, rooms: [room] }, room, onChange);
+
+    const toggle = screen.getByRole("button", {
+      name: "Living room north wall open",
+    });
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(toggle);
+
+    const closed = onChange.mock.lastCall?.[0] as Room | undefined;
+    expect(closed && primaryRoomPart(closed).openWalls).toEqual([]);
+  });
+
   it("adds an editable rectangular section to the room", () => {
     const floor = createProject().floor;
     const room = floor.rooms[0];
@@ -274,6 +324,7 @@ describe("RoomFields", () => {
         widthMeters: 2,
         depthMeters: 2,
         rotationRadians: 0,
+        openWalls: [],
       },
     ]);
     const onSelectPart = vi.fn();
@@ -310,6 +361,7 @@ describe("RoomFields", () => {
         widthMeters: 2,
         depthMeters: 2,
         rotationRadians: 0,
+        openWalls: [],
       },
     ]);
     const onSelectPart = vi.fn();

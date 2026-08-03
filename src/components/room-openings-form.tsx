@@ -248,5 +248,7 @@ function problemMessage(
       return `An opening is at least ${formatLength(MIN_OPENING_METERS, unit)} wide.`;
     case "off-wall":
       return `This runs past the end of a ${formatLength(wallLengthMeters, unit)} wall.`;
+    case "open-wall":
+      return "This wall is open — there is no wall to cut it through.";
   }
 }

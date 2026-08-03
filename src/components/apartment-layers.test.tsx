@@ -25,6 +25,7 @@ function LayersHarness({ compound = false }: { compound?: boolean }) {
             widthMeters: 2,
             depthMeters: 2,
             rotationRadians: 0,
+            openWalls: [],
           },
         ]),
       ],

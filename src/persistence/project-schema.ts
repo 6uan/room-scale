@@ -27,8 +27,10 @@ import type { Project } from "@/domain/project";
  * 6. Removed a retired floor-planning field.
  * 7. A room became a union of rectangular parts; openings name their part.
  * 8. A part may be turned about its corner. Existing parts are square: zero.
+ * 9. Walls split into exterior and interior thickness; a part wall may be
+ *    left open. Existing projects keep one thickness for both, nothing open.
  */
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 
 /** Meters, cents, and the rest are all plain finite numbers on the way in. */
 const finiteNumber = z
@@ -64,6 +66,7 @@ const roomPartSchema = z.object({
   widthMeters: finiteNumber,
   depthMeters: finiteNumber,
   rotationRadians: finiteNumber,
+  openWalls: z.array(z.enum(["north", "east", "south", "west"])),
 });
 
 const roomSchema = z.object({
@@ -75,7 +78,8 @@ const roomSchema = z.object({
 });
 
 const floorSchema = z.object({
-  wallThicknessMeters: finiteNumber,
+  exteriorWallThicknessMeters: finiteNumber,
+  interiorWallThicknessMeters: finiteNumber,
   rooms: z.array(roomSchema),
 });
 
@@ -299,6 +303,41 @@ const MIGRATIONS: Record<number, (document: object) => object> = {
               parts: parts.map((part) => ({
                 ...objectOf(part),
                 rotationRadians: 0,
+              })),
+            };
+          }),
+        },
+      },
+    };
+  },
+  8: (document) => {
+    const project = projectOf(document) as Record<string, unknown>;
+    const floor = objectOf(project.floor);
+    const rooms = Array.isArray(floor.rooms) ? floor.rooms : [];
+    // The wallThicknessMeters key itself goes: it split into two.
+    const rest = Object.fromEntries(
+      Object.entries(floor).filter(([key]) => key !== "wallThicknessMeters"),
+    );
+    return {
+      ...document,
+      version: 9,
+      project: {
+        ...project,
+        floor: {
+          ...rest,
+          // Version 9 split the one thickness into shell and partitions, and
+          // let a wall be left open. A stored project had one thickness for
+          // everything and every wall closed, so that is what it stays.
+          exteriorWallThicknessMeters: floor.wallThicknessMeters,
+          interiorWallThicknessMeters: floor.wallThicknessMeters,
+          rooms: rooms.map((value) => {
+            const room = objectOf(value);
+            const parts = Array.isArray(room.parts) ? room.parts : [];
+            return {
+              ...room,
+              parts: parts.map((part) => ({
+                ...objectOf(part),
+                openWalls: [],
               })),
             };
           }),

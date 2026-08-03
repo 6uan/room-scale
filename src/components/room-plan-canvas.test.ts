@@ -14,6 +14,7 @@ describe("roomPartHandles", () => {
       widthMeters: 2,
       depthMeters: 1,
       rotationRadians: 0,
+      openWalls: [],
     });
 
     expect(handles).toHaveLength(8);
@@ -34,6 +35,7 @@ describe("roomPartHandles", () => {
       widthMeters: 2,
       depthMeters: 1,
       rotationRadians: Math.PI / 2,
+      openWalls: [],
     });
 
     // A quarter turn about the anchor: the width now runs south.
@@ -64,6 +66,7 @@ describe("rotateHandlePixel", () => {
         widthMeters: 4,
         depthMeters: 2,
         rotationRadians: 0,
+        openWalls: [],
       },
       toPixels,
       5,
@@ -81,6 +84,7 @@ describe("rotateHandlePixel", () => {
         widthMeters: 4,
         depthMeters: 2,
         rotationRadians: Math.PI / 2,
+        openWalls: [],
       },
       toPixels,
       5,

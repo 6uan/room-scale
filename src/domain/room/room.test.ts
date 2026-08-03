@@ -158,6 +158,7 @@ describe("turned parts", () => {
         widthMeters: 4,
         depthMeters: 3,
         rotationRadians: Math.PI / 4,
+        openWalls: [],
       },
     ],
     openings: [],

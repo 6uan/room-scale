@@ -6,6 +6,7 @@ import { RoomOpeningsForm } from "@/components/room-openings-form";
 import {
   ROOM_LENGTH_LIMITS,
   ROOM_ORIGIN_LIMITS,
+  WALL_SIDES,
   roomFloorAreaSquareMeters,
   snapRoomOrigin,
   snapRoomResize,
@@ -15,6 +16,7 @@ import {
   withRoomPartLength,
   withRoomPartOrigin,
   withRoomPartRotation,
+  withRoomPartWallOpen,
   type Floor,
   type OpeningKind,
   type Room,
@@ -81,6 +83,7 @@ export function RoomFields({
           widthMeters,
           depthMeters,
           rotationRadians: 0,
+          openWalls: [],
         },
       ]),
     );
@@ -334,6 +337,39 @@ function RoomPartFields({
           onChange(withRoomPartRotation(room, part.id, radians))
         }
       />
+      <fieldset className="flex flex-col gap-2">
+        <legend className="sr-only">Open walls</legend>
+        <span aria-hidden="true" className="text-xs font-medium">
+          Open walls
+        </span>
+        <div className="flex flex-wrap gap-2">
+          {WALL_SIDES.map((wall) => {
+            const open = part.openWalls.includes(wall);
+            return (
+              <button
+                key={wall}
+                type="button"
+                aria-pressed={open}
+                aria-label={`${label} ${wall} wall open`}
+                onClick={() =>
+                  onChange(withRoomPartWallOpen(room, part.id, wall, !open))
+                }
+                className={`rounded border px-2 py-1 text-xs capitalize ${
+                  open
+                    ? "border-black/35 bg-black/10 dark:border-white/40 dark:bg-white/15"
+                    : "border-black/15 hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
+                }`}
+              >
+                {wall}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-xs leading-relaxed opacity-60">
+          An open wall is drawn as a railing and carries no doors or windows.
+          The floor still ends there.
+        </p>
+      </fieldset>
     </>
   );
 
