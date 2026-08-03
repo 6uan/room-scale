@@ -19,6 +19,7 @@ const ROOM: Room = {
       widthMeters: 4,
       depthMeters: 3,
       rotationRadians: 0,
+      openWalls: [],
     },
   ],
 };

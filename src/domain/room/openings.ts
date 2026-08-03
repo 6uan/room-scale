@@ -98,7 +98,12 @@ export function openingRangeMeters(opening: OpeningPlacement): {
   };
 }
 
-export type OpeningProblem = "not-a-number" | "too-narrow" | "off-wall";
+export type OpeningProblem =
+  | "not-a-number"
+  | "too-narrow"
+  | "off-wall"
+  /** The wall was left open: there is nothing to cut a hole through. */
+  | "open-wall";
 
 export function checkOpening(
   room: Room,
@@ -113,14 +118,18 @@ export function checkOpening(
   if (opening.widthMeters < MIN_OPENING_METERS) {
     return "too-narrow";
   }
+  const part = roomPart(room, opening.partId);
   const { startMeters, endMeters } = openingRangeMeters(opening);
   if (
-    roomPart(room, opening.partId) === undefined ||
+    part === undefined ||
     startMeters < 0 ||
     endMeters > wallLengthMeters(room, opening.wall, opening.partId) ||
     !openingSegmentIsExterior(room, opening)
   ) {
     return "off-wall";
+  }
+  if (part.openWalls.includes(opening.wall)) {
+    return "open-wall";
   }
   return null;
 }
@@ -266,6 +275,8 @@ export function wallPlacementAt(
         distanceMeters <= reachMeters &&
         alongMeters >= 0 &&
         alongMeters <= length &&
+        // An open edge offers nothing to cut a door through.
+        !(roomPart(room, partId)?.openWalls.includes(wall) ?? false) &&
         wallPointIsExterior(room, partId, wall, alongMeters),
     )
     .sort((a, b) => a.distanceMeters - b.distanceMeters);

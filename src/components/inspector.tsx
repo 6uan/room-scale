@@ -127,13 +127,27 @@ function FloorInspector({
       subtitle="Select a room or a piece of furniture to edit it."
     >
       <UnitToggle unit={unit} onUnitChange={onUnitChange} />
+      {/*
+        Two numbers because an apartment has two kinds of wall: the shell and
+        the partitions. Which walls are which is worked out from the rooms —
+        a wall is interior where another room stands on its far side.
+      */}
       <NumberField
-        label="Wall thickness"
+        label="Exterior wall thickness"
         unit={unit}
-        meters={floor.wallThicknessMeters}
+        meters={floor.exteriorWallThicknessMeters}
         limits={WALL_THICKNESS_LIMITS}
-        onMetersChange={(wallThicknessMeters) =>
-          onFloorChange({ ...floor, wallThicknessMeters })
+        onMetersChange={(exteriorWallThicknessMeters) =>
+          onFloorChange({ ...floor, exteriorWallThicknessMeters })
+        }
+      />
+      <NumberField
+        label="Interior wall thickness"
+        unit={unit}
+        meters={floor.interiorWallThicknessMeters}
+        limits={WALL_THICKNESS_LIMITS}
+        onMetersChange={(interiorWallThicknessMeters) =>
+          onFloorChange({ ...floor, interiorWallThicknessMeters })
         }
       />
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">

@@ -27,6 +27,7 @@ const PART = {
   widthMeters: 4,
   depthMeters: 3,
   rotationRadians: 0,
+  openWalls: [],
 };
 const ROOM = { ...DEFAULT_ROOM, parts: [PART], openings: [] };
 
@@ -292,6 +293,7 @@ describe("openings on a turned wall", () => {
       widthMeters: 2,
       depthMeters: 5,
       rotationRadians: 0,
+      openWalls: [],
     };
     const room = { ...ROOM, parts: [sibling, TURNED_PART] };
 

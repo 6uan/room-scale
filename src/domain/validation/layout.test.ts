@@ -18,6 +18,7 @@ const ROOM = {
       widthMeters: 4,
       depthMeters: 3,
       rotationRadians: 0,
+      openWalls: [],
     },
   ],
   openings: [],
@@ -195,6 +196,7 @@ describe("checkLayout: furniture against the room", () => {
           widthMeters: 2,
           depthMeters: 2,
           rotationRadians: 0,
+          openWalls: [],
         },
       ],
     };
@@ -214,6 +216,7 @@ describe("checkLayout: furniture against the room", () => {
           widthMeters: 2,
           depthMeters: 2,
           rotationRadians: 0,
+          openWalls: [],
         },
       ],
     };
@@ -297,6 +300,7 @@ describe("checkLayout: turned sections", () => {
           widthMeters: 6,
           depthMeters: 3,
           rotationRadians: 0,
+          openWalls: [],
         },
       ],
     };
@@ -335,6 +339,7 @@ describe("checkLayout: turned sections", () => {
           widthMeters: 3,
           depthMeters: 2,
           rotationRadians: Math.PI / 4,
+          openWalls: [],
         },
       ],
     };

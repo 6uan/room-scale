@@ -759,6 +759,59 @@ test.describe("laying the apartment out", () => {
     await expect(plan(page).getByText("168.0 sq ft")).toBeVisible();
   });
 
+  test("keeps shell and partition walls as two typed numbers", async ({
+    page,
+  }) => {
+    await page.goto("/");
+
+    // Nothing selected: the apartment's own settings, now with two walls.
+    const apartment = details(page).getByRole("region", { name: "Apartment" });
+    await apartment.getByLabel("Exterior wall thickness").fill("9");
+    await expect(apartment.getByLabel("Exterior wall thickness")).toHaveValue(
+      "9",
+    );
+    await expect(apartment.getByLabel("Interior wall thickness")).toHaveValue(
+      "4.5",
+    );
+
+    await page.reload();
+    await expect(
+      details(page)
+        .getByRole("region", { name: "Apartment" })
+        .getByLabel("Exterior wall thickness"),
+    ).toHaveValue("9");
+  });
+
+  test("opens a wall into a railing that refuses a door", async ({ page }) => {
+    await page.goto("/");
+    await contents(page).getByRole("button", { name: "Living room" }).click();
+
+    const room = details(page).getByRole("region", { name: "Living room" });
+    await room
+      .getByRole("button", { name: "Living room north wall open" })
+      .click();
+    await expect(
+      room.getByRole("button", { name: "Living room north wall open" }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    // The default window sits on the north wall, which is now a railing, and
+    // its own inspector says exactly what went wrong.
+    await contents(page).getByRole("button", { name: "Window 1" }).click();
+    await expect(
+      details(page).getByText(
+        "This wall is open — there is no wall to cut it through.",
+      ),
+    ).toBeVisible();
+
+    await page.reload();
+    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await expect(
+      details(page)
+        .getByRole("region", { name: "Living room" })
+        .getByRole("button", { name: "Living room north wall open" }),
+    ).toHaveAttribute("aria-pressed", "true");
+  });
+
   test("snaps a scrubbed width to a neighbouring room's shared wall", async ({
     page,
   }) => {
