@@ -613,7 +613,14 @@ function distanceFromWall(
   return Math.abs(metersBeyondWall(part, wall, point));
 }
 
-/** A wall sample is exterior when another part does not continue through it. */
+/**
+ * Whether a wall sample has a wall to cut through.
+ *
+ * It does unless another section of the same room continues past it, which
+ * makes the sample a seam with nothing standing there — and a side marked
+ * dividing keeps its wall through that, which is the whole point of marking
+ * it, so a door can be hung on it.
+ */
 function wallPointIsExterior(
   room: Room,
   partId: string,
@@ -623,6 +630,9 @@ function wallPointIsExterior(
   const part = roomPart(room, partId);
   if (part === undefined) {
     return false;
+  }
+  if (part.dividingWalls?.includes(wall) === true) {
+    return true;
   }
   const epsilon = 0.000001;
   const floorPoint = pointOnRoomPart(

@@ -1113,17 +1113,21 @@ test.describe("laying the apartment out", () => {
     ).toContainText("4.5 in walls");
   });
 
-  test("opens a wall into a railing that refuses a door", async ({ page }) => {
+  test("cycles a wall into a railing that refuses a door, then into a divider", async ({
+    page,
+  }) => {
     await openWithLivingRoom(page);
     await contents(page).getByRole("button", { name: "Living room" }).click();
 
+    // One control, three states, and the state is in the name — three of them
+    // cannot be a pressed toggle.
     const room = details(page).getByRole("region", { name: "Living room" });
     await room
-      .getByRole("button", { name: "Living room north wall open" })
+      .getByRole("button", { name: "Living room north wall, walled" })
       .click();
     await expect(
-      room.getByRole("button", { name: "Living room north wall open" }),
-    ).toHaveAttribute("aria-pressed", "true");
+      room.getByRole("button", { name: "Living room north wall, open" }),
+    ).toBeVisible();
 
     // The default window sits on the north wall, which is now a railing, and
     // its own inspector says exactly what went wrong.
@@ -1136,11 +1140,27 @@ test.describe("laying the apartment out", () => {
 
     await page.reload();
     await contents(page).getByRole("button", { name: "Living room" }).click();
+    const reopened = details(page).getByRole("region", { name: "Living room" });
+    await expect(
+      reopened.getByRole("button", { name: "Living room north wall, open" }),
+    ).toBeVisible();
+
+    // Once more round: a wall kept even where the room's own floor carries on.
+    await reopened
+      .getByRole("button", { name: "Living room north wall, open" })
+      .click();
+    await expect(
+      reopened.getByRole("button", {
+        name: "Living room north wall, dividing",
+      }),
+    ).toBeVisible();
+    await page.reload();
+    await contents(page).getByRole("button", { name: "Living room" }).click();
     await expect(
       details(page)
         .getByRole("region", { name: "Living room" })
-        .getByRole("button", { name: "Living room north wall open" }),
-    ).toHaveAttribute("aria-pressed", "true");
+        .getByRole("button", { name: "Living room north wall, dividing" }),
+    ).toBeVisible();
   });
 
   test("snaps a scrubbed width to a neighbouring room's shared wall", async ({
