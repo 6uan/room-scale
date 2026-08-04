@@ -289,6 +289,47 @@ describe("drawnRoom", () => {
     );
   });
 
+  it("lands each corner on a whole unit when given a rounding", () => {
+    // Raw pointer coordinates, as a drag actually produces them.
+    const room = drawnRoom(
+      FLOOR,
+      "room-3",
+      "Study",
+      { xMeters: 20.004_7, zMeters: 20.008_1 },
+      { xMeters: 23.213_9, zMeters: 22.191_2 },
+      (meters) => Math.round(meters * 100) / 100,
+    );
+
+    expect(part(room).origin.xMeters).toBeCloseTo(20, 10);
+    expect(part(room).origin.zMeters).toBeCloseTo(20.01, 10);
+    expect(part(room).widthMeters).toBeCloseTo(3.21, 10);
+    expect(part(room).depthMeters).toBeCloseTo(2.18, 10);
+  });
+
+  it("keeps the pointer's own precision when given no rounding", () => {
+    const room = drawn([20.004_7, 20], [23.213_9, 22]);
+
+    expect(part(room).origin.xMeters).toBeCloseTo(20.004_7, 10);
+    expect(part(room).widthMeters).toBeCloseTo(3.209_2, 10);
+  });
+
+  it("lets a shared wall beat a round number", () => {
+    // FIRST's far face is at 4 and a wall thickness past it is 4.1, which is
+    // not a whole 10 cm step away from the 4.06 the pointer gave. Rounding
+    // happens first so the snap still has something to catch, and sharing a
+    // wall is worth more than a tidy number.
+    const room = drawnRoom(
+      FLOOR,
+      "room-3",
+      "Study",
+      { xMeters: 4.06, zMeters: 0 },
+      { xMeters: 7, zMeters: 3 },
+      (meters) => Math.round(meters * 10) / 10,
+    );
+
+    expect(part(room).origin.xMeters).toBeCloseTo(4.1, 10);
+  });
+
   it("shares a wall when a corner is dragged up against a neighbour", () => {
     // FIRST's far face is at 4; a wall thickness past it is 4.1.
     const room = drawn([4.06, 0], [7, 3]);

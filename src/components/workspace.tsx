@@ -57,6 +57,7 @@ import {
   type Room,
   type WallSide,
 } from "@/domain/room";
+import { roundToDisplayUnit } from "@/domain/units";
 import { checkLayout, troubledInstanceIds } from "@/domain/validation";
 import { useProjectStore } from "@/state/project-store";
 
@@ -211,10 +212,16 @@ export function Workspace() {
     );
     const name = `Room ${floor.rooms.length + 1}`;
 
+    // Both paths land on whole inches or centimeters, so a room begins life
+    // with the kind of numbers somebody could have typed.
+    const round = (meters: number) => roundToDisplayUnit(meters, unit);
     const room =
       to === null
-        ? centredRoom(createRoom(id, name, from), from)
-        : drawnRoom(floor, id, name, from, to);
+        ? centredRoom(createRoom(id, name, from), {
+            xMeters: round(from.xMeters),
+            zMeters: round(from.zMeters),
+          })
+        : drawnRoom(floor, id, name, from, to, round);
 
     setFloor(withRooms(floor, [...floor.rooms, room]));
     setSelection({ kind: "room", id });
