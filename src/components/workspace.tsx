@@ -1,12 +1,16 @@
 "use client";
 
 import { Keyboard, ReceiptText, Redo2, Settings, Undo2 } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ApartmentLayers } from "@/components/apartment-layers";
-import { ButtonGroup, IconButton } from "@/components/icon-button";
+import {
+  ButtonGroup,
+  IconButton,
+  LabelledButton,
+} from "@/components/icon-button";
 import { CataloguePanel } from "@/components/catalogue-panel";
 import { Inspector } from "@/components/inspector";
+import { ListDrawer } from "@/components/list-drawer";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { LayoutProblems } from "@/components/layout-problems";
 import { LayoutSwitcher } from "@/components/layout-switcher";
@@ -91,6 +95,7 @@ export function Workspace() {
   const [productProblem, setProductProblem] = useState<string | null>(null);
   const [guideOpen, setGuideOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [listOpen, setListOpen] = useState(false);
   /** Whether a drag on the plan draws a room. One room, then off again. */
   const [drawingRoom, setDrawingRoom] = useState(false);
   /** The kind and room whose next wall click places one opening. */
@@ -487,15 +492,15 @@ export function Workspace() {
             pressed={settingsOpen}
             onClick={() => setSettingsOpen(true)}
           />
-          {/* The list is the thing you leave with, so it keeps its words. */}
-          <Link
-            href="/overview"
-            title="Overview and prices"
-            className="inline-flex items-center gap-1.5 rounded-md border border-black/12 px-2.5 py-1.5 text-xs font-medium hover:bg-black/[0.06] dark:border-white/18 dark:hover:bg-white/10"
-          >
-            <ReceiptText aria-hidden="true" className="size-3.5" />
-            Overview and prices
-          </Link>
+          {/* The list is the thing you leave with, so it keeps its words. It
+              opens over the plan now rather than replacing it, and says which
+              it is doing with aria-pressed rather than by rewording itself. */}
+          <LabelledButton
+            label="Overview and prices"
+            icon={ReceiptText}
+            pressed={listOpen}
+            onClick={() => setListOpen((open) => !open)}
+          />
         </div>
       </header>
 
@@ -663,6 +668,8 @@ export function Workspace() {
           onClose={() => setSettingsOpen(false)}
         />
       ) : null}
+
+      {listOpen ? <ListDrawer onClose={() => setListOpen(false)} /> : null}
     </div>
   );
 }
