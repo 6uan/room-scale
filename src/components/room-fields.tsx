@@ -79,6 +79,24 @@ export function RoomFields({
   onRemoveOpening,
 }: RoomFieldsProps) {
   const compound = room.parts.length > 1;
+  const roomName = room.name === "" ? "Room" : room.name;
+
+  /**
+   * The section the panel is describing: the selected one, or the first.
+   *
+   * Falling back to the first means there is no state where the footprint has
+   * nothing to show — selecting the room rather than a section still puts a
+   * rectangle's measurements in front of you, which is what somebody who just
+   * clicked a room wanted to read.
+   */
+  const selectedIndex = room.parts.findIndex(
+    (part) => part.id === selectedPartId,
+  );
+  const shownIndex = selectedIndex === -1 ? 0 : selectedIndex;
+  const shown = room.parts[shownIndex];
+  const shownLabel = compound
+    ? `${roomName} section ${shownIndex + 1}`
+    : roomName;
 
   function addPart(): void {
     const base = room.parts.at(-1);
@@ -128,27 +146,88 @@ export function RoomFields({
     }
   }
 
+  // A room is built from at least one rectangle everywhere else in the domain
+  // — `primaryRoomPart` throws rather than return nothing, and `isValidRoom`
+  // will not call a room without one valid. Nothing to draw is all this can
+  // honestly say about a room that got there anyway.
+  if (shown === undefined) {
+    return null;
+  }
+
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-4">
-        <span className="text-sm font-medium">
-          {compound ? "Room sections" : "Footprint"}
-        </span>
-        {room.parts.map((part, index) => (
-          <RoomPartFields
-            key={part.id}
-            room={room}
-            floor={floor}
-            part={part}
-            index={index}
-            unit={unit}
-            onChange={onChange}
-            onGestureEnd={onGestureEnd}
-            onRemove={() => removePart(part)}
-            selected={part.id === selectedPartId}
-            onSelect={() => onSelectPart?.(part.id)}
-          />
-        ))}
+        {/*
+          One heading, whatever the room is made of.
+
+          It used to rename itself "Room sections" the moment a second
+          rectangle appeared, which told a reader their footprint had turned
+          into something else. It had not: a room has always been a union of
+          rectangles, and one of them is the ordinary case rather than a
+          different feature.
+        */}
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm font-medium">Footprint</span>
+          {compound ? (
+            <IconButton
+              label={`Remove ${shownLabel}`}
+              icon={Trash2}
+              size="small"
+              tone="danger"
+              onClick={() => removePart(shown)}
+            />
+          ) : null}
+        </div>
+
+        {/*
+          One section's fields at a time, and a row to pick which.
+
+          Every section used to be on screen at once, each in its own bordered
+          card under its own "Section 1" heading — so adding a second rectangle
+          doubled the panel, and adding a third trebled it. Which rectangle a
+          number belongs to is a thing the plan says better than a heading
+          does: the selected one is drawn selected, right beside these fields.
+
+          The numbers here are positions in a row rather than names. They stay
+          in the accessible labels, where a screen reader needs to tell two
+          sections apart, and stay out of the fields below, where the panel
+          only ever describes one.
+        */}
+        {compound ? (
+          <div
+            role="group"
+            aria-label="Sections"
+            className="flex flex-wrap gap-1"
+          >
+            {room.parts.map((part, index) => (
+              <button
+                key={part.id}
+                type="button"
+                aria-pressed={part.id === shown.id}
+                aria-label={`Select ${roomName} section ${index + 1}`}
+                onClick={() => onSelectPart?.(part.id)}
+                className={`h-7 min-w-7 rounded-md px-2 text-xs font-medium tabular-nums transition-colors ${
+                  part.id === shown.id
+                    ? "bg-black/12 dark:bg-white/20"
+                    : "bg-black/[0.05] opacity-70 hover:opacity-100 dark:bg-white/[0.08]"
+                }`}
+              >
+                {index + 1}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        <RoomPartFields
+          key={shown.id}
+          room={room}
+          floor={floor}
+          part={shown}
+          index={shownIndex}
+          unit={unit}
+          onChange={onChange}
+          onGestureEnd={onGestureEnd}
+        />
 
         {/*
           Named in words rather than worn as a `+`.
@@ -300,6 +379,7 @@ function WallThicknessFields({
   );
 }
 
+/** One section's measurements. Which section it is, the panel above says. */
 function RoomPartFields({
   floor,
   room,
@@ -308,9 +388,6 @@ function RoomPartFields({
   unit,
   onChange,
   onGestureEnd,
-  onRemove,
-  selected,
-  onSelect,
 }: {
   floor: Floor;
   room: Room;
@@ -319,9 +396,6 @@ function RoomPartFields({
   unit: DisplayUnit;
   onChange: (room: Room, gesture?: string) => void;
   onGestureEnd: () => void;
-  onRemove: () => void;
-  selected: boolean;
-  onSelect: () => void;
 }) {
   const roomName = room.name === "" ? "Room" : room.name;
   const compound = room.parts.length > 1;
@@ -531,40 +605,7 @@ function RoomPartFields({
     </>
   );
 
-  if (!compound) {
-    return <div className="flex flex-col gap-3">{fields}</div>;
-  }
-
-  return (
-    <fieldset
-      className={`flex flex-col gap-3 rounded-md border p-3 ${
-        selected
-          ? "border-black/35 bg-black/5 dark:border-white/40 dark:bg-white/10"
-          : "border-black/10 dark:border-white/15"
-      }`}
-    >
-      <legend className="sr-only">Section {index + 1}</legend>
-      <div className="flex items-center justify-between">
-        <button
-          type="button"
-          aria-label={`Select ${label}`}
-          aria-pressed={selected}
-          onClick={onSelect}
-          className="rounded px-1 py-0.5 text-xs font-medium hover:bg-black/5 dark:hover:bg-white/10"
-        >
-          Section {index + 1}
-        </button>
-        <IconButton
-          label={`Remove ${label}`}
-          icon={Trash2}
-          size="small"
-          tone="danger"
-          onClick={onRemove}
-        />
-      </div>
-      {fields}
-    </fieldset>
-  );
+  return <div className="flex flex-col gap-3">{fields}</div>;
 }
 
 function nextPartId(room: Room): string {

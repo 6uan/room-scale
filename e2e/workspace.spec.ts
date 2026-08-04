@@ -802,6 +802,12 @@ test.describe("laying the apartment out", () => {
     expect(
       Number(await room.getByLabel("Living room section 2 width").inputValue()),
     ).toBeGreaterThan(partTwoWidth);
+
+    // Section 1 is untouched, which is read by switching to it: the panel
+    // describes the selected section rather than every section at once.
+    await room
+      .getByRole("button", { name: "Select Living room section 1" })
+      .click();
     await expect(room.getByLabel("Living room section 1 width")).toHaveValue(
       "168",
     );
@@ -844,6 +850,13 @@ test.describe("laying the apartment out", () => {
     await expect(
       room.getByRole("spinbutton", { name: "Living room section 2 angle" }),
     ).toHaveValue("45");
+
+    // The panel describes one section at a time, so reading the neighbour
+    // means switching to it — which is the point of the check: switching back
+    // has to find section 1 exactly as it was left.
+    await room
+      .getByRole("button", { name: "Select Living room section 1" })
+      .click();
     await expect(
       room.getByRole("spinbutton", { name: "Living room section 1 angle" }),
     ).toHaveValue("0");
