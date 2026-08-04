@@ -4,6 +4,7 @@ import {
   DEFAULT_FLOOR,
   SNAP_METERS,
   drawnRoom,
+  drawnSection,
   snapRoomEdge,
   snapRoomOrigin,
   snapRoomPartOrigin,
@@ -431,5 +432,75 @@ describe("snapping when the two rooms disagree about the wall between them", () 
     // A rectangle being dragged out is not a room yet, so it has nothing of
     // its own to declare — but its neighbour still does, and the fatter wins.
     expect(snapRoomEdge(MIXED, "x", 4.28)).toBeCloseTo(4.3, 10);
+  });
+});
+
+describe("drawnSection", () => {
+  const drawn = (from: [number, number], to: [number, number], room = FIRST) =>
+    drawnSection(
+      FLOOR,
+      room,
+      "room-1-part-2",
+      { xMeters: from[0], zMeters: from[1] },
+      { xMeters: to[0], zMeters: to[1] },
+    );
+
+  it("takes its size and place from the two corners", () => {
+    const part = drawn([6, 6], [8, 7.5]);
+
+    expect(part.id).toBe("room-1-part-2");
+    expect(part.origin.xMeters).toBeCloseTo(6, 10);
+    expect(part.origin.zMeters).toBeCloseTo(6, 10);
+    expect(part.widthMeters).toBeCloseTo(2, 10);
+    expect(part.depthMeters).toBeCloseTo(1.5, 10);
+    expect(part.rotationRadians).toBe(0);
+    expect(part.openWalls).toEqual([]);
+  });
+
+  it("meets its own room's other rectangles directly, with no wall between", () => {
+    // FIRST's part runs to x=4. A section drawn near that face lands on it
+    // exactly: no wall stands at a seam inside one room.
+    const part = drawn([4.03, 0], [6, 2]);
+
+    expect(part.origin.xMeters).toBeCloseTo(4, 10);
+  });
+
+  it("stops a partition short of another room", () => {
+    // SECOND runs from x=9. A section drawn near its west face stops a wall
+    // thickness before it, exactly as a room would.
+    const part = drawn([6, 9.5], [8.93, 10.5]);
+
+    expect(part.origin.xMeters + part.widthMeters).toBeCloseTo(9 - 0.1, 10);
+  });
+
+  it("sorts the corners, so it does not matter which way the drag ran", () => {
+    const forwards = drawn([6, 6], [8, 7.5]);
+    const backwards = drawn([8, 7.5], [6, 6]);
+
+    expect(backwards.origin).toEqual(forwards.origin);
+    expect(backwards.widthMeters).toBeCloseTo(forwards.widthMeters, 10);
+    expect(backwards.depthMeters).toBeCloseTo(forwards.depthMeters, 10);
+  });
+
+  it("holds a flick of the wrist to the smallest a rectangle may be", () => {
+    const part = drawn([6, 6], [6.001, 6.001]);
+    const smallest = ROOM_LENGTH_LIMITS.widthMeters.minMeters;
+
+    expect(part.widthMeters).toBeCloseTo(smallest, 10);
+    expect(part.depthMeters).toBeCloseTo(smallest, 10);
+  });
+
+  it("lands on a whole unit when given a rounding", () => {
+    const part = drawnSection(
+      FLOOR,
+      FIRST,
+      "room-1-part-2",
+      { xMeters: 6.004_7, zMeters: 6.008_1 },
+      { xMeters: 8.213_9, zMeters: 7.191_2 },
+      (meters) => Math.round(meters * 100) / 100,
+    );
+
+    expect(part.origin.xMeters).toBeCloseTo(6, 10);
+    expect(part.widthMeters).toBeCloseTo(2.21, 10);
   });
 });

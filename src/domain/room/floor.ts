@@ -464,6 +464,53 @@ export function snapRoomPartOrigin(
   };
 }
 
+/**
+ * A new rectangle of `room`, as dragged out on the plan.
+ *
+ * The same gesture as `drawnRoom` with a different set of things to meet: a
+ * section lands flush against its own room's other rectangles, because no wall
+ * stands at a seam, and a partition's width away from anybody else's. That is
+ * the rule `snapRoomPartResize` already resizes one by.
+ *
+ * **Which of the two a drag meant is never inferred from where it landed.**
+ * The section tool is armed or it is not. Rooms that share a wall sit one
+ * partition apart and rooms drawn flush inside a space sit at zero — a few
+ * inches of pointer travel between them — so reading the intent off the
+ * geometry would settle "another room or another rectangle of this one" by
+ * accident, and settle it differently for the same drag twice.
+ */
+export function drawnSection(
+  floor: Floor,
+  room: Room,
+  id: string,
+  from: FloorPoint,
+  to: FloorPoint,
+  roundMeters: (meters: number) => number = (meters) => meters,
+): RoomPart {
+  const snap = (axis: "x" | "z", value: number) =>
+    snapPartEdge(floor, room, id, axis, roundMeters(value));
+
+  const xs = [snap("x", from.xMeters), snap("x", to.xMeters)].sort(
+    (a, b) => a - b,
+  );
+  const zs = [snap("z", from.zMeters), snap("z", to.zMeters)].sort(
+    (a, b) => a - b,
+  );
+
+  const west = xs[0] ?? 0;
+  const north = zs[0] ?? 0;
+  const minimum = ROOM_LENGTH_LIMITS.widthMeters.minMeters;
+
+  return {
+    id,
+    origin: { xMeters: west, zMeters: north },
+    widthMeters: Math.max(minimum, (xs[1] ?? 0) - west),
+    depthMeters: Math.max(minimum, (zs[1] ?? 0) - north),
+    rotationRadians: 0,
+    openWalls: [],
+  };
+}
+
 function snapPartEdge(
   floor: Floor,
   mine: Room,

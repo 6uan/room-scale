@@ -46,10 +46,13 @@ import {
   createOpening,
   createRoom,
   drawnRoom,
+  drawnSection,
+  nextPartId,
   floorBounds,
   roomBounds,
   withOrigin,
   withOpenings,
+  withParts,
   withRoom,
   withRooms,
   type Opening,
@@ -57,9 +60,18 @@ import {
   type Room,
   type WallSide,
 } from "@/domain/room";
-import { roundToDisplayUnit } from "@/domain/units";
+import { metersFromInches, roundToDisplayUnit } from "@/domain/units";
 import { checkLayout, troubledInstanceIds } from "@/domain/validation";
 import { useProjectStore } from "@/state/project-store";
+
+/**
+ * How big a section is when the tool was pressed rather than dragged.
+ *
+ * Four feet square. Big enough to see and grab on the plan, small enough that
+ * it is obviously a starting point rather than an answer — the same bargain
+ * `createRoom` makes for a room dropped without a drag.
+ */
+const DEFAULT_SECTION_METERS = metersFromInches(48);
 
 /**
  * The workspace: what is in the apartment, the plan, and whatever is selected.
@@ -100,6 +112,16 @@ export function Workspace() {
   const [listOpen, setListOpen] = useState(false);
   /** Whether a drag on the plan draws a room. One room, then off again. */
   const [drawingRoom, setDrawingRoom] = useState(false);
+  /**
+   * The room whose next drag draws another of its rectangles, or null.
+   *
+   * A mode rather than something worked out from where the rectangle landed.
+   * Rooms that share a wall sit one partition apart and a rectangle drawn
+   * flush inside a space sits at zero — inches between them — so guessing
+   * "another room or another rectangle of this one" from the geometry would
+   * answer a structural question by pointer accident.
+   */
+  const [drawingSectionOf, setDrawingSectionOf] = useState<string | null>(null);
   /** The kind and room whose next wall click places one opening. */
   const [placingOpening, setPlacingOpening] = useState<{
     readonly roomId: string;
@@ -163,15 +185,6 @@ export function Workspace() {
     setSelection(null);
   }
 
-  /**
-   * Adds a room drawn on the plan.
-   *
-   * `to` is null when the press was a click rather than a drag, which means "a
-   * room here, the usual size" — centred on the point, so it arrives under the
-   * pointer rather than at a corner of it. The canvas can tell a click from a
-   * drag because it knows pixels; it has no business knowing how big a room
-   * usually is, which is why the choice is made here.
-   */
   /** Reads the listing's plan, drops it under the grid, and asks for scale. */
   async function addPlanImage(file: File): Promise<void> {
     const image = await readPlanImage(file);
@@ -205,16 +218,37 @@ export function Workspace() {
     setCalibrationLine(null);
   }
 
-  function drawRoom(from: FloorPoint, to: FloorPoint | null): void {
+  /**
+   * A drag on the plan, given to whichever draw tool is armed.
+   *
+   * `to` is null when the press was a click rather than a drag, which means
+   * "one here, the usual size" — centred on the point, so it arrives under the
+   * pointer rather than at a corner of it. The canvas can tell a click from a
+   * drag because it knows pixels; it has no business knowing how big a room
+   * usually is, which is why the choice is made here.
+   *
+   * Which tool is armed decides what gets drawn. Nothing about the rectangle
+   * itself is consulted: see `drawingSectionOf`.
+   */
+  function drawOnPlan(from: FloorPoint, to: FloorPoint | null): void {
+    // Both paths land on whole inches or centimeters, so what is drawn begins
+    // life with the kind of numbers somebody could have typed.
+    const round = (meters: number) => roundToDisplayUnit(meters, unit);
+    const host =
+      drawingSectionOf === null
+        ? undefined
+        : floor.rooms.find((one) => one.id === drawingSectionOf);
+
+    if (host !== undefined) {
+      drawSection(host, from, to, round);
+      return;
+    }
+
     const id = nextId(
       "room",
       floor.rooms.map((one) => one.id),
     );
     const name = `Room ${floor.rooms.length + 1}`;
-
-    // Both paths land on whole inches or centimeters, so a room begins life
-    // with the kind of numbers somebody could have typed.
-    const round = (meters: number) => roundToDisplayUnit(meters, unit);
     const room =
       to === null
         ? centredRoom(createRoom(id, name, from), {
@@ -225,6 +259,32 @@ export function Workspace() {
 
     setFloor(withRooms(floor, [...floor.rooms, room]));
     setSelection({ kind: "room", id });
+  }
+
+  /**
+   * Another rectangle of `host`, where it was drawn.
+   *
+   * A press without a drag still adds one, centred where the pointer went
+   * down, so the tool behaves the way the room tool does rather than swallowing
+   * a click and looking broken.
+   */
+  function drawSection(
+    host: Room,
+    from: FloorPoint,
+    to: FloorPoint | null,
+    round: (meters: number) => number,
+  ): void {
+    const id = nextPartId(host);
+    const corner =
+      to ??
+      ({
+        xMeters: from.xMeters + DEFAULT_SECTION_METERS,
+        zMeters: from.zMeters + DEFAULT_SECTION_METERS,
+      } satisfies FloorPoint);
+    const part = drawnSection(floor, host, id, from, corner, round);
+
+    setFloor(withRoom(floor, withParts(host, [...host.parts, part])));
+    setSelection({ kind: "room-part", roomId: host.id, id });
   }
 
   function removeRoom(room: Room): void {
@@ -414,11 +474,15 @@ export function Workspace() {
       // wherever they are. The plan handles it too, but pressing "Add room"
       // leaves focus on the button rather than on the plan.
       if (
-        (drawingRoom || placingOpening !== null || calibrating) &&
+        (drawingRoom ||
+          drawingSectionOf !== null ||
+          placingOpening !== null ||
+          calibrating) &&
         pressIs("deselect", event)
       ) {
         event.preventDefault();
         setDrawingRoom(false);
+        setDrawingSectionOf(null);
         setPlacingOpening(null);
         setCalibrating(false);
       } else if (pressIs("undo", event)) {
@@ -530,6 +594,7 @@ export function Workspace() {
             onRoomChange={(room) => setFloor(withRoom(floor, room))}
             onAddRoom={() => {
               setPlacingOpening(null);
+              setDrawingSectionOf(null);
               setDrawingRoom((on) => !on);
             }}
             drawingRoom={drawingRoom}
@@ -582,9 +647,12 @@ export function Workspace() {
                 setFloor(withRoom(floor, room), gesture)
               }
               onGestureEnd={endGesture}
-              drawing={drawingRoom}
-              onDrawRoom={drawRoom}
-              onDrawEnd={() => setDrawingRoom(false)}
+              drawing={drawingRoom || drawingSectionOf !== null}
+              onDrawRoom={drawOnPlan}
+              onDrawEnd={() => {
+                setDrawingRoom(false);
+                setDrawingSectionOf(null);
+              }}
               placingOpening={placingOpening}
               onPlaceOpening={placeOpening}
               onPlaceOpeningEnd={() => setPlacingOpening(null)}
@@ -668,6 +736,12 @@ export function Workspace() {
             }
             onGestureEnd={endGesture}
             onRoomRemove={removeRoom}
+            drawingSectionOf={drawingSectionOf}
+            onDrawSection={(room) => {
+              setPlacingOpening(null);
+              setDrawingRoom(false);
+              setDrawingSectionOf((on) => (on === room.id ? null : room.id));
+            }}
             onAddOpening={startOpeningPlacement}
             placingOpening={placingOpening}
             onOpeningChange={changeOpening}
