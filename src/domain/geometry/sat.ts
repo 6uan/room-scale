@@ -19,6 +19,7 @@
  * somebody, because it is the size of the problem they have to fix.
  */
 
+import { convexPolygonAxes, type FloorAxis } from "./convex-polygon";
 import { orientedRectCorners, type OrientedRect } from "./oriented-rect";
 import type { FloorPoint } from "./plan-projection";
 
@@ -32,34 +33,38 @@ import type { FloorPoint } from "./plan-projection";
  */
 export const CONTACT_TOLERANCE_METERS = 0.001;
 
-/** A direction on the floor plane. Unit length, so projections are distances. */
-type Axis = { readonly x: number; readonly z: number };
-
 /** The shadow a shape casts on an axis. */
 type Shadow = { readonly min: number; readonly max: number };
 
 export type RectOverlap = {
-  /** The least distance one rectangle must move to clear the other. */
+  /** The least distance one shape must move to clear the other. */
   readonly depthMeters: number;
 };
 
 /**
- * The overlap between two rectangles, or null when they are apart.
+ * The overlap between two convex polygons, or null when they are apart.
  *
  * Touching is apart: a zero-width contact is two things next to each other.
+ *
+ * A shape offering no axes — fewer than two distinct points — cannot be shown
+ * to overlap anything, so it reads as apart rather than as touching
+ * everything. That is the safe way round for a shape being dragged through a
+ * degenerate state.
  */
-export function orientedRectOverlap(
-  a: OrientedRect,
-  b: OrientedRect,
+export function convexPolygonOverlap(
+  a: readonly FloorPoint[],
+  b: readonly FloorPoint[],
 ): RectOverlap | null {
-  const cornersA = orientedRectCorners(a);
-  const cornersB = orientedRectCorners(b);
+  const axes = [...convexPolygonAxes(a), ...convexPolygonAxes(b)];
+  if (axes.length === 0) {
+    return null;
+  }
 
   let depthMeters = Number.POSITIVE_INFINITY;
 
-  for (const axis of [...rectAxes(a), ...rectAxes(b)]) {
-    const shadowA = shadowOn(cornersA, axis);
-    const shadowB = shadowOn(cornersB, axis);
+  for (const axis of axes) {
+    const shadowA = shadowOn(a, axis);
+    const shadowB = shadowOn(b, axis);
     const overlap =
       Math.min(shadowA.max, shadowB.max) - Math.max(shadowA.min, shadowB.min);
 
@@ -74,20 +79,21 @@ export function orientedRectOverlap(
 }
 
 /**
- * The two axes a rectangle can be separated along: its own width and depth
- * directions. The opposite edges are parallel, so the other two add nothing.
+ * The overlap between two rectangles, or null when they are apart.
+ *
+ * A rectangle is a convex polygon, so this is the general test on its corners.
+ * It tries four edge normals where two would do, and gets the same answer:
+ * opposite edges are parallel, and negating an axis mirrors both shadows onto
+ * it, which leaves the overlap between them exactly as it was.
  */
-function rectAxes(rect: OrientedRect): readonly [Axis, Axis] {
-  const cos = Math.cos(rect.rotationRadians);
-  const sin = Math.sin(rect.rotationRadians);
-  // The local X and Z axes, turned the same way the rectangle is.
-  return [
-    { x: cos, z: sin },
-    { x: -sin, z: cos },
-  ];
+export function orientedRectOverlap(
+  a: OrientedRect,
+  b: OrientedRect,
+): RectOverlap | null {
+  return convexPolygonOverlap(orientedRectCorners(a), orientedRectCorners(b));
 }
 
-function shadowOn(corners: readonly FloorPoint[], axis: Axis): Shadow {
+function shadowOn(corners: readonly FloorPoint[], axis: FloorAxis): Shadow {
   let min = Number.POSITIVE_INFINITY;
   let max = Number.NEGATIVE_INFINITY;
 
