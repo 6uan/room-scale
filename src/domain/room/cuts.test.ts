@@ -12,12 +12,14 @@ import {
 } from "./openings";
 import {
   checkRoomPartCuts,
+  cutFromHandlePoint,
   cutLegLimits,
   isValidRoom,
   partWallLengthMeters,
   primaryRoomPart,
   roomFloorAreaSquareMeters,
   roomPartContains,
+  roomPartCutHandles,
   roomPartPolygon,
   withParts,
   withOpenings,
@@ -326,5 +328,88 @@ describe("editing a corner", () => {
     expect(roomFloorAreaSquareMeters(LIVING_ROOM)).toBe(
       turnedUnionArea(LIVING_ROOM.parts),
     );
+  });
+});
+
+describe("dragging a clipped corner", () => {
+  it("offers a grab in the middle of the chamfer, and nowhere else", () => {
+    expect(roomPartCutHandles(SQUARE)).toEqual([]);
+    expect(roomPartCutHandles(CLIPPED)).toEqual([
+      { corner: "north-west", at: { xMeters: 0.5, zMeters: 0.5 } },
+    ]);
+  });
+
+  it("comes back to the same cut when nothing is moved", () => {
+    const [handle] = roomPartCutHandles(CLIPPED);
+
+    expect(cutFromHandlePoint(CLIPPED, "north-west", handle!.at)).toEqual({
+      widthMeters: 1,
+      depthMeters: 1,
+    });
+  });
+
+  it("moves both legs at once, each following its own axis", () => {
+    // Pulled toward the corner: a smaller chamfer, both ways.
+    expect(
+      cutFromHandlePoint(CLIPPED, "north-west", {
+        xMeters: 0.25,
+        zMeters: 0.25,
+      }),
+    ).toEqual({ widthMeters: 0.5, depthMeters: 0.5 });
+
+    // Pulled east: a long shallow chamfer, which is the point of two legs.
+    expect(
+      cutFromHandlePoint(CLIPPED, "north-west", {
+        xMeters: 1,
+        zMeters: 0.25,
+      }),
+    ).toEqual({ widthMeters: 2, depthMeters: 0.5 });
+  });
+
+  it("measures every corner from its own end of the section", () => {
+    const southEast: RoomPart = {
+      ...SQUARE,
+      cuts: { "south-east": { widthMeters: 1, depthMeters: 1 } },
+    };
+    const [handle] = roomPartCutHandles(southEast);
+
+    expect(handle?.at).toEqual({ xMeters: 3.5, zMeters: 2.5 });
+    expect(cutFromHandlePoint(southEast, "south-east", handle!.at)).toEqual({
+      widthMeters: 1,
+      depthMeters: 1,
+    });
+  });
+
+  it("cannot be dragged past what the section has to give", () => {
+    const dragged = cutFromHandlePoint(CLIPPED, "north-west", {
+      xMeters: 40,
+      zMeters: 40,
+    });
+
+    expect(dragged.widthMeters).toBe(4);
+    expect(dragged.depthMeters).toBe(3);
+    expect(
+      checkRoomPartCuts({ ...SQUARE, cuts: { "north-west": dragged } }),
+    ).toBeNull();
+  });
+
+  it("follows the section's own frame when it is turned", () => {
+    const turned = { ...CLIPPED, rotationRadians: Math.PI / 3 };
+    const [handle] = roomPartCutHandles(turned);
+    const back = cutFromHandlePoint(turned, "north-west", handle!.at);
+
+    expect(back.widthMeters).toBeCloseTo(1, 12);
+    expect(back.depthMeters).toBeCloseTo(1, 12);
+  });
+
+  it("lands on a number somebody would type when one is asked for", () => {
+    const dragged = cutFromHandlePoint(
+      CLIPPED,
+      "north-west",
+      { xMeters: 0.437, zMeters: 0.261 },
+      (meters) => Math.round(meters * 100) / 100,
+    );
+
+    expect(dragged).toEqual({ widthMeters: 0.87, depthMeters: 0.52 });
   });
 });
