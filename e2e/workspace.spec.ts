@@ -5,13 +5,13 @@ import {
 } from "./fixtures/living-room";
 
 /**
- * The shell thickness the plan pads its fitted view by, in inches.
+ * The wall thickness the plan pads its fitted view by, in inches.
  *
  * `fittedRect` frames the apartment plus its fattest wall all round, so every
- * pixel worked out below depends on this. It is the apartment's exterior
- * default — the partitions are thinner and never set the frame.
+ * pixel worked out below depends on this. There is one wall thickness now, so
+ * this is simply it — the seeded project's, which is what the fixture stores.
  */
-const SHELL_INCHES = 8;
+const WALL_INCHES = 4.5;
 
 function contents(page: Page) {
   return page.getByRole("complementary", { name: "Contents" });
@@ -635,8 +635,8 @@ test.describe("laying the apartment out", () => {
     const metres = (inches: number) => inches * 0.0254;
     const padding = 40;
     const scale = Math.min(
-      (box.width - padding * 2) / metres(168 + SHELL_INCHES * 2),
-      (box.height - padding * 2) / metres(144 + SHELL_INCHES * 2),
+      (box.width - padding * 2) / metres(168 + WALL_INCHES * 2),
+      (box.height - padding * 2) / metres(144 + WALL_INCHES * 2),
     );
     const middle = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
     // Clear of the existing centered north window: 36" from the west corner.
@@ -732,7 +732,7 @@ test.describe("laying the apartment out", () => {
     // rectangle is drawn inside it, so these bounds — and this projection —
     // hold before and after.
     const inches = (value: number) => value * 0.0254;
-    const wall = inches(SHELL_INCHES);
+    const wall = inches(WALL_INCHES);
     const bounds = { west: -84, north: -72, east: 84, south: 72 };
     const scale = Math.min(
       (box.width - 80) / (inches(bounds.east - bounds.west) + wall * 2),
@@ -899,7 +899,7 @@ test.describe("laying the apartment out", () => {
       throw new Error("the plan has no box to point at");
     }
     const inches = (value: number) => value * 0.0254;
-    const wall = inches(SHELL_INCHES);
+    const wall = inches(WALL_INCHES);
     const scale = Math.min(
       (box.width - 80) / (inches(168) + wall * 2),
       (box.height - 80) / (inches(144) + wall * 2),
@@ -1192,8 +1192,8 @@ test.describe("laying the apartment out", () => {
     // handle remains on the original one-room projection while Room 2 is moved.
     const metres = (inches: number) => inches * 0.0254;
     const padding = 40;
-    const across = metres(168 + SHELL_INCHES * 2);
-    const down = metres(144 + SHELL_INCHES * 2);
+    const across = metres(168 + WALL_INCHES * 2);
+    const down = metres(144 + WALL_INCHES * 2);
     const scale = Math.min(
       (box.width - padding * 2) / across,
       (box.height - padding * 2) / down,
@@ -1318,8 +1318,8 @@ test.describe("laying the apartment out", () => {
     // the same arithmetic createPlanProjection does.
     const metres = (inches: number) => inches * 0.0254;
     const padding = 40;
-    const across = metres(168) + metres(SHELL_INCHES) * 2;
-    const down = metres(144) + metres(SHELL_INCHES) * 2;
+    const across = metres(168) + metres(WALL_INCHES) * 2;
+    const down = metres(144) + metres(WALL_INCHES) * 2;
     const scale = Math.min(
       (box.width - padding * 2) / across,
       (box.height - padding * 2) / down,
@@ -1484,8 +1484,8 @@ test.describe("laying the apartment out", () => {
 
     const metres = (inches: number) => inches * 0.0254;
     const padding = 40;
-    const across = metres(168) + metres(SHELL_INCHES) * 2;
-    const down = metres(144) + metres(SHELL_INCHES) * 2;
+    const across = metres(168) + metres(WALL_INCHES) * 2;
+    const down = metres(144) + metres(WALL_INCHES) * 2;
     const scale = Math.min(
       (box.width - padding * 2) / across,
       (box.height - padding * 2) / down,
@@ -1571,8 +1571,8 @@ test.describe("laying the apartment out", () => {
     const metres = (inches: number) => inches * 0.0254;
     const padding = 40;
     const scale = Math.min(
-      (box.width - padding * 2) / (metres(168) + metres(SHELL_INCHES) * 2),
-      (box.height - padding * 2) / (metres(144) + metres(SHELL_INCHES) * 2),
+      (box.width - padding * 2) / (metres(168) + metres(WALL_INCHES) * 2),
+      (box.height - padding * 2) / (metres(144) + metres(WALL_INCHES) * 2),
     );
     const middle = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
     const cursor = () =>
