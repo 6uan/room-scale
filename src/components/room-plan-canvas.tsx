@@ -46,6 +46,7 @@ import {
   floorAreaSquareMeters,
   floorBounds,
   maxWallThicknessMeters,
+  cutFromHandlePoint,
   metersAlongOpeningWall,
   moveOpening,
   partWallFrame,
@@ -62,6 +63,7 @@ import {
   resizeRoomPartEdgeToPoint,
   roomPart,
   roomPartContains,
+  roomPartCutHandles,
   roomPartIsCut,
   roomPartLocalPolygon,
   roomPartPivotRect,
@@ -75,6 +77,7 @@ import {
   wallOutwardNormalOnFloor,
   wallStretches,
   withOrigin,
+  withRoomPartCut,
   withRoomPartOrigin,
   withRoomPartRotation,
   type Floor,
@@ -83,6 +86,7 @@ import {
   type OpeningJamb,
   type OpeningKind,
   type Room,
+  type PartCorner,
   type RoomEdge,
   type RoomPart,
   type WallFrame,
@@ -317,6 +321,14 @@ type Drag =
       readonly partId: string | null;
       /** One or two walls: an edge moves one, a corner moves both. */
       readonly edges: readonly RoomEdge[];
+    }
+  | {
+      /** Both legs of a clipped corner at once, following the chamfer. */
+      readonly kind: "part-cut";
+      readonly pointerId: number;
+      readonly roomId: string;
+      readonly partId: string;
+      readonly corner: PartCorner;
     }
   | {
       readonly kind: "part-rotate";
@@ -762,6 +774,15 @@ export function RoomPlanCanvas({
           startRotationRadians: part.rotationRadians,
         };
         setCursor("rotate");
+      } else if (grabbed.kind === "cut") {
+        dragRef.current = {
+          kind: "part-cut",
+          pointerId: event.pointerId,
+          roomId: grabbed.roomId,
+          partId: grabbed.partId,
+          corner: grabbed.corner,
+        };
+        setCursor("move");
       } else {
         dragRef.current = {
           kind: "resize",
@@ -895,9 +916,16 @@ export function RoomPlanCanvas({
       },
     );
     if (grabbed !== null) {
-      return grabbed.kind === "rotate"
-        ? "rotate"
-        : cursorForEdges(grabbed.edges);
+      switch (grabbed.kind) {
+        case "rotate":
+          return "rotate";
+        // A chamfer's grab moves both of its legs, in whichever direction the
+        // hand goes. There is no one axis to promise.
+        case "cut":
+          return "move";
+        case "resize":
+          return cursorForEdges(grabbed.edges);
+      }
     }
 
     const point = floorPointAt(canvas, event, projectionRef.current);
@@ -956,6 +984,29 @@ export function RoomPlanCanvas({
       onRoomChange?.(
         replaceOpening(found.room, next),
         `opening-${drag.kind === "opening-move" ? "move" : "resize"}:${drag.openingId}`,
+      );
+      return;
+    }
+
+    if (drag.kind === "part-cut") {
+      const room = floor.rooms.find((one) => one.id === drag.roomId);
+      const part = room?.parts.find((one) => one.id === drag.partId);
+      const point = floorPointAt(canvas, event, projectionRef.current);
+      if (room === undefined || part === undefined || point === null) {
+        return;
+      }
+      onRoomChange?.(
+        withRoomPartCut(
+          room,
+          drag.partId,
+          drag.corner,
+          // Rounded to the unit on screen, so a dragged chamfer lands on two
+          // numbers somebody would have typed.
+          cutFromHandlePoint(part, drag.corner, point, (meters) =>
+            roundToDisplayUnit(meters, unit),
+          ),
+        ),
+        `room-part-cut:${drag.partId}:${drag.corner}`,
       );
       return;
     }
@@ -1456,6 +1507,12 @@ type GrabbedHandle =
       readonly kind: "rotate";
       readonly roomId: string;
       readonly partId: string;
+    }
+  | {
+      readonly kind: "cut";
+      readonly roomId: string;
+      readonly partId: string;
+      readonly corner: PartCorner;
     };
 
 /**
@@ -1496,6 +1553,23 @@ function handleAt(
     Math.abs(rotate.y - at.y) <= HANDLE_GRAB_PIXELS
   ) {
     return { kind: "rotate", roomId: room.id, partId: part.id };
+  }
+
+  // Before the resize handles: a chamfer's grab sits near the corner handle it
+  // replaced the point of, and the more specific one should win.
+  for (const handle of roomPartCutHandles(part)) {
+    const point = projectPoint(projection, handle.at);
+    if (
+      Math.abs(point.x - at.x) <= HANDLE_GRAB_PIXELS &&
+      Math.abs(point.y - at.y) <= HANDLE_GRAB_PIXELS
+    ) {
+      return {
+        kind: "cut",
+        roomId: room.id,
+        partId: part.id,
+        corner: handle.corner,
+      };
+    }
   }
 
   for (const handle of roomPartHandles(part)) {
@@ -2078,25 +2152,23 @@ function drawRoomWalls(
           if (thickness <= 0) {
             continue;
           }
-          // A stretch reaching a corner grows into it by the thickness of
-          // the wall standing on the adjacent side, so corners close without
-          // anybody drawing them twice.
-          const intoStart =
-            stretch.startMeters <= 0.002
-              ? thicknessAt(...cornerNeighbour(part, wall, "from"))
-              : 0;
-          const intoEnd =
-            stretch.endMeters >= line.lengthMeters - 0.002
-              ? thicknessAt(...cornerNeighbour(part, wall, "to"))
-              : 0;
-          traceWallBand(
-            context,
+          // A stretch reaching a corner has its outer edge carried to where
+          // the neighbouring band's outer edge crosses it, so the two close
+          // into a mitre instead of each overshooting the other.
+          traceWallBand(context, pixelsPerMeter, {
             line,
-            stretch.startMeters - intoStart,
-            stretch.endMeters + intoEnd,
-            thickness,
-            pixelsPerMeter,
-          );
+            fromMeters: stretch.startMeters,
+            toMeters: stretch.endMeters,
+            thicknessMeters: thickness,
+            outerFrom:
+              stretch.startMeters <= 0.002
+                ? miterCorner(part, wall, "from", thickness, thicknessAt)
+                : null,
+            outerTo:
+              stretch.endMeters >= line.lengthMeters - 0.002
+                ? miterCorner(part, wall, "to", thickness, thicknessAt)
+                : null,
+          });
         }
       }
     });
@@ -2109,52 +2181,124 @@ function drawRoomWalls(
  * One band of wall along a stretch, added to the current path.
  *
  * Four points rather than a rectangle, because a chamfer's band lies on no
- * axis even in its own part's frame. **Wound the same way whichever wall it
- * is**: the square sides are not all measured the way the outline runs, so a
- * quad laid out from the wall's own direction comes out clockwise on four
- * walls and anticlockwise on the other four — and two opposite windings
- * overlapping at a corner would cancel each other into a hole when the whole
- * path is filled at once.
+ * axis even in its own part's frame.
+ *
+ * **The outer corners are mitred rather than extended.** Growing each band
+ * along its own direction by the neighbour's thickness is exact where two
+ * walls meet at a right angle and wrong everywhere else — at the 135° corners
+ * a clipped corner leaves, it sends the band past the wall it was supposed to
+ * meet, which is the spike that showed up on the first drawing of one. Where
+ * the two outer edges actually cross is the mitre, at any angle, and it is the
+ * same point at 90°.
+ *
+ * **Wound the same way whichever wall it is**: the square sides are not all
+ * measured the way the outline runs, so a quad laid out from the wall's own
+ * direction comes out clockwise on four walls and anticlockwise on the other
+ * four — and two opposite windings overlapping at a corner would cancel each
+ * other into a hole when the whole path is filled at once.
  */
 function traceWallBand(
   context: CanvasRenderingContext2D,
-  line: WallFrame,
-  fromMeters: number,
-  toMeters: number,
-  thicknessMeters: number,
   pixelsPerMeter: number,
+  band: {
+    readonly line: WallFrame;
+    readonly fromMeters: number;
+    readonly toMeters: number;
+    readonly thicknessMeters: number;
+    /** The mitre point, or null for a square end. */
+    readonly outerFrom: FloorPoint | null;
+    readonly outerTo: FloorPoint | null;
+  },
 ): void {
-  const at = (alongMeters: number, outMeters: number): PixelPoint => ({
-    x:
-      (line.from.xMeters +
-        line.direction.dx * alongMeters +
-        line.normal.dx * outMeters) *
-      pixelsPerMeter,
-    y:
-      (line.from.zMeters +
-        line.direction.dz * alongMeters +
-        line.normal.dz * outMeters) *
-      pixelsPerMeter,
+  const { line, thicknessMeters } = band;
+  const at = (alongMeters: number, outMeters: number): FloorPoint => ({
+    xMeters:
+      line.from.xMeters +
+      line.direction.dx * alongMeters +
+      line.normal.dx * outMeters,
+    zMeters:
+      line.from.zMeters +
+      line.direction.dz * alongMeters +
+      line.normal.dz * outMeters,
   });
 
   const quad = [
-    at(fromMeters, 0),
-    at(toMeters, 0),
-    at(toMeters, thicknessMeters),
-    at(fromMeters, thicknessMeters),
+    at(band.fromMeters, 0),
+    at(band.toMeters, 0),
+    band.outerTo ?? at(band.toMeters, thicknessMeters),
+    band.outerFrom ?? at(band.fromMeters, thicknessMeters),
   ];
   const turningTheSameWay =
     line.direction.dx * line.normal.dz - line.direction.dz * line.normal.dx < 0;
   const points = turningTheSameWay ? quad : [...quad].reverse();
 
   points.forEach((point, index) => {
+    const x = point.xMeters * pixelsPerMeter;
+    const y = point.zMeters * pixelsPerMeter;
     if (index === 0) {
-      context.moveTo(point.x, point.y);
+      context.moveTo(x, y);
     } else {
-      context.lineTo(point.x, point.y);
+      context.lineTo(x, y);
     }
   });
   context.closePath();
+}
+
+/**
+ * Where this wall's outer face crosses the neighbouring wall's outer face, in
+ * the part's own frame — or null where there is no band to meet, which leaves
+ * the end square.
+ */
+function miterCorner(
+  part: RoomPart,
+  wall: WallSide,
+  end: "from" | "to",
+  thicknessMeters: number,
+  thicknessAt: (wall: WallSide, alongMeters: number) => number,
+): FloorPoint | null {
+  const [neighbour, alongMeters] = cornerNeighbour(part, wall, end);
+  const theirThickness = thicknessAt(neighbour, alongMeters);
+  if (neighbour === wall || theirThickness <= 0) {
+    return null;
+  }
+
+  const mine = partWallFrame(part, wall);
+  const theirs = partWallFrame(part, neighbour);
+  return crossingOf(
+    outerFace(mine, thicknessMeters),
+    mine.direction,
+    outerFace(theirs, theirThickness),
+    theirs.direction,
+  );
+}
+
+/** A point on the outer face of a wall band. */
+function outerFace(line: WallFrame, thicknessMeters: number): FloorPoint {
+  return {
+    xMeters: line.from.xMeters + line.normal.dx * thicknessMeters,
+    zMeters: line.from.zMeters + line.normal.dz * thicknessMeters,
+  };
+}
+
+/** Where two lines cross, or null when they run parallel. */
+function crossingOf(
+  a: FloorPoint,
+  along: FloorVector,
+  b: FloorPoint,
+  beside: FloorVector,
+): FloorPoint | null {
+  const denominator = along.dx * beside.dz - along.dz * beside.dx;
+  if (Math.abs(denominator) < 0.000001) {
+    return null;
+  }
+  const steps =
+    ((b.xMeters - a.xMeters) * beside.dz -
+      (b.zMeters - a.zMeters) * beside.dx) /
+    denominator;
+  return {
+    xMeters: a.xMeters + along.dx * steps,
+    zMeters: a.zMeters + along.dz * steps,
+  };
 }
 
 /** Every side's stretches of one part, computed once. */
@@ -2283,13 +2427,22 @@ function punchRoomFloor(
   }
 }
 
-/** The part's true outline as a path, in its own part's pixel frame. */
+/** The part's true outline as a path of its own, in its own pixel frame. */
 function tracePartOutline(
   context: CanvasRenderingContext2D,
   part: RoomPart,
   pixelsPerMeter: number,
 ): void {
   context.beginPath();
+  addPartOutline(context, part, pixelsPerMeter);
+}
+
+/** The same outline added to a path already being built, for a compound clip. */
+function addPartOutline(
+  context: CanvasRenderingContext2D,
+  part: RoomPart,
+  pixelsPerMeter: number,
+): void {
   roomPartLocalPolygon(part).forEach((point, index) => {
     const x = point.xMeters * pixelsPerMeter;
     const y = point.zMeters * pixelsPerMeter;
@@ -2468,7 +2621,17 @@ function markSelectedRoom(
     selectedPart === undefined
       ? roomHandles(room)
       : roomPartHandles(selectedPart);
-  for (const { at } of handles) {
+  // A clipped corner is taken hold of in the middle of its chamfer, alongside
+  // the eight that resize the rectangle. Dragging it moves both of the cut's
+  // legs at once, which is the one thing the two fields beside the plan cannot
+  // do in a single gesture.
+  const cuts =
+    selectedPart === undefined
+      ? room.parts.length === 1
+        ? roomPartCutHandles(primaryRoomPart(room))
+        : []
+      : roomPartCutHandles(selectedPart);
+  for (const { at } of [...handles, ...cuts]) {
     const point = frame.toPixels(at);
     context.fillRect(
       point.x - HANDLE_PIXELS / 2,
@@ -2624,13 +2787,15 @@ function drawMeterGrid(
 
   // Parts are an authoring detail; the visible grid belongs to the room. A
   // compound clip makes one continuous floor-coordinate grid occupy exactly
-  // the union — an L keeps its notch empty, and a turned part is clipped to
-  // the parallelogram it actually stands on, because path points are carried
-  // through the part's transform as they are added.
+  // the union — an L keeps its notch empty, a turned part is clipped to the
+  // parallelogram it actually stands on, and a clipped corner keeps its grid
+  // off the floor the cut took away, because path points are carried through
+  // the part's transform as they are added.
+  const pixelsPerMeter = spanPixels(frame, 1);
   context.beginPath();
   for (const part of room.parts) {
-    inPartFrame(context, frame, part, (width, depth) => {
-      context.rect(0, 0, width, depth);
+    inPartFrame(context, frame, part, () => {
+      addPartOutline(context, part, pixelsPerMeter);
     });
   }
   context.clip();

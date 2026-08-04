@@ -551,6 +551,66 @@ export function checkRoomPartCuts(part: RoomPart): CutProblem | null {
   return sides.some(([used, side]) => used > side) ? "overruns-side" : null;
 }
 
+/**
+ * Where a clipped corner is taken hold of on the plan: the middle of its
+ * chamfer. Only corners that are actually clipped have one.
+ */
+export function roomPartCutHandles(
+  part: RoomPart,
+): readonly { readonly corner: PartCorner; readonly at: FloorPoint }[] {
+  return PART_CORNERS.filter(
+    (corner) => roomPartCut(part, corner) !== null,
+  ).map((corner) => {
+    const { from, to } = partWallSegment(part, corner);
+    return {
+      corner,
+      at: pointOnRoomPart(part, {
+        xMeters: (from.xMeters + to.xMeters) / 2,
+        zMeters: (from.zMeters + to.zMeters) / 2,
+      }),
+    };
+  });
+}
+
+/**
+ * The cut described by dragging a chamfer's handle to a floor point — **both
+ * legs at once**, which is the gesture the two fields cannot be.
+ *
+ * The handle is the middle of the chamfer, which sits half of each leg in from
+ * the corner, so the pointer's distance from that corner in the part's own
+ * frame is exactly half of each. Pulling diagonally deepens both; pulling
+ * along one wall lengthens mostly that leg. Each is then held to what the cut
+ * at the far end of its own side has left, so a drag cannot overrun a side the
+ * fields would refuse to.
+ */
+export function cutFromHandlePoint(
+  part: RoomPart,
+  corner: PartCorner,
+  point: FloorPoint,
+  roundMeters: (meters: number) => number = (meters) => meters,
+): CornerCut {
+  const local = turnedRectLocalPoint(part, point);
+  const inWidth =
+    corner === "north-west" || corner === "south-west"
+      ? local.xMeters
+      : part.widthMeters - local.xMeters;
+  const inDepth =
+    corner === "north-west" || corner === "north-east"
+      ? local.zMeters
+      : part.depthMeters - local.zMeters;
+
+  const width = cutLegLimits(part, corner, "widthMeters");
+  const depth = cutLegLimits(part, corner, "depthMeters");
+  return {
+    widthMeters: clampLength(roundMeters(2 * inWidth), width),
+    depthMeters: clampLength(roundMeters(2 * inDepth), depth),
+  };
+}
+
+function clampLength(meters: number, limits: LengthLimits): number {
+  return Math.min(Math.max(meters, limits.minMeters), limits.maxMeters);
+}
+
 /** Clips one corner of a part, or squares it again when the cut is null. */
 export function withRoomPartCut(
   room: Room,
