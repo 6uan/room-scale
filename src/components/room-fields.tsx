@@ -39,6 +39,8 @@ export type RoomFieldsProps = {
   placingOpeningKind?: OpeningKind | null;
   selectedPartId?: string | null;
   onSelectPart?: (partId: string | null) => void;
+  onSelectOpening?: (openingId: string) => void;
+  onRemoveOpening?: (openingId: string) => void;
 };
 
 export function RoomFields({
@@ -52,6 +54,8 @@ export function RoomFields({
   placingOpeningKind = null,
   selectedPartId = null,
   onSelectPart,
+  onSelectOpening,
+  onRemoveOpening,
 }: RoomFieldsProps) {
   const name = room.name === "" ? "Room" : room.name;
   const compound = room.parts.length > 1;
@@ -162,6 +166,8 @@ export function RoomFields({
         room={room}
         placingKind={placingOpeningKind}
         onAddOpening={onAddOpening}
+        onSelectOpening={(opening) => onSelectOpening?.(opening.id)}
+        onRemoveOpening={(opening) => onRemoveOpening?.(opening.id)}
       />
 
       <div className="flex justify-end">

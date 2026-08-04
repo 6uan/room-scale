@@ -172,6 +172,7 @@ function RoomInspector({
   onRoomRemove,
   onAddOpening,
   placingOpening,
+  onOpeningRemove,
   onSelect,
 }: InspectorProps & {
   selection:
@@ -205,6 +206,15 @@ function RoomInspector({
               : { kind: "room-part", roomId: room.id, id: partId },
           )
         }
+        onSelectOpening={(openingId) =>
+          onSelect({ kind: "opening", roomId: room.id, id: openingId })
+        }
+        onRemoveOpening={(openingId) => {
+          const opening = room.openings.find((one) => one.id === openingId);
+          if (opening !== undefined) {
+            onOpeningRemove(room, opening);
+          }
+        }}
       />
     </Panel>
   );

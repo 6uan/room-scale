@@ -30,6 +30,29 @@ describe("RoomOpeningsForm", () => {
       screen.getByText(/Click a Living room wall to place it/),
     ).toBeInTheDocument();
   });
+
+  it("lists each opening with its wall, selectable and removable in place", async () => {
+    const user = userEvent.setup();
+    const onSelectOpening = vi.fn();
+    const onRemoveOpening = vi.fn();
+    render(
+      <RoomOpeningsForm
+        room={DEFAULT_ROOM}
+        onAddOpening={vi.fn()}
+        onSelectOpening={onSelectOpening}
+        onRemoveOpening={onRemoveOpening}
+      />,
+    );
+
+    // The default room ships a south door and a north window.
+    await user.click(screen.getByRole("button", { name: /Door 1/ }));
+    expect(onSelectOpening).toHaveBeenCalledWith(DEFAULT_ROOM.openings[0]);
+
+    await user.click(
+      screen.getByRole("button", { name: "Remove Living room window 1" }),
+    );
+    expect(onRemoveOpening).toHaveBeenCalledWith(DEFAULT_ROOM.openings[1]);
+  });
 });
 
 describe("OpeningFields", () => {
