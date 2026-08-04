@@ -34,8 +34,10 @@ import type { Project } from "@/domain/project";
  *     floor's, which is what they always did.
  * 12. A part may have corners clipped. Every existing part is square, which is
  *     what having no cuts says.
+ * 13. The two wall thicknesses collapse back into one. A stored project keeps
+ *     its interior number, which is the one that decides where rooms stand.
  */
-export const SCHEMA_VERSION = 12;
+export const SCHEMA_VERSION = 13;
 
 /** Meters, cents, and the rest are all plain finite numbers on the way in. */
 const finiteNumber = z
@@ -112,13 +114,11 @@ const roomSchema = z.object({
   openings: z.array(openingSchema),
   // Null is the ordinary case and means "whatever the floor says". A number
   // is a thing somebody measured about this room in particular.
-  exteriorWallThicknessMeters: finiteNumber.nullable(),
-  interiorWallThicknessMeters: finiteNumber.nullable(),
+  wallThicknessMeters: finiteNumber.nullable(),
 });
 
 const floorSchema = z.object({
-  exteriorWallThicknessMeters: finiteNumber,
-  interiorWallThicknessMeters: finiteNumber,
+  wallThicknessMeters: finiteNumber,
   rooms: z.array(roomSchema),
 });
 
@@ -437,6 +437,52 @@ const MIGRATIONS: Record<number, (document: object) => object> = {
   // a whole rectangle, and having no cuts is exactly what that says — so this
   // is a version bump with nothing to rewrite, the way version 6 was.
   11: (document) => ({ ...document, version: 12 }),
+  12: (document) => {
+    const project = projectOf(document) as Record<string, unknown>;
+    const floor = objectOf(project.floor);
+    const rooms = Array.isArray(floor.rooms) ? floor.rooms : [];
+    const rest = Object.fromEntries(
+      Object.entries(floor).filter(
+        ([key]) =>
+          key !== "exteriorWallThicknessMeters" &&
+          key !== "interiorWallThicknessMeters",
+      ),
+    );
+    return {
+      ...document,
+      version: 13,
+      project: {
+        ...project,
+        floor: {
+          ...rest,
+          // Version 13 put the two thicknesses back into one. **The interior
+          // number is the one kept**, on both the floor and any room that
+          // overrode it: it is what decides how far apart snapped rooms
+          // stand, so keeping it leaves every room exactly where it was and
+          // only draws the outer band thinner. Keeping the exterior number
+          // instead would have moved geometry somebody measured.
+          wallThicknessMeters: floor.interiorWallThicknessMeters,
+          rooms: rooms.map((value) => {
+            const room = objectOf(value);
+            const own = Object.fromEntries(
+              Object.entries(room).filter(
+                ([key]) =>
+                  key !== "exteriorWallThicknessMeters" &&
+                  key !== "interiorWallThicknessMeters",
+              ),
+            );
+            return {
+              ...own,
+              wallThicknessMeters:
+                room.interiorWallThicknessMeters ??
+                room.exteriorWallThicknessMeters ??
+                null,
+            };
+          }),
+        },
+      },
+    };
+  },
 };
 
 /**

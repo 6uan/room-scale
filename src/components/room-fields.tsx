@@ -15,8 +15,6 @@ import {
   nextPartId,
   partWallSides,
   WALL_THICKNESS_LIMITS,
-  exteriorThicknessMeters,
-  interiorThicknessMeters,
   roomFloorAreaSquareMeters,
   roomPartCut,
   snapRoomOrigin,
@@ -30,6 +28,7 @@ import {
   withRoomPartRotation,
   withRoomPartWallOpen,
   withRoomWallThickness,
+  wallThicknessMeters,
   type CutLeg,
   type Floor,
   type OpeningKind,
@@ -336,24 +335,18 @@ export function RoomFields({
   );
 }
 
-/** The two thicknesses, named the way they read in the summary line. */
-const WALL_KINDS = [
-  { kind: "exterior", noun: "shell", label: "Exterior wall thickness" },
-  { kind: "interior", noun: "partitions", label: "Interior wall thickness" },
-] as const;
-
 /**
- * A room's own wall thicknesses, folded away until somebody wants them.
+ * A room's own wall thickness, folded away until somebody wants it.
  *
  * Almost every room is built out of whatever the apartment is built out of,
- * and a pair of fields repeating the same two numbers in fifteen rooms would
- * be fifteen chances to disagree with the plan. So it collapses to one line
- * that reads out what this room's walls actually are and where those numbers
- * came from — the shape a settings row takes when its value matters more often
- * than its controls do.
+ * and a field repeating the same number in fifteen rooms would be fifteen
+ * chances to disagree with the plan. So it collapses to one line that reads
+ * out what this room's walls actually are and where that number came from —
+ * the shape a settings row takes when its value matters more often than its
+ * controls do.
  *
- * Opened, the fields show the inherited numbers rather than empty boxes:
- * typing over one is what makes it this room's, and "Use the apartment's"
+ * Opened, the field shows the inherited number rather than an empty box:
+ * typing over it is what makes it this room's, and "Use the apartment's"
  * hands it back. A field that started blank would be asking for a measurement
  * where the honest answer is already on the screen.
  */
@@ -371,21 +364,13 @@ function WallThicknessFields({
   onGestureEnd: () => void;
 }) {
   const name = room.name === "" ? "Room" : room.name;
-  const own =
-    room.exteriorWallThicknessMeters !== null ||
-    room.interiorWallThicknessMeters !== null;
+  const own = room.wallThicknessMeters !== null;
+  const meters = wallThicknessMeters(floor, room);
 
-  // In the unit the fields below are typed in, rather than through
+  // In the unit the field below is typed in, rather than through
   // `formatLength` — a wall is never feet, and `0' 4.5"` is a reading nobody
   // takes off a tape.
-  const summary = WALL_KINDS.map(({ kind, noun }) => {
-    const meters =
-      kind === "exterior"
-        ? exteriorThicknessMeters(floor, room)
-        : interiorThicknessMeters(floor, room);
-    const value = displayValueFromMeters(meters, unit);
-    return `${Number(value.toFixed(2))} ${displayUnitSuffix(unit)} ${noun}`;
-  }).join(", ");
+  const summary = `${Number(displayValueFromMeters(meters, unit).toFixed(2))} ${displayUnitSuffix(unit)} walls`;
 
   return (
     <Disclosure
@@ -397,42 +382,26 @@ function WallThicknessFields({
           ? `Measured for ${name} in particular. Every other room keeps the apartment's.`
           : "The apartment's, until this room is measured on its own. A bathroom's plumbing wall is fatter than the partitions around it."}
       </p>
-      {WALL_KINDS.map(({ kind, label }) => {
-        const overridden =
-          (kind === "exterior"
-            ? room.exteriorWallThicknessMeters
-            : room.interiorWallThicknessMeters) !== null;
-        return (
-          <div key={kind} className="flex flex-col gap-2">
-            <NumberField
-              label={`${name} ${label.toLowerCase()}`}
-              unit={unit}
-              meters={
-                kind === "exterior"
-                  ? exteriorThicknessMeters(floor, room)
-                  : interiorThicknessMeters(floor, room)
-              }
-              limits={WALL_THICKNESS_LIMITS}
-              scrubGesture={`room-wall:${room.id}:${kind}`}
-              onMetersChange={(meters, gesture) =>
-                onChange(withRoomWallThickness(room, kind, meters), gesture)
-              }
-              onGestureEnd={onGestureEnd}
-            />
-            {overridden ? (
-              <div className="flex justify-end">
-                <LabelledButton
-                  label={`Use the apartment's ${label.toLowerCase()}`}
-                  icon={Undo2}
-                  onClick={() =>
-                    onChange(withRoomWallThickness(room, kind, null))
-                  }
-                />
-              </div>
-            ) : null}
-          </div>
-        );
-      })}
+      <NumberField
+        label={`${name} wall thickness`}
+        unit={unit}
+        meters={meters}
+        limits={WALL_THICKNESS_LIMITS}
+        scrubGesture={`room-wall:${room.id}`}
+        onMetersChange={(next, gesture) =>
+          onChange(withRoomWallThickness(room, next), gesture)
+        }
+        onGestureEnd={onGestureEnd}
+      />
+      {own ? (
+        <div className="flex justify-end">
+          <LabelledButton
+            label="Use the apartment's wall thickness"
+            icon={Undo2}
+            onClick={() => onChange(withRoomWallThickness(room, null))}
+          />
+        </div>
+      ) : null}
     </Disclosure>
   );
 }

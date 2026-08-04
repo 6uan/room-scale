@@ -44,17 +44,23 @@ import {
 
 export type Floor = {
   /**
-   * Two thicknesses, not one: the shell is thicker than the partitions, and
-   * it is visible in every plan ever drawn. Which walls are which is derived
-   * from the rooms — a wall is interior where another room stands on its far
-   * side — so nobody types it twice. See `walls.ts`.
+   * How thick a wall is drawn, anywhere on the floor.
    *
-   * These are **defaults**. A room may declare its own; see `Room`. Read them
-   * through `exteriorThicknessMeters` and `interiorThicknessMeters` rather
-   * than directly, so an override is never quietly skipped.
+   * **One number, not two.** It was two for a while — a thicker shell and
+   * thinner partitions, with which was which *derived* from whether another
+   * room stood beyond a given stretch. That is how a plan is really drawn,
+   * and it was the wrong trade for this tool: a wall shared for part of its
+   * run drew at two widths with a step where the neighbour ended, so an
+   * apartment of a dozen rooms came out visibly ragged. Sorting that out is
+   * cognitive load spent on a number that changes no answer — wall thickness
+   * appears nowhere in `checkLayout`, and furniture is measured against the
+   * floor a room encloses, not against its walls.
+   *
+   * This is a **default**. A room may declare its own; see `Room`. Read it
+   * through `wallThicknessMeters` rather than directly, so an override is
+   * never quietly skipped.
    */
-  readonly exteriorWallThicknessMeters: number;
-  readonly interiorWallThicknessMeters: number;
+  readonly wallThicknessMeters: number;
   readonly rooms: readonly Room[];
 };
 
@@ -68,14 +74,11 @@ export type Floor = {
  * be — and even those are only defaults waiting to be corrected.
  */
 export const DEFAULT_FLOOR: Floor = {
-  // 8 inches for the shell: a masonry or double-stud exterior wall, which is
-  // what an apartment is actually wrapped in. It read 4.5" for a while, which
-  // was a migration artifact rather than a measurement — the one old number
-  // copied into both slots — and it made every plan draw a stud partition
-  // where its outside wall belongs.
-  exteriorWallThicknessMeters: metersFromInches(8),
-  // 4.5 inches — a 2x4 stud wall with drywall on both faces.
-  interiorWallThicknessMeters: metersFromInches(4.5),
+  // 4.5 inches — a 2x4 stud wall with drywall on both faces, which is what
+  // most walls in an apartment are. Every wall is drawn at it, including the
+  // shell: an outside wall really is fatter, and drawing it so cost more in
+  // an uneven plan than it ever bought in accuracy.
+  wallThicknessMeters: metersFromInches(4.5),
   rooms: [],
 };
 
@@ -89,18 +92,13 @@ export const DEFAULT_FLOOR: Floor = {
  */
 export const WALL_THICKNESS_LIMITS = { minMeters: 0.02, maxMeters: 0.6 };
 
-/** What this room's shell is built of: its own number, or the apartment's. */
-export function exteriorThicknessMeters(floor: Floor, room: Room | null) {
-  return room?.exteriorWallThicknessMeters ?? floor.exteriorWallThicknessMeters;
-}
-
-/** What this room's partitions are built of: its own number, or the floor's. */
-export function interiorThicknessMeters(floor: Floor, room: Room | null) {
-  return room?.interiorWallThicknessMeters ?? floor.interiorWallThicknessMeters;
+/** What this room's walls are built of: its own number, or the apartment's. */
+export function wallThicknessMeters(floor: Floor, room: Room | null): number {
+  return room?.wallThicknessMeters ?? floor.wallThicknessMeters;
 }
 
 /**
- * The partition standing between two rooms: **the thicker of what they each
+ * The wall standing between two rooms: **the thicker of what they each
  * declare.**
  *
  * There is one wall between two rooms and two numbers claiming it, so
@@ -122,26 +120,22 @@ export function interiorThicknessMeters(floor: Floor, room: Room | null) {
  *
  * `room` may be null for a room being drawn, which has no override yet.
  */
-export function partitionThicknessMeters(
+export function sharedWallThicknessMeters(
   floor: Floor,
   room: Room | null,
   other: Room,
 ): number {
   return Math.max(
-    interiorThicknessMeters(floor, room),
-    interiorThicknessMeters(floor, other),
+    wallThicknessMeters(floor, room),
+    wallThicknessMeters(floor, other),
   );
 }
 
 /** The fattest wall anywhere on the floor, defaults and overrides together. */
 export function maxWallThicknessMeters(floor: Floor): number {
   return Math.max(
-    floor.exteriorWallThicknessMeters,
-    floor.interiorWallThicknessMeters,
-    ...floor.rooms.flatMap((room) => [
-      exteriorThicknessMeters(floor, room),
-      interiorThicknessMeters(floor, room),
-    ]),
+    floor.wallThicknessMeters,
+    ...floor.rooms.map((room) => wallThicknessMeters(floor, room)),
   );
 }
 
@@ -262,15 +256,15 @@ export function snapRoomOrigin(
   const others = floor.rooms.filter((one) => one.id !== room.id);
   const bounds = roomBounds(room);
 
-  // Each neighbour is approached across its own partition, which is the
-  // thicker of what the two rooms declare. A floor of one thickness — which
-  // is almost every floor — makes every candidate the same as it always was.
+  // Each neighbour is approached across the wall between them, which is the
+  // thicker of what the two rooms declare. A floor where nothing is
+  // overridden — which is almost every floor — makes that one number.
   const faces = (axis: "x" | "z") =>
     others.flatMap((one) =>
       squareParts(one).map((part) => ({
         start: partAxisStart(part, axis),
         length: partAxisLength(part, axis),
-        thickness: partitionThicknessMeters(floor, room, one),
+        thickness: sharedWallThicknessMeters(floor, room, one),
       })),
     );
 
@@ -370,7 +364,7 @@ export function snapRoomEdge(
   const others = floor.rooms.filter((one) => one.id !== moving?.id);
 
   const candidates = others.flatMap((room) => {
-    const thickness = partitionThicknessMeters(floor, moving ?? null, room);
+    const thickness = sharedWallThicknessMeters(floor, moving ?? null, room);
     return squareParts(room).flatMap((part) => {
       const start = partAxisStart(part, axis);
       const end = start + partAxisLength(part, axis);
@@ -469,12 +463,12 @@ export function snapRoomPartOrigin(
  *
  * The same gesture as `drawnRoom` with a different set of things to meet: a
  * section lands flush against its own room's other rectangles, because no wall
- * stands at a seam, and a partition's width away from anybody else's. That is
+ * stands at a seam, and a wall's width away from anybody else's. That is
  * the rule `snapRoomPartResize` already resizes one by.
  *
  * **Which of the two a drag meant is never inferred from where it landed.**
  * The section tool is armed or it is not. Rooms that share a wall sit one
- * partition apart and rooms drawn flush inside a space sit at zero — a few
+ * wall apart and rooms drawn flush inside a space sit at zero — a few
  * inches of pointer travel between them — so reading the intent off the
  * geometry would settle "another room or another rectangle of this one" by
  * accident, and settle it differently for the same drag twice.
@@ -519,7 +513,7 @@ function snapPartEdge(
   value: number,
 ): number {
   const candidates = floor.rooms.flatMap((room) => {
-    const thickness = partitionThicknessMeters(floor, mine, room);
+    const thickness = sharedWallThicknessMeters(floor, mine, room);
     return squareParts(room).flatMap((part) => {
       if (room.id === mine.id && part.id === partId) {
         return [];
@@ -544,7 +538,7 @@ function snapPartOriginAxis(
   length: number,
 ): number {
   const candidates = floor.rooms.flatMap((room) => {
-    const thickness = partitionThicknessMeters(floor, mine, room);
+    const thickness = sharedWallThicknessMeters(floor, mine, room);
     return squareParts(room).flatMap((part) => {
       if (room.id === mine.id && part.id === partId) {
         return [];

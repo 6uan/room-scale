@@ -2,14 +2,18 @@
  * What actually stands along each stretch of a part's wall.
  *
  * A side of a section is one line on the plan, but it is not one thing: part
- * of it may be a seam its own room continues through, part may face another
- * room across a partition, part may face the outside world, and part may be
- * a railing where a wall was left open. The drawing, the opening cuts, and
- * the wall thicknesses all follow these stretches.
+ * of it may be a seam its own room continues through, part may be a railing
+ * where a wall was left open, and the rest is wall. The drawing and the
+ * opening cuts follow these stretches.
  *
- * Which walls are interior is **derived, not typed**: a stretch is interior
- * where another room stands just beyond it — within the interior thickness —
- * the same fact the snapping already builds. Nobody declares a wall twice.
+ * **A wall used to be measured as well as classified here.** Each stretch was
+ * sorted into shell or partition by looking for another room just beyond it,
+ * and drawn at whichever thickness that implied. It is how a plan is really
+ * drawn, and it made an apartment of a dozen rooms come out ragged: a wall
+ * shared for part of its run drew at two widths, with a step where the
+ * neighbour ended. The thickness is one number now — the room's, or the
+ * apartment's — so what is left to work out here is only where a wall exists
+ * at all.
  *
  * Everything is measured in the wall's own frame: meters along the wall from
  * its start corner, exactly the coordinate openings already use.
@@ -17,12 +21,7 @@
 
 import type { FloorPoint } from "@/domain/geometry";
 import { clipPolygonToRect } from "@/domain/geometry";
-import {
-  exteriorThicknessMeters,
-  interiorThicknessMeters,
-  partitionThicknessMeters,
-  type Floor,
-} from "./floor";
+import { wallThicknessMeters, type Floor } from "./floor";
 import {
   partWallSegment,
   pointOnRoomPart,
@@ -40,10 +39,8 @@ import {
 } from "./openings";
 
 export type WallKind =
-  /** The apartment's shell: nothing stands on the far side. */
-  | "exterior"
-  /** A partition: another room stands just beyond it. */
-  | "interior"
+  /** A wall stands here, at the one thickness the room is built of. */
+  | "wall"
   /** The room itself continues through; no wall exists here at all. */
   | "seam"
   /** Left open on purpose — a railing or an open side, drawn without a wall. */
@@ -56,11 +53,9 @@ export type WallStretch = {
   /**
    * How thick the band along this stretch is, already resolved.
    *
-   * It is carried rather than looked up because the answer depends on more
-   * than the kind: an interior stretch is as thick as the partition between
-   * *these two rooms*, and one wall can face several neighbours that each
-   * declare something different. Seams and open stretches have no band at all,
-   * so theirs is zero.
+   * Carried rather than looked up, because a seam and an open edge have no
+   * band at all — theirs is zero — and the drawing should not have to know
+   * which kinds those are.
    */
   readonly thicknessMeters: number;
 };
@@ -79,16 +74,8 @@ export function isWallOpen(part: RoomPart, wall: WallSide): boolean {
  * The stretches of one part wall, in order from its start corner.
  *
  * Seams are cut out first — where the room's own floor continues, there is no
- * wall to classify. What remains is open if the wall was marked open, interior
- * where another room stands within the partition thickness beyond it, and
- * exterior everywhere else.
- *
- * Each neighbouring room is looked for across **its own** partition — the
- * thicker of what the two rooms declare, see `partitionThicknessMeters` — so a
- * wall facing a fat plumbing wall on one stretch and an ordinary one on the
- * next comes back as two stretches of two thicknesses. Where two neighbours
- * claim the same stretch, the thicker takes it, which is the same rule applied
- * once more: the fatter wall is the one that errs toward "check this again".
+ * wall to draw. What remains is a railing if the wall was marked open, and
+ * wall everywhere else, at the one thickness this room is built of.
  */
 export function wallStretches(
   floor: Floor,
@@ -111,47 +98,17 @@ export function wallStretches(
         }),
       ),
   );
-
   const walled = subtractIntervals([{ start: 0, end: length }], seams);
-  const stretches: WallStretch[] = withKind(seams, "seam", 0);
+  const open = isWallOpen(part, wall);
 
-  if (isWallOpen(part, wall)) {
-    stretches.push(...withKind(walled, "open", 0));
-    return ordered(stretches);
-  }
-
-  // Grouped by thickness, thickest first, so that where two neighbours cover
-  // the same stretch the fatter partition claims it before the thinner asks.
-  const groups = new Map<number, Interval[]>();
-  for (const other of floor.rooms) {
-    if (other.id === room.id) {
-      continue;
-    }
-    const thickness = partitionThicknessMeters(floor, room, other);
-    const found = other.parts.flatMap((theirs) =>
-      bandInterval(part, wall, length, roomPartPolygon(theirs), {
-        nearMeters: THROUGH_EPSILON_METERS,
-        // A snapped neighbour's face sits exactly one partition thickness
-        // away; a fingertip of tolerance keeps arithmetic honest.
-        farMeters: thickness + MIN_STRETCH_METERS,
-      }),
-    );
-    groups.set(thickness, [...(groups.get(thickness) ?? []), ...found]);
-  }
-
-  let free = walled;
-  for (const [thickness, intervals] of [...groups].sort(([a], [b]) => b - a)) {
-    const merged = mergeIntervals(intervals);
-    stretches.push(
-      ...withKind(intersectIntervals(free, merged), "interior", thickness),
-    );
-    free = subtractIntervals(free, merged);
-  }
-  stretches.push(
-    ...withKind(free, "exterior", exteriorThicknessMeters(floor, room)),
-  );
-
-  return ordered(stretches);
+  return ordered([
+    ...withKind(seams, "seam", 0),
+    ...withKind(
+      walled,
+      open ? "open" : "wall",
+      open ? 0 : wallThicknessMeters(floor, room),
+    ),
+  ]);
 }
 
 function ordered(stretches: readonly WallStretch[]): readonly WallStretch[] {
@@ -194,7 +151,7 @@ export function openingWallThicknessMeters(
       ? null
       : wallStretchAt(floor, room, part, opening.wall, opening.centerMeters);
   if (stretch === null || stretch.kind === "seam" || stretch.kind === "open") {
-    return interiorThicknessMeters(floor, room);
+    return wallThicknessMeters(floor, room);
   }
   return stretch.thicknessMeters;
 }
@@ -326,19 +283,4 @@ function subtractIntervals(
     });
   }
   return remaining;
-}
-
-/** The parts of `base` that also lie inside some interval of `others`. */
-function intersectIntervals(
-  base: readonly Interval[],
-  others: readonly Interval[],
-): Interval[] {
-  return base.flatMap((interval) =>
-    others
-      .map((other) => ({
-        start: Math.max(interval.start, other.start),
-        end: Math.min(interval.end, other.end),
-      }))
-      .filter((piece) => piece.end > piece.start),
-  );
 }

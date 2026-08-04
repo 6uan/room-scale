@@ -115,7 +115,7 @@ export function Workspace() {
    * The room whose next drag draws another of its rectangles, or null.
    *
    * A mode rather than something worked out from where the rectangle landed.
-   * Rooms that share a wall sit one partition apart and a rectangle drawn
+   * Rooms that share a wall sit one wall apart and a rectangle drawn
    * flush inside a space sits at zero — inches between them — so guessing
    * "another room or another rectangle of this one" from the geometry would
    * answer a structural question by pointer accident.

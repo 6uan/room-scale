@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_FLOOR,
-  exteriorThicknessMeters,
-  interiorThicknessMeters,
   maxWallThicknessMeters,
-  partitionThicknessMeters,
+  sharedWallThicknessMeters,
+  wallThicknessMeters,
   type Floor,
 } from "./floor";
 import { createOpening } from "./openings";
@@ -19,8 +18,7 @@ import {
 } from "./room";
 import { openingWallThicknessMeters, wallStretches } from "./walls";
 
-const INTERIOR = 0.1;
-const EXTERIOR = 0.25;
+const THICKNESS = 0.1;
 
 function part(overrides: Partial<RoomPart> & { id: string }): RoomPart {
   return {
@@ -41,12 +39,7 @@ function roomOf(id: string, parts: readonly RoomPart[]): Room {
 }
 
 function floorOf(rooms: readonly Room[]): Floor {
-  return {
-    ...DEFAULT_FLOOR,
-    exteriorWallThicknessMeters: EXTERIOR,
-    interiorWallThicknessMeters: INTERIOR,
-    rooms,
-  };
+  return { ...DEFAULT_FLOOR, wallThicknessMeters: THICKNESS, rooms };
 }
 
 describe("wallStretches", () => {
@@ -65,8 +58,8 @@ describe("wallStretches", () => {
       {
         startMeters: 0,
         endMeters: Math.SQRT2,
-        kind: "exterior",
-        thicknessMeters: EXTERIOR,
+        kind: "wall",
+        thicknessMeters: THICKNESS,
       },
     ]);
     // And the two walls it eats into are shorter by what it took.
@@ -74,16 +67,16 @@ describe("wallStretches", () => {
       {
         startMeters: 0,
         endMeters: 3,
-        kind: "exterior",
-        thicknessMeters: EXTERIOR,
+        kind: "wall",
+        thicknessMeters: THICKNESS,
       },
     ]);
     expect(wallStretches(floor, clipped, section!, "west")).toEqual([
       {
         startMeters: 0,
         endMeters: 2,
-        kind: "exterior",
-        thicknessMeters: EXTERIOR,
+        kind: "wall",
+        thicknessMeters: THICKNESS,
       },
     ]);
   });
@@ -117,7 +110,7 @@ describe("wallStretches", () => {
     ]);
   });
 
-  it("reads a lone room's walls as shell, end to end", () => {
+  it("reads a lone room's walls as wall, end to end", () => {
     const alone = roomOf("room-1", [part({ id: "p1" })]);
     const floor = floorOf([alone]);
 
@@ -125,16 +118,16 @@ describe("wallStretches", () => {
       {
         startMeters: 0,
         endMeters: 4,
-        kind: "exterior",
-        thicknessMeters: EXTERIOR,
+        kind: "wall",
+        thicknessMeters: THICKNESS,
       },
     ]);
     expect(wallStretches(floor, alone, alone.parts[0]!, "east")).toEqual([
       {
         startMeters: 0,
         endMeters: 3,
-        kind: "exterior",
-        thicknessMeters: EXTERIOR,
+        kind: "wall",
+        thicknessMeters: THICKNESS,
       },
     ]);
   });
@@ -157,8 +150,8 @@ describe("wallStretches", () => {
       {
         startMeters: 2,
         endMeters: 4,
-        kind: "exterior",
-        thicknessMeters: EXTERIOR,
+        kind: "wall",
+        thicknessMeters: THICKNESS,
       },
     ]);
     expect(wallStretches(floor, l, l.parts[1]!, "north")).toEqual([
@@ -166,50 +159,40 @@ describe("wallStretches", () => {
     ]);
   });
 
-  it("reads a wall as partition exactly where a neighbour stands beyond it", () => {
+  /**
+   * The load-bearing test of this model, and the reason the old one went.
+   *
+   * A wall used to be measured by what stood beyond it: partition where a
+   * neighbour was, shell where none was. So a wall shared for part of its run
+   * drew at two widths with a step where the neighbour ended, and an apartment
+   * of a dozen rooms came out ragged. One wall is now one thickness, whatever
+   * is on the far side of it.
+   */
+  it("draws the same wall whether or not a neighbour stands beyond it", () => {
     const home = roomOf("room-1", [part({ id: "p1" })]);
-    // One interior thickness past the east wall, spanning its upper two meters.
+    // Flush against the east wall, across its upper two meters — the exact
+    // case that used to split that wall into a partition and a shell.
     const neighbour = roomOf("room-2", [
       part({
         id: "p2",
-        origin: { xMeters: 4 + INTERIOR, zMeters: 0 },
+        origin: { xMeters: 4 + THICKNESS, zMeters: 0 },
         widthMeters: 3,
         depthMeters: 2,
       }),
     ]);
-    const floor = floorOf([home, neighbour]);
+    const alone = wallStretches(floorOf([home]), home, home.parts[0]!, "east");
 
-    expect(wallStretches(floor, home, home.parts[0]!, "east")).toEqual([
-      {
-        startMeters: 0,
-        endMeters: 2,
-        kind: "interior",
-        thicknessMeters: INTERIOR,
-      },
-      {
-        startMeters: 2,
-        endMeters: 3,
-        kind: "exterior",
-        thicknessMeters: EXTERIOR,
-      },
-    ]);
-  });
-
-  it("keeps a distant room from thinning the shell", () => {
-    const home = roomOf("room-1", [part({ id: "p1" })]);
-    const acrossTheGarden = roomOf("room-2", [
-      part({ id: "p2", origin: { xMeters: 4.4, zMeters: 0 } }),
-    ]);
-    const floor = floorOf([home, acrossTheGarden]);
-
-    expect(wallStretches(floor, home, home.parts[0]!, "east")).toEqual([
+    expect(alone).toEqual([
       {
         startMeters: 0,
         endMeters: 3,
-        kind: "exterior",
-        thicknessMeters: EXTERIOR,
+        kind: "wall",
+        thicknessMeters: THICKNESS,
       },
     ]);
+    expect(
+      wallStretches(floorOf([home, neighbour]), home, home.parts[0]!, "east"),
+    ).toEqual(alone);
   });
 
   it("marks an open wall open, but never where the room continues through", () => {
@@ -245,159 +228,74 @@ describe("wallStretches", () => {
       {
         startMeters: 0,
         endMeters: 4,
-        kind: "exterior",
-        thicknessMeters: EXTERIOR,
+        kind: "wall",
+        thicknessMeters: THICKNESS,
       },
     ]);
-  });
-
-  it("finds a parallel turned neighbour across a turned wall", () => {
-    // Both parts turned 45°; the neighbour's south wall floats one interior
-    // thickness outside the subject's north wall, covering its whole length.
-    const normal = { dx: Math.SQRT2 / 2, dz: -Math.SQRT2 / 2 };
-    const reach = INTERIOR + 2;
-    const home = roomOf("room-1", [
-      part({ id: "p1", rotationRadians: Math.PI / 4 }),
-    ]);
-    const neighbour = roomOf("room-2", [
-      part({
-        id: "p2",
-        origin: { xMeters: normal.dx * reach, zMeters: normal.dz * reach },
-        widthMeters: 4,
-        depthMeters: 2,
-        rotationRadians: Math.PI / 4,
-      }),
-    ]);
-    const floor = floorOf([home, neighbour]);
-
-    const stretches = wallStretches(floor, home, home.parts[0]!, "north");
-    expect(stretches).toHaveLength(1);
-    expect(stretches[0]?.kind).toBe("interior");
-    expect(stretches[0]?.startMeters).toBeCloseTo(0, 6);
-    expect(stretches[0]?.endMeters).toBeCloseTo(4, 6);
   });
 });
 
 describe("a room that declares its own wall thickness", () => {
   const FAT = 0.3;
 
-  it("takes the floor's numbers until it says otherwise", () => {
+  it("takes the apartment's number until it says otherwise", () => {
     const room = roomOf("room-1", [part({ id: "p1" })]);
     const floor = floorOf([room]);
 
-    expect(exteriorThicknessMeters(floor, room)).toBe(EXTERIOR);
-    expect(interiorThicknessMeters(floor, room)).toBe(INTERIOR);
-    // And with nothing to ask — a room being drawn — the floor answers.
-    expect(exteriorThicknessMeters(floor, null)).toBe(EXTERIOR);
+    expect(wallThicknessMeters(floor, room)).toBe(THICKNESS);
+    // And with nothing to ask — a room being drawn — the apartment answers.
+    expect(wallThicknessMeters(floor, null)).toBe(THICKNESS);
   });
 
-  it("draws its own shell at its own thickness", () => {
-    const room = withRoomWallThickness(
+  it("keeps its own number once it is typed, whatever the apartment says", () => {
+    const measured = withRoomWallThickness(
       roomOf("room-1", [part({ id: "p1" })]),
-      "exterior",
       FAT,
     );
-    const floor = floorOf([room]);
+    const floor = floorOf([measured]);
 
-    expect(wallStretches(floor, room, room.parts[0]!, "north")).toEqual([
-      { startMeters: 0, endMeters: 4, kind: "exterior", thicknessMeters: FAT },
-    ]);
+    expect(wallStretches(floor, measured, measured.parts[0]!, "north")).toEqual(
+      [{ startMeters: 0, endMeters: 4, kind: "wall", thicknessMeters: FAT }],
+    );
+    // The apartment moving does not reach a room that has been measured.
+    expect(
+      wallThicknessMeters({ ...floor, wallThicknessMeters: 0.02 }, measured),
+    ).toBe(FAT);
   });
 
-  it("puts the thicker of the two rooms' numbers between them", () => {
-    // The neighbour stands a fat thickness east, which is where it lands once
-    // the two rooms have been snapped together.
-    const home = withRoomWallThickness(
+  it("hands the number back to the apartment when the override is cleared", () => {
+    const measured = withRoomWallThickness(
       roomOf("room-1", [part({ id: "p1" })]),
-      "interior",
+      FAT,
+    );
+    const inherited = withRoomWallThickness(measured, null);
+
+    expect(wallThicknessMeters(floorOf([inherited]), inherited)).toBe(
+      THICKNESS,
+    );
+  });
+
+  it("puts the thicker of two rooms' numbers in the gap between them", () => {
+    // Which is what decides how far apart they land when one is snapped to
+    // the other. Read from either side it has to be the same number, or the
+    // same pair of rooms would snap to a different gap depending on which one
+    // was dragged.
+    const fat = withRoomWallThickness(
+      roomOf("room-1", [part({ id: "p1" })]),
       FAT,
     );
     const thin = roomOf("room-2", [
       part({ id: "p2", origin: { xMeters: 4 + FAT, zMeters: 0 } }),
     ]);
-    const floor = floorOf([home, thin]);
+    const floor = floorOf([fat, thin]);
 
-    // Read from either side, it is the same wall and the same number. A rule
-    // that answered differently depending on which room asked would draw one
-    // wall in two places.
-    for (const [room, sibling] of [
-      [home, thin],
-      [thin, home],
-    ] as const) {
-      const wall = room.id === home.id ? "east" : "west";
-      const stretches = wallStretches(floor, room, room.parts[0]!, wall);
-      expect(stretches).toEqual([
-        {
-          startMeters: 0,
-          endMeters: 3,
-          kind: "interior",
-          thicknessMeters: FAT,
-        },
-      ]);
-      expect(partitionThicknessMeters(floor, room, sibling)).toBe(FAT);
-    }
-  });
-
-  it("reads one wall as two stretches when two neighbours disagree", () => {
-    // North half faces a fat-walled room, south half an ordinary one. Both are
-    // set flush against the wall band each of them actually shares.
-    const home = roomOf("room-1", [part({ id: "p1" })]);
-    const fat = withRoomWallThickness(
-      roomOf("room-2", [
-        part({
-          id: "p2",
-          origin: { xMeters: 4 + FAT, zMeters: 0 },
-          depthMeters: 1,
-        }),
-      ]),
-      "interior",
-      FAT,
-    );
-    const ordinary = roomOf("room-3", [
-      part({
-        id: "p3",
-        origin: { xMeters: 4 + INTERIOR, zMeters: 1 },
-        depthMeters: 2,
-      }),
-    ]);
-    const floor = floorOf([home, fat, ordinary]);
-
-    expect(wallStretches(floor, home, home.parts[0]!, "east")).toEqual([
-      { startMeters: 0, endMeters: 1, kind: "interior", thicknessMeters: FAT },
-      {
-        startMeters: 1,
-        endMeters: 3,
-        kind: "interior",
-        thicknessMeters: INTERIOR,
-      },
-    ]);
-  });
-
-  it("gives an overlapped stretch to the thicker of the two claims", () => {
-    // Both neighbours cover the whole east wall: the fat one is further out,
-    // but its band reaches the wall, so it is the wall that stands there.
-    const home = roomOf("room-1", [part({ id: "p1" })]);
-    const fat = withRoomWallThickness(
-      roomOf("room-2", [
-        part({ id: "p2", origin: { xMeters: 4 + FAT, zMeters: 0 } }),
-      ]),
-      "interior",
-      FAT,
-    );
-    const ordinary = roomOf("room-3", [
-      part({ id: "p3", origin: { xMeters: 4 + INTERIOR, zMeters: 0 } }),
-    ]);
-    const floor = floorOf([home, fat, ordinary]);
-
-    expect(wallStretches(floor, home, home.parts[0]!, "east")).toEqual([
-      { startMeters: 0, endMeters: 3, kind: "interior", thicknessMeters: FAT },
-    ]);
+    expect(sharedWallThicknessMeters(floor, fat, thin)).toBe(FAT);
+    expect(sharedWallThicknessMeters(floor, thin, fat)).toBe(FAT);
   });
 
   it("cuts an opening as deep as the wall its own room declares", () => {
     const home = withRoomWallThickness(
       roomOf("room-1", [part({ id: "p1" })]),
-      "exterior",
       FAT,
     );
     const floor = floorOf([home]);
@@ -406,37 +304,35 @@ describe("a room that declares its own wall thickness", () => {
     expect(openingWallThicknessMeters(floor, home, window)).toBe(FAT);
   });
 
-  it("reports the fattest wall anywhere, defaults and overrides together", () => {
+  it("reports the fattest wall anywhere, default and overrides together", () => {
     const plain = roomOf("room-1", [part({ id: "p1" })]);
     const fat = withRoomWallThickness(
       roomOf("room-2", [
         part({ id: "p2", origin: { xMeters: 9, zMeters: 0 } }),
       ]),
-      "interior",
       FAT,
     );
 
-    expect(maxWallThicknessMeters(floorOf([plain]))).toBe(EXTERIOR);
+    expect(maxWallThicknessMeters(floorOf([plain]))).toBe(THICKNESS);
     expect(maxWallThicknessMeters(floorOf([plain, fat]))).toBe(FAT);
   });
 });
 
 describe("openings and open walls", () => {
-  it("cuts a doorway as deep as the wall that actually stands there", () => {
+  it("cuts every doorway as deep as the wall its room is built of", () => {
     const home = roomOf("room-1", [part({ id: "p1" })]);
     const neighbour = roomOf("room-2", [
-      part({
-        id: "p2",
-        origin: { xMeters: 4 + INTERIOR, zMeters: 0 },
-      }),
+      part({ id: "p2", origin: { xMeters: 4 + THICKNESS, zMeters: 0 } }),
     ]);
     const floor = floorOf([home, neighbour]);
 
     const shared = createOpening("door", "d1", home, "east", 1.5, "p1");
-    const shell = createOpening("window", "w1", home, "north", 2, "p1");
+    const outside = createOpening("window", "w1", home, "north", 2, "p1");
 
-    expect(openingWallThicknessMeters(floor, home, shared)).toBe(INTERIOR);
-    expect(openingWallThicknessMeters(floor, home, shell)).toBe(EXTERIOR);
+    // A door through a shared wall and a window through an outside one are
+    // cut to the same depth: there is one wall thickness now.
+    expect(openingWallThicknessMeters(floor, home, shared)).toBe(THICKNESS);
+    expect(openingWallThicknessMeters(floor, home, outside)).toBe(THICKNESS);
   });
 
   it("refuses an opening on a wall that is not there", () => {
