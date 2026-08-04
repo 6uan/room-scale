@@ -1,5 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
-import { openWithLivingRoom } from "./fixtures/living-room";
+import {
+  openWithLivingRoom,
+  openWithUnreadableProject,
+} from "./fixtures/living-room";
 
 /**
  * The shell thickness the plan pads its fitted view by, in inches.
@@ -1600,6 +1603,34 @@ test.describe("laying the apartment out", () => {
     // Off the apartment altogether: a hand, because a drag there pans.
     await page.mouse.move(box.x + 8, box.y + 8);
     expect(await cursor()).toBe("grab");
+  });
+
+  test("says a stored project could not be read, in a bar that stays out of the way", async ({
+    page,
+  }) => {
+    await openWithUnreadableProject(page);
+
+    const notice = page.getByRole("alert");
+    await expect(notice).toContainText("could not be opened");
+
+    // A strip, not a panel. The number is generous — this guards against it
+    // going back to a bordered card with a paragraph in it, rather than
+    // pinning a pixel height that a font change would break.
+    const bar = await notice.boundingBox();
+    expect(bar?.height ?? 0).toBeLessThan(48);
+
+    // It sits above the toolbar rather than pushing the workspace aside, and
+    // the plan underneath is usable straight away.
+    const toolbar = await page
+      .getByRole("button", { name: "Shopping list" })
+      .boundingBox();
+    expect(bar?.y ?? 0).toBeLessThan(toolbar?.y ?? 0);
+    await expect(plan(page)).toBeVisible();
+
+    // And it can be closed, because there is nothing to do about it.
+    await page.getByRole("button", { name: "Dismiss" }).click();
+    await expect(notice).toHaveCount(0);
+    await expect(plan(page)).toBeVisible();
   });
 
   test("opens on numbers somebody could have measured", async ({ page }) => {

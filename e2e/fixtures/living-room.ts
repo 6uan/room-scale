@@ -99,10 +99,38 @@ const DOCUMENT = {
  * guessing at that convention would break the next time it moves.
  */
 export async function openWithLivingRoom(page: Page, path = "/") {
+  await seedStoredProject(page, DOCUMENT, path);
+}
+
+/**
+ * A stored record this build cannot read, so the notice about it can be seen.
+ *
+ * A version 1 document whose project is nonsense: old enough that the read
+ * path runs every migration at it, and malformed enough that what comes out
+ * the far end fails to parse. That is the real failure — a record written by
+ * something else, or corrupted on disk — rather than a mocked-out loader.
+ */
+const UNREADABLE_DOCUMENT = {
+  id: "current",
+  version: 1,
+  updatedAt: 1_700_000_000_000,
+  project: { room: "not a room" },
+};
+
+export async function openWithUnreadableProject(page: Page, path = "/") {
+  await seedStoredProject(page, UNREADABLE_DOCUMENT, path);
+}
+
+/** Puts one document in the store and reloads onto it. */
+async function seedStoredProject(
+  page: Page,
+  document: unknown,
+  path: string,
+): Promise<void> {
   await page.goto(path);
   await page.waitForSelector('[role="img"][aria-label^="Plan view"]');
   await page.evaluate(
-    ({ database, store, document }) =>
+    ({ database, store, document: record }) =>
       new Promise<void>((resolve, reject) => {
         const open = indexedDB.open(database);
         open.onerror = () => reject(open.error);
@@ -115,7 +143,7 @@ export async function openWithLivingRoom(page: Page, path = "/") {
             return;
           }
           const transaction = db.transaction(store, "readwrite");
-          transaction.objectStore(store).put(document);
+          transaction.objectStore(store).put(record);
           transaction.oncomplete = () => {
             db.close();
             resolve();
@@ -123,7 +151,7 @@ export async function openWithLivingRoom(page: Page, path = "/") {
           transaction.onerror = () => reject(transaction.error);
         };
       }),
-    { database: DATABASE, store: STORE, document: DOCUMENT },
+    { database: DATABASE, store: STORE, document },
   );
   await page.goto(path);
 }
