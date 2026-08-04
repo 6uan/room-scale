@@ -126,7 +126,7 @@ export function LabelledButton({
         pressed === true ? "bg-black/[0.08] dark:bg-white/12" : ""
       }`}
     >
-      <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+      <Icon aria-hidden="true" className="size-4 shrink-0" />
       {label}
     </button>
   );
@@ -146,7 +146,7 @@ export function LabelledFileButton({
 }) {
   return (
     <label className={`${labelledClass("normal")} cursor-pointer`}>
-      <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+      <Icon aria-hidden="true" className="size-4 shrink-0" />
       {label}
       <input
         type="file"
@@ -192,14 +192,17 @@ export function LabelledLink({
       {...(target === undefined ? {} : { target, rel: "noreferrer" })}
       className={labelledClass("normal")}
     >
-      <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+      <Icon aria-hidden="true" className="size-4 shrink-0" />
       {label}
     </Link>
   );
 }
 
 function labelledClass(tone: "normal" | "danger"): string {
-  return `inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors disabled:cursor-default disabled:opacity-35 ${
+  // h-8 rather than padding alone, so an icon button, a labelled one and the
+  // arrangement menu are the same height wherever they sit beside each other.
+  // The header had four control heights in one row before this.
+  return `inline-flex h-8 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors disabled:cursor-default disabled:opacity-35 ${
     tone === "danger"
       ? "border-red-600/25 text-red-600 hover:bg-red-600/10"
       : "border-black/12 hover:bg-black/[0.06] dark:border-white/18 dark:hover:bg-white/10"
@@ -214,7 +217,7 @@ function labelledClass(tone: "normal" | "danger"): string {
  */
 export function ButtonGroup({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-0.5 rounded-lg bg-black/[0.05] p-0.5 dark:bg-white/[0.07]">
+    <div className="flex h-8 items-center gap-0.5 rounded-lg bg-black/[0.05] px-0.5 dark:bg-white/[0.07]">
       {children}
     </div>
   );
@@ -229,7 +232,10 @@ function iconButtonClass({
   tone?: "normal" | "danger" | undefined;
   size?: "normal" | "small" | undefined;
 } = {}): string {
-  const box = size === "small" ? "size-6 rounded-[5px]" : "size-7 rounded-md";
+  // 28px and 32px rather than 24 and 28. A control you have to aim at is a
+  // control that feels fussy, and none of these are so numerous that a few
+  // pixels each costs the panel anything it was using.
+  const box = size === "small" ? "size-7 rounded-lg" : "size-8 rounded-lg";
   const colors = pressed
     ? "bg-black/12 text-current dark:bg-white/20"
     : tone === "danger"
@@ -240,5 +246,5 @@ function iconButtonClass({
 }
 
 function glyphClass(size: "normal" | "small"): string {
-  return size === "small" ? "size-3.5" : "size-4";
+  return size === "small" ? "size-4" : "size-[18px]";
 }

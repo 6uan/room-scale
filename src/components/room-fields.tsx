@@ -1,7 +1,7 @@
 "use client";
 
-import { ChevronRight, Plus, Trash2, Undo2 } from "lucide-react";
-import { useState } from "react";
+import { Plus, Trash2, Undo2 } from "lucide-react";
+import { Disclosure } from "@/components/disclosure";
 import { AngleField } from "@/components/angle-field";
 import { IconButton, LabelledButton } from "@/components/icon-button";
 import { NumberField } from "@/components/number-field";
@@ -150,7 +150,7 @@ export function RoomFields({
 
       <div className="flex flex-col gap-4 border-t border-black/10 pt-4 dark:border-white/15">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-xs font-medium">
+          <span className="text-sm font-medium">
             {compound ? "Room sections" : "Footprint"}
           </span>
           <IconButton
@@ -177,7 +177,7 @@ export function RoomFields({
         ))}
       </div>
 
-      <p className="text-xs leading-relaxed opacity-60">
+      <p className="text-[13px] leading-relaxed opacity-60">
         {formatArea(roomFloorAreaSquareMeters(room), unit)} of floor.
         {compound
           ? " Overlapping sections count once, so rectangles can describe an L-shaped or notched room without inventing floor area at their seam."
@@ -246,7 +246,6 @@ function WallThicknessFields({
   onChange: (room: Room, gesture?: string) => void;
   onGestureEnd: () => void;
 }) {
-  const [open, setOpen] = useState(false);
   const name = room.name === "" ? "Room" : room.name;
   const own =
     room.exteriorWallThicknessMeters !== null ||
@@ -265,70 +264,52 @@ function WallThicknessFields({
   }).join(", ");
 
   return (
-    <div className="flex flex-col gap-3 border-t border-black/10 pt-4 dark:border-white/15">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((was) => !was)}
-        className="flex min-w-0 items-center gap-2 text-left"
-      >
-        <ChevronRight
-          aria-hidden="true"
-          className={`size-3.5 shrink-0 opacity-50 transition-transform ${open ? "rotate-90" : ""}`}
-        />
-        <span className="text-xs font-medium">Walls</span>
-        <span className="min-w-0 flex-1 truncate text-right text-xs opacity-50">
-          {summary}
-          {own ? "" : ", from the apartment"}
-        </span>
-      </button>
-
-      {open ? (
-        <div className="flex flex-col gap-3">
-          <p className="text-xs leading-relaxed opacity-60">
-            {own
-              ? `Measured for ${name} in particular. Every other room keeps the apartment's.`
-              : "The apartment's, until this room is measured on its own. A bathroom's plumbing wall is fatter than the partitions around it."}
-          </p>
-          {WALL_KINDS.map(({ kind, label }) => {
-            const overridden =
-              (kind === "exterior"
-                ? room.exteriorWallThicknessMeters
-                : room.interiorWallThicknessMeters) !== null;
-            return (
-              <div key={kind} className="flex flex-col gap-1.5">
-                <NumberField
-                  label={`${name} ${label.toLowerCase()}`}
-                  unit={unit}
-                  meters={
-                    kind === "exterior"
-                      ? exteriorThicknessMeters(floor, room)
-                      : interiorThicknessMeters(floor, room)
+    <Disclosure
+      label="Walls"
+      summary={own ? summary : `${summary}, from the apartment`}
+    >
+      <p className="text-[13px] leading-relaxed opacity-60">
+        {own
+          ? `Measured for ${name} in particular. Every other room keeps the apartment's.`
+          : "The apartment's, until this room is measured on its own. A bathroom's plumbing wall is fatter than the partitions around it."}
+      </p>
+      {WALL_KINDS.map(({ kind, label }) => {
+        const overridden =
+          (kind === "exterior"
+            ? room.exteriorWallThicknessMeters
+            : room.interiorWallThicknessMeters) !== null;
+        return (
+          <div key={kind} className="flex flex-col gap-2">
+            <NumberField
+              label={`${name} ${label.toLowerCase()}`}
+              unit={unit}
+              meters={
+                kind === "exterior"
+                  ? exteriorThicknessMeters(floor, room)
+                  : interiorThicknessMeters(floor, room)
+              }
+              limits={WALL_THICKNESS_LIMITS}
+              scrubGesture={`room-wall:${room.id}:${kind}`}
+              onMetersChange={(meters, gesture) =>
+                onChange(withRoomWallThickness(room, kind, meters), gesture)
+              }
+              onGestureEnd={onGestureEnd}
+            />
+            {overridden ? (
+              <div className="flex justify-end">
+                <LabelledButton
+                  label={`Use the apartment's ${label.toLowerCase()}`}
+                  icon={Undo2}
+                  onClick={() =>
+                    onChange(withRoomWallThickness(room, kind, null))
                   }
-                  limits={WALL_THICKNESS_LIMITS}
-                  scrubGesture={`room-wall:${room.id}:${kind}`}
-                  onMetersChange={(meters, gesture) =>
-                    onChange(withRoomWallThickness(room, kind, meters), gesture)
-                  }
-                  onGestureEnd={onGestureEnd}
                 />
-                {overridden ? (
-                  <div className="flex justify-end">
-                    <LabelledButton
-                      label={`Use the apartment's ${label.toLowerCase()}`}
-                      icon={Undo2}
-                      onClick={() =>
-                        onChange(withRoomWallThickness(room, kind, null))
-                      }
-                    />
-                  </div>
-                ) : null}
               </div>
-            );
-          })}
-        </div>
-      ) : null}
-    </div>
+            ) : null}
+          </div>
+        );
+      })}
+    </Disclosure>
   );
 }
 
@@ -598,10 +579,12 @@ function CompactGroup({
     <fieldset className="flex min-w-0 flex-col gap-2">
       <legend className="sr-only">{title}</legend>
       <div className="flex items-baseline justify-between gap-2">
-        <span aria-hidden="true" className="text-xs font-medium">
+        <span aria-hidden="true" className="text-sm font-medium">
           {title}
         </span>
-        <span className="text-xs opacity-50">{displayUnitSuffix(unit)}</span>
+        <span className="text-[13px] opacity-55">
+          {displayUnitSuffix(unit)}
+        </span>
       </div>
       <div
         className={`grid min-w-0 gap-2 ${columns === 1 ? "grid-cols-1" : "grid-cols-2"}`}

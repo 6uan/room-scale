@@ -137,12 +137,7 @@ export function Workspace() {
     ]),
   );
 
-  function duplicate(): void {
-    const current =
-      layouts.find((one) => one.id === activeLayoutId) ?? layouts[0];
-    if (current === undefined) {
-      return;
-    }
+  function duplicate(current: Layout): void {
     const id = nextId(
       "layout",
       layouts.map((one) => one.id),
@@ -440,9 +435,9 @@ export function Workspace() {
 
   return (
     <div className="grid h-dvh grid-rows-[auto_minmax(0,1fr)] bg-black/[0.02] dark:bg-white/[0.02]">
-      <header className="flex items-center justify-between gap-4 border-b border-black/10 px-3 py-1.5 dark:border-white/15">
+      <header className="flex items-center justify-between gap-4 border-b border-black/10 px-4 py-2.5 dark:border-white/15">
         <div className="flex min-w-0 items-center gap-3">
-          <h1 className="shrink-0 text-sm font-semibold tracking-tight">
+          <h1 className="shrink-0 text-[15px] font-semibold tracking-tight">
             RoomScale
           </h1>
           <LayoutSwitcher
@@ -472,12 +467,14 @@ export function Workspace() {
             <IconButton
               label="Undo"
               icon={Undo2}
+              size="small"
               disabled={!canUndo}
               onClick={undo}
             />
             <IconButton
               label="Redo"
               icon={Redo2}
+              size="small"
               disabled={!canRedo}
               onClick={redo}
             />
@@ -495,9 +492,13 @@ export function Workspace() {
           />
           {/* The list is the thing you leave with, so it keeps its words. It
               opens over the plan now rather than replacing it, and says which
-              it is doing with aria-pressed rather than by rewording itself. */}
+              it is doing with aria-pressed rather than by rewording itself.
+
+              "Shopping list" rather than "Overview and prices", which named
+              the page it used to navigate to instead of the thing it holds.
+              This is the word anybody would say out loud for it. */}
           <LabelledButton
-            label="Overview and prices"
+            label="Shopping list"
             icon={ReceiptText}
             pressed={listOpen}
             onClick={() => setListOpen((open) => !open)}

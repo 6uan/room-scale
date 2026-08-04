@@ -5,7 +5,7 @@ import { ProjectChecklist } from "@/components/project-checklist";
 import { ProjectGate } from "@/components/project-gate";
 
 export const metadata: Metadata = {
-  title: "Overview — RoomScale",
+  title: "Shopping list — RoomScale",
   description:
     "What to buy for the apartment, what it costs, and what is still to pay for. Counted from the furniture actually placed in the plan.",
 };
@@ -25,7 +25,7 @@ export default function OverviewPage() {
           </Link>
         </nav>
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-          The list
+          Shopping list
         </h1>
         <p className="max-w-2xl text-sm leading-relaxed opacity-80 print:hidden">
           Everything standing in the apartment, what it costs, and what is left

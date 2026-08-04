@@ -32,7 +32,7 @@ import { ProjectChecklist } from "@/components/project-checklist";
 export function ListDrawer({ onClose }: { onClose: () => void }) {
   return (
     <Drawer
-      title="Overview and prices"
+      title="Shopping list"
       onClose={onClose}
       footer={
         <LabelledLink label="Print the list" icon={Printer} href="/overview" />

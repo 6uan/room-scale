@@ -25,7 +25,14 @@ export function PanelHeader({
 }) {
   return (
     <div className="flex items-center justify-between gap-2">
-      <h2 className="min-w-0 truncate text-[11px] font-medium uppercase tracking-[0.15em] opacity-50">
+      {/*
+        Named the way it would be said aloud, at a size it can be read at.
+        This was eleven-pixel letter-spaced capitals at half opacity, which is
+        a label style that signals "technical" by being hard to read — the
+        wrong first impression for a tool somebody opens once, to work out
+        whether a sofa fits.
+      */}
+      <h2 className="min-w-0 truncate text-[15px] font-semibold tracking-tight">
         {title}
       </h2>
       <IconButton

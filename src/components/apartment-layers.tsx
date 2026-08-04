@@ -59,7 +59,7 @@ export function ApartmentLayers({
   const homeless = inRoom(null);
 
   return (
-    <div className="flex min-h-0 flex-col gap-4 overflow-y-auto p-4">
+    <div className="flex min-h-0 flex-col gap-5 overflow-y-auto p-5">
       {/* Lit while the plan is waiting for a rectangle, so the mode it turns
           on is visible in the one place that turned it on. */}
       <PanelHeader
@@ -140,9 +140,7 @@ export function ApartmentLayers({
 
       {homeless.length === 0 ? null : (
         <div className="flex flex-col gap-1">
-          <h3 className="text-xs uppercase tracking-[0.15em] text-red-600">
-            In no room
-          </h3>
+          <h3 className="text-[13px] font-medium text-red-600">In no room</h3>
           <ul className="flex flex-col">
             {homeless.map(({ placed, name }) => (
               <li key={placed.instance.id}>
@@ -279,7 +277,7 @@ function Row({
       onClick={onSelect}
       onDoubleClick={onDoubleClick}
       title={title}
-      className={`flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1 text-left text-sm transition-colors ${
+      className={`flex w-full min-w-0 items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors ${
         depth ? "pl-6" : ""
       } ${
         selected

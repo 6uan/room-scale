@@ -14,6 +14,7 @@ import {
   IconFileButton,
   LabelledButton,
 } from "@/components/icon-button";
+import { Disclosure } from "@/components/disclosure";
 import { NumberField } from "@/components/number-field";
 import { openingName } from "@/components/opening-name";
 import { OpeningFields } from "@/components/room-openings-form";
@@ -40,6 +41,7 @@ import {
 } from "@/domain/room";
 import {
   displayUnitSuffix,
+  displayValueFromMeters,
   formatArea,
   formatCents,
   formatLength,
@@ -126,11 +128,11 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <section aria-label={title} className="flex flex-col gap-4 p-4">
+    <section aria-label={title} className="flex flex-col gap-5 p-5">
       <header className="flex flex-col gap-1">
-        <h2 className="text-sm font-medium">{title}</h2>
+        <h2 className="text-[17px] font-semibold tracking-tight">{title}</h2>
         {subtitle === undefined ? null : (
-          <p className="text-xs opacity-50">{subtitle}</p>
+          <p className="text-[13px] leading-relaxed opacity-60">{subtitle}</p>
         )}
       </header>
       {children}
@@ -173,39 +175,63 @@ function FloorInspector({
         the partitions. Which walls are which is worked out from the rooms —
         a wall is interior where another room stands on its far side.
 
-        They are the apartment's defaults rather than its only answer: a room
-        may declare its own from its own panel. Almost none do, which is why
-        these two stay here and the override is folded away over there.
+        Folded away for the same reason a room's own override is: they are set
+        once, if ever, and read far more often than changed. Two labelled
+        fields and two unit conversions was the first thing a new project put
+        in front of somebody, which is a strange thing to open a tool on.
       */}
-      <NumberField
-        label="Exterior wall thickness"
-        unit={unit}
-        meters={floor.exteriorWallThicknessMeters}
-        limits={WALL_THICKNESS_LIMITS}
-        onMetersChange={(exteriorWallThicknessMeters) =>
-          onFloorChange({ ...floor, exteriorWallThicknessMeters })
-        }
-      />
-      <NumberField
-        label="Interior wall thickness"
-        unit={unit}
-        meters={floor.interiorWallThicknessMeters}
-        limits={WALL_THICKNESS_LIMITS}
-        onMetersChange={(interiorWallThicknessMeters) =>
-          onFloorChange({ ...floor, interiorWallThicknessMeters })
-        }
-      />
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-        <Fact label="Rooms" value={String(floor.rooms.length)} />
-        <Fact label="Across" value={formatLength(extent.widthMeters, unit)} />
-        <Fact label="Down" value={formatLength(extent.depthMeters, unit)} />
-        <Fact
-          label="Floor area"
-          value={formatArea(floorAreaSquareMeters(floor), unit)}
+      <Disclosure
+        label="Wall defaults"
+        summary={`${thicknessLabel(floor.exteriorWallThicknessMeters, unit)} shell, ${thicknessLabel(floor.interiorWallThicknessMeters, unit)} partitions`}
+      >
+        <p className="text-[13px] leading-relaxed opacity-60">
+          What every room is built out of until it says otherwise. A single room
+          can be measured on its own from its own panel.
+        </p>
+        <NumberField
+          label="Exterior wall thickness"
+          unit={unit}
+          meters={floor.exteriorWallThicknessMeters}
+          limits={WALL_THICKNESS_LIMITS}
+          onMetersChange={(exteriorWallThicknessMeters) =>
+            onFloorChange({ ...floor, exteriorWallThicknessMeters })
+          }
         />
-      </dl>
+        <NumberField
+          label="Interior wall thickness"
+          unit={unit}
+          meters={floor.interiorWallThicknessMeters}
+          limits={WALL_THICKNESS_LIMITS}
+          onMetersChange={(interiorWallThicknessMeters) =>
+            onFloorChange({ ...floor, interiorWallThicknessMeters })
+          }
+        />
+      </Disclosure>
+
+      {/*
+        Four figures reading zero are four things to read and nothing learned.
+        They arrive with the first room, which is the moment any of them
+        becomes a fact about anything.
+      */}
+      {floor.rooms.length === 0 ? null : (
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-4 border-t border-black/10 pt-4 text-sm dark:border-white/15">
+          <Fact label="Rooms" value={String(floor.rooms.length)} />
+          <Fact label="Across" value={formatLength(extent.widthMeters, unit)} />
+          <Fact label="Down" value={formatLength(extent.depthMeters, unit)} />
+          <Fact
+            label="Floor area"
+            value={formatArea(floorAreaSquareMeters(floor), unit)}
+          />
+        </dl>
+      )}
     </Panel>
   );
+}
+
+/** A wall thickness the way the field beside it reads, not in feet-and-inches. */
+function thicknessLabel(meters: number, unit: DisplayUnit): string {
+  const value = displayValueFromMeters(meters, unit);
+  return `${Number(value.toFixed(2))} ${displayUnitSuffix(unit)}`;
 }
 
 function RoomInspector({
@@ -576,10 +602,8 @@ function Missing({ what }: { what: string }) {
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <dt className="text-xs uppercase tracking-[0.15em] opacity-50">
-        {label}
-      </dt>
-      <dd className="tabular-nums">{value}</dd>
+      <dt className="text-[13px] opacity-60">{label}</dt>
+      <dd className="text-[15px] tabular-nums">{value}</dd>
     </div>
   );
 }
