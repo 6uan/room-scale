@@ -814,7 +814,9 @@ test.describe("laying the apartment out", () => {
     await contents(page).getByRole("button", { name: "Living room" }).click();
 
     const room = details(page).getByRole("region", { name: "Living room" });
-    await room.getByLabel("Living room angle").fill("45");
+    await room
+      .getByRole("spinbutton", { name: "Living room angle" })
+      .fill("45");
 
     // A turn changes no measurement: the tape still reads the same sizes.
     await expect(room.getByLabel("Living room width")).toHaveValue("168");
@@ -825,7 +827,7 @@ test.describe("laying the apartment out", () => {
     await expect(
       details(page)
         .getByRole("region", { name: "Living room" })
-        .getByLabel("Living room angle"),
+        .getByRole("spinbutton", { name: "Living room angle" }),
     ).toHaveValue("45");
   });
 
@@ -835,14 +837,16 @@ test.describe("laying the apartment out", () => {
     const room = details(page).getByRole("region", { name: "Living room" });
     await room.getByRole("button", { name: "Add section" }).click();
 
-    await room.getByLabel("Living room section 2 angle").fill("45");
+    await room
+      .getByRole("spinbutton", { name: "Living room section 2 angle" })
+      .fill("45");
 
-    await expect(room.getByLabel("Living room section 2 angle")).toHaveValue(
-      "45",
-    );
-    await expect(room.getByLabel("Living room section 1 angle")).toHaveValue(
-      "0",
-    );
+    await expect(
+      room.getByRole("spinbutton", { name: "Living room section 2 angle" }),
+    ).toHaveValue("45");
+    await expect(
+      room.getByRole("spinbutton", { name: "Living room section 1 angle" }),
+    ).toHaveValue("0");
   });
 
   test("rotates a section by dragging the round handle past its north wall", async ({
@@ -893,7 +897,9 @@ test.describe("laying the apartment out", () => {
     await page.mouse.up();
 
     const room = details(page).getByRole("region", { name: "Living room" });
-    await expect(room.getByLabel("Living room angle")).toHaveValue("45");
+    await expect(
+      room.getByRole("spinbutton", { name: "Living room angle" }),
+    ).toHaveValue("45");
     // A turn is not a resize: the tape still reads the same everywhere.
     await expect(room.getByLabel("Living room width")).toHaveValue("168");
     await expect(plan(page).getByText("168.0 sq ft")).toBeVisible();
