@@ -1,3 +1,4 @@
+import { clipPolygonToConvex, polygonSignedArea } from "./convex-polygon";
 import { orientedRectCorners, type OrientedRect } from "./oriented-rect";
 import type { FloorPoint } from "./plan-projection";
 
@@ -70,7 +71,7 @@ export function orientedRectUnionOverlapArea(
 ): number {
   const polygon = [...orientedRectCorners(footprint)];
   return unionCells(rects).reduce(
-    (area, cell) => area + polygonArea(clipToRect(polygon, cell)),
+    (area, cell) => area + polygonArea(clipPolygonToRect(polygon, cell)),
     0,
   );
 }
@@ -125,104 +126,34 @@ function uniqueSorted(values: readonly number[]): number[] {
   return [...new Set(values)].sort((a, b) => a - b);
 }
 
-type ClipEdge = "west" | "east" | "north" | "south";
+/** The four corners of an axis-aligned rectangle, going round from its origin. */
+export function axisAlignedRectCorners(
+  rect: AxisAlignedRect,
+): readonly [FloorPoint, FloorPoint, FloorPoint, FloorPoint] {
+  const east = rect.origin.xMeters + rect.widthMeters;
+  const south = rect.origin.zMeters + rect.depthMeters;
+  return [
+    rect.origin,
+    { xMeters: east, zMeters: rect.origin.zMeters },
+    { xMeters: east, zMeters: south },
+    { xMeters: rect.origin.xMeters, zMeters: south },
+  ];
+}
 
-/** The polygon clipped to an axis-aligned rectangle, Sutherland–Hodgman. */
+/**
+ * The polygon clipped to an axis-aligned rectangle, Sutherland–Hodgman.
+ *
+ * A rectangle is a convex clipper like any other; this is the general clip
+ * against its corners.
+ */
 export function clipPolygonToRect(
   polygon: readonly FloorPoint[],
   rect: AxisAlignedRect,
 ): FloorPoint[] {
-  return clipToRect(polygon, rect);
-}
-
-function clipToRect(
-  polygon: readonly FloorPoint[],
-  rect: AxisAlignedRect,
-): FloorPoint[] {
-  return (["west", "east", "north", "south"] as const).reduce(
-    (points, edge) => clipEdge(points, rect, edge),
-    [...polygon],
-  );
-}
-
-function clipEdge(
-  polygon: readonly FloorPoint[],
-  rect: AxisAlignedRect,
-  edge: ClipEdge,
-): FloorPoint[] {
-  const result: FloorPoint[] = [];
-  for (let index = 0; index < polygon.length; index += 1) {
-    const current = polygon[index];
-    const previous = polygon[(index + polygon.length - 1) % polygon.length];
-    if (current === undefined || previous === undefined) {
-      continue;
-    }
-    const currentInside = insideEdge(current, rect, edge);
-    const previousInside = insideEdge(previous, rect, edge);
-    if (currentInside !== previousInside) {
-      result.push(edgeIntersection(previous, current, rect, edge));
-    }
-    if (currentInside) {
-      result.push(current);
-    }
-  }
-  return result;
-}
-
-function insideEdge(
-  point: FloorPoint,
-  rect: AxisAlignedRect,
-  edge: ClipEdge,
-): boolean {
-  switch (edge) {
-    case "west":
-      return point.xMeters >= rect.origin.xMeters;
-    case "east":
-      return point.xMeters <= rect.origin.xMeters + rect.widthMeters;
-    case "north":
-      return point.zMeters >= rect.origin.zMeters;
-    case "south":
-      return point.zMeters <= rect.origin.zMeters + rect.depthMeters;
-  }
-}
-
-function edgeIntersection(
-  from: FloorPoint,
-  to: FloorPoint,
-  rect: AxisAlignedRect,
-  edge: ClipEdge,
-): FloorPoint {
-  if (edge === "west" || edge === "east") {
-    const xMeters =
-      edge === "west"
-        ? rect.origin.xMeters
-        : rect.origin.xMeters + rect.widthMeters;
-    const ratio = (xMeters - from.xMeters) / (to.xMeters - from.xMeters);
-    return {
-      xMeters,
-      zMeters: from.zMeters + (to.zMeters - from.zMeters) * ratio,
-    };
-  }
-  const zMeters =
-    edge === "north"
-      ? rect.origin.zMeters
-      : rect.origin.zMeters + rect.depthMeters;
-  const ratio = (zMeters - from.zMeters) / (to.zMeters - from.zMeters);
-  return {
-    xMeters: from.xMeters + (to.xMeters - from.xMeters) * ratio,
-    zMeters,
-  };
+  return clipPolygonToConvex(polygon, axisAlignedRectCorners(rect));
 }
 
 /** Shoelace area of a simple polygon, in either winding. */
 export function polygonArea(points: readonly FloorPoint[]): number {
-  let twiceArea = 0;
-  for (let index = 0; index < points.length; index += 1) {
-    const point = points[index];
-    const next = points[(index + 1) % points.length];
-    if (point !== undefined && next !== undefined) {
-      twiceArea += point.xMeters * next.zMeters - next.xMeters * point.zMeters;
-    }
-  }
-  return Math.abs(twiceArea) / 2;
+  return Math.abs(polygonSignedArea(points));
 }
