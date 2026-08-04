@@ -3,6 +3,7 @@ import {
   clipPolygonToConvex,
   convexPolygonAxes,
   convexPolygonContains,
+  convexUnionArea,
   polygonSignedArea,
 } from "./convex-polygon";
 import { orientedRectCorners } from "./oriented-rect";
@@ -225,5 +226,43 @@ describe("convexPolygonOverlap", () => {
 
   it("reads a degenerate shape as apart rather than as touching everything", () => {
     expect(convexPolygonOverlap(square(0, 0, 2), [at(1, 1)])).toBeNull();
+  });
+});
+
+describe("convexUnionArea", () => {
+  it("measures one polygon as itself", () => {
+    expect(convexUnionArea([square(0, 0, 2)])).toBeCloseTo(4, 10);
+    expect(convexUnionArea([CUT_CORNER])).toBeCloseTo(16 - 0.5, 10);
+  });
+
+  it("counts the part two polygons share exactly once", () => {
+    // Two 2 m squares overlapping over a 1 m square: 4 + 4 − 1.
+    expect(convexUnionArea([square(0, 0, 2), square(1, 1, 2)])).toBeCloseTo(
+      7,
+      10,
+    );
+  });
+
+  it("adds nothing for polygons that do not meet", () => {
+    expect(convexUnionArea([square(0, 0, 2), square(9, 9, 2)])).toBeCloseTo(
+      8,
+      10,
+    );
+  });
+
+  it("measures what a base shares with the union, not the whole union", () => {
+    // A 1 m square in the clipped corner keeps only the half the cut leaves.
+    expect(convexUnionArea([CUT_CORNER], square(3, 3, 1))).toBeCloseTo(0.5, 10);
+    // And a base that misses everything shares nothing.
+    expect(convexUnionArea([CUT_CORNER], square(9, 9, 1))).toBeCloseTo(0, 10);
+  });
+
+  it("does not care which way round each polygon runs", () => {
+    const back = [...square(1, 1, 2)].reverse();
+    expect(convexUnionArea([square(0, 0, 2), back])).toBeCloseTo(7, 10);
+  });
+
+  it("has no area at all with nothing in it", () => {
+    expect(convexUnionArea([])).toBe(0);
   });
 });

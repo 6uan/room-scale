@@ -151,7 +151,16 @@ sit on a wall with a start corner and a distance, and what keeps every shape
 convex for the theorem below. A free polygon would take both away and buy only
 the shapes nobody's apartment has.
 
-Use the Separating Axis Theorem for rotated rectangle intersection.
+A part may have **corners clipped**: each corner carries an optional cut, two
+legs measured in from it along the part's own width and depth axes. That is
+what a tape gives you at a clipped corner, and it stays two typeable numbers
+where a boolean subtract would leave a path with no dimensions to type and no
+wall to hang a door on. A rectangle with corners clipped is still convex, so
+none of the above is given up to get one, and the chamfer it leaves is a wall
+like any other — it draws, it carries a thickness, and it can take an opening.
+
+Use the Separating Axis Theorem for rotated rectangle intersection, and its
+convex-polygon form for a part that has a corner cut off it.
 
 Validation must detect:
 

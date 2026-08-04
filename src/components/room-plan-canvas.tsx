@@ -48,6 +48,8 @@ import {
   maxWallThicknessMeters,
   metersAlongOpeningWall,
   moveOpening,
+  partWallFrame,
+  partWallSides,
   openingAtPoint,
   openingEndpoints,
   openingWallThicknessMeters,
@@ -60,7 +62,9 @@ import {
   resizeRoomPartEdgeToPoint,
   roomPart,
   roomPartContains,
-  roomPartRect,
+  roomPartIsCut,
+  roomPartLocalPolygon,
+  roomPartPivotRect,
   roomsAt,
   roomBounds,
   snapRoomOrigin,
@@ -81,6 +85,7 @@ import {
   type Room,
   type RoomEdge,
   type RoomPart,
+  type WallFrame,
   type WallSide,
   type WallStretch,
 } from "@/domain/room";
@@ -157,9 +162,22 @@ function cursorForEdges(edges: readonly RoomEdge[]): Cursor {
   return northWest ? "resize-nwse" : "resize-nesw";
 }
 
-/** A jamb moves along its wall. */
+/** A jamb moves along its wall — a chamfer's runs on one of the diagonals. */
 function cursorForWall(wall: WallSide): Cursor {
-  return wall === "north" || wall === "south" ? "resize-x" : "resize-y";
+  switch (wall) {
+    case "north":
+    case "south":
+      return "resize-x";
+    case "east":
+    case "west":
+      return "resize-y";
+    case "north-west":
+    case "south-east":
+      return "resize-nesw";
+    case "north-east":
+    case "south-west":
+      return "resize-nwse";
+  }
 }
 
 /**
@@ -731,7 +749,7 @@ export function RoomPlanCanvas({
           return;
         }
         // The drag pivots on the section's center: it spins where it stands.
-        const pivot = roomPartRect(part).center;
+        const pivot = roomPartPivotRect(part).center;
         dragRef.current = {
           kind: "part-rotate",
           pointerId: event.pointerId,
@@ -949,7 +967,7 @@ export function RoomPlanCanvas({
       if (room === undefined || part === undefined || point === null) {
         return;
       }
-      const pivot = roomPartRect(part).center;
+      const pivot = roomPartPivotRect(part).center;
       const angle = Math.atan2(
         point.zMeters - pivot.zMeters,
         point.xMeters - pivot.xMeters,
@@ -2052,12 +2070,9 @@ function drawRoomWalls(
       return stretch?.thicknessMeters ?? 0;
     };
 
-    inPartFrame(context, frame, part, (widthPixels, depthPixels) => {
-      for (const wall of WALL_SIDES) {
-        const lengthMeters =
-          wall === "north" || wall === "south"
-            ? part.widthMeters
-            : part.depthMeters;
+    inPartFrame(context, frame, part, () => {
+      for (const wall of partWallSides(part)) {
+        const line = partWallFrame(part, wall);
         for (const stretch of sides[wall]) {
           const thickness = stretch.thicknessMeters;
           if (thickness <= 0) {
@@ -2068,31 +2083,20 @@ function drawRoomWalls(
           // anybody drawing them twice.
           const intoStart =
             stretch.startMeters <= 0.002
-              ? thicknessAt(...cornerNeighbour(part, wall, "start"))
+              ? thicknessAt(...cornerNeighbour(part, wall, "from"))
               : 0;
           const intoEnd =
-            stretch.endMeters >= lengthMeters - 0.002
-              ? thicknessAt(...cornerNeighbour(part, wall, "end"))
+            stretch.endMeters >= line.lengthMeters - 0.002
+              ? thicknessAt(...cornerNeighbour(part, wall, "to"))
               : 0;
-          const from = (stretch.startMeters - intoStart) * pixelsPerMeter;
-          const span =
-            (stretch.endMeters - stretch.startMeters + intoStart + intoEnd) *
-            pixelsPerMeter;
-          const band = thickness * pixelsPerMeter;
-          switch (wall) {
-            case "north":
-              context.rect(from, -band, span, band);
-              break;
-            case "south":
-              context.rect(from, depthPixels, span, band);
-              break;
-            case "west":
-              context.rect(-band, from, band, span);
-              break;
-            case "east":
-              context.rect(widthPixels, from, band, span);
-              break;
-          }
+          traceWallBand(
+            context,
+            line,
+            stretch.startMeters - intoStart,
+            stretch.endMeters + intoEnd,
+            thickness,
+            pixelsPerMeter,
+          );
         }
       }
     });
@@ -2101,7 +2105,59 @@ function drawRoomWalls(
   context.restore();
 }
 
-/** All four sides' stretches of one part, computed once. */
+/**
+ * One band of wall along a stretch, added to the current path.
+ *
+ * Four points rather than a rectangle, because a chamfer's band lies on no
+ * axis even in its own part's frame. **Wound the same way whichever wall it
+ * is**: the square sides are not all measured the way the outline runs, so a
+ * quad laid out from the wall's own direction comes out clockwise on four
+ * walls and anticlockwise on the other four — and two opposite windings
+ * overlapping at a corner would cancel each other into a hole when the whole
+ * path is filled at once.
+ */
+function traceWallBand(
+  context: CanvasRenderingContext2D,
+  line: WallFrame,
+  fromMeters: number,
+  toMeters: number,
+  thicknessMeters: number,
+  pixelsPerMeter: number,
+): void {
+  const at = (alongMeters: number, outMeters: number): PixelPoint => ({
+    x:
+      (line.from.xMeters +
+        line.direction.dx * alongMeters +
+        line.normal.dx * outMeters) *
+      pixelsPerMeter,
+    y:
+      (line.from.zMeters +
+        line.direction.dz * alongMeters +
+        line.normal.dz * outMeters) *
+      pixelsPerMeter,
+  });
+
+  const quad = [
+    at(fromMeters, 0),
+    at(toMeters, 0),
+    at(toMeters, thicknessMeters),
+    at(fromMeters, thicknessMeters),
+  ];
+  const turningTheSameWay =
+    line.direction.dx * line.normal.dz - line.direction.dz * line.normal.dx < 0;
+  const points = turningTheSameWay ? quad : [...quad].reverse();
+
+  points.forEach((point, index) => {
+    if (index === 0) {
+      context.moveTo(point.x, point.y);
+    } else {
+      context.lineTo(point.x, point.y);
+    }
+  });
+  context.closePath();
+}
+
+/** Every side's stretches of one part, computed once. */
 function partWallStretches(
   floor: Floor,
   room: Room,
@@ -2112,28 +2168,45 @@ function partWallStretches(
   ) as Record<WallSide, readonly WallStretch[]>;
 }
 
-/** The adjacent side and position that share a corner with one end of a wall. */
+/**
+ * The wall sharing a corner with one end of this one, and where along it that
+ * corner falls.
+ *
+ * Found by the corner itself rather than from a table of which side follows
+ * which, because what follows the north wall is the east wall on a square
+ * section and the north-east chamfer on a clipped one. Every vertex of a
+ * convex outline has exactly two walls meeting at it, so there is never a
+ * choice to make. A wall with nothing adjacent reports a position no stretch
+ * covers, which grows the band by nothing.
+ */
 function cornerNeighbour(
   part: RoomPart,
   wall: WallSide,
-  end: "start" | "end",
+  end: "from" | "to",
 ): [WallSide, number] {
-  const alongWidth = wall === "north" || wall === "south";
-  const neighbour: WallSide = alongWidth
-    ? end === "start"
-      ? "west"
-      : "east"
-    : end === "start"
-      ? "north"
-      : "south";
-  const at = alongWidth
-    ? wall === "north"
-      ? 0
-      : part.depthMeters
-    : wall === "west"
-      ? 0
-      : part.widthMeters;
-  return [neighbour, at];
+  const line = partWallFrame(part, wall);
+  const corner = end === "from" ? line.from : line.to;
+
+  for (const other of partWallSides(part)) {
+    if (other === wall) {
+      continue;
+    }
+    const theirs = partWallFrame(part, other);
+    if (samePoint(theirs.to, corner)) {
+      return [other, theirs.lengthMeters];
+    }
+    if (samePoint(theirs.from, corner)) {
+      return [other, 0];
+    }
+  }
+  return [wall, -1];
+}
+
+function samePoint(a: FloorPoint, b: FloorPoint): boolean {
+  return (
+    Math.abs(a.xMeters - b.xMeters) < 0.000000001 &&
+    Math.abs(a.zMeters - b.zMeters) < 0.000000001
+  );
 }
 
 /** Open edges drawn as the railings they are: a line where a wall is not. */
@@ -2150,32 +2223,21 @@ function drawRoomRailings(
   context.lineWidth = 1.5;
   context.beginPath();
   for (const part of room.parts) {
-    inPartFrame(context, frame, part, (widthPixels, depthPixels) => {
-      for (const wall of WALL_SIDES) {
+    inPartFrame(context, frame, part, () => {
+      for (const wall of partWallSides(part)) {
+        const line = partWallFrame(part, wall);
         for (const stretch of wallStretches(floor, room, part, wall)) {
           if (stretch.kind !== "open") {
             continue;
           }
-          const from = stretch.startMeters * pixelsPerMeter;
-          const to = stretch.endMeters * pixelsPerMeter;
-          switch (wall) {
-            case "north":
-              context.moveTo(from, 0);
-              context.lineTo(to, 0);
-              break;
-            case "south":
-              context.moveTo(from, depthPixels);
-              context.lineTo(to, depthPixels);
-              break;
-            case "west":
-              context.moveTo(0, from);
-              context.lineTo(0, to);
-              break;
-            case "east":
-              context.moveTo(widthPixels, from);
-              context.lineTo(widthPixels, to);
-              break;
-          }
+          const from = alongWallPixel(
+            line,
+            stretch.startMeters,
+            pixelsPerMeter,
+          );
+          const to = alongWallPixel(line, stretch.endMeters, pixelsPerMeter);
+          context.moveTo(from.x, from.y);
+          context.lineTo(to.x, to.y);
         }
       }
     });
@@ -2184,22 +2246,60 @@ function drawRoomRailings(
   context.restore();
 }
 
+/** A point on a wall's inside face, in its own part's pixel frame. */
+function alongWallPixel(
+  line: WallFrame,
+  alongMeters: number,
+  pixelsPerMeter: number,
+): PixelPoint {
+  return {
+    x: (line.from.xMeters + line.direction.dx * alongMeters) * pixelsPerMeter,
+    y: (line.from.zMeters + line.direction.dz * alongMeters) * pixelsPerMeter,
+  };
+}
+
 /** The room's own floor, cleared out of the wall band and tinted. */
 function punchRoomFloor(
   context: CanvasRenderingContext2D,
   frame: PlanFrame,
   room: Room,
 ): void {
+  const pixelsPerMeter = spanPixels(frame, 1);
   for (const part of room.parts) {
     inPartFrame(context, frame, part, (width, depth) => {
-      context.clearRect(0, 0, width, depth);
       context.save();
+      // Only a section with a corner clipped off pays for the clip; a whole
+      // rectangle clears and tints exactly as it always has.
+      if (roomPartIsCut(part)) {
+        tracePartOutline(context, part, pixelsPerMeter);
+        context.clip();
+      }
+      context.clearRect(0, 0, width, depth);
       context.globalAlpha = FLOOR_ALPHA;
       context.fillStyle = frame.color;
       context.fillRect(0, 0, width, depth);
       context.restore();
     });
   }
+}
+
+/** The part's true outline as a path, in its own part's pixel frame. */
+function tracePartOutline(
+  context: CanvasRenderingContext2D,
+  part: RoomPart,
+  pixelsPerMeter: number,
+): void {
+  context.beginPath();
+  roomPartLocalPolygon(part).forEach((point, index) => {
+    const x = point.xMeters * pixelsPerMeter;
+    const y = point.zMeters * pixelsPerMeter;
+    if (index === 0) {
+      context.moveTo(x, y);
+    } else {
+      context.lineTo(x, y);
+    }
+  });
+  context.closePath();
 }
 
 /**
@@ -2227,7 +2327,7 @@ function drawRoomName(
   );
   // The part's true center, wherever its turn has carried it. The text itself
   // stays level: a label is furniture of the screen, not of the room.
-  const center = frame.toPixels(roomPartRect(labelPart).center);
+  const center = frame.toPixels(roomPartPivotRect(labelPart).center);
 
   context.save();
   context.globalAlpha = ROOM_NAME_ALPHA;
@@ -2345,9 +2445,17 @@ function markSelectedRoom(
   context.strokeStyle = frame.color;
   context.lineWidth = 2;
   context.setLineDash([6, 4]);
+  const pixelsPerMeter = spanPixels(frame, 1);
   for (const part of markedParts) {
     inPartFrame(context, frame, part, (width, depth) => {
       context.globalAlpha = SELECTED_FILL_ALPHA;
+      if (roomPartIsCut(part)) {
+        tracePartOutline(context, part, pixelsPerMeter);
+        context.fill();
+        context.globalAlpha = 1;
+        context.stroke();
+        return;
+      }
       context.fillRect(0, 0, width, depth);
       context.globalAlpha = 1;
       context.strokeRect(0, 0, width, depth);

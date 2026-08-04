@@ -12,8 +12,9 @@ import { NumberField } from "@/components/number-field";
 import { openingListName, openingName } from "@/components/opening-name";
 import {
   MIN_OPENING_METERS,
-  WALL_SIDES,
   checkOpening,
+  partWallSides,
+  roomPart,
   wallLengthMeters,
   withOpeningWall,
   type Door,
@@ -32,12 +33,21 @@ const KINDS: readonly { kind: OpeningKind; label: string; icon: LucideIcon }[] =
     { kind: "passage", label: "passage", icon: MoveHorizontal },
   ];
 
-/** Which side of the plan each wall is drawn on, so the list matches the view. */
+/**
+ * Which side of the plan each wall is drawn on, so the list matches the view.
+ *
+ * A clipped corner leaves a chamfer, which is named for the corner it replaced
+ * and takes a door like any other wall.
+ */
 const WALL_LABELS: Record<WallSide, string> = {
   north: "North (top)",
+  "north-east": "North-east corner",
   east: "East (right)",
+  "south-east": "South-east corner",
   south: "South (bottom)",
+  "south-west": "South-west corner",
   west: "West (left)",
+  "north-west": "North-west corner",
 };
 
 export type RoomOpeningsFormProps = {
@@ -136,7 +146,10 @@ export function OpeningFields({
   onChange,
   onRemove,
 }: OpeningFieldsProps) {
-  const wallLength = wallLengthMeters(room, opening.wall);
+  // This opening's own section, rather than the room's first: walls differ in
+  // length between sections, and a chamfer exists only on the one that is cut.
+  const part = roomPart(room, opening.partId);
+  const wallLength = wallLengthMeters(room, opening.wall, opening.partId);
   const problem = checkOpening(room, opening);
   const name = openingName(room, opening);
 
@@ -149,10 +162,12 @@ export function OpeningFields({
         label={`${name} wall`}
         visibleLabel="Wall"
         value={opening.wall}
-        options={WALL_SIDES.map((wall) => ({
-          value: wall,
-          label: WALL_LABELS[wall],
-        }))}
+        options={(part === undefined ? [] : partWallSides(part)).map(
+          (wall) => ({
+            value: wall,
+            label: WALL_LABELS[wall],
+          }),
+        )}
         onChange={(wall) =>
           onChange(withOpeningWall(room, opening, wall as WallSide))
         }

@@ -450,6 +450,78 @@ describe("readStoredProject", () => {
     );
   });
 
+  it("leaves a version 11 section square, with no corners clipped", () => {
+    const project = projectWithLivingRoom();
+    const version11 = {
+      id: "current",
+      version: 11,
+      updatedAt: 1_700_000_000_000,
+      project,
+    };
+
+    const result = readStoredProject(version11);
+
+    expect(result.ok).toBe(true);
+    // Absent, which is what "every corner of it is square" says.
+    expect(
+      result.ok && result.project.floor.rooms[0]?.parts[0]?.cuts,
+    ).toBeUndefined();
+  });
+
+  it("keeps a clipped corner through the round trip", () => {
+    const project = projectWithLivingRoom();
+    const room = project.floor.rooms[0];
+    const part = room?.parts[0];
+    if (room === undefined || part === undefined) {
+      throw new Error("a new project starts with one room of one part");
+    }
+    const stored = {
+      ...STORED,
+      project: {
+        ...project,
+        floor: {
+          ...project.floor,
+          rooms: [
+            {
+              ...room,
+              parts: [
+                {
+                  ...part,
+                  cuts: {
+                    "north-west": { widthMeters: 0.9144, depthMeters: 0.6 },
+                  },
+                },
+              ],
+              openings: [
+                {
+                  id: "door-9",
+                  partId: part.id,
+                  kind: "door",
+                  wall: "north-west",
+                  centerMeters: 0.5,
+                  widthMeters: 0.8128,
+                  hinge: "start",
+                  swing: "inward",
+                },
+              ],
+            },
+          ],
+        },
+      },
+    };
+
+    const result = readStoredProject(stored);
+
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.project.floor.rooms[0]?.parts[0]?.cuts).toEqual({
+      "north-west": { widthMeters: 0.9144, depthMeters: 0.6 },
+    });
+    // A door hung on the chamfer keeps its address through the round trip.
+    expect(result.ok && result.project.floor.rooms[0]?.openings[0]?.wall).toBe(
+      "north-west",
+    );
+  });
+
   it("keeps a room's own wall thickness through the round trip", () => {
     const project = projectWithLivingRoom();
     const room = project.floor.rooms[0];

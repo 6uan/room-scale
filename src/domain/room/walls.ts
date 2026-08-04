@@ -24,9 +24,10 @@ import {
   type Floor,
 } from "./floor";
 import {
-  roomPartCorners,
+  partWallSegment,
   pointOnRoomPart,
   roomPart,
+  roomPartPolygon,
   type Room,
   type RoomPart,
 } from "./room";
@@ -104,7 +105,7 @@ export function wallStretches(
     room.parts
       .filter((sibling) => sibling.id !== part.id)
       .flatMap((sibling) =>
-        bandInterval(part, wall, length, roomPartCorners(sibling), {
+        bandInterval(part, wall, length, roomPartPolygon(sibling), {
           nearMeters: THROUGH_EPSILON_METERS,
           farMeters: THROUGH_EPSILON_METERS * 2,
         }),
@@ -128,7 +129,7 @@ export function wallStretches(
     }
     const thickness = partitionThicknessMeters(floor, room, other);
     const found = other.parts.flatMap((theirs) =>
-      bandInterval(part, wall, length, roomPartCorners(theirs), {
+      bandInterval(part, wall, length, roomPartPolygon(theirs), {
         nearMeters: THROUGH_EPSILON_METERS,
         // A snapped neighbour's face sits exactly one partition thickness
         // away; a fingertip of tolerance keeps arithmetic honest.
@@ -252,7 +253,13 @@ function bandInterval(
   return [{ start: Math.min(...xs), end: Math.max(...xs) }];
 }
 
-/** The wall's own frame: its start corner, and unit vectors along and out. */
+/**
+ * The wall's own frame: where it starts, and unit vectors along and out of it.
+ *
+ * Taken from the wall's own segment, so a chamfer left by a clipped corner has
+ * a frame exactly as a square side does — and a square side keeps the frame it
+ * always had, since an uncut wall starts at the corner it always started at.
+ */
 function wallFrame(
   part: RoomPart,
   wall: WallSide,
@@ -261,19 +268,17 @@ function wallFrame(
   readonly direction: FloorVector;
   readonly normal: FloorVector;
 } {
-  const cos = Math.cos(part.rotationRadians);
-  const sin = Math.sin(part.rotationRadians);
-  const alongWidth = wall === "north" || wall === "south";
-  const startLocal =
-    wall === "south"
-      ? { xMeters: 0, zMeters: part.depthMeters }
-      : wall === "east"
-        ? { xMeters: part.widthMeters, zMeters: 0 }
-        : { xMeters: 0, zMeters: 0 };
+  const { from, to } = partWallSegment(part, wall);
+  const start = pointOnRoomPart(part, from);
+  const end = pointOnRoomPart(part, to);
+  const dx = end.xMeters - start.xMeters;
+  const dz = end.zMeters - start.zMeters;
+  const length = Math.hypot(dx, dz);
 
   return {
-    start: pointOnRoomPart(part, startLocal),
-    direction: alongWidth ? { dx: cos, dz: sin } : { dx: -sin, dz: cos },
+    start,
+    direction:
+      length === 0 ? { dx: 0, dz: 0 } : { dx: dx / length, dz: dz / length },
     normal: wallOutwardNormalOnFloor(part, wall),
   };
 }

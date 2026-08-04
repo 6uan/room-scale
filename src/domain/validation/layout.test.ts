@@ -383,3 +383,73 @@ describe("checkLayout: the order it reports in", () => {
     ).toEqual(["i2", "i1+i3"]);
   });
 });
+
+describe("checkLayout: a room with a corner clipped off it", () => {
+  /** The same four by three room, with a metre off its south-east corner. */
+  const CLIPPED = {
+    ...ROOM,
+    parts: [
+      {
+        ...BASE_PART,
+        cuts: { "south-east": { widthMeters: 1, depthMeters: 1 } },
+      },
+    ],
+  };
+  const CLIPPED_FLOOR = { ...DEFAULT_FLOOR, rooms: [CLIPPED] };
+
+  it("reports a piece reaching through the chamfer, by its own name", () => {
+    const problems = checkLayout(CLIPPED_FLOOR, [place("i1", TABLE, 3.5, 2.5)]);
+
+    expect(problems).toEqual([
+      {
+        kind: "crosses-wall",
+        instanceId: "i1",
+        roomId: ROOM.id,
+        wall: "south-east",
+        overhangMeters: expect.closeTo(0.636, 2),
+      },
+    ]);
+  });
+
+  it("finds nothing wrong with that same piece before the corner is cut", () => {
+    expect(checkLayout(FLOOR, [place("i1", TABLE, 3.5, 2.5)])).toEqual([]);
+  });
+
+  it("still measures the square walls exactly as it did", () => {
+    // Half a metre through the east wall, nowhere near the clipped corner.
+    expect(checkLayout(CLIPPED_FLOOR, [place("i1", TABLE, 4, 1)])).toEqual(
+      checkLayout(FLOOR, [place("i1", TABLE, 4, 1)]),
+    );
+  });
+
+  it("does not claim floor the cut took away when two rooms are compared", () => {
+    const neighbour = {
+      ...ROOM,
+      id: "room-2",
+      parts: [
+        {
+          ...BASE_PART,
+          id: "room-2-part-1",
+          origin: { xMeters: 3.8, zMeters: 2.8 },
+          widthMeters: 1,
+          depthMeters: 1,
+        },
+      ],
+    };
+
+    // It stands over the corner of the rectangle the room was drawn as, and
+    // clear of the room the cut actually leaves.
+    expect(
+      checkLayout({ ...DEFAULT_FLOOR, rooms: [ROOM, neighbour] }, []),
+    ).toEqual([
+      {
+        kind: "rooms-overlap",
+        roomIds: ["room-1", "room-2"],
+        depthMeters: expect.closeTo(0.2, 10),
+      },
+    ]);
+    expect(
+      checkLayout({ ...DEFAULT_FLOOR, rooms: [CLIPPED, neighbour] }, []),
+    ).toEqual([]);
+  });
+});
