@@ -3,6 +3,7 @@ import {
   ROTATE_HANDLE_CLEARANCE_PIXELS,
   roomPartHandles,
   rotateHandlePixel,
+  underlayFrame,
 } from "./room-plan-canvas";
 import type { FloorPoint } from "@/domain/geometry";
 
@@ -93,5 +94,26 @@ describe("rotateHandlePixel", () => {
     // A quarter turn: the north wall now runs south, its outside facing east.
     expect(at.x).toBeCloseTo(5 + ROTATE_HANDLE_CLEARANCE_PIXELS, 10);
     expect(at.y).toBeCloseTo(20, 10);
+  });
+});
+
+describe("underlayFrame", () => {
+  it("puts the image exactly where its floor rectangle projects", () => {
+    const frame = underlayFrame(
+      {
+        imageDataUrl: "data:image/png;base64,x",
+        imageWidthPixels: 800,
+        imageHeightPixels: 600,
+        metersPerPixel: 0.01,
+        origin: { xMeters: -4, zMeters: -3 },
+        visible: true,
+      },
+      { pixelsPerMeter: 50, originX: 300, originY: 200 },
+    );
+
+    expect(frame.left).toBe(300 + -4 * 50);
+    expect(frame.top).toBe(200 + -3 * 50);
+    expect(frame.width).toBe(800 * 0.01 * 50);
+    expect(frame.height).toBe(600 * 0.01 * 50);
   });
 });

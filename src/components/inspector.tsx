@@ -18,17 +18,23 @@ import {
 import {
   floorAreaSquareMeters,
   floorBounds,
+  ROOM_ORIGIN_LIMITS,
   type Floor,
   type Opening,
   type OpeningKind,
   type Room,
 } from "@/domain/room";
 import {
+  displayUnitSuffix,
   formatArea,
   formatCents,
   formatLength,
+  metersFromDisplayValue,
   type DisplayUnit,
 } from "@/domain/units";
+import type { FloorPoint } from "@/domain/geometry";
+import type { PlanUnderlay } from "@/domain/project";
+import { useState } from "react";
 
 /** A stud wall is about 0.114 m; a masonry one is thicker. */
 const WALL_THICKNESS_LIMITS = { minMeters: 0.02, maxMeters: 0.6 };
@@ -42,6 +48,14 @@ export type InspectorProps = {
   onSelect: (selection: Selection) => void;
   onFloorChange: (floor: Floor) => void;
   onUnitChange: (unit: DisplayUnit) => void;
+  underlay: PlanUnderlay | null;
+  calibrating: boolean;
+  /** The drawn line waiting for its real length, or null. */
+  calibrationLine: { from: FloorPoint; to: FloorPoint } | null;
+  onAddPlanImage: (file: File) => void;
+  onCalibrateToggle: () => void;
+  onApplyCalibration: (realMeters: number) => void;
+  onUnderlayChange: (underlay: PlanUnderlay | null) => void;
   onRoomChange: (room: Room, gesture?: string) => void;
   onGestureEnd: () => void;
   onRoomRemove: (room: Room) => void;
@@ -118,6 +132,13 @@ function FloorInspector({
   unit,
   onFloorChange,
   onUnitChange,
+  underlay,
+  calibrating,
+  calibrationLine,
+  onAddPlanImage,
+  onCalibrateToggle,
+  onApplyCalibration,
+  onUnderlayChange,
 }: InspectorProps) {
   const { extent } = floorBounds(floor);
 
@@ -126,6 +147,16 @@ function FloorInspector({
       title="Apartment"
       subtitle="Select a room or a piece of furniture to edit it."
     >
+      <UnderlayFields
+        underlay={underlay}
+        unit={unit}
+        calibrating={calibrating}
+        calibrationLine={calibrationLine}
+        onAddPlanImage={onAddPlanImage}
+        onCalibrateToggle={onCalibrateToggle}
+        onApplyCalibration={onApplyCalibration}
+        onUnderlayChange={onUnderlayChange}
+      />
       <UnitToggle unit={unit} onUnitChange={onUnitChange} />
       {/*
         Two numbers because an apartment has two kinds of wall: the shell and
@@ -368,6 +399,166 @@ function ProductInspector({
         </button>
       )}
     </Panel>
+  );
+}
+
+/**
+ * The listing's plan under the canvas: added, scaled by one measured line,
+ * nudged into place, and taken away once the tracing is done.
+ *
+ * The typed length is the only number here that is a measurement; it goes
+ * through an explicit Apply because scaling is anchored to the drawn line,
+ * and reapplying a half-typed value would scale the image out from under it.
+ */
+function UnderlayFields({
+  underlay,
+  unit,
+  calibrating,
+  calibrationLine,
+  onAddPlanImage,
+  onCalibrateToggle,
+  onApplyCalibration,
+  onUnderlayChange,
+}: {
+  underlay: PlanUnderlay | null;
+  unit: DisplayUnit;
+  calibrating: boolean;
+  calibrationLine: { from: FloorPoint; to: FloorPoint } | null;
+  onAddPlanImage: (file: File) => void;
+  onCalibrateToggle: () => void;
+  onApplyCalibration: (realMeters: number) => void;
+  onUnderlayChange: (underlay: PlanUnderlay | null) => void;
+}) {
+  const [lengthDraft, setLengthDraft] = useState("");
+
+  return (
+    <fieldset className="flex flex-col gap-2 border-b border-black/10 pb-4 dark:border-white/15">
+      <legend className="sr-only">Plan underlay</legend>
+      <span aria-hidden="true" className="text-xs font-medium">
+        Plan underlay
+      </span>
+
+      {underlay === null ? (
+        <>
+          <label className="inline-block cursor-pointer self-start rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10">
+            Add plan image
+            <input
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file !== undefined) {
+                  onAddPlanImage(file);
+                }
+                event.target.value = "";
+              }}
+            />
+          </label>
+          <p className="text-xs leading-relaxed opacity-60">
+            Put the listing&rsquo;s floor plan behind the grid and trace the
+            rooms over it. The image stays on this machine.
+          </p>
+        </>
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              aria-pressed={calibrating}
+              onClick={onCalibrateToggle}
+              className={`rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10 ${
+                calibrating ? "bg-black/10 dark:bg-white/15" : "bg-transparent"
+              }`}
+            >
+              {calibrating ? "Drawing the line…" : "Calibrate scale"}
+            </button>
+            <button
+              type="button"
+              aria-pressed={!underlay.visible}
+              onClick={() =>
+                onUnderlayChange({ ...underlay, visible: !underlay.visible })
+              }
+              className="rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
+            >
+              {underlay.visible ? "Hide image" : "Show image"}
+            </button>
+          </div>
+
+          {calibrationLine === null ? null : (
+            <div className="flex items-end gap-2">
+              <label className="flex flex-col gap-1.5 text-sm font-medium">
+                The line&rsquo;s real length ({displayUnitSuffix(unit)})
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  step="any"
+                  min="0"
+                  value={lengthDraft}
+                  onChange={(event) => setLengthDraft(event.target.value)}
+                  className="w-28 rounded-md border border-black/15 bg-transparent px-2.5 py-1.5 text-sm tabular-nums dark:border-white/20"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  const value = Number(lengthDraft);
+                  if (Number.isFinite(value) && value > 0) {
+                    onApplyCalibration(metersFromDisplayValue(value, unit));
+                    setLengthDraft("");
+                  }
+                }}
+                className="rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
+              >
+                Apply scale
+              </button>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-2">
+            <NumberField
+              label="Underlay X position"
+              compactLabel="X"
+              unit={unit}
+              meters={underlay.origin.xMeters}
+              limits={ROOM_ORIGIN_LIMITS}
+              onMetersChange={(xMeters) =>
+                onUnderlayChange({
+                  ...underlay,
+                  origin: { ...underlay.origin, xMeters },
+                })
+              }
+            />
+            <NumberField
+              label="Underlay Y position"
+              compactLabel="Y"
+              unit={unit}
+              meters={underlay.origin.zMeters}
+              limits={ROOM_ORIGIN_LIMITS}
+              onMetersChange={(zMeters) =>
+                onUnderlayChange({
+                  ...underlay,
+                  origin: { ...underlay.origin, zMeters },
+                })
+              }
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => onUnderlayChange(null)}
+            className="self-start text-xs underline underline-offset-4 opacity-60 hover:opacity-100"
+          >
+            Remove image
+          </button>
+          <p className="text-xs leading-relaxed opacity-60">
+            {calibrating
+              ? "Drag a line on the plan along a wall you know, then type its length."
+              : "Trace rooms over the image. It guides the drawing and changes no measurement."}
+          </p>
+        </>
+      )}
+    </fieldset>
   );
 }
 

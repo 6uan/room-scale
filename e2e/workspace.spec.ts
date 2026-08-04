@@ -783,6 +783,52 @@ test.describe("laying the apartment out", () => {
     ).toBeVisible();
   });
 
+  test("traces the listing: an image is dropped, scaled by one line, and kept", async ({
+    page,
+  }) => {
+    await page.goto("/");
+
+    // The Apartment panel takes the image and goes straight to calibration.
+    const apartment = details(page).getByRole("region", { name: "Apartment" });
+    await apartment
+      .locator('input[type="file"]')
+      .setInputFiles("e2e/fixtures/plan.png");
+    await expect(
+      plan(page).getByText(/Drag a line along a wall you know/),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("img", { name: "The floor plan being traced" }),
+    ).toBeVisible();
+
+    // One line dragged across the plan…
+    const box = await planImage(page).boundingBox();
+    if (box === null) {
+      throw new Error("the plan has no box to point at");
+    }
+    const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    await page.mouse.move(centre.x - 60, centre.y);
+    await page.mouse.down();
+    await page.mouse.move(centre.x + 60, centre.y, { steps: 6 });
+    await page.mouse.up();
+
+    // …is given its real length, and the image takes its scale from it.
+    await apartment.getByLabel(/real length/).fill("120");
+    await apartment.getByRole("button", { name: "Apply scale" }).click();
+    await expect(apartment.getByLabel(/real length/)).toHaveCount(0);
+
+    // The image survives a reload, and hides without being lost.
+    await page.reload();
+    const image = page.getByRole("img", {
+      name: "The floor plan being traced",
+    });
+    await expect(image).toBeVisible();
+    await details(page)
+      .getByRole("region", { name: "Apartment" })
+      .getByRole("button", { name: "Hide image" })
+      .click();
+    await expect(image).toHaveCount(0);
+  });
+
   test("keeps shell and partition walls as two typed numbers", async ({
     page,
   }) => {
