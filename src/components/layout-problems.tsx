@@ -23,6 +23,17 @@ export type LayoutProblemsProps = {
  * It announces itself as it changes, because problems appear and disappear
  * while a piece is being dragged and nobody is watching this corner of the
  * screen at the time.
+ *
+ * **Nothing wrong shows nothing.** It used to sit in the corner of the plan
+ * saying "Everything fits", permanently, over the drawing — which is the state
+ * a layout is in almost all of the time, so the message was on screen almost
+ * always and was in the way of the thing it was reporting on. A plan with no
+ * problems marked on it already says everything fits; that is what an absence
+ * of red means. The panel is for the exception.
+ *
+ * The live region stays mounted through both states, empty when there is
+ * nothing to say. A region that appears at the same moment as its own text is
+ * unreliably announced, so the container has to outlive the message.
  */
 export function LayoutProblems({
   problems,
@@ -32,11 +43,7 @@ export function LayoutProblems({
 }: LayoutProblemsProps) {
   return (
     <div aria-live="polite">
-      {problems.length === 0 ? (
-        <p className="text-sm opacity-60">
-          Everything fits. Nothing overlaps, and nothing crosses a wall.
-        </p>
-      ) : (
+      {problems.length === 0 ? null : (
         <ul className="flex flex-col gap-1.5">
           {problems.map((problem) => (
             <li

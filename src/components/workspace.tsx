@@ -609,9 +609,18 @@ export function Workspace() {
           ) : null}
 
           {/* Over the plan rather than beside it: the drawing gets the room,
-              and the verdict is still the first thing under your eye. */}
+              and a problem is still the first thing under your eye. The band
+              itself only exists when there is something in it — an empty chip
+              sitting over the corner of the drawing is the same nuisance as
+              the all-clear it used to hold. */}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 p-4">
-            <div className="pointer-events-auto inline-block max-w-full rounded-lg bg-black/70 px-3 py-2 backdrop-blur dark:bg-white/10">
+            <div
+              className={
+                problems.length === 0
+                  ? ""
+                  : "pointer-events-auto inline-block max-w-full rounded-lg bg-black/70 px-3 py-2 backdrop-blur dark:bg-white/10"
+              }
+            >
               <LayoutProblems
                 problems={problems}
                 names={namesById}
