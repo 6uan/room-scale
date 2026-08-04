@@ -23,9 +23,16 @@ describe("RoomOpeningsForm", () => {
         onAddOpening={onAddOpening}
       />,
     );
-    expect(
-      screen.getByRole("button", { name: "Placing window…" }),
-    ).toHaveAttribute("aria-pressed", "true");
+    // Still called what it was called: the armed button is lit rather than
+    // reworded, so the one you press to stop is the one you pressed to start.
+    expect(screen.getByRole("button", { name: "Add window" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Add door" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
     expect(
       screen.getByText(/Click a Living room wall to place it/),
     ).toBeInTheDocument();

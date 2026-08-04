@@ -1,6 +1,8 @@
 "use client";
 
+import { WandSparkles } from "lucide-react";
 import { useId, useState } from "react";
+import { LabelledButton } from "@/components/icon-button";
 import {
   extractProduct,
   type Extracted,
@@ -54,14 +56,12 @@ export function ProductImportPanel({
           className="w-full rounded-md border border-black/15 bg-transparent px-2.5 py-1.5 font-mono text-xs dark:border-white/20"
         />
         <div>
-          <button
-            type="button"
-            onClick={handleFill}
+          <LabelledButton
+            label="Fill the form"
+            icon={WandSparkles}
             disabled={text.trim() === ""}
-            className="rounded-md border border-black/15 px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
-          >
-            Fill the form
-          </button>
+            onClick={handleFill}
+          />
         </div>
 
         {report === null ? null : (

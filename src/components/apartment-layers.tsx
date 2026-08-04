@@ -1,7 +1,17 @@
 "use client";
 
+import {
+  DoorOpen,
+  MoveHorizontal,
+  PanelsTopLeft,
+  Sofa,
+  Square,
+  SquareDashed,
+  type LucideIcon,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { openingListName } from "@/components/opening-name";
+import { PanelHeader } from "@/components/panel-header";
 import { placedNames, type PlacedFurniture } from "@/domain/furniture";
 import { roomsAt, type Floor, type Room } from "@/domain/room";
 import { isSelected, type Selection } from "@/components/selection";
@@ -50,11 +60,11 @@ export function ApartmentLayers({
 
   return (
     <div className="flex min-h-0 flex-col gap-4 overflow-y-auto p-4">
-      {/* The button says what pressing it will do next, so the mode it turns
+      {/* Lit while the plan is waiting for a rectangle, so the mode it turns
           on is visible in the one place that turned it on. */}
-      <Header
+      <PanelHeader
         title="Apartment"
-        action={drawingRoom ? "Drawing…" : "Add room"}
+        action="Add room"
         active={drawingRoom}
         onAction={onAddRoom}
       />
@@ -75,6 +85,7 @@ export function ApartmentLayers({
                     <li key={part.id}>
                       <Row
                         label={`Section ${index + 1}`}
+                        icon={SquareDashed}
                         depth
                         selected={isSelected(selection, "room-part", part.id)}
                         onSelect={() =>
@@ -91,6 +102,7 @@ export function ApartmentLayers({
                 <li key={opening.id}>
                   <Row
                     label={openingListName(room, opening)}
+                    icon={OPENING_ICONS[opening.kind]}
                     depth
                     selected={isSelected(selection, "opening", opening.id)}
                     onSelect={() =>
@@ -107,6 +119,7 @@ export function ApartmentLayers({
                 <li key={placed.instance.id}>
                   <Row
                     label={name}
+                    icon={Sofa}
                     depth
                     troubled={troubledIds.has(placed.instance.id)}
                     selected={isSelected(
@@ -135,6 +148,7 @@ export function ApartmentLayers({
               <li key={placed.instance.id}>
                 <Row
                   label={name}
+                  icon={Sofa}
                   troubled
                   selected={isSelected(
                     selection,
@@ -222,6 +236,7 @@ function RoomRow({
   return (
     <Row
       label={room.name === "" ? "Unnamed room" : room.name}
+      icon={Square}
       selected={selected}
       onSelect={onSelect}
       onDoubleClick={beginRename}
@@ -230,39 +245,17 @@ function RoomRow({
   );
 }
 
-function Header({
-  title,
-  action,
-  active = false,
-  onAction,
-}: {
-  title: string;
-  action: string;
-  active?: boolean;
-  onAction: () => void;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-2">
-      <h2 className="min-w-0 truncate text-xs uppercase tracking-[0.15em] opacity-50">
-        {title}
-      </h2>
-      <button
-        type="button"
-        onClick={onAction}
-        aria-pressed={active}
-        className={`shrink-0 rounded px-1.5 py-0.5 text-xs hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10 ${
-          active ? "bg-black/10 opacity-100 dark:bg-white/15" : "opacity-60"
-        }`}
-      >
-        {action}
-      </button>
-    </div>
-  );
-}
+/** Which glyph stands for each kind of hole in a wall. */
+const OPENING_ICONS = {
+  door: DoorOpen,
+  window: PanelsTopLeft,
+  passage: MoveHorizontal,
+} as const;
 
 /** One line of the list. Selection is the whole point of it. */
 function Row({
   label,
+  icon: Icon,
   depth = false,
   troubled = false,
   selected,
@@ -271,6 +264,7 @@ function Row({
   title,
 }: {
   label: string;
+  icon: LucideIcon;
   depth?: boolean;
   troubled?: boolean;
   selected: boolean;
@@ -285,7 +279,7 @@ function Row({
       onClick={onSelect}
       onDoubleClick={onDoubleClick}
       title={title}
-      className={`flex w-full min-w-0 items-center gap-2 rounded px-2 py-1 text-left text-sm ${
+      className={`flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1 text-left text-sm transition-colors ${
         depth ? "pl-6" : ""
       } ${
         selected
@@ -293,6 +287,12 @@ function Row({
           : "hover:bg-black/5 dark:hover:bg-white/10"
       } ${troubled ? "text-red-600" : ""}`}
     >
+      {/* The glyph says what kind of thing the row is; the words say which
+          one. Hidden from the name, so the row is still found by its words. */}
+      <Icon
+        aria-hidden="true"
+        className={`size-3.5 shrink-0 ${troubled ? "" : "opacity-45"}`}
+      />
       <span className="min-w-0 truncate">{label}</span>
     </button>
   );

@@ -387,8 +387,10 @@ ever wanted, is a different feature from comparing two prices.
 
 ### 14. Take the data elsewhere ✅
 
-Done. From the overview: save the project, save the list as a spreadsheet, open
-a project file.
+Done. From the settings behind the gear: save the project, save the list as a
+spreadsheet, open a project file. These sat under the overview until the
+interface was reworked, which made a page meant for printing into a page with
+controls on it.
 
 An exported project is the same document IndexedDB holds, in the same versioned
 envelope, so importing goes through `readStoredProject` — a file written by an

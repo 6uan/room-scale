@@ -1,6 +1,8 @@
 "use client";
 
+import { Download, FolderOpen, Sheet } from "lucide-react";
 import { useRef, useState } from "react";
+import { LabelledButton } from "@/components/icon-button";
 import {
   activeInstances,
   buildChecklist,
@@ -89,16 +91,24 @@ export function ProjectTransferPanel({
   return (
     <section
       aria-label="Take it elsewhere"
-      className="flex flex-col gap-3 border-t border-black/10 pt-5 print:hidden dark:border-white/15"
+      className="flex flex-col gap-3 print:hidden"
     >
-      <h2 className="text-sm font-medium">Take it elsewhere</h2>
-
       <div className="flex flex-wrap gap-2">
-        <Action onClick={saveProject}>Save the project</Action>
-        <Action onClick={saveChecklist}>Save the list as a spreadsheet</Action>
-        <Action onClick={() => fileRef.current?.click()}>
-          Open a project file
-        </Action>
+        <LabelledButton
+          label="Save the project"
+          icon={Download}
+          onClick={saveProject}
+        />
+        <LabelledButton
+          label="Save the list as a spreadsheet"
+          icon={Sheet}
+          onClick={saveChecklist}
+        />
+        <LabelledButton
+          label="Open a project file"
+          icon={FolderOpen}
+          onClick={() => fileRef.current?.click()}
+        />
         <input
           ref={fileRef}
           type="file"
@@ -132,24 +142,6 @@ export function ProjectTransferPanel({
         </p>
       )}
     </section>
-  );
-}
-
-function Action({
-  onClick,
-  children,
-}: {
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="rounded-md border border-black/15 px-2.5 py-1 text-xs hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
-    >
-      {children}
-    </button>
   );
 }
 

@@ -1,10 +1,13 @@
 "use client";
 
+import { Keyboard, ReceiptText, Redo2, Settings, Undo2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ApartmentLayers } from "@/components/apartment-layers";
+import { ButtonGroup, IconButton } from "@/components/icon-button";
 import { CataloguePanel } from "@/components/catalogue-panel";
 import { Inspector } from "@/components/inspector";
+import { SettingsDialog } from "@/components/settings-dialog";
 import { LayoutProblems } from "@/components/layout-problems";
 import { LayoutSwitcher } from "@/components/layout-switcher";
 import { RoomPlanCanvas } from "@/components/room-plan-canvas";
@@ -87,6 +90,7 @@ export function Workspace() {
   const [selection, setSelection] = useState<Selection>(null);
   const [productProblem, setProductProblem] = useState<string | null>(null);
   const [guideOpen, setGuideOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   /** Whether a drag on the plan draws a room. One room, then off again. */
   const [drawingRoom, setDrawingRoom] = useState(false);
   /** The kind and room whose next wall click places one opening. */
@@ -430,9 +434,11 @@ export function Workspace() {
 
   return (
     <div className="grid h-dvh grid-rows-[auto_minmax(0,1fr)] bg-black/[0.02] dark:bg-white/[0.02]">
-      <header className="flex items-center justify-between gap-4 border-b border-black/10 px-4 py-2 dark:border-white/15">
-        <div className="flex items-center gap-4">
-          <h1 className="text-sm font-semibold tracking-tight">RoomScale</h1>
+      <header className="flex items-center justify-between gap-4 border-b border-black/10 px-3 py-1.5 dark:border-white/15">
+        <div className="flex min-w-0 items-center gap-3">
+          <h1 className="shrink-0 text-sm font-semibold tracking-tight">
+            RoomScale
+          </h1>
           <LayoutSwitcher
             layouts={layouts}
             activeId={activeLayoutId}
@@ -452,33 +458,42 @@ export function Workspace() {
             onRemove={removeLayout}
           />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5">
           {/* Beside the plan rather than buried in a menu: the two things you
               reach for after a drag that went wrong. Disabled says there is
               nothing to take back, which is worth knowing. */}
-          <div className="flex items-center gap-1">
-            <HeaderButton
+          <ButtonGroup>
+            <IconButton
               label="Undo"
-              title="Undo the last change"
+              icon={Undo2}
               disabled={!canUndo}
               onClick={undo}
             />
-            <HeaderButton
+            <IconButton
               label="Redo"
-              title="Put back what was undone"
+              icon={Redo2}
               disabled={!canRedo}
               onClick={redo}
             />
-          </div>
-          <HeaderButton
+          </ButtonGroup>
+          <IconButton
             label="Keys"
-            title="What the keys do"
+            icon={Keyboard}
             onClick={() => setGuideOpen(true)}
           />
+          <IconButton
+            label="Settings"
+            icon={Settings}
+            pressed={settingsOpen}
+            onClick={() => setSettingsOpen(true)}
+          />
+          {/* The list is the thing you leave with, so it keeps its words. */}
           <Link
             href="/overview"
-            className="rounded-md border border-black/15 px-2.5 py-1 text-xs hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
+            title="Overview and prices"
+            className="inline-flex items-center gap-1.5 rounded-md border border-black/12 px-2.5 py-1.5 text-xs font-medium hover:bg-black/[0.06] dark:border-white/18 dark:hover:bg-white/10"
           >
+            <ReceiptText aria-hidden="true" className="size-3.5" />
             Overview and prices
           </Link>
         </div>
@@ -598,7 +613,6 @@ export function Workspace() {
             selection={selection}
             onSelect={setSelection}
             onFloorChange={setFloor}
-            onUnitChange={setUnit}
             underlay={underlay}
             calibrating={calibrating}
             calibrationLine={calibrationLine}
@@ -641,31 +655,15 @@ export function Workspace() {
       {guideOpen ? (
         <ShortcutsGuide unit={unit} onClose={() => setGuideOpen(false)} />
       ) : null}
-    </div>
-  );
-}
 
-function HeaderButton({
-  label,
-  title,
-  disabled = false,
-  onClick,
-}: {
-  label: string;
-  title: string;
-  disabled?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      title={title}
-      disabled={disabled}
-      onClick={onClick}
-      className="rounded-md border border-black/15 px-2.5 py-1 text-xs hover:bg-black/5 disabled:cursor-default disabled:opacity-35 disabled:hover:bg-transparent dark:border-white/20 dark:hover:bg-white/10 dark:disabled:hover:bg-transparent"
-    >
-      {label}
-    </button>
+      {settingsOpen ? (
+        <SettingsDialog
+          unit={unit}
+          onUnitChange={setUnit}
+          onClose={() => setSettingsOpen(false)}
+        />
+      ) : null}
+    </div>
   );
 }
 
