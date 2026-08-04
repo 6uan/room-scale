@@ -8,7 +8,7 @@ describe("the list drawer", () => {
     render(<ListDrawer onClose={() => {}} />);
 
     expect(
-      screen.getByRole("dialog", { name: "Overview and prices" }),
+      screen.getByRole("dialog", { name: "Shopping list" }),
     ).toBeInTheDocument();
     // The plan is behind this rather than gone, so printing is still a page.
     expect(

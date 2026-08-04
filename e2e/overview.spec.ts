@@ -51,12 +51,12 @@ test.describe("the overview", () => {
   }) => {
     await furnish(page);
 
-    const opener = page.getByRole("button", { name: "Overview and prices" });
+    const opener = page.getByRole("button", { name: "Shopping list" });
     await opener.click();
     await expect(opener).toHaveAttribute("aria-pressed", "true");
 
     // The list arrives without the plan going anywhere.
-    const list = page.getByRole("dialog", { name: "Overview and prices" });
+    const list = page.getByRole("dialog", { name: "Shopping list" });
     await expect(plan(page)).toBeVisible();
     // One sectional at $1,999.00 and two pillows at $45.00 each.
     await expect(totalFor(list, "Everything in the room")).toHaveText(
@@ -70,12 +70,12 @@ test.describe("the overview", () => {
   test("closes again, leaving the plan where it was", async ({ page }) => {
     await page.goto("/");
 
-    const opener = page.getByRole("button", { name: "Overview and prices" });
+    const opener = page.getByRole("button", { name: "Shopping list" });
     await opener.click();
     await page.keyboard.press("Escape");
 
     await expect(
-      page.getByRole("dialog", { name: "Overview and prices" }),
+      page.getByRole("dialog", { name: "Shopping list" }),
     ).toBeHidden();
     await expect(opener).toHaveAttribute("aria-pressed", "false");
   });
@@ -83,15 +83,15 @@ test.describe("the overview", () => {
   test("still has a page of its own to print", async ({ page }) => {
     await furnish(page);
 
-    await page.getByRole("button", { name: "Overview and prices" }).click();
+    await page.getByRole("button", { name: "Shopping list" }).click();
     await page
-      .getByRole("dialog", { name: "Overview and prices" })
+      .getByRole("dialog", { name: "Shopping list" })
       .getByRole("link", { name: "Print the list" })
       .click();
 
     await expect(page).toHaveURL(/\/overview$/);
     await expect(
-      page.getByRole("heading", { level: 1, name: "The list" }),
+      page.getByRole("heading", { level: 1, name: "Shopping list" }),
     ).toBeVisible();
     await expect(totalFor(page, "Everything in the room")).toHaveText(
       "$2,089.00",

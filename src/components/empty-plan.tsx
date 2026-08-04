@@ -40,17 +40,25 @@ export function EmptyPlan({
         own instructions above it.
       */}
       <div
-        className={`flex max-w-sm flex-col items-center gap-3 text-center transition-opacity ${
+        className={`flex max-w-md flex-col items-center gap-4 text-center transition-opacity ${
           drawing ? "opacity-40" : "pointer-events-auto"
         }`}
       >
-        <h2 className="text-sm font-medium">Nothing measured yet</h2>
-        <p className="text-xs leading-relaxed opacity-60">
+        {/*
+          The size of the thing it is: the only thing to do on this screen. It
+          used to be set at the same fourteen and twelve pixels as a field
+          label in a panel, which made the one invitation the product has read
+          like a footnote about the product.
+        */}
+        <h2 className="text-2xl font-semibold tracking-tight">
+          Nothing measured yet
+        </h2>
+        <p className="text-[15px] leading-relaxed opacity-65">
           Draw the rooms at the sizes you measured, or drop in the
           listing&rsquo;s floor plan, scale it against one wall, and trace them
           over it.
         </p>
-        <div className="flex flex-wrap items-center justify-center gap-2">
+        <div className="mt-1 flex flex-wrap items-center justify-center gap-2.5">
           <LabelledButton
             label="Add room"
             icon={SquareDashedMousePointer}

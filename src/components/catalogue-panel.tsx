@@ -40,7 +40,7 @@ export function CataloguePanel({
   onPlace,
 }: CataloguePanelProps) {
   return (
-    <div className="flex max-h-[70vh] min-h-0 flex-col gap-3 overflow-y-auto border-t border-black/10 p-4 dark:border-white/15">
+    <div className="flex max-h-[70vh] min-h-0 flex-col gap-4 overflow-y-auto border-t border-black/10 p-5 dark:border-white/15">
       <PanelHeader
         title="Catalogue"
         action="New product"
@@ -48,7 +48,7 @@ export function CataloguePanel({
       />
 
       {products.length === 0 ? (
-        <p className="px-1 text-xs leading-relaxed opacity-50">
+        <p className="px-1 text-[13px] leading-relaxed opacity-60">
           Nothing yet. Add the first thing you are thinking of buying, or paste
           the page you found it on.
         </p>
@@ -64,7 +64,7 @@ export function CataloguePanel({
                   event.dataTransfer.setData(PRODUCT_DRAG_TYPE, product.id);
                   event.dataTransfer.effectAllowed = "copy";
                 }}
-                className={`group flex min-w-0 cursor-grab items-center gap-1 rounded-md py-1.5 pr-1 pl-1 text-sm transition-colors active:cursor-grabbing ${
+                className={`group flex min-w-0 cursor-grab items-center gap-1 rounded-lg py-2 pr-1 pl-1.5 text-sm transition-colors active:cursor-grabbing ${
                   isSelected(selection, "product", product.id)
                     ? "bg-black/10 dark:bg-white/15"
                     : "hover:bg-black/5 dark:hover:bg-white/10"
@@ -82,7 +82,7 @@ export function CataloguePanel({
                   className="min-w-0 flex-1 text-left"
                 >
                   <span className="block truncate">{product.name}</span>
-                  <span className="block truncate text-xs opacity-50">
+                  <span className="block truncate text-[13px] opacity-55">
                     {formatLength(product.footprint.widthMeters, unit)} ×{" "}
                     {formatLength(product.footprint.depthMeters, unit)}
                     {product.priceCents === 0

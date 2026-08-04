@@ -40,6 +40,23 @@ async function addRoom(page: Page) {
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
 }
 
+/**
+ * Opens the arrangements table.
+ *
+ * Everything to do with an arrangement lives behind one button carrying the
+ * name of the one you are working under — switching, renaming, duplicating,
+ * deleting. There is no longer a name field and a menu both printing it.
+ */
+async function openArrangements(page: Page) {
+  const trigger = page.getByRole("button", { name: "Arrangements" });
+  // Idempotent: the trigger toggles, so opening one that is already open
+  // would shut it. Several tests reach for the table more than once.
+  if ((await trigger.getAttribute("aria-expanded")) !== "true") {
+    await trigger.click();
+  }
+  return page.getByRole("dialog", { name: "Arrangements" });
+}
+
 /** Enters a product through the inspector, the way the workspace does it. */
 async function addProduct(
   page: Page,
@@ -391,7 +408,7 @@ test.describe("workspace navigation", () => {
     for (const [from, heading] of [
       ["/plan", "RoomScale"],
       ["/furniture", "RoomScale"],
-      ["/checklist", "The list"],
+      ["/checklist", "Shopping list"],
     ] as const) {
       await page.goto(from);
       await expect(
@@ -430,23 +447,43 @@ test.describe("comparing layouts", () => {
   test("duplicates an arrangement and keeps both", async ({ page }) => {
     await withASofa(page);
 
-    await page.getByRole("button", { name: "Duplicate" }).click();
+    await (
+      await openArrangements(page)
+    )
+      .getByRole("button", { name: "Duplicate First try" })
+      .click();
 
     // The copy is the one being worked on, and it holds the same furniture.
-    await expect(page.getByLabel("Layout name")).toHaveValue("Second try");
+    await expect(
+      page.getByRole("button", { name: "Arrangements" }),
+    ).toContainText("Second try");
     await expect(planImage(page)).toHaveAccessibleName(
       /1 piece placed: Sectional/,
     );
-    await expect(page.getByLabel("Layout", { exact: true })).toHaveValue(
-      /layout-2/,
-    );
+    // Both are in the table, and only the copy — the one being worked on —
+    // carries what can be done to an arrangement.
+    const table = await openArrangements(page);
+    await expect(
+      table.getByRole("button", { name: /^First try/ }),
+    ).toBeVisible();
+    await expect(
+      table.getByRole("button", { name: /^Second try/ }),
+    ).toBeVisible();
+    await expect(table.getByRole("button", { name: /^Rename/ })).toHaveCount(1);
+    await expect(
+      table.getByRole("button", { name: "Rename Second try" }),
+    ).toBeVisible();
   });
 
   test("changes one arrangement without touching the other", async ({
     page,
   }) => {
     await withASofa(page);
-    await page.getByRole("button", { name: "Duplicate" }).click();
+    await (
+      await openArrangements(page)
+    )
+      .getByRole("button", { name: "Duplicate First try" })
+      .click();
 
     // In the copy, swap the sectional for the loveseat.
     await contents(page)
@@ -463,7 +500,11 @@ test.describe("comparing layouts", () => {
     );
 
     // The first arrangement still has the sectional in it.
-    await page.getByLabel("Layout", { exact: true }).selectOption({ index: 0 });
+    await (
+      await openArrangements(page)
+    )
+      .getByRole("button", { name: /^First try/ })
+      .click();
     await expect(planImage(page)).toHaveAccessibleName(
       /1 piece placed: Sectional/,
     );
@@ -473,22 +514,33 @@ test.describe("comparing layouts", () => {
     page,
   }) => {
     await withASofa(page);
-    await page.getByRole("button", { name: "Duplicate" }).click();
+    await (
+      await openArrangements(page)
+    )
+      .getByRole("button", { name: "Duplicate First try" })
+      .click();
 
-    await page.getByLabel("Layout name").fill("Loveseat instead");
+    const table = await openArrangements(page);
+    await table.getByRole("button", { name: "Rename Second try" }).click();
+    await table.getByLabel("Layout name").fill("Loveseat instead");
+    await page.keyboard.press("Enter");
     await page.waitForTimeout(500);
     await page.reload();
 
-    await expect(page.getByLabel("Layout name")).toHaveValue(
-      "Loveseat instead",
-    );
+    await expect(
+      page.getByRole("button", { name: "Arrangements" }),
+    ).toContainText("Loveseat instead");
   });
 
   test("prices each arrangement, so they can be weighed against each other", async ({
     page,
   }) => {
     await withASofa(page);
-    await page.getByRole("button", { name: "Duplicate" }).click();
+    await (
+      await openArrangements(page)
+    )
+      .getByRole("button", { name: "Duplicate First try" })
+      .click();
     await contents(page)
       .getByRole("button", { name: "Sectional", exact: true })
       .click();
@@ -514,14 +566,50 @@ test.describe("comparing layouts", () => {
   test("deletes an arrangement, but never the last one", async ({ page }) => {
     await openWithLivingRoom(page);
 
-    // One layout: there is nothing to delete.
-    await expect(page.getByRole("button", { name: /^Delete/ })).toBeHidden();
+    // One arrangement: its row offers no way to delete it.
+    await expect(
+      (await openArrangements(page)).getByRole("button", { name: /^Delete/ }),
+    ).toBeHidden();
 
-    await page.getByRole("button", { name: "Duplicate" }).click();
-    await page.getByRole("button", { name: "Delete Second try" }).click();
+    await (
+      await openArrangements(page)
+    )
+      .getByRole("button", { name: "Duplicate First try" })
+      .click();
+    await (
+      await openArrangements(page)
+    )
+      .getByRole("button", { name: "Delete Second try" })
+      .click();
 
-    await expect(page.getByLabel("Layout name")).toHaveValue("First try");
-    await expect(page.getByRole("button", { name: /^Delete/ })).toBeHidden();
+    await expect(
+      page.getByRole("button", { name: "Arrangements" }),
+    ).toContainText("First try");
+    await expect(
+      (await openArrangements(page)).getByRole("button", { name: /^Delete/ }),
+    ).toBeHidden();
+  });
+
+  test("names the arrangement once, not twice", async ({ page }) => {
+    await openWithLivingRoom(page);
+
+    // The header used to hold a name field and a menu that both printed it,
+    // at two different heights, beside a third control at a third height.
+    await expect(page.getByLabel("Layout name")).toBeHidden();
+    const trigger = page.getByRole("button", { name: "Arrangements" });
+    await expect(trigger).toContainText("First try");
+    await expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+    // The price is beside the name in the table, which is what makes a second
+    // arrangement a comparison rather than a bookmark.
+    const table = await openArrangements(page);
+    await expect(trigger).toHaveAttribute("aria-expanded", "true");
+    await expect(
+      table.getByRole("button", { name: /^First try/ }),
+    ).toContainText("$0.00");
+
+    await page.keyboard.press("Escape");
+    await expect(table).toBeHidden();
   });
 });
 
@@ -886,8 +974,15 @@ test.describe("laying the apartment out", () => {
   }) => {
     await openWithLivingRoom(page);
 
-    // Nothing selected: the apartment's own settings, now with two walls.
+    // Nothing selected: the apartment's own settings. The two walls are folded
+    // away behind one line that reads them out, because they are set once and
+    // read often — so the summary has to carry the numbers.
     const apartment = details(page).getByRole("region", { name: "Apartment" });
+    const defaults = apartment.getByRole("button", { name: /^Wall defaults/ });
+    await expect(defaults).toHaveAttribute("aria-expanded", "false");
+    await expect(defaults).toContainText("8 in shell, 4.5 in partitions");
+
+    await defaults.click();
     await apartment.getByLabel("Exterior wall thickness").fill("9");
     await expect(apartment.getByLabel("Exterior wall thickness")).toHaveValue(
       "9",
@@ -895,13 +990,34 @@ test.describe("laying the apartment out", () => {
     await expect(apartment.getByLabel("Interior wall thickness")).toHaveValue(
       "4.5",
     );
+    await expect(defaults).toContainText("9 in shell, 4.5 in partitions");
 
     await page.reload();
+    const reopened = details(page).getByRole("region", { name: "Apartment" });
+    await reopened.getByRole("button", { name: /^Wall defaults/ }).click();
+    await expect(reopened.getByLabel("Exterior wall thickness")).toHaveValue(
+      "9",
+    );
+  });
+
+  test("counts the floor up only once there is a floor to count", async ({
+    page,
+  }) => {
+    // Four figures reading zero teach nobody anything about an empty project,
+    // and neither does "0.0 sq ft" in the corner of an empty plan.
+    await page.goto("/");
+    const empty = details(page).getByRole("region", { name: "Apartment" });
+    await expect(empty.getByText("Floor area")).toBeHidden();
+    await expect(plan(page).getByText("sq ft")).toBeHidden();
+
+    // With a room on the floor, every one of them is a fact about something.
+    await openWithLivingRoom(page);
+    const measured = details(page).getByRole("region", { name: "Apartment" });
+    await expect(measured.getByText("Floor area")).toBeVisible();
     await expect(
-      details(page)
-        .getByRole("region", { name: "Apartment" })
-        .getByLabel("Exterior wall thickness"),
-    ).toHaveValue("9");
+      measured.getByRole("term").filter({ hasText: "Rooms" }),
+    ).toBeVisible();
+    await expect(plan(page).getByText("sq ft")).toBeVisible();
   });
 
   test("lets one room be built out of something else, and hands it back", async ({

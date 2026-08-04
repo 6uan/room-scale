@@ -174,7 +174,7 @@ export function NumberField({
       <div
         className={
           compact
-            ? "flex min-w-0 items-center rounded-md border border-black/15 bg-transparent focus-within:border-black/40 dark:border-white/20 dark:focus-within:border-white/45"
+            ? "flex min-w-0 items-center rounded-lg border border-black/15 bg-transparent focus-within:border-black/40 dark:border-white/20 dark:focus-within:border-white/45"
             : "flex items-center gap-2"
         }
       >
@@ -220,8 +220,8 @@ export function NumberField({
           onChange={(event) => handleChange(event.target.value)}
           className={
             compact
-              ? "compact-number-input min-w-0 flex-1 bg-transparent py-1.5 pr-1.5 text-sm tabular-nums outline-none"
-              : "w-28 rounded-md border border-black/15 bg-transparent px-2.5 py-1.5 text-sm tabular-nums dark:border-white/20"
+              ? "compact-number-input min-w-0 flex-1 bg-transparent py-2 pr-1.5 text-sm tabular-nums outline-none"
+              : "w-28 rounded-lg border border-black/15 bg-transparent px-3 py-2 text-sm tabular-nums dark:border-white/20"
           }
         />
         {compact ? null : (
@@ -232,7 +232,9 @@ export function NumberField({
         <p
           id={messageId}
           className={
-            problem === null ? "text-xs opacity-60" : "text-xs text-red-600"
+            problem === null
+              ? "text-[13px] opacity-60"
+              : "text-[13px] text-red-600"
           }
         >
           {problem === null

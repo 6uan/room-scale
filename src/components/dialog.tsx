@@ -25,10 +25,10 @@ export function Dialog({ title, onClose, children }: DialogProps) {
       title={title}
       onClose={onClose}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6 backdrop-blur-[2px]"
-      panelClassName="max-h-full w-full max-w-lg overflow-y-auto rounded-xl border border-black/10 bg-white p-5 shadow-xl outline-none dark:border-white/15 dark:bg-neutral-900"
+      panelClassName="max-h-full w-full max-w-lg overflow-y-auto rounded-2xl border border-black/10 bg-white p-6 shadow-xl outline-none dark:border-white/15 dark:bg-neutral-900"
     >
       <div className="mb-5 flex items-center justify-between gap-4">
-        <h2 className="text-sm font-semibold tracking-tight">{title}</h2>
+        <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
         <IconButton label="Close" icon={X} onClick={onClose} />
       </div>
       {children}
@@ -65,13 +65,13 @@ export function Drawer({
       className="fixed inset-0 z-50 bg-black/25"
       panelClassName="absolute inset-y-0 right-0 flex w-[34rem] max-w-full flex-col overflow-y-auto border-l border-black/10 bg-white shadow-2xl outline-none dark:border-white/15 dark:bg-neutral-900"
     >
-      <div className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-black/10 bg-white/85 px-5 py-3 backdrop-blur dark:border-white/15 dark:bg-neutral-900/85">
-        <h2 className="text-sm font-semibold tracking-tight">{title}</h2>
+      <div className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-black/10 bg-white/85 px-6 py-4 backdrop-blur dark:border-white/15 dark:bg-neutral-900/85">
+        <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
         <IconButton label="Close" icon={X} onClick={onClose} />
       </div>
-      <div className="p-5">{children}</div>
+      <div className="p-6">{children}</div>
       {footer === undefined ? null : (
-        <div className="mt-auto flex justify-end gap-2 border-t border-black/10 px-5 py-3 dark:border-white/15">
+        <div className="mt-auto flex justify-end gap-2 border-t border-black/10 px-6 py-4 dark:border-white/15">
           {footer}
         </div>
       )}
@@ -130,13 +130,13 @@ export function DialogSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="flex flex-col gap-3 border-t border-black/8 py-4 first:border-t-0 first:pt-0 last:pb-0 dark:border-white/12">
+    <section className="flex flex-col gap-3.5 border-t border-black/8 py-5 first:border-t-0 first:pt-0 last:pb-0 dark:border-white/12">
       <div className="flex flex-col gap-1">
-        <h3 className="text-xs font-medium uppercase tracking-[0.15em] opacity-50">
-          {title}
-        </h3>
+        <h3 className="text-[15px] font-medium tracking-tight">{title}</h3>
         {description === undefined ? null : (
-          <p className="text-xs leading-relaxed opacity-60">{description}</p>
+          <p className="text-[13px] leading-relaxed opacity-65">
+            {description}
+          </p>
         )}
       </div>
       {children}

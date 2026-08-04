@@ -1361,40 +1361,56 @@ export function RoomPlanCanvas({
         of whatever is selected sit in the opposite one. Putting a number that
         changes next to a number that does not makes both harder to read.
       */}
-      <p className="pointer-events-none absolute left-3 top-3 rounded-md bg-black/70 px-2.5 py-1 font-mono text-xs tabular-nums text-white/90 dark:bg-white/10">
-        {formatArea(floorAreaSquareMeters(floor), unit)}
-      </p>
+      {/*
+        Both are readings of a floor, so neither exists until there is one.
+        "0.0 sq ft" in one corner and "x — y —" in the other are two things to
+        read that answer nothing, on the one screen where somebody is deciding
+        whether this tool is worth their afternoon.
+      */}
+      {floor.rooms.length === 0 ? null : (
+        <>
+          <p className="pointer-events-none absolute left-3 top-3 rounded-lg bg-black/70 px-3 py-1.5 font-mono text-[13px] tabular-nums text-white/90 dark:bg-white/10">
+            {formatArea(floorAreaSquareMeters(floor), unit)}
+          </p>
 
-      <p className="pointer-events-none absolute bottom-3 right-3 flex gap-3 rounded-md bg-black/70 px-2.5 py-1 font-mono text-xs tabular-nums text-white/90 dark:bg-white/10">
-        <span>
-          {at === null ? "x —" : `x ${formatLength(at.xMeters, unit)}`}
-        </span>
-        <span>
-          {at === null ? "y —" : `y ${formatLength(at.zMeters, unit)}`}
-        </span>
-      </p>
+          <p className="pointer-events-none absolute right-3 bottom-3 flex gap-3 rounded-lg bg-black/70 px-3 py-1.5 font-mono text-[13px] tabular-nums text-white/90 dark:bg-white/10">
+            <span>
+              {at === null ? "x —" : `x ${formatLength(at.xMeters, unit)}`}
+            </span>
+            <span>
+              {at === null ? "y —" : `y ${formatLength(at.zMeters, unit)}`}
+            </span>
+          </p>
+        </>
+      )}
 
       {drawing ? (
-        <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1 text-xs text-white dark:bg-white/15">
+        <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-[13px] text-white dark:bg-white/15">
           Drag out a room, or click to drop one. Esc to stop.
         </p>
       ) : null}
 
       {placingOpening === null ? null : (
-        <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1 text-xs text-white dark:bg-white/15">
+        <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-[13px] text-white dark:bg-white/15">
           Click the wall for the {placingOpening.kind}. Esc to stop.
         </p>
       )}
 
       {calibrating ? (
-        <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1 text-xs text-white dark:bg-white/15">
+        <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-[13px] text-white dark:bg-white/15">
           Drag a line along a wall you know the length of. Esc to stop.
         </p>
       ) : null}
 
-      {/* Said once, where it is needed, and gone as soon as it is not. */}
-      {active || drawing || placingOpening !== null || calibrating ? null : (
-        <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1 text-xs text-white dark:bg-white/15">
+      {/* Said once, where it is needed, and gone as soon as it is not — and
+          never on an empty floor, where the invitation in the middle of the
+          canvas is already saying something more useful. */}
+      {active ||
+      drawing ||
+      placingOpening !== null ||
+      calibrating ||
+      floor.rooms.length === 0 ? null : (
+        <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-[13px] text-white dark:bg-white/15">
           {selectedRoomPartId !== null
             ? "Drag or resize this section here, or type its X/Y and W/D"
             : selectedRoomId !== null
