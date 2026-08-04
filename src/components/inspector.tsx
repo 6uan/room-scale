@@ -118,22 +118,36 @@ export function Inspector(props: InspectorProps) {
   );
 }
 
+/**
+ * One inspector panel: what is selected, and everything you can do to it.
+ *
+ * `action` is the one thing you can do to the whole of it — removing it —
+ * and it sits beside the name rather than at the far end of the fields. It
+ * used to be the last control in the panel, which put the most destructive
+ * button behind a scroll through every measurement, and put it where the eye
+ * lands after reading rather than where it goes to act.
+ */
 function Panel({
   title,
   subtitle,
+  action,
   children,
 }: {
   title: string;
   subtitle?: string;
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <section aria-label={title} className="flex flex-col gap-5 p-5">
-      <header className="flex flex-col gap-1">
-        <h2 className="text-[17px] font-semibold tracking-tight">{title}</h2>
-        {subtitle === undefined ? null : (
-          <p className="text-[13px] leading-relaxed opacity-60">{subtitle}</p>
-        )}
+      <header className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 flex-col gap-1">
+          <h2 className="text-[17px] font-semibold tracking-tight">{title}</h2>
+          {subtitle === undefined ? null : (
+            <p className="text-[13px] leading-relaxed opacity-60">{subtitle}</p>
+          )}
+        </div>
+        {action === undefined ? null : <div className="shrink-0">{action}</div>}
       </header>
       {children}
     </section>
@@ -256,15 +270,26 @@ function RoomInspector({
     return <Missing what="room" />;
   }
 
+  const name = room.name === "" ? "Unnamed room" : room.name;
+
   return (
-    <Panel title={room.name === "" ? "Unnamed room" : room.name}>
+    <Panel
+      title={name}
+      action={
+        <IconButton
+          label={`Remove ${name}`}
+          icon={Trash2}
+          tone="danger"
+          onClick={() => onRoomRemove(room)}
+        />
+      }
+    >
       <RoomFields
         floor={floor}
         room={room}
         unit={unit}
         onChange={onRoomChange}
         onGestureEnd={onGestureEnd}
-        onRemove={() => onRoomRemove(room)}
         onAddOpening={(kind) => onAddOpening(room, kind)}
         placingOpeningKind={
           placingOpening?.roomId === room.id ? placingOpening.kind : null

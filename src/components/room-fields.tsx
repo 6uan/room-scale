@@ -57,7 +57,6 @@ export type RoomFieldsProps = {
   unit: DisplayUnit;
   onChange: (room: Room, gesture?: string) => void;
   onGestureEnd: () => void;
-  onRemove: () => void;
   onAddOpening: (kind: OpeningKind) => void;
   placingOpeningKind?: OpeningKind | null;
   selectedPartId?: string | null;
@@ -72,7 +71,6 @@ export function RoomFields({
   unit,
   onChange,
   onGestureEnd,
-  onRemove,
   onAddOpening,
   placingOpeningKind = null,
   selectedPartId = null,
@@ -80,7 +78,6 @@ export function RoomFields({
   onSelectOpening,
   onRemoveOpening,
 }: RoomFieldsProps) {
-  const name = room.name === "" ? "Room" : room.name;
   const compound = room.parts.length > 1;
 
   function addPart(): void {
@@ -133,33 +130,10 @@ export function RoomFields({
 
   return (
     <div className="flex flex-col gap-5">
-      <CompactGroup title="Room" unit={unit} columns={1}>
-        <NumberField
-          label={`${name} height`}
-          compactLabel="H"
-          scrubGesture={`room-field:${room.id}:height`}
-          unit={unit}
-          meters={room.heightMeters}
-          limits={ROOM_LENGTH_LIMITS.heightMeters}
-          onMetersChange={(meters, gesture) =>
-            onChange(withRoomLength(room, "heightMeters", meters), gesture)
-          }
-          onGestureEnd={onGestureEnd}
-        />
-      </CompactGroup>
-
-      <div className="flex flex-col gap-4 border-t border-black/10 pt-4 dark:border-white/15">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-medium">
-            {compound ? "Room sections" : "Footprint"}
-          </span>
-          <IconButton
-            label="Add section"
-            icon={Plus}
-            size="small"
-            onClick={addPart}
-          />
-        </div>
+      <div className="flex flex-col gap-4">
+        <span className="text-sm font-medium">
+          {compound ? "Room sections" : "Footprint"}
+        </span>
         {room.parts.map((part, index) => (
           <RoomPartFields
             key={part.id}
@@ -175,6 +149,28 @@ export function RoomFields({
             onSelect={() => onSelectPart?.(part.id)}
           />
         ))}
+
+        {/*
+          Named in words rather than worn as a `+`.
+
+          A bare plus beside "Footprint" said nothing about what it would add,
+          and "section" is not a word anybody arrives already knowing — so the
+          button says it and, until a room has used one, a line underneath says
+          what one is for. This control is temporary: once a section can be
+          drawn against a room on the plan, drawing one *is* adding one, and a
+          button for it stops earning its place.
+        */}
+        <div className="flex flex-col gap-2">
+          <div className="flex justify-start">
+            <LabelledButton label="Add section" icon={Plus} onClick={addPart} />
+          </div>
+          {compound ? null : (
+            <p className="text-[13px] leading-relaxed opacity-60">
+              A section is another rectangle of floor. Two of them make an
+              L-shaped room, or a room with a notch taken out of one corner.
+            </p>
+          )}
+        </div>
       </div>
 
       <p className="text-[13px] leading-relaxed opacity-60">
@@ -199,15 +195,6 @@ export function RoomFields({
         onChange={onChange}
         onGestureEnd={onGestureEnd}
       />
-
-      <div className="flex justify-end">
-        <LabelledButton
-          label={`Remove ${name}`}
-          icon={Trash2}
-          tone="danger"
-          onClick={onRemove}
-        />
-      </div>
     </div>
   );
 }
@@ -399,7 +386,18 @@ function RoomPartFields({
           onGestureEnd={onGestureEnd}
         />
       </CompactGroup>
-      <CompactGroup title="Size" unit={unit} columns={2}>
+      {/*
+        Width, depth and height together, because a room is quoted as all
+        three at once. Height sat alone in a group of its own labelled "Room",
+        which is what was left after width and depth moved down to the section
+        — an orphan of the refactor rather than anything a reader wanted.
+
+        It is still the *room's* height while W and D are this section's: one
+        apartment, one ceiling. Every section shows the same number and editing
+        any of them edits the room, which reads plainly enough once only the
+        selected section is on screen.
+      */}
+      <CompactGroup title="Size" unit={unit} columns={3}>
         <NumberField
           label={`${label} width`}
           compactLabel="W"
@@ -464,9 +462,22 @@ function RoomPartFields({
           }
           onGestureEnd={onGestureEnd}
         />
+        <NumberField
+          label={`${roomName} height`}
+          compactLabel="H"
+          scrubGesture={`room-field:${room.id}:height`}
+          unit={unit}
+          meters={room.heightMeters}
+          limits={ROOM_LENGTH_LIMITS.heightMeters}
+          onMetersChange={(meters, gesture) =>
+            onChange(withRoomLength(room, "heightMeters", meters), gesture)
+          }
+          onGestureEnd={onGestureEnd}
+        />
       </CompactGroup>
       <AngleField
         label={`${label} angle`}
+        presets
         radians={part.rotationRadians}
         onRadiansChange={(radians) =>
           onChange(withRoomPartRotation(room, part.id, radians))
@@ -564,6 +575,13 @@ function nextPartId(room: Room): string {
   return `${room.id}-part-${number}`;
 }
 
+/** Spelled out, because Tailwind reads these classes rather than building them. */
+const GRID_COLUMNS: Record<1 | 2 | 3, string> = {
+  1: "grid-cols-1",
+  2: "grid-cols-2",
+  3: "grid-cols-3",
+};
+
 function CompactGroup({
   title,
   unit,
@@ -572,7 +590,7 @@ function CompactGroup({
 }: {
   title: string;
   unit: DisplayUnit;
-  columns: 1 | 2;
+  columns: 1 | 2 | 3;
   children: React.ReactNode;
 }) {
   return (
@@ -586,9 +604,7 @@ function CompactGroup({
           {displayUnitSuffix(unit)}
         </span>
       </div>
-      <div
-        className={`grid min-w-0 gap-2 ${columns === 1 ? "grid-cols-1" : "grid-cols-2"}`}
-      >
+      <div className={`grid min-w-0 gap-2 ${GRID_COLUMNS[columns]}`}>
         {children}
       </div>
     </fieldset>
