@@ -47,7 +47,6 @@ function renderFields(
       unit="metric"
       onChange={onChange}
       onGestureEnd={vi.fn()}
-      onRemove={vi.fn()}
       onAddOpening={vi.fn()}
     />,
   );
@@ -76,7 +75,6 @@ describe("RoomFields", () => {
         unit="imperial"
         onChange={vi.fn()}
         onGestureEnd={vi.fn()}
-        onRemove={vi.fn()}
         onAddOpening={vi.fn()}
       />,
     );
@@ -94,15 +92,16 @@ describe("RoomFields", () => {
     ).toBeInTheDocument();
     expect(within(position).getAllByRole("slider")).toHaveLength(2);
 
+    // All three of a room's dimensions in one group. Height is the room's
+    // while width and depth are the section's, but a room is quoted as
+    // W by D by H and reading it anywhere else is reading it twice.
     const size = screen.getByRole("group", { name: "Size" });
     expect(within(size).getAllByRole("spinbutton")).toEqual([
       within(size).getByRole("spinbutton", { name: "Living room width" }),
       within(size).getByRole("spinbutton", { name: "Living room depth" }),
+      within(size).getByRole("spinbutton", { name: "Living room height" }),
     ]);
-    expect(within(size).getAllByRole("slider")).toHaveLength(2);
-    expect(
-      screen.getByRole("spinbutton", { name: "Living room height" }),
-    ).toBeInTheDocument();
+    expect(within(size).getAllByRole("slider")).toHaveLength(3);
     expect(
       within(size).getByRole("slider", {
         name: "W drag handle",
@@ -272,7 +271,6 @@ describe("RoomFields", () => {
         unit="metric"
         onChange={onChange}
         onGestureEnd={vi.fn()}
-        onRemove={vi.fn()}
         onAddOpening={vi.fn()}
         onSelectPart={onSelectPart}
       />,
@@ -299,7 +297,6 @@ describe("RoomFields", () => {
         unit="metric"
         onChange={vi.fn()}
         onGestureEnd={vi.fn()}
-        onRemove={vi.fn()}
         onAddOpening={vi.fn()}
       />,
     );
@@ -336,7 +333,6 @@ describe("RoomFields", () => {
         unit="metric"
         onChange={vi.fn()}
         onGestureEnd={vi.fn()}
-        onRemove={vi.fn()}
         onAddOpening={vi.fn()}
         onSelectPart={onSelectPart}
       />,
@@ -374,7 +370,6 @@ describe("RoomFields", () => {
         selectedPartId="room-1-part-1"
         onChange={vi.fn()}
         onGestureEnd={vi.fn()}
-        onRemove={vi.fn()}
         onAddOpening={vi.fn()}
         onSelectPart={onSelectPart}
       />,
