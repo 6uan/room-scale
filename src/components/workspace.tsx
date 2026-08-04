@@ -9,6 +9,7 @@ import {
   LabelledButton,
 } from "@/components/icon-button";
 import { CataloguePanel } from "@/components/catalogue-panel";
+import { EmptyPlan } from "@/components/empty-plan";
 import { Inspector } from "@/components/inspector";
 import { ListDrawer } from "@/components/list-drawer";
 import { SettingsDialog } from "@/components/settings-dialog";
@@ -591,6 +592,21 @@ export function Workspace() {
               }}
             />
           </div>
+
+          {/* Only until there is one room, and never dismissed — a plan with
+              something on it says what it is without being told. */}
+          {floor.rooms.length === 0 ? (
+            <EmptyPlan
+              drawing={drawingRoom}
+              onDrawRoom={() => {
+                setPlacingOpening(null);
+                setDrawingRoom((on) => !on);
+              }}
+              onAddPlanImage={(file) => {
+                void addPlanImage(file);
+              }}
+            />
+          ) : null}
 
           {/* Over the plan rather than beside it: the drawing gets the room,
               and the verdict is still the first thing under your eye. */}

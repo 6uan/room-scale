@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_FLOOR, DEFAULT_ROOM } from "@/domain/room";
+import { DEFAULT_FLOOR } from "@/domain/room";
+import { LIVING_ROOM } from "@/domain/room/fixtures";
 import { metersFromInches } from "@/domain/units";
 import {
   clampToFloor,
@@ -21,7 +22,7 @@ const FLOOR = {
   ...DEFAULT_FLOOR,
   rooms: [
     {
-      ...DEFAULT_ROOM,
+      ...LIVING_ROOM,
       parts: [
         {
           id: "room-1-part-1",
@@ -37,7 +38,7 @@ const FLOOR = {
   ],
 };
 const ROOM = {
-  ...DEFAULT_ROOM,
+  ...LIVING_ROOM,
   parts: [
     {
       id: "room-1-part-1",

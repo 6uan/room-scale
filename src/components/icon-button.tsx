@@ -132,6 +132,40 @@ export function LabelledButton({
   );
 }
 
+/** A file picker with its words, for the same reason `LabelledButton` has them. */
+export function LabelledFileButton({
+  label,
+  icon: Icon,
+  accept,
+  onFile,
+}: {
+  label: string;
+  icon: LucideIcon;
+  accept: string;
+  onFile: (file: File) => void;
+}) {
+  return (
+    <label className={`${labelledClass("normal")} cursor-pointer`}>
+      <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+      {label}
+      <input
+        type="file"
+        accept={accept}
+        aria-label={label}
+        className="sr-only"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file !== undefined) {
+            onFile(file);
+          }
+          // Cleared so choosing the same file twice still counts as a change.
+          event.target.value = "";
+        }}
+      />
+    </label>
+  );
+}
+
 /**
  * The same shape as `LabelledButton`, for the places where the action is a
  * navigation rather than a change.

@@ -1,18 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { createProject } from "@/domain/project";
 import {
   SCHEMA_VERSION,
   readStoredProject,
   toStoredProject,
 } from "./project-schema";
+import { projectWithLivingRoom } from "@/domain/project/fixtures";
 
-const STORED = toStoredProject("current", createProject(), 1_700_000_000_000);
+const STORED = toStoredProject(
+  "current",
+  projectWithLivingRoom(),
+  1_700_000_000_000,
+);
 
 describe("readStoredProject", () => {
   it("reads back a document this build wrote", () => {
     const result = readStoredProject(STORED);
 
-    expect(result).toEqual({ ok: true, project: createProject() });
+    expect(result).toEqual({ ok: true, project: projectWithLivingRoom() });
   });
 
   it("survives a round trip through JSON, as structured cloning would", () => {
@@ -23,7 +27,7 @@ describe("readStoredProject", () => {
 
   it("keeps openings and products through the round trip", () => {
     const project = {
-      ...createProject(),
+      ...projectWithLivingRoom(),
       products: [
         {
           id: "p1",
@@ -218,7 +222,7 @@ describe("readStoredProject", () => {
   });
 
   it("drops retired floor data when upgrading a version 5 document", () => {
-    const project = createProject();
+    const project = projectWithLivingRoom();
     const legacyRooms = project.floor.rooms.map((room) => {
       const part = room.parts[0];
       if (part === undefined) {
@@ -275,7 +279,7 @@ describe("readStoredProject", () => {
   });
 
   it("upgrades a version 6 rectangle to one room part", () => {
-    const project = createProject();
+    const project = projectWithLivingRoom();
     const room = project.floor.rooms[0];
     const part = room?.parts[0];
     if (room === undefined || part === undefined) {
@@ -318,7 +322,7 @@ describe("readStoredProject", () => {
   });
 
   it("upgrades a version 7 part, which could not yet be turned", () => {
-    const project = createProject();
+    const project = projectWithLivingRoom();
     const room = project.floor.rooms[0];
     const part = room?.parts[0];
     if (room === undefined || part === undefined) {
@@ -347,7 +351,7 @@ describe("readStoredProject", () => {
   });
 
   it("splits a version 8 wall thickness into shell and partitions", () => {
-    const project = createProject();
+    const project = projectWithLivingRoom();
     const room = project.floor.rooms[0];
     const part = room?.parts[0];
     if (room === undefined || part === undefined) {
@@ -386,7 +390,7 @@ describe("readStoredProject", () => {
   });
 
   it("gives a version 9 project no underlay, which is what it had", () => {
-    const project = createProject();
+    const project = projectWithLivingRoom();
     const { underlay, ...withoutUnderlay } = project;
     void underlay;
     const version9 = {
@@ -403,7 +407,7 @@ describe("readStoredProject", () => {
   });
 
   it("leaves a version 10 room taking the floor's wall thicknesses", () => {
-    const project = createProject();
+    const project = projectWithLivingRoom();
     const room = project.floor.rooms[0];
     if (room === undefined) {
       throw new Error("a new project starts with one room");
@@ -447,7 +451,7 @@ describe("readStoredProject", () => {
   });
 
   it("keeps a room's own wall thickness through the round trip", () => {
-    const project = createProject();
+    const project = projectWithLivingRoom();
     const room = project.floor.rooms[0];
     if (room === undefined) {
       throw new Error("a new project starts with one room");
@@ -472,7 +476,7 @@ describe("readStoredProject", () => {
 
   it("keeps a calibrated underlay through the round trip", () => {
     const project = {
-      ...createProject(),
+      ...projectWithLivingRoom(),
       underlay: {
         imageDataUrl: "data:image/png;base64,x",
         imageWidthPixels: 800,
@@ -490,7 +494,7 @@ describe("readStoredProject", () => {
   });
 
   it("refuses a part whose rotation is missing at the current version", () => {
-    const project = createProject();
+    const project = projectWithLivingRoom();
     const room = project.floor.rooms[0];
     const part = room?.parts[0];
     if (room === undefined || part === undefined) {

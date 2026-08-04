@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createInstance, turnInstance } from "@/domain/furniture";
-import { DEFAULT_FLOOR, DEFAULT_ROOM } from "@/domain/room";
+import { DEFAULT_FLOOR } from "@/domain/room";
+import { LIVING_ROOM } from "@/domain/room/fixtures";
 import { degreesFromRadians } from "@/domain/units";
 import { instanceFromKeyPress } from "./placement-keys";
 
@@ -8,7 +9,7 @@ const FLOOR = {
   ...DEFAULT_FLOOR,
   rooms: [
     {
-      ...DEFAULT_ROOM,
+      ...LIVING_ROOM,
       parts: [
         {
           id: "room-1-part-1",

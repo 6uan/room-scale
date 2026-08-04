@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { metersFromInches } from "@/domain/units";
 import { metersFromFeetAndInches } from "@/domain/units";
 import { createOpening } from "./openings";
+import { LIVING_ROOM } from "./fixtures";
 import {
-  DEFAULT_ROOM,
   ROOM_LENGTH_LIMITS,
   checkRoomLength,
   isValidRoom,
@@ -61,14 +61,14 @@ describe("room lengths", () => {
 
 describe("room", () => {
   it("ships a valid default", () => {
-    expect(isValidRoom(DEFAULT_ROOM)).toBe(true);
+    expect(isValidRoom(LIVING_ROOM)).toBe(true);
   });
 
   it("reports a room with any bad dimension as invalid", () => {
-    expect(isValidRoom(withRoomLength(DEFAULT_ROOM, "depthMeters", 0))).toBe(
+    expect(isValidRoom(withRoomLength(LIVING_ROOM, "depthMeters", 0))).toBe(
       false,
     );
-    expect(isValidRoom(withRoomLength(DEFAULT_ROOM, "heightMeters", 99))).toBe(
+    expect(isValidRoom(withRoomLength(LIVING_ROOM, "heightMeters", 99))).toBe(
       false,
     );
   });
@@ -76,37 +76,37 @@ describe("room", () => {
   it("reports a room as invalid when an opening has fallen off its wall", () => {
     // The default door sits on the south wall; a much narrower room leaves it
     // hanging past the corner.
-    expect(isValidRoom(withRoomLength(DEFAULT_ROOM, "widthMeters", 1))).toBe(
+    expect(isValidRoom(withRoomLength(LIVING_ROOM, "widthMeters", 1))).toBe(
       false,
     );
   });
 
   it("replaces one dimension without mutating the original", () => {
-    const updated = withRoomLength(DEFAULT_ROOM, "widthMeters", 5);
+    const updated = withRoomLength(LIVING_ROOM, "widthMeters", 5);
 
     expect(primaryRoomPart(updated).widthMeters).toBe(5);
     expect(primaryRoomPart(updated).depthMeters).toBe(
-      primaryRoomPart(DEFAULT_ROOM).depthMeters,
+      primaryRoomPart(LIVING_ROOM).depthMeters,
     );
     // Fourteen feet, which is where the default started.
-    expect(primaryRoomPart(DEFAULT_ROOM).widthMeters).toBe(
+    expect(primaryRoomPart(LIVING_ROOM).widthMeters).toBe(
       metersFromInches(168),
     );
   });
 
   it("replaces the openings without mutating the original", () => {
-    const updated = withOpenings(DEFAULT_ROOM, [
-      createOpening("passage", "p1", DEFAULT_ROOM),
+    const updated = withOpenings(LIVING_ROOM, [
+      createOpening("passage", "p1", LIVING_ROOM),
     ]);
 
     expect(updated.openings).toHaveLength(1);
-    expect(DEFAULT_ROOM.openings).toHaveLength(2);
+    expect(LIVING_ROOM.openings).toHaveLength(2);
   });
 
   it("computes floor area from width and depth only", () => {
     const room = withRoomPart(
-      DEFAULT_ROOM,
-      primaryRoomPart(DEFAULT_ROOM).id,
+      LIVING_ROOM,
+      primaryRoomPart(LIVING_ROOM).id,
       (part) => ({ ...part, widthMeters: 4, depthMeters: 3 }),
     );
 
@@ -114,9 +114,9 @@ describe("room", () => {
   });
 
   it("counts overlapping rectangular parts once", () => {
-    const first = primaryRoomPart(DEFAULT_ROOM);
+    const first = primaryRoomPart(LIVING_ROOM);
     const room = {
-      ...DEFAULT_ROOM,
+      ...LIVING_ROOM,
       parts: [
         {
           ...first,
@@ -139,10 +139,10 @@ describe("room", () => {
   });
 
   it("measures floor area inside the walls, from the numbers a tape gives", () => {
-    const same = withRoomLength(DEFAULT_ROOM, "heightMeters", 3);
+    const same = withRoomLength(LIVING_ROOM, "heightMeters", 3);
 
     expect(roomFloorAreaSquareMeters(same)).toBe(
-      roomFloorAreaSquareMeters(DEFAULT_ROOM),
+      roomFloorAreaSquareMeters(LIVING_ROOM),
     );
   });
 });
@@ -150,7 +150,7 @@ describe("room", () => {
 describe("turned parts", () => {
   /** A 4 × 3 part turned 45° about its anchor corner at (1, 1). */
   const TURNED: Room = {
-    ...DEFAULT_ROOM,
+    ...LIVING_ROOM,
     parts: [
       {
         id: "part-1",
@@ -166,22 +166,22 @@ describe("turned parts", () => {
   const part = (room: Room) => primaryRoomPart(room);
 
   it("spins in place: the center holds still and the corner follows", () => {
-    const turned = withRoomPartRotation(DEFAULT_ROOM, "room-1-part-1", 0.3);
-    const before = roomPartRect(primaryRoomPart(DEFAULT_ROOM)).center;
+    const turned = withRoomPartRotation(LIVING_ROOM, "room-1-part-1", 0.3);
+    const before = roomPartRect(primaryRoomPart(LIVING_ROOM)).center;
     const after = roomPartRect(primaryRoomPart(turned)).center;
 
     expect(after.xMeters).toBeCloseTo(before.xMeters, 12);
     expect(after.zMeters).toBeCloseTo(before.zMeters, 12);
     expect(primaryRoomPart(turned).rotationRadians).toBe(0.3);
     expect(primaryRoomPart(turned).origin).not.toEqual(
-      primaryRoomPart(DEFAULT_ROOM).origin,
+      primaryRoomPart(LIVING_ROOM).origin,
     );
   });
 
   it("turns back to zero without the section having drifted", () => {
-    const there = withRoomPartRotation(DEFAULT_ROOM, "room-1-part-1", 0.3);
+    const there = withRoomPartRotation(LIVING_ROOM, "room-1-part-1", 0.3);
     const back = withRoomPartRotation(there, "room-1-part-1", 0);
-    const original = primaryRoomPart(DEFAULT_ROOM);
+    const original = primaryRoomPart(LIVING_ROOM);
 
     expect(primaryRoomPart(back).origin.xMeters).toBeCloseTo(
       original.origin.xMeters,
