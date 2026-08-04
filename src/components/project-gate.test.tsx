@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createProject, withDisplayUnit } from "@/domain/project";
 import {
@@ -131,6 +132,28 @@ describe("ProjectGate", () => {
       ),
     );
     // The editor is still usable rather than blocked behind the failure.
+    expect(screen.getByText("The editor")).toBeVisible();
+  });
+
+  it("lets the notice be dismissed, because nothing about it is actionable", async () => {
+    const user = userEvent.setup();
+    await sharedDatabase().projects.put({
+      id: "current",
+      version: 1,
+      updatedAt: 0,
+      project: { room: "not a room" },
+    });
+
+    render(
+      <ProjectGate>
+        <p>The editor</p>
+      </ProjectGate>,
+    );
+
+    await waitFor(() => expect(screen.getByRole("alert")).toBeVisible());
+    await user.click(screen.getByRole("button", { name: "Dismiss" }));
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.getByText("The editor")).toBeVisible();
   });
 });

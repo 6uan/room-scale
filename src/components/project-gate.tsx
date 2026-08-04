@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { X } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Project } from "@/domain/project";
 import { loadProject, saveProject } from "@/persistence";
 import { useProjectStore } from "@/state/project-store";
@@ -129,15 +130,45 @@ export function ProjectGate({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * What happened to the stored project, as a strip across the top.
+ *
+ * It used to be a bordered card with the padding and type size of something
+ * you had to act on. Nothing here is actionable: the copy that could not be
+ * read has already been kept aside, and this session is already saving
+ * normally. So it is an announcement — one thin line above the toolbar,
+ * telling you why the apartment you left is not on the screen — and it can be
+ * closed, because a permanent stripe across a design tool is worse than the
+ * card it replaced.
+ *
+ * `shrink-0` because the body is a column and the workspace below fills it: a
+ * flexible bar would be squeezed to nothing on a short window.
+ */
 function UnreadableNotice() {
+  const [dismissed, setDismissed] = useState(false);
+
+  if (dismissed) {
+    return null;
+  }
+
   return (
-    <p
+    <div
       role="alert"
-      className="rounded-lg border border-red-600/40 p-4 text-sm leading-relaxed"
+      className="flex shrink-0 items-center justify-between gap-3 border-b border-red-600/30 bg-red-600/10 px-4 py-1.5 text-xs leading-relaxed"
     >
-      Your saved project could not be opened, so this is a fresh one. The
-      unreadable copy has been kept rather than deleted — nothing you had is
-      gone. Changes from here are saved normally.
-    </p>
+      <span>
+        Your saved project could not be opened, so this is a fresh one. The
+        unreadable copy was kept rather than deleted, and changes from here are
+        saved normally.
+      </span>
+      <button
+        type="button"
+        aria-label="Dismiss"
+        onClick={() => setDismissed(true)}
+        className="-mr-1 shrink-0 rounded p-1 opacity-60 transition-opacity hover:opacity-100"
+      >
+        <X className="size-3.5" aria-hidden="true" />
+      </button>
+    </div>
   );
 }
