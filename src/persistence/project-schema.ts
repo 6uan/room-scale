@@ -36,8 +36,11 @@ import type { Project } from "@/domain/project";
  *     what having no cuts says.
  * 13. The two wall thicknesses collapse back into one. A stored project keeps
  *     its interior number, which is the one that decides where rooms stand.
+ * 14. A part side may be marked dividing, keeping its wall where the room's
+ *     own floor carries on. Existing parts have none, which is what absent
+ *     says.
  */
-export const SCHEMA_VERSION = 13;
+export const SCHEMA_VERSION = 14;
 
 /** Meters, cents, and the rest are all plain finite numbers on the way in. */
 const finiteNumber = z
@@ -94,6 +97,9 @@ const roomPartSchema = z.object({
   depthMeters: finiteNumber,
   rotationRadians: finiteNumber,
   openWalls: z.array(wallSideSchema),
+  // Optional and sparse, like `cuts`: a part written before version 14 has no
+  // dividing walls, and absent says exactly that.
+  dividingWalls: z.array(wallSideSchema).optional(),
   // Sparse and optional: a corner with no entry is square, which every part
   // written before version 12 is. Absent and empty say the same thing.
   cuts: z
@@ -483,6 +489,9 @@ const MIGRATIONS: Record<number, (document: object) => object> = {
       },
     };
   },
+  // Version 14 let a side keep its wall where the room's own floor carries on.
+  // No stored part had one, and absent is what that says.
+  13: (document) => ({ ...document, version: 14 }),
 };
 
 /**

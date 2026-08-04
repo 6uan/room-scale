@@ -84,6 +84,12 @@ export type PartCuts = {
  * open edge bounds the room exactly as a wall does, it just is not drawn as
  * one and cannot carry a door or a window.
  *
+ * `dividingWalls` are its mirror: sides kept as walls **even where this
+ * room's own floor continues through them**. A side where a sibling section
+ * stands is a seam by default, and no wall is drawn — which is right for an
+ * open-plan living room and wrong for a laundry in the corner of a kitchen.
+ * Saying so turns that seam back into a wall, and one that takes a door.
+ *
  * `cuts` clip corners off that rectangle — see `CornerCut`. A clipped corner
  * leaves a chamfer, which is a wall like any other: it draws, it carries a
  * thickness, and it can hold a door. **A rectangle with corners clipped is
@@ -94,6 +100,7 @@ export type PartCuts = {
 export type RoomPart = TurnedRect & {
   readonly id: string;
   readonly openWalls: readonly WallSide[];
+  readonly dividingWalls?: readonly WallSide[] | undefined;
   readonly cuts?: PartCuts | undefined;
 };
 
@@ -161,6 +168,49 @@ export function createRoomPart(
   };
 }
 
+/**
+ * What one side of a section is, when it is not simply left to work itself
+ * out.
+ *
+ * `auto` is the ordinary case: a wall, unless this room's own floor continues
+ * through the side, which makes it a seam with nothing drawn. The other two
+ * overrule that — `open` takes the wall away even at the edge of the floor,
+ * and `dividing` keeps it even where the floor carries on.
+ */
+export type WallState = "auto" | "open" | "dividing";
+
+export function roomPartWallState(part: RoomPart, wall: WallSide): WallState {
+  if (part.openWalls.includes(wall)) {
+    return "open";
+  }
+  return part.dividingWalls?.includes(wall) === true ? "dividing" : "auto";
+}
+
+/** Sets one side of a section to one of its three states. */
+export function withRoomPartWallState(
+  room: Room,
+  partId: string,
+  wall: WallSide,
+  state: WallState,
+): Room {
+  return withRoomPart(room, partId, (part) => {
+    const without = (sides: readonly WallSide[]) =>
+      sides.filter((one) => one !== wall);
+    return {
+      ...part,
+      // Never both at once: a side cannot be missing its wall and keeping it.
+      openWalls:
+        state === "open"
+          ? [...without(part.openWalls), wall]
+          : without(part.openWalls),
+      dividingWalls:
+        state === "dividing"
+          ? [...without(part.dividingWalls ?? []), wall]
+          : without(part.dividingWalls ?? []),
+    };
+  });
+}
+
 /** Marks one wall of a part open or walled again. */
 export function withRoomPartWallOpen(
   room: Room,
@@ -168,12 +218,7 @@ export function withRoomPartWallOpen(
   wall: WallSide,
   open: boolean,
 ): Room {
-  return withRoomPart(room, partId, (part) => ({
-    ...part,
-    openWalls: open
-      ? [...part.openWalls.filter((one) => one !== wall), wall]
-      : part.openWalls.filter((one) => one !== wall),
-  }));
+  return withRoomPartWallState(room, partId, wall, open ? "open" : "auto");
 }
 
 export function createRoom(id: string, name: string, origin: FloorPoint): Room {

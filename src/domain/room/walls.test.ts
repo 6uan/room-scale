@@ -10,8 +10,10 @@ import { createOpening } from "./openings";
 import { checkOpening } from "./openings";
 import {
   createRoom,
+  withOpenings,
   withParts,
   withRoomPartWallOpen,
+  withRoomPartWallState,
   withRoomWallThickness,
   type Room,
   type RoomPart,
@@ -216,6 +218,68 @@ describe("wallStretches", () => {
       { startMeters: 0, endMeters: 2, kind: "seam", thicknessMeters: 0 },
       { startMeters: 2, endMeters: 4, kind: "open", thicknessMeters: 0 },
     ]);
+  });
+
+  /**
+   * A laundry in the corner of a kitchen: one room's floor, with a wall
+   * across it. Without saying so the side is a seam and nothing is drawn,
+   * because the kitchen carries on beyond it.
+   */
+  it("keeps a wall across the room's own floor when the side says so", () => {
+    const kitchen = roomOf("room-1", [
+      part({ id: "big", widthMeters: 6, depthMeters: 4 }),
+      part({
+        id: "laundry",
+        origin: { xMeters: 4, zMeters: 2 },
+        widthMeters: 2,
+        depthMeters: 2,
+      }),
+    ]);
+    const floor = floorOf([kitchen]);
+    const laundry = kitchen.parts[1]!;
+
+    // Left alone, the laundry's north side is a seam: the kitchen is beyond it.
+    expect(wallStretches(floor, kitchen, laundry, "north")).toEqual([
+      { startMeters: 0, endMeters: 2, kind: "seam", thicknessMeters: 0 },
+    ]);
+
+    const divided = withRoomPartWallState(
+      kitchen,
+      "laundry",
+      "north",
+      "dividing",
+    );
+    expect(wallStretches(floor, divided, divided.parts[1]!, "north")).toEqual([
+      {
+        startMeters: 0,
+        endMeters: 2,
+        kind: "wall",
+        thicknessMeters: THICKNESS,
+      },
+    ]);
+  });
+
+  it("hangs a door on a dividing wall, and refuses one on a seam", () => {
+    const kitchen = roomOf("room-1", [
+      part({ id: "big", widthMeters: 6, depthMeters: 4 }),
+      part({
+        id: "laundry",
+        origin: { xMeters: 4, zMeters: 2 },
+        widthMeters: 2,
+        depthMeters: 2,
+      }),
+    ]);
+    const door = createOpening("door", "d1", kitchen, "north", 1, "laundry");
+
+    expect(checkOpening(withOpenings(kitchen, [door]), door)).toBe("off-wall");
+
+    const divided = withRoomPartWallState(
+      kitchen,
+      "laundry",
+      "north",
+      "dividing",
+    );
+    expect(checkOpening(withOpenings(divided, [door]), door)).toBeNull();
   });
 
   it("measures a turned part's walls in its own frame", () => {

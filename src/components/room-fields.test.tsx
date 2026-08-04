@@ -208,7 +208,7 @@ describe("RoomFields", () => {
     );
   });
 
-  it("opens a wall from its toggle, and closes it again", () => {
+  it("cycles a wall through walled, open, and dividing", () => {
     const floor = projectWithLivingRoom().floor;
     const room = floor.rooms[0];
     if (room === undefined) {
@@ -217,8 +217,10 @@ describe("RoomFields", () => {
     const onChange = vi.fn();
     renderFields(floor, room, onChange);
 
+    // The name carries the state, because three of them cannot be a pressed
+    // toggle and somebody reading the button has to know which it is on.
     fireEvent.click(
-      screen.getByRole("button", { name: "Living room north wall open" }),
+      screen.getByRole("button", { name: "Living room north wall, walled" }),
     );
 
     const opened = onChange.mock.lastCall?.[0] as Room | undefined;
@@ -226,12 +228,9 @@ describe("RoomFields", () => {
       throw new Error("the toggle reported no change");
     }
     expect(primaryRoomPart(opened).openWalls).toEqual(["north"]);
-    expect(
-      screen.getByRole("button", { name: "Living room north wall open" }),
-    ).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("closes an opened wall from the same toggle", () => {
+  it("turns an open wall into a dividing one, then back to plain", () => {
     const floor = projectWithLivingRoom().floor;
     const base = floor.rooms[0];
     if (base === undefined) {
@@ -247,14 +246,26 @@ describe("RoomFields", () => {
     const onChange = vi.fn();
     renderFields({ ...floor, rooms: [room] }, room, onChange);
 
-    const toggle = screen.getByRole("button", {
-      name: "Living room north wall open",
-    });
-    expect(toggle).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(toggle);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Living room north wall, open" }),
+    );
 
-    const closed = onChange.mock.lastCall?.[0] as Room | undefined;
-    expect(closed && primaryRoomPart(closed).openWalls).toEqual([]);
+    const dividing = onChange.mock.lastCall?.[0] as Room;
+    // Never both at once: a side cannot be missing its wall and keeping it.
+    expect(primaryRoomPart(dividing).openWalls).toEqual([]);
+    expect(primaryRoomPart(dividing).dividingWalls).toEqual(["north"]);
+
+    const onChangeAgain = vi.fn();
+    renderFields({ ...floor, rooms: [dividing] }, dividing, onChangeAgain);
+    fireEvent.click(
+      screen.getAllByRole("button", {
+        name: "Living room north wall, dividing",
+      })[0]!,
+    );
+
+    const plain = onChangeAgain.mock.lastCall?.[0] as Room;
+    expect(primaryRoomPart(plain).openWalls).toEqual([]);
+    expect(primaryRoomPart(plain).dividingWalls).toEqual([]);
   });
 
   it("adds an editable rectangular section to the room", () => {
@@ -692,14 +703,12 @@ describe("RoomFields: cut corners", () => {
 
     expect(
       screen.getByRole("button", {
-        name: "Living room north-east wall open",
+        name: "Living room north-east wall, walled",
       }),
     ).toBeInTheDocument();
-    // And a corner that is square has no wall to open.
+    // And a corner that is square has no wall to set at all.
     expect(
-      screen.queryByRole("button", {
-        name: "Living room south-west wall open",
-      }),
+      screen.queryByRole("button", { name: /south-west wall/ }),
     ).toBeNull();
   });
 });

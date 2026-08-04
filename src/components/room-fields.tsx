@@ -24,9 +24,10 @@ import {
   withRoomLength,
   withRoomPartCut,
   withRoomPartLength,
+  roomPartWallState,
   withRoomPartOrigin,
   withRoomPartRotation,
-  withRoomPartWallOpen,
+  withRoomPartWallState,
   withRoomWallThickness,
   wallThicknessMeters,
   type CutLeg,
@@ -34,6 +35,7 @@ import {
   type OpeningKind,
   type PartCorner,
   type Room,
+  type WallState,
   type RoomPart,
   type WallSide,
 } from "@/domain/room";
@@ -83,6 +85,33 @@ const WALL_INITIALS: Record<WallSide, string> = {
   "south-west": "SW",
   west: "W",
   "north-west": "NW",
+};
+
+/** What one press does, and what the side looks like in each state. */
+const NEXT_WALL_STATE: Record<WallState, WallState> = {
+  auto: "open",
+  open: "dividing",
+  dividing: "auto",
+};
+
+/** One word for the state, so the accessible name carries it. */
+const WALL_STATE_WORDS: Record<WallState, string> = {
+  auto: "walled",
+  open: "open",
+  dividing: "dividing",
+};
+
+const WALL_STATE_TITLES: Record<WallState, string> = {
+  auto: "walled where the floor ends",
+  open: "open, drawn as a railing",
+  dividing: "walled even where the floor carries on",
+};
+
+const WALL_STATE_CLASSES: Record<WallState, string> = {
+  auto: "bg-black/[0.05] opacity-50 hover:opacity-100 dark:bg-white/[0.08]",
+  open: "bg-black/15 dark:bg-white/25",
+  dividing:
+    "bg-black/[0.05] outline outline-1 outline-current dark:bg-white/[0.08]",
 };
 
 /** Where each corner sits in its own pad, laid out the way the plan is. */
@@ -593,34 +622,40 @@ function RoomPartFields({
         onGestureEnd={onGestureEnd}
       />
       <fieldset className="flex flex-col gap-2">
-        <legend className="sr-only">Open walls</legend>
+        <legend className="sr-only">Walls</legend>
         <span aria-hidden="true" className="text-xs font-medium">
-          Open walls
+          Walls
         </span>
         {/*
           Laid out as the room is, rather than as a row of four words. Which
           wall "east" is takes a moment to work out from a list and none at all
           from a square — and the plan beside it is drawn the same way up.
+
+          One press cycles a side through its three states, because they are
+          three settings of one thing rather than two separate switches, and a
+          side is almost always left alone.
         */}
         <div className="flex items-center gap-3">
           <div className="grid shrink-0 grid-cols-3 grid-rows-3 gap-0.5">
             {partWallSides(part).map((wall) => {
-              const open = part.openWalls.includes(wall);
+              const state = roomPartWallState(part, wall);
               return (
                 <button
                   key={wall}
                   type="button"
-                  aria-pressed={open}
-                  aria-label={`${label} ${wall} wall open`}
-                  title={`${WALL_TITLES[wall]} wall`}
+                  aria-label={`${label} ${wall} wall, ${WALL_STATE_WORDS[state]}`}
+                  title={`${WALL_TITLES[wall]} wall — ${WALL_STATE_TITLES[state]}`}
                   onClick={() =>
-                    onChange(withRoomPartWallOpen(room, part.id, wall, !open))
+                    onChange(
+                      withRoomPartWallState(
+                        room,
+                        part.id,
+                        wall,
+                        NEXT_WALL_STATE[state],
+                      ),
+                    )
                   }
-                  className={`flex size-6 items-center justify-center rounded-[5px] text-[10px] font-medium transition-colors ${WALL_CELLS[wall]} ${
-                    open
-                      ? "bg-black/15 dark:bg-white/25"
-                      : "bg-black/[0.05] opacity-50 hover:opacity-100 dark:bg-white/[0.08]"
-                  }`}
+                  className={`flex size-6 items-center justify-center rounded-[5px] text-[10px] font-medium transition-colors ${WALL_CELLS[wall]} ${WALL_STATE_CLASSES[state]}`}
                 >
                   {WALL_INITIALS[wall]}
                 </button>
@@ -632,8 +667,10 @@ function RoomPartFields({
             />
           </div>
           <p className="text-xs leading-relaxed opacity-60">
-            An open wall is drawn as a railing and carries no doors or windows.
-            The floor still ends there.
+            Press a side to cycle it. <b>Open</b> draws a railing and takes no
+            doors; the floor still ends there. <b>Dividing</b> keeps the wall
+            where this room&rsquo;s own floor carries on — a laundry in the
+            corner of a kitchen — and it takes a door like any other.
           </p>
         </div>
       </fieldset>

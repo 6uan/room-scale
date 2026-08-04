@@ -43,6 +43,7 @@ import {
   WALL_SIDES,
   checkOpening,
   drawnRoom,
+  isWallDividing,
   floorAreaSquareMeters,
   floorBounds,
   maxWallThicknessMeters,
@@ -1960,13 +1961,19 @@ function drawPlan(
   // room by room would leave one room's wall drawn over the next room's floor
   // wherever two of them share one.
   for (const room of floor.rooms) {
-    drawRoomWalls(context, frame, floor, room);
+    drawRoomWalls(context, frame, floor, room, { dividing: false });
   }
   for (const room of floor.rooms) {
     punchRoomFloor(context, frame, room);
   }
   for (const room of floor.rooms) {
     drawMeterGrid(context, frame, room);
+  }
+  // Walls standing inside a room's own floor come after the punch, for the
+  // reason the railings do: the clear that opens the floor up would take them
+  // straight back out again.
+  for (const room of floor.rooms) {
+    drawRoomWalls(context, frame, floor, room, { dividing: true });
   }
   // Railings after the punches: a line a floor clear would have erased.
   for (const room of floor.rooms) {
@@ -2135,6 +2142,7 @@ function drawRoomWalls(
   frame: PlanFrame,
   floor: Floor,
   room: Room,
+  { dividing }: { dividing: boolean },
 ): void {
   const pixelsPerMeter = spanPixels(frame, 1);
   context.save();
@@ -2154,7 +2162,13 @@ function drawRoomWalls(
     };
 
     inPartFrame(context, frame, part, () => {
-      for (const wall of partWallSides(part)) {
+      // One pass for the walls round the outside of the room and one for the
+      // walls across the middle of it, because the floor is cleared between
+      // them. Corners still mitre across the two: every side's stretches are
+      // worked out here whichever pass draws them.
+      for (const wall of partWallSides(part).filter(
+        (one) => isWallDividing(part, one) === dividing,
+      )) {
         const line = partWallFrame(part, wall);
         for (const stretch of sides[wall]) {
           const thickness = stretch.thicknessMeters;

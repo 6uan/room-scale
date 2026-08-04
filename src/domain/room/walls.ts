@@ -71,11 +71,24 @@ export function isWallOpen(part: RoomPart, wall: WallSide): boolean {
 }
 
 /**
+ * Whether this side keeps its wall where the room's own floor continues.
+ *
+ * A laundry in the corner of a kitchen is one room's floor with a wall across
+ * it. Without this the side would be a seam, drawn as nothing, because the
+ * kitchen carries on beyond it.
+ */
+export function isWallDividing(part: RoomPart, wall: WallSide): boolean {
+  return part.dividingWalls?.includes(wall) === true;
+}
+
+/**
  * The stretches of one part wall, in order from its start corner.
  *
  * Seams are cut out first — where the room's own floor continues, there is no
- * wall to draw. What remains is a railing if the wall was marked open, and
- * wall everywhere else, at the one thickness this room is built of.
+ * wall to draw — unless the side was marked dividing, which is how a walled
+ * cupboard or laundry stands inside a bigger room. What remains is a railing
+ * if the side was marked open, and wall everywhere else, at the one thickness
+ * this room is built of.
  */
 export function wallStretches(
   floor: Floor,
@@ -88,16 +101,18 @@ export function wallStretches(
     return [];
   }
 
-  const seams = mergeIntervals(
-    room.parts
-      .filter((sibling) => sibling.id !== part.id)
-      .flatMap((sibling) =>
-        bandInterval(part, wall, length, roomPartPolygon(sibling), {
-          nearMeters: THROUGH_EPSILON_METERS,
-          farMeters: THROUGH_EPSILON_METERS * 2,
-        }),
-      ),
-  );
+  const seams = isWallDividing(part, wall)
+    ? []
+    : mergeIntervals(
+        room.parts
+          .filter((sibling) => sibling.id !== part.id)
+          .flatMap((sibling) =>
+            bandInterval(part, wall, length, roomPartPolygon(sibling), {
+              nearMeters: THROUGH_EPSILON_METERS,
+              farMeters: THROUGH_EPSILON_METERS * 2,
+            }),
+          ),
+      );
   const walled = subtractIntervals([{ start: 0, end: length }], seams);
   const open = isWallOpen(part, wall);
 
