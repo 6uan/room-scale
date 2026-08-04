@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 function contents(page: Page) {
   return page.getByRole("complementary", { name: "Contents" });
@@ -8,8 +8,13 @@ function details(page: Page) {
   return page.getByRole("complementary", { name: "Details" });
 }
 
-function totalFor(page: Page, label: string) {
-  return page.getByRole("term").filter({ hasText: label }).locator("+ dd");
+function plan(page: Page) {
+  return page.getByRole("main", { name: "Plan" });
+}
+
+/** The same figures whether they are read in the drawer or on the page. */
+function totalFor(scope: Page | Locator, label: string) {
+  return scope.getByRole("term").filter({ hasText: label }).locator("+ dd");
 }
 
 /** A sectional and two pillows, entered and placed in the workspace. */
@@ -41,23 +46,56 @@ async function furnish(page: Page) {
 }
 
 test.describe("the overview", () => {
-  test("is reached from the workspace and prices what is in the room", async ({
+  test("opens over the plan and prices what is in the room", async ({
     page,
   }) => {
     await furnish(page);
 
-    await page.getByRole("link", { name: "Overview and prices" }).click();
+    const opener = page.getByRole("button", { name: "Overview and prices" });
+    await opener.click();
+    await expect(opener).toHaveAttribute("aria-pressed", "true");
 
-    await expect(
-      page.getByRole("heading", { level: 1, name: "The list" }),
-    ).toBeVisible();
+    // The list arrives without the plan going anywhere.
+    const list = page.getByRole("dialog", { name: "Overview and prices" });
+    await expect(plan(page)).toBeVisible();
     // One sectional at $1,999.00 and two pillows at $45.00 each.
-    await expect(totalFor(page, "Everything in the room")).toHaveText(
+    await expect(totalFor(list, "Everything in the room")).toHaveText(
       "$2,089.00",
     );
     await expect(
-      page.getByRole("row", { name: /Olive pillow/ }).getByText("$90.00"),
+      list.getByRole("row", { name: /Olive pillow/ }).getByText("$90.00"),
     ).toBeVisible();
+  });
+
+  test("closes again, leaving the plan where it was", async ({ page }) => {
+    await page.goto("/");
+
+    const opener = page.getByRole("button", { name: "Overview and prices" });
+    await opener.click();
+    await page.keyboard.press("Escape");
+
+    await expect(
+      page.getByRole("dialog", { name: "Overview and prices" }),
+    ).toBeHidden();
+    await expect(opener).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("still has a page of its own to print", async ({ page }) => {
+    await furnish(page);
+
+    await page.getByRole("button", { name: "Overview and prices" }).click();
+    await page
+      .getByRole("dialog", { name: "Overview and prices" })
+      .getByRole("link", { name: "Print the list" })
+      .click();
+
+    await expect(page).toHaveURL(/\/overview$/);
+    await expect(
+      page.getByRole("heading", { level: 1, name: "The list" }),
+    ).toBeVisible();
+    await expect(totalFor(page, "Everything in the room")).toHaveText(
+      "$2,089.00",
+    );
   });
 
   test("changes what is still to buy when something is marked as owned", async ({

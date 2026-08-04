@@ -1,6 +1,7 @@
 "use client";
 
 import type { LucideIcon } from "lucide-react";
+import Link from "next/link";
 
 /**
  * The one button shape the workspace uses.
@@ -103,6 +104,7 @@ export function LabelledButton({
   onClick,
   type = "button",
   disabled = false,
+  pressed,
   tone = "normal",
 }: {
   label: string;
@@ -110,23 +112,64 @@ export function LabelledButton({
   onClick?: () => void;
   type?: "button" | "submit";
   disabled?: boolean;
+  /** Whether the thing this button opens is currently open. */
+  pressed?: boolean;
   tone?: "normal" | "danger";
 }) {
   return (
     <button
       type={type}
       disabled={disabled}
+      {...(pressed === undefined ? {} : { "aria-pressed": pressed })}
       {...(onClick === undefined ? {} : { onClick })}
-      className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors disabled:cursor-default disabled:opacity-35 ${
-        tone === "danger"
-          ? "border-red-600/25 text-red-600 hover:bg-red-600/10"
-          : "border-black/12 hover:bg-black/[0.06] dark:border-white/18 dark:hover:bg-white/10"
+      className={`${labelledClass(tone)} ${
+        pressed === true ? "bg-black/[0.08] dark:bg-white/12" : ""
       }`}
     >
       <Icon aria-hidden="true" className="size-3.5 shrink-0" />
       {label}
     </button>
   );
+}
+
+/**
+ * The same shape as `LabelledButton`, for the places where the action is a
+ * navigation rather than a change.
+ *
+ * A link that looks like a button is fine; a button that navigates is not —
+ * the middle-click, the copied address, and the printed page all depend on it
+ * really being a link.
+ */
+export function LabelledLink({
+  label,
+  icon: Icon,
+  href,
+  target,
+}: {
+  label: string;
+  icon: LucideIcon;
+  href: string;
+  target?: string;
+}) {
+  return (
+    <Link
+      href={href}
+      title={label}
+      {...(target === undefined ? {} : { target, rel: "noreferrer" })}
+      className={labelledClass("normal")}
+    >
+      <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+      {label}
+    </Link>
+  );
+}
+
+function labelledClass(tone: "normal" | "danger"): string {
+  return `inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors disabled:cursor-default disabled:opacity-35 ${
+    tone === "danger"
+      ? "border-red-600/25 text-red-600 hover:bg-red-600/10"
+      : "border-black/12 hover:bg-black/[0.06] dark:border-white/18 dark:hover:bg-white/10"
+  }`;
 }
 
 /**
