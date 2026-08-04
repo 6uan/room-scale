@@ -1139,11 +1139,11 @@ test.describe("laying the apartment out", () => {
     await page.mouse.move(from.x + 80, from.y + 60, { steps: 6 });
     await page.mouse.up();
 
-    // Out of the mode: the button offers to draw again rather than saying it
-    // already is.
+    // Out of the mode: the button is no longer lit, so the next drag adjusts
+    // the room rather than drawing another one.
     await expect(
       contents(page).getByRole("button", { name: "Add room" }),
-    ).toBeVisible();
+    ).toHaveAttribute("aria-pressed", "false");
 
     const room = details(page).getByRole("region", { name: "Room 2" });
     const west = Number(
@@ -1169,14 +1169,14 @@ test.describe("laying the apartment out", () => {
     await page.goto("/");
     const add = contents(page).getByRole("button", { name: "Add room" });
 
+    // The mode shows as a lit button rather than as changed wording, so the
+    // control keeps the one name it is found by.
     await add.click();
-    await expect(
-      contents(page).getByRole("button", { name: "Drawing…" }),
-    ).toBeVisible();
+    await expect(add).toHaveAttribute("aria-pressed", "true");
 
     await page.keyboard.press("Escape");
 
-    await expect(add).toBeVisible();
+    await expect(add).toHaveAttribute("aria-pressed", "false");
     // Nothing was drawn, so nothing was added.
     await expect(planImage(page)).toHaveAccessibleName(/holding 1 room/);
   });

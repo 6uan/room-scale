@@ -1,6 +1,8 @@
 "use client";
 
+import { Check } from "lucide-react";
 import { useId, useState } from "react";
+import { LabelledButton } from "@/components/icon-button";
 import { NumberField } from "@/components/number-field";
 import { PriceField } from "@/components/price-field";
 import { ProductImportPanel } from "@/components/product-import-panel";
@@ -170,12 +172,7 @@ export function ProductForm({
       />
 
       <div className="flex flex-wrap items-center gap-3">
-        <button
-          type="submit"
-          className="rounded-md border border-black/15 px-3 py-1.5 text-sm font-medium hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
-        >
-          {submitLabel}
-        </button>
+        <LabelledButton label={submitLabel} icon={Check} type="submit" />
         {onCancel ? (
           <button
             type="button"

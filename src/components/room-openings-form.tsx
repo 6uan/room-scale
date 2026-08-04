@@ -1,5 +1,13 @@
 "use client";
 
+import {
+  DoorOpen,
+  MoveHorizontal,
+  PanelsTopLeft,
+  Trash2,
+  type LucideIcon,
+} from "lucide-react";
+import { IconButton } from "@/components/icon-button";
 import { NumberField } from "@/components/number-field";
 import { openingListName, openingName } from "@/components/opening-name";
 import {
@@ -17,11 +25,12 @@ import {
 } from "@/domain/room";
 import { formatLength, type DisplayUnit } from "@/domain/units";
 
-const KINDS: readonly { kind: OpeningKind; label: string }[] = [
-  { kind: "door", label: "Door" },
-  { kind: "window", label: "Window" },
-  { kind: "passage", label: "Passage" },
-];
+const KINDS: readonly { kind: OpeningKind; label: string; icon: LucideIcon }[] =
+  [
+    { kind: "door", label: "door", icon: DoorOpen },
+    { kind: "window", label: "window", icon: PanelsTopLeft },
+    { kind: "passage", label: "passage", icon: MoveHorizontal },
+  ];
 
 /** Which side of the plan each wall is drawn on, so the list matches the view. */
 const WALL_LABELS: Record<WallSide, string> = {
@@ -55,25 +64,22 @@ export function RoomOpeningsForm({
 }: RoomOpeningsFormProps) {
   return (
     <div className="flex flex-col gap-3 border-t border-black/10 pt-4 dark:border-white/15">
-      <h3 className="text-xs font-medium">Openings</h3>
-      <div className="flex flex-wrap gap-2">
-        {KINDS.map(({ kind, label }) => (
-          <button
-            key={kind}
-            type="button"
-            onClick={() => onAddOpening(kind)}
-            aria-pressed={placingKind === kind}
-            className={`rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10 ${
-              placingKind === kind
-                ? "bg-black/10 dark:bg-white/15"
-                : "bg-transparent"
-            }`}
-          >
-            {placingKind === kind
-              ? `Placing ${label.toLowerCase()}…`
-              : `Add ${label.toLowerCase()}`}
-          </button>
-        ))}
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-xs font-medium">Openings</h3>
+        {/* Lit while the plan is waiting for the wall, rather than reworded:
+            the button you press to stop is the one you pressed to start. */}
+        <div className="flex items-center gap-0.5">
+          {KINDS.map(({ kind, label, icon }) => (
+            <IconButton
+              key={kind}
+              label={`Add ${label}`}
+              icon={icon}
+              size="small"
+              pressed={placingKind === kind}
+              onClick={() => onAddOpening(kind)}
+            />
+          ))}
+        </div>
       </div>
 
       {room.openings.length === 0 ? null : (
@@ -91,14 +97,13 @@ export function RoomOpeningsForm({
                 {openingListName(room, opening)}
                 <span className="opacity-50"> · {opening.wall} wall</span>
               </button>
-              <button
-                type="button"
+              <IconButton
+                label={`Remove ${openingName(room, opening)}`}
+                icon={Trash2}
+                size="small"
+                tone="danger"
                 onClick={() => onRemoveOpening?.(opening)}
-                aria-label={`Remove ${openingName(room, opening)}`}
-                className="shrink-0 text-xs underline underline-offset-4 opacity-60 hover:opacity-100"
-              >
-                Remove
-              </button>
+              />
             </li>
           ))}
         </ul>
@@ -185,14 +190,13 @@ export function OpeningFields({
       )}
 
       <div className="flex justify-end">
-        <button
-          type="button"
+        <IconButton
+          label={`Remove ${name.toLowerCase()}`}
+          icon={Trash2}
+          size="small"
+          tone="danger"
           onClick={onRemove}
-          aria-label={`Remove ${name.toLowerCase()}`}
-          className="text-xs opacity-60 underline underline-offset-4 hover:opacity-100"
-        >
-          Remove
-        </button>
+        />
       </div>
     </fieldset>
   );

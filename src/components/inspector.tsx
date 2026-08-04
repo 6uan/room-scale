@@ -1,12 +1,25 @@
 "use client";
 
+import {
+  Eye,
+  EyeOff,
+  ImagePlus,
+  PackageOpen,
+  Pencil,
+  Ruler,
+  Trash2,
+} from "lucide-react";
+import {
+  IconButton,
+  IconFileButton,
+  LabelledButton,
+} from "@/components/icon-button";
 import { NumberField } from "@/components/number-field";
 import { openingName } from "@/components/opening-name";
 import { OpeningFields } from "@/components/room-openings-form";
 import { ProductForm } from "@/components/product-form";
 import { RoomFields } from "@/components/room-fields";
 import { PlacementFields } from "@/components/placement-fields";
-import { UnitToggle } from "@/components/unit-toggle";
 import type { Selection } from "@/components/selection";
 import {
   createProduct,
@@ -47,7 +60,6 @@ export type InspectorProps = {
   selection: Selection;
   onSelect: (selection: Selection) => void;
   onFloorChange: (floor: Floor) => void;
-  onUnitChange: (unit: DisplayUnit) => void;
   underlay: PlanUnderlay | null;
   calibrating: boolean;
   /** The drawn line waiting for its real length, or null. */
@@ -131,7 +143,6 @@ function FloorInspector({
   floor,
   unit,
   onFloorChange,
-  onUnitChange,
   underlay,
   calibrating,
   calibrationLine,
@@ -157,7 +168,6 @@ function FloorInspector({
         onApplyCalibration={onApplyCalibration}
         onUnderlayChange={onUnderlayChange}
       />
-      <UnitToggle unit={unit} onUnitChange={onUnitChange} />
       {/*
         Two numbers because an apartment has two kinds of wall: the shell and
         the partitions. Which walls are which is worked out from the rooms —
@@ -320,27 +330,27 @@ function InstanceInspector({
           />
           <Fact label="Price" value={formatCents(placed.product.priceCents)} />
         </dl>
-        <button
-          type="button"
-          onClick={() => onSelect({ kind: "product", id: placed.product.id })}
-          className="self-start rounded-md border border-black/15 px-2.5 py-1 text-xs hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
-        >
-          Edit {placed.product.name}
-        </button>
+        <div className="self-start">
+          <LabelledButton
+            label={`Edit ${placed.product.name}`}
+            icon={Pencil}
+            onClick={() => onSelect({ kind: "product", id: placed.product.id })}
+          />
+        </div>
         <p className="text-xs leading-relaxed opacity-50">
           Its size and price belong to the product, and changing them changes
           every copy of it.
         </p>
       </div>
 
-      <button
-        type="button"
-        onClick={() => onInstanceRemove(placed.instance)}
-        aria-label={`Take ${name} out of the room`}
-        className="self-start text-xs underline underline-offset-4 opacity-60 hover:opacity-100"
-      >
-        Take out of the room
-      </button>
+      <div className="self-start">
+        <LabelledButton
+          label={`Take ${name} out of the room`}
+          icon={PackageOpen}
+          tone="danger"
+          onClick={() => onInstanceRemove(placed.instance)}
+        />
+      </div>
     </Panel>
   );
 }
@@ -389,14 +399,14 @@ function ProductInspector({
         </p>
       )}
       {existing === undefined ? null : (
-        <button
-          type="button"
-          onClick={() => onProductRemove(existing)}
-          aria-label={`Remove ${existing.name}`}
-          className="self-start text-xs underline underline-offset-4 opacity-60 hover:opacity-100"
-        >
-          Remove from the catalogue
-        </button>
+        <div className="self-start">
+          <LabelledButton
+            label={`Remove ${existing.name}`}
+            icon={Trash2}
+            tone="danger"
+            onClick={() => onProductRemove(existing)}
+          />
+        </div>
       )}
     </Panel>
   );
@@ -434,57 +444,53 @@ function UnderlayFields({
   return (
     <fieldset className="flex flex-col gap-2 border-b border-black/10 pb-4 dark:border-white/15">
       <legend className="sr-only">Plan underlay</legend>
-      <span aria-hidden="true" className="text-xs font-medium">
-        Plan underlay
-      </span>
-
-      {underlay === null ? (
-        <>
-          <label className="inline-block cursor-pointer self-start rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10">
-            Add plan image
-            <input
-              type="file"
-              accept="image/*"
-              className="sr-only"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file !== undefined) {
-                  onAddPlanImage(file);
-                }
-                event.target.value = "";
-              }}
-            />
-          </label>
-          <p className="text-xs leading-relaxed opacity-60">
-            Put the listing&rsquo;s floor plan behind the grid and trace the
-            rooms over it. The image stays on this machine.
-          </p>
-        </>
-      ) : (
-        <>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              aria-pressed={calibrating}
+      <div className="flex items-center justify-between gap-2">
+        <span aria-hidden="true" className="text-xs font-medium">
+          Plan underlay
+        </span>
+        {underlay === null ? (
+          <IconFileButton
+            label="Add plan image"
+            icon={ImagePlus}
+            accept="image/*"
+            size="small"
+            onFile={onAddPlanImage}
+          />
+        ) : (
+          <div className="flex items-center gap-0.5">
+            <IconButton
+              label="Calibrate scale"
+              icon={Ruler}
+              size="small"
+              pressed={calibrating}
               onClick={onCalibrateToggle}
-              className={`rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10 ${
-                calibrating ? "bg-black/10 dark:bg-white/15" : "bg-transparent"
-              }`}
-            >
-              {calibrating ? "Drawing the line…" : "Calibrate scale"}
-            </button>
-            <button
-              type="button"
-              aria-pressed={!underlay.visible}
+            />
+            <IconButton
+              label={underlay.visible ? "Hide image" : "Show image"}
+              icon={underlay.visible ? Eye : EyeOff}
+              size="small"
               onClick={() =>
                 onUnderlayChange({ ...underlay, visible: !underlay.visible })
               }
-              className="rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
-            >
-              {underlay.visible ? "Hide image" : "Show image"}
-            </button>
+            />
+            <IconButton
+              label="Remove image"
+              icon={Trash2}
+              size="small"
+              tone="danger"
+              onClick={() => onUnderlayChange(null)}
+            />
           </div>
+        )}
+      </div>
 
+      {underlay === null ? (
+        <p className="text-xs leading-relaxed opacity-60">
+          Put the listing&rsquo;s floor plan behind the grid and trace the rooms
+          over it. The image stays on this machine.
+        </p>
+      ) : (
+        <>
           {calibrationLine === null ? null : (
             <div className="flex items-end gap-2">
               <label className="flex flex-col gap-1.5 text-sm font-medium">
@@ -499,8 +505,9 @@ function UnderlayFields({
                   className="w-28 rounded-md border border-black/15 bg-transparent px-2.5 py-1.5 text-sm tabular-nums dark:border-white/20"
                 />
               </label>
-              <button
-                type="button"
+              <LabelledButton
+                label="Apply scale"
+                icon={Ruler}
                 onClick={() => {
                   const value = Number(lengthDraft);
                   if (Number.isFinite(value) && value > 0) {
@@ -508,10 +515,7 @@ function UnderlayFields({
                     setLengthDraft("");
                   }
                 }}
-                className="rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
-              >
-                Apply scale
-              </button>
+              />
             </div>
           )}
 
@@ -544,13 +548,6 @@ function UnderlayFields({
             />
           </div>
 
-          <button
-            type="button"
-            onClick={() => onUnderlayChange(null)}
-            className="self-start text-xs underline underline-offset-4 opacity-60 hover:opacity-100"
-          >
-            Remove image
-          </button>
           <p className="text-xs leading-relaxed opacity-60">
             {calibrating
               ? "Drag a line on the plan along a wall you know, then type its length."

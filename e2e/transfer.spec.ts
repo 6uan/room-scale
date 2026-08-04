@@ -13,6 +13,15 @@ function transfer(page: Page) {
   return page.getByRole("region", { name: "Take it elsewhere" });
 }
 
+/**
+ * Saving and opening live behind the gear on the plan now, rather than under
+ * the shopping list — the overview is a page you print, not one you work in.
+ */
+async function openSettings(page: Page) {
+  await page.getByRole("button", { name: "Settings" }).click();
+  await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
+}
+
 /** A rug in the catalogue, placed in the room, priced. */
 async function furnish(page: Page) {
   await page.goto("/");
@@ -33,7 +42,7 @@ test.describe("taking the data elsewhere", () => {
     page,
   }) => {
     await furnish(page);
-    await page.goto("/overview");
+    await openSettings(page);
 
     const saving = page.waitForEvent("download");
     await transfer(page)
@@ -53,10 +62,13 @@ test.describe("taking the data elsewhere", () => {
     await page.goto("/overview");
     await expect(page.getByText(/Nothing is in the room yet/)).toBeVisible();
 
+    await page.goto("/");
+    await openSettings(page);
     await transfer(page).getByLabel("Project file").setInputFiles(file);
 
     // Back, to the piece and the price it had.
     await expect(transfer(page).getByRole("status")).toContainText(/Opened/);
+    await page.goto("/overview");
     await expect(
       page.getByRole("row", { name: /Rug, the big one/ }),
     ).toBeVisible();
@@ -67,7 +79,7 @@ test.describe("taking the data elsewhere", () => {
     page,
   }) => {
     await furnish(page);
-    await page.goto("/overview");
+    await openSettings(page);
 
     const saving = page.waitForEvent("download");
     await transfer(page)
@@ -88,7 +100,7 @@ test.describe("taking the data elsewhere", () => {
     page,
   }) => {
     await furnish(page);
-    await page.goto("/overview");
+    await openSettings(page);
 
     await transfer(page)
       .getByLabel("Project file")
@@ -101,6 +113,8 @@ test.describe("taking the data elsewhere", () => {
     await expect(transfer(page).getByRole("alert")).toContainText(
       /not a RoomScale project/,
     );
+    // What was here has been left alone: the rug is still in the room.
+    await page.goto("/overview");
     await expect(
       page.getByRole("row", { name: /Rug, the big one/ }),
     ).toBeVisible();

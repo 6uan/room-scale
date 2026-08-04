@@ -1,6 +1,8 @@
 "use client";
 
+import { Plus, Trash2 } from "lucide-react";
 import { AngleField } from "@/components/angle-field";
+import { IconButton, LabelledButton } from "@/components/icon-button";
 import { NumberField } from "@/components/number-field";
 import { RoomOpeningsForm } from "@/components/room-openings-form";
 import {
@@ -27,6 +29,21 @@ import {
   formatArea,
   type DisplayUnit,
 } from "@/domain/units";
+
+/** Where each wall sits in the compass pad, drawn as the plan is drawn. */
+const WALL_CELLS: Record<(typeof WALL_SIDES)[number], string> = {
+  north: "col-start-2 row-start-1",
+  east: "col-start-3 row-start-2",
+  south: "col-start-2 row-start-3",
+  west: "col-start-1 row-start-2",
+};
+
+const WALL_TITLES: Record<(typeof WALL_SIDES)[number], string> = {
+  north: "North",
+  east: "East",
+  south: "South",
+  west: "West",
+};
 
 export type RoomFieldsProps = {
   floor: Floor;
@@ -130,13 +147,12 @@ export function RoomFields({
           <span className="text-xs font-medium">
             {compound ? "Room sections" : "Footprint"}
           </span>
-          <button
-            type="button"
+          <IconButton
+            label="Add section"
+            icon={Plus}
+            size="small"
             onClick={addPart}
-            className="rounded border border-black/15 px-2 py-1 text-xs hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
-          >
-            Add section
-          </button>
+          />
         </div>
         {room.parts.map((part, index) => (
           <RoomPartFields
@@ -171,14 +187,12 @@ export function RoomFields({
       />
 
       <div className="flex justify-end">
-        <button
-          type="button"
+        <LabelledButton
+          label={`Remove ${name}`}
+          icon={Trash2}
+          tone="danger"
           onClick={onRemove}
-          aria-label={`Remove ${name}`}
-          className="text-xs underline underline-offset-4 opacity-60 hover:opacity-100"
-        >
-          Remove room
-        </button>
+        />
       </div>
     </div>
   );
@@ -348,33 +362,45 @@ function RoomPartFields({
         <span aria-hidden="true" className="text-xs font-medium">
           Open walls
         </span>
-        <div className="flex flex-wrap gap-2">
-          {WALL_SIDES.map((wall) => {
-            const open = part.openWalls.includes(wall);
-            return (
-              <button
-                key={wall}
-                type="button"
-                aria-pressed={open}
-                aria-label={`${label} ${wall} wall open`}
-                onClick={() =>
-                  onChange(withRoomPartWallOpen(room, part.id, wall, !open))
-                }
-                className={`rounded border px-2 py-1 text-xs capitalize ${
-                  open
-                    ? "border-black/35 bg-black/10 dark:border-white/40 dark:bg-white/15"
-                    : "border-black/15 hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
-                }`}
-              >
-                {wall}
-              </button>
-            );
-          })}
+        {/*
+          Laid out as the room is, rather than as a row of four words. Which
+          wall "east" is takes a moment to work out from a list and none at all
+          from a square — and the plan beside it is drawn the same way up.
+        */}
+        <div className="flex items-center gap-3">
+          <div className="grid shrink-0 grid-cols-3 grid-rows-3 gap-0.5">
+            {WALL_SIDES.map((wall) => {
+              const open = part.openWalls.includes(wall);
+              return (
+                <button
+                  key={wall}
+                  type="button"
+                  aria-pressed={open}
+                  aria-label={`${label} ${wall} wall open`}
+                  title={`${WALL_TITLES[wall]} wall`}
+                  onClick={() =>
+                    onChange(withRoomPartWallOpen(room, part.id, wall, !open))
+                  }
+                  className={`flex size-6 items-center justify-center rounded-[5px] text-[11px] font-medium transition-colors ${WALL_CELLS[wall]} ${
+                    open
+                      ? "bg-black/15 dark:bg-white/25"
+                      : "bg-black/[0.05] opacity-50 hover:opacity-100 dark:bg-white/[0.08]"
+                  }`}
+                >
+                  {WALL_TITLES[wall][0]}
+                </button>
+              );
+            })}
+            <span
+              aria-hidden="true"
+              className="col-start-2 row-start-2 m-1 rounded-[3px] border border-current opacity-20"
+            />
+          </div>
+          <p className="text-xs leading-relaxed opacity-60">
+            An open wall is drawn as a railing and carries no doors or windows.
+            The floor still ends there.
+          </p>
         </div>
-        <p className="text-xs leading-relaxed opacity-60">
-          An open wall is drawn as a railing and carries no doors or windows.
-          The floor still ends there.
-        </p>
       </fieldset>
     </>
   );
@@ -402,14 +428,13 @@ function RoomPartFields({
         >
           Section {index + 1}
         </button>
-        <button
-          type="button"
+        <IconButton
+          label={`Remove ${label}`}
+          icon={Trash2}
+          size="small"
+          tone="danger"
           onClick={onRemove}
-          aria-label={`Remove ${label}`}
-          className="text-xs underline underline-offset-4 opacity-60 hover:opacity-100"
-        >
-          Remove
-        </button>
+        />
       </div>
       {fields}
     </fieldset>
