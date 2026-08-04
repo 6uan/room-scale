@@ -45,3 +45,4 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .next-e2e
+/public/apartment.json

@@ -20,6 +20,7 @@ import {
   projectPoint,
   unprojectPoint,
   zoomAt,
+  type FloorExtent,
   type FloorPoint,
   type PixelPoint,
   type PixelSize,
@@ -93,6 +94,7 @@ import {
   roundToDisplayUnit,
   type DisplayUnit,
 } from "@/domain/units";
+import { underlayExtentMeters, type PlanUnderlay } from "@/domain/project";
 
 /**
  * Space kept around the apartment when it is fitted, so its walls are not
@@ -249,6 +251,16 @@ export type RoomPlanCanvasProps = {
     centerMeters: number,
   ) => void;
   onPlaceOpeningEnd?: () => void;
+  /** The listing's plan, drawn dimmed beneath everything and traced over. */
+  underlay?: PlanUnderlay | null;
+  /**
+   * Whether the plan is waiting for the calibration line: one drag along a
+   * wall whose real length is known. A mode like drawing a room, for the same
+   * reason — the pointer means one thing at a time.
+   */
+  calibrating?: boolean;
+  onCalibrateLine?: (from: FloorPoint, to: FloorPoint) => void;
+  onCalibrateEnd?: () => void;
 };
 
 /**
@@ -323,6 +335,13 @@ type Drag =
       readonly pointerId: number;
       readonly from: FloorPoint;
       readonly fromPixel: PixelPoint;
+    }
+  | {
+      /** The calibration line being dragged along a known wall. */
+      readonly kind: "calibrate";
+      readonly pointerId: number;
+      readonly from: FloorPoint;
+      readonly fromPixel: PixelPoint;
     };
 
 /**
@@ -361,6 +380,10 @@ export function RoomPlanCanvas({
   placingOpening = null,
   onPlaceOpening,
   onPlaceOpeningEnd,
+  underlay = null,
+  calibrating = false,
+  onCalibrateLine,
+  onCalibrateEnd,
 }: RoomPlanCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const dragRef = useRef<Drag | null>(null);
@@ -370,7 +393,7 @@ export function RoomPlanCanvas({
   // grows or the panel resizes. Once it has been panned or zoomed, it stays
   // where it was put — a view that jumps back is a view you cannot work in.
   const [view, setView] = useState<PlanProjection | null>(null);
-  const fitted = planProjectionFor(floor, size);
+  const fitted = planProjectionFor(floor, underlay, size);
   const projection = view ?? fitted;
 
   // Read by the pointer handlers, which must use the same transform the last
@@ -434,6 +457,9 @@ export function RoomPlanCanvas({
    */
   const [drawnTo, setDrawnTo] = useState<FloorPoint | null>(null);
 
+  /** The far end of the calibration line being dragged, for the same reason. */
+  const [calibrateTo, setCalibrateTo] = useState<FloorPoint | null>(null);
+
   const [active, setActive] = useState(false);
   const activeRef = useRef(active);
   useEffect(() => {
@@ -476,6 +502,10 @@ export function RoomPlanCanvas({
         drawnTo === null || dragRef.current?.kind !== "draw"
           ? null
           : { from: dragRef.current.from, to: drawnTo },
+      calibrationLine:
+        calibrateTo === null || dragRef.current?.kind !== "calibrate"
+          ? null
+          : { from: dragRef.current.from, to: calibrateTo },
     });
   }, [
     floor,
@@ -489,6 +519,7 @@ export function RoomPlanCanvas({
     size,
     projection,
     drawnTo,
+    calibrateTo,
   ]);
 
   /**
@@ -500,22 +531,7 @@ export function RoomPlanCanvas({
    * key away, but a tool should not need rescuing.
    */
   function held(next: PlanProjection): PlanProjection {
-    const { origin, extent } = floorBounds(floor);
-    const thickness = floor.exteriorWallThicknessMeters;
-    return clampToViewport(
-      next,
-      {
-        origin: {
-          xMeters: origin.xMeters - thickness,
-          zMeters: origin.zMeters - thickness,
-        },
-        extent: {
-          widthMeters: extent.widthMeters + thickness * 2,
-          depthMeters: extent.depthMeters + thickness * 2,
-        },
-      },
-      size,
-    );
+    return clampToViewport(next, fittedRect(floor, underlay), size);
   }
 
   /** Wheel: pan, unless a modifier makes it a zoom toward the pointer. */
@@ -596,6 +612,20 @@ export function RoomPlanCanvas({
     setView(projectionRef.current);
 
     const box = canvas.getBoundingClientRect();
+
+    // Calibration takes the drag before anything else looks at it: in this
+    // mode the pointer is a tape measure laid along one known wall.
+    if (calibrating) {
+      dragRef.current = {
+        kind: "calibrate",
+        pointerId: event.pointerId,
+        from: point,
+        fromPixel: { x: event.clientX - box.left, y: event.clientY - box.top },
+      };
+      canvas.focus();
+      canvas.setPointerCapture?.(event.pointerId);
+      return;
+    }
 
     // Opening placement is one wall click. It is scoped to the room whose
     // inspector armed it, so a shared wall is not ambiguously stored twice.
@@ -1055,6 +1085,11 @@ export function RoomPlanCanvas({
       return;
     }
 
+    if (drag.kind === "calibrate") {
+      setCalibrateTo(floorPointAt(canvas, event, projectionRef.current));
+      return;
+    }
+
     if (drag.kind === "pan") {
       const box = canvas.getBoundingClientRect();
       const to = { x: event.clientX - box.left, y: event.clientY - box.top };
@@ -1152,6 +1187,30 @@ export function RoomPlanCanvas({
       return;
     }
 
+    if (drag.kind === "calibrate") {
+      const canvas = canvasRef.current;
+      const box = canvas?.getBoundingClientRect();
+      const to = canvas && floorPointAt(canvas, event, projectionRef.current);
+      const travelled =
+        box === undefined
+          ? 0
+          : Math.hypot(
+              event.clientX - box.left - drag.fromPixel.x,
+              event.clientY - box.top - drag.fromPixel.y,
+            );
+      dragRef.current = null;
+      setCalibrateTo(null);
+      setCursor("none");
+      canvas?.releasePointerCapture?.(event.pointerId);
+      // A click was a slip, and the mode stays armed for the real line. A
+      // drag is the line, and the length field takes over from here.
+      if (to !== null && travelled >= DRAW_THRESHOLD_PIXELS) {
+        onCalibrateLine?.(drag.from, to);
+        onCalibrateEnd?.();
+      }
+      return;
+    }
+
     if (drag.kind === "draw") {
       const canvas = canvasRef.current;
       const box = canvas?.getBoundingClientRect();
@@ -1186,13 +1245,16 @@ export function RoomPlanCanvas({
 
   function handleKeyDown(event: KeyboardEvent<HTMLCanvasElement>): void {
     if (pressIs("deselect", event)) {
-      if (drawing || placingOpening !== null) {
+      if (drawing || placingOpening !== null || calibrating) {
         // Called off rather than deselecting: in this mode Escape is the way
         // out of the mode, which is the nearer of the two things it could mean.
         dragRef.current = null;
         setDrawnTo(null);
+        setCalibrateTo(null);
         if (drawing) {
           onDrawEnd?.();
+        } else if (calibrating) {
+          onCalibrateEnd?.();
         } else {
           onPlaceOpeningEnd?.();
         }
@@ -1228,7 +1290,33 @@ export function RoomPlanCanvas({
   }
 
   return (
-    <div ref={frameRef} className="relative h-full w-full">
+    <div ref={frameRef} className="relative h-full w-full overflow-hidden">
+      {/*
+        The listing's plan, under the drawing rather than in it. A separate
+        element instead of canvas paint, so the floor punches and opening cuts
+        — which clear the canvas to transparent — reveal the image instead of
+        erasing it. The projection is a uniform scale and shift, which is
+        exactly what absolute positioning can express.
+      */}
+      {underlay === null || !underlay.visible
+        ? null
+        : (() => {
+            const frame = underlayFrame(underlay, projection);
+            return (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={underlay.imageDataUrl}
+                alt="The floor plan being traced"
+                className="pointer-events-none absolute max-w-none opacity-40 dark:opacity-30"
+                style={{
+                  left: frame.left,
+                  top: frame.top,
+                  width: frame.width,
+                  height: frame.height,
+                }}
+              />
+            );
+          })()}
       <canvas
         ref={canvasRef}
         role="img"
@@ -1257,7 +1345,7 @@ export function RoomPlanCanvas({
           onGestureEnd?.();
         }}
         className={`block h-full w-full touch-none outline-none ${
-          drawing || placingOpening !== null
+          drawing || placingOpening !== null || calibrating
             ? "cursor-crosshair"
             : CURSORS[cursor]
         }`}
@@ -1298,8 +1386,14 @@ export function RoomPlanCanvas({
         </p>
       )}
 
+      {calibrating ? (
+        <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1 text-xs text-white dark:bg-white/15">
+          Drag a line along a wall you know the length of. Esc to stop.
+        </p>
+      ) : null}
+
       {/* Said once, where it is needed, and gone as soon as it is not. */}
-      {active || drawing || placingOpening !== null ? null : (
+      {active || drawing || placingOpening !== null || calibrating ? null : (
         <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1 text-xs text-white dark:bg-white/15">
           {selectedRoomPartId !== null
             ? "Drag or resize this section here, or type its X/Y and W/D"
@@ -1531,27 +1625,64 @@ function floorPointAt(
 }
 
 /**
+ * What the plan fits into its viewport: the apartment plus its shell all
+ * round, stretched to keep the whole underlay reachable — an image being
+ * traced is no use half off the screen.
+ */
+function fittedRect(
+  floor: Floor,
+  underlay: PlanUnderlay | null,
+): { origin: FloorPoint; extent: FloorExtent } {
+  const thickness = floor.exteriorWallThicknessMeters;
+  const { origin, extent } = floorBounds(floor);
+  let west = origin.xMeters - thickness;
+  let north = origin.zMeters - thickness;
+  let east = origin.xMeters + extent.widthMeters + thickness;
+  let south = origin.zMeters + extent.depthMeters + thickness;
+
+  if (underlay !== null && underlay.visible) {
+    const image = underlayExtentMeters(underlay);
+    west = Math.min(west, underlay.origin.xMeters);
+    north = Math.min(north, underlay.origin.zMeters);
+    east = Math.max(east, underlay.origin.xMeters + image.widthMeters);
+    south = Math.max(south, underlay.origin.zMeters + image.depthMeters);
+  }
+
+  return {
+    origin: { xMeters: west, zMeters: north },
+    extent: { widthMeters: east - west, depthMeters: south - north },
+  };
+}
+
+/**
  * The projection the plan is drawn with. Shared by the drawing and the hit
  * testing, so a click lands where the piece appears rather than near it.
  */
-function planProjectionFor(floor: Floor, viewport: PixelSize): PlanProjection {
-  const thickness = floor.exteriorWallThicknessMeters;
-  const { origin, extent } = floorBounds(floor);
-  // The fitted rectangle is the apartment plus its shell all round it, and it
-  // starts where the apartment starts. Handing the origin over is what makes
-  // the result a complete transform, so nothing downstream adds it back.
-  return createPlanProjection(
-    {
-      widthMeters: extent.widthMeters + thickness * 2,
-      depthMeters: extent.depthMeters + thickness * 2,
-    },
-    viewport,
-    PLAN_PADDING_PIXELS,
-    {
-      xMeters: origin.xMeters - thickness,
-      zMeters: origin.zMeters - thickness,
-    },
-  );
+function planProjectionFor(
+  floor: Floor,
+  underlay: PlanUnderlay | null,
+  viewport: PixelSize,
+): PlanProjection {
+  // The fitted rectangle starts where the apartment starts. Handing the
+  // origin over is what makes the result a complete transform, so nothing
+  // downstream adds it back.
+  const { origin, extent } = fittedRect(floor, underlay);
+  return createPlanProjection(extent, viewport, PLAN_PADDING_PIXELS, origin);
+}
+
+/** Where the underlay image sits on screen, in CSS pixels. */
+export function underlayFrame(
+  underlay: PlanUnderlay,
+  projection: PlanProjection,
+): { left: number; top: number; width: number; height: number } {
+  const corner = projectPoint(projection, underlay.origin);
+  const extent = underlayExtentMeters(underlay);
+  return {
+    left: corner.x,
+    top: corner.y,
+    width: projectLength(projection, extent.widthMeters),
+    height: projectLength(projection, extent.depthMeters),
+  };
 }
 
 /** The same information as the drawing, for assistive technology. */
@@ -1648,6 +1779,11 @@ type DrawOptions = {
   fontFamily: string;
   /** A room being dragged out right now, drawn as an outline over everything. */
   drawnRect?: { readonly from: FloorPoint; readonly to: FloorPoint } | null;
+  /** The calibration line being dragged along a known wall. */
+  calibrationLine?: {
+    readonly from: FloorPoint;
+    readonly to: FloorPoint;
+  } | null;
 };
 
 /** Everything the drawing helpers need to place a floor coordinate in pixels. */
@@ -1673,6 +1809,7 @@ function drawPlan(
     color,
     fontFamily,
     drawnRect = null,
+    calibrationLine = null,
   }: DrawOptions,
 ): void {
   context.clearRect(0, 0, viewport.width, viewport.height);
@@ -1745,6 +1882,47 @@ function drawPlan(
   if (drawnRect !== null) {
     drawRoomPreview(context, frame, floor, drawnRect);
   }
+  if (calibrationLine !== null) {
+    drawCalibrationLine(context, frame, calibrationLine);
+  }
+}
+
+/**
+ * The tape being laid along a known wall: the line, and a tick across each
+ * end the way a dimension line closes, so both ends read as ends.
+ */
+function drawCalibrationLine(
+  context: CanvasRenderingContext2D,
+  frame: PlanFrame,
+  line: { readonly from: FloorPoint; readonly to: FloorPoint },
+): void {
+  const a = frame.toPixels(line.from);
+  const b = frame.toPixels(line.to);
+  const length = Math.hypot(b.x - a.x, b.y - a.y);
+  if (length <= 0) {
+    return;
+  }
+  const tick = 6;
+  const across = {
+    x: (-(b.y - a.y) / length) * tick,
+    y: ((b.x - a.x) / length) * tick,
+  };
+
+  context.save();
+  context.strokeStyle = frame.color;
+  context.lineWidth = 2;
+  strokeSegments(context, [
+    [a, b],
+    [
+      { x: a.x - across.x, y: a.y - across.y },
+      { x: a.x + across.x, y: a.y + across.y },
+    ],
+    [
+      { x: b.x - across.x, y: b.y - across.y },
+      { x: b.x + across.x, y: b.y + across.y },
+    ],
+  ]);
+  context.restore();
 }
 
 /**

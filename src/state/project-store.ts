@@ -33,7 +33,9 @@ import {
   withInstances,
   withLayouts,
   withProducts,
+  withUnderlay,
   type Layout,
+  type PlanUnderlay,
   type Project,
 } from "@/domain/project";
 import type { Floor } from "@/domain/room";
@@ -84,6 +86,7 @@ export type ProjectState = {
   adopt: (project: Project, options?: { readonly undoable?: boolean }) => void;
   setStatus: (status: ProjectStatus) => void;
   setFloor: (floor: Floor, gesture?: Gesture) => void;
+  setUnderlay: (underlay: PlanUnderlay | null, gesture?: Gesture) => void;
   setProducts: (products: readonly FurnitureProduct[]) => void;
   /** Replaces what is placed, in the layout being worked on. */
   setInstances: (
@@ -180,6 +183,8 @@ export const useProjectStore = create<ProjectState>((set) => {
 
     setFloor: (floor, gesture) =>
       edit((state) => withFloor(state.project, floor))(gesture),
+    setUnderlay: (underlay, gesture) =>
+      edit((state) => withUnderlay(state.project, underlay))(gesture),
     setProducts: (products) =>
       edit((state) => withProducts(state.project, products))(),
     setInstances: (instances, gesture) =>
