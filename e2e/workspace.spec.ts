@@ -751,9 +751,9 @@ test.describe("laying the apartment out", () => {
     await expect(
       room.getByRole("button", { name: "Add section" }),
     ).toHaveAttribute("aria-pressed", "true");
-    await expect(planImage(page)).toHaveAccessibleName(
-      /built from 1 rectangle/,
-    );
+    // Nothing added yet: the room is still the one rectangle it was, so it has
+    // no second one to describe.
+    await expect(room.getByLabel("Living room section 2 width")).toBeHidden();
 
     const partTwoWest = 0;
     const partTwoNorth = 0;
