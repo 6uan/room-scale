@@ -14,24 +14,62 @@
 
 import type { FloorPoint } from "@/domain/geometry";
 import {
+  partWallLengthMeters,
+  partWallSegment,
   pointInRoomPart,
   pointOnRoomPart,
   primaryRoomPart,
   roomBounds,
   roomPart,
   roomPartContains,
+  roomPartCut,
+  type PartCorner,
   type Room,
   type RoomPart,
 } from "./room";
 
-export type WallSide = "north" | "east" | "south" | "west";
+/** The four sides a rectangle always has, whatever is cut off its corners. */
+export type AxisWallSide = "north" | "east" | "south" | "west";
 
-export const WALL_SIDES: readonly WallSide[] = [
+/**
+ * Every wall a part can have.
+ *
+ * A clipped corner leaves a chamfer, and a chamfer is a wall like any other:
+ * it is drawn, it carries a thickness, and a door can be cut through it. So it
+ * is named the way the corner it replaced is named, and everything addressed
+ * by `(part, wall, distance along)` — every door and window in the apartment —
+ * keeps working without knowing which kind of wall it sits on.
+ */
+export type WallSide = AxisWallSide | PartCorner;
+
+export const AXIS_WALL_SIDES: readonly AxisWallSide[] = [
   "north",
   "east",
   "south",
   "west",
 ];
+
+/** Round the compass, so a list of walls reads the way the plan is drawn. */
+export const WALL_SIDES: readonly WallSide[] = [
+  "north",
+  "north-east",
+  "east",
+  "south-east",
+  "south",
+  "south-west",
+  "west",
+  "north-west",
+];
+
+/**
+ * The walls this part actually has: its four sides, less any a cut has eaten
+ * whole, plus a chamfer for every corner that is clipped.
+ *
+ * A part with no cuts has exactly the four it always had.
+ */
+export function partWallSides(part: RoomPart): readonly WallSide[] {
+  return WALL_SIDES.filter((wall) => partWallLengthMeters(part, wall) > 0);
+}
 
 export type OpeningKind = "door" | "window" | "passage";
 
@@ -81,9 +119,7 @@ export function wallLengthMeters(
   partId = primaryRoomPart(room).id,
 ): number {
   const part = roomPart(room, partId) ?? primaryRoomPart(room);
-  return wall === "north" || wall === "south"
-    ? part.widthMeters
-    : part.depthMeters;
+  return partWallLengthMeters(part, wall);
 }
 
 /** Where the opening starts and ends, measured along its wall. */
@@ -115,10 +151,16 @@ export function checkOpening(
   ) {
     return "not-a-number";
   }
+  const part = roomPart(room, opening.partId);
+  // A wall of no length is not a narrow wall. A corner that was never clipped
+  // offers no chamfer, so there is nowhere on the section for this to be —
+  // which is a different sentence from "this hole is too small to walk through".
+  if (part !== undefined && partWallLengthMeters(part, opening.wall) <= 0) {
+    return "off-wall";
+  }
   if (opening.widthMeters < MIN_OPENING_METERS) {
     return "too-narrow";
   }
-  const part = roomPart(room, opening.partId);
   const { startMeters, endMeters } = openingRangeMeters(opening);
   if (
     part === undefined ||
@@ -134,15 +176,15 @@ export function checkOpening(
   return null;
 }
 
-/** The direction the wall runs, from its start corner toward its end. */
-export function wallDirection(wall: WallSide): FloorVector {
+/** The direction a square wall runs, from its start corner toward its end. */
+export function wallDirection(wall: AxisWallSide): FloorVector {
   return wall === "north" || wall === "south"
     ? { dx: 1, dz: 0 }
     : { dx: 0, dz: 1 };
 }
 
 /** The unit vector pointing out of the part, in the part's own frame. */
-export function wallOutwardNormal(wall: WallSide): FloorVector {
+export function wallOutwardNormal(wall: AxisWallSide): FloorVector {
   switch (wall) {
     case "north":
       return { dx: 0, dz: -1 };
@@ -155,17 +197,105 @@ export function wallOutwardNormal(wall: WallSide): FloorVector {
   }
 }
 
+/**
+ * The direction any wall runs, in the part's own frame.
+ *
+ * A square side is written out rather than derived, so an uncut wall keeps
+ * exactly the unit vector it always had; a chamfer is the segment between its
+ * two ends, normalized.
+ */
+function localWallDirection(part: RoomPart, wall: WallSide): FloorVector {
+  if (isAxisWall(wall)) {
+    return wallDirection(wall);
+  }
+  const { from, to } = partWallSegment(part, wall);
+  const dx = to.xMeters - from.xMeters;
+  const dz = to.zMeters - from.zMeters;
+  const length = Math.hypot(dx, dz);
+  return length === 0 ? { dx: 0, dz: 0 } : { dx: dx / length, dz: dz / length };
+}
+
+/**
+ * The unit vector pointing out of the part through any wall, in its own frame.
+ *
+ * A chamfer's normal comes off the cut's own two legs rather than off the
+ * direction it is measured in: the four chamfers are not all measured the way
+ * the outline is wound, and a normal derived from the measurement would point
+ * two of them back into the room.
+ */
+function localWallNormal(part: RoomPart, wall: WallSide): FloorVector {
+  if (isAxisWall(wall)) {
+    return wallOutwardNormal(wall);
+  }
+  // A corner that is not cut has no chamfer to face out of, and still has to
+  // answer with a direction rather than a zero: nothing sits on a wall of no
+  // length, but the drawing asks about it anyway. Equal legs point it out of
+  // the corner at 45°, which is where a chamfer there would face.
+  const cut = roomPartCut(part, wall) ?? { widthMeters: 1, depthMeters: 1 };
+  const { widthMeters: alongWidth, depthMeters: alongDepth } = cut;
+  const length = Math.hypot(alongWidth, alongDepth);
+  const out = (dx: number, dz: number): FloorVector => ({
+    dx: dx / length,
+    dz: dz / length,
+  });
+  switch (wall) {
+    case "north-west":
+      return out(-alongDepth, -alongWidth);
+    case "north-east":
+      return out(alongDepth, -alongWidth);
+    case "south-east":
+      return out(alongDepth, alongWidth);
+    case "south-west":
+      return out(-alongDepth, alongWidth);
+  }
+}
+
 /** The same normal carried onto the floor, turned the way its part is. */
 export function wallOutwardNormalOnFloor(
   part: RoomPart,
   wall: WallSide,
 ): FloorVector {
-  const local = wallOutwardNormal(wall);
+  const local = localWallNormal(part, wall);
   const cos = Math.cos(part.rotationRadians);
   const sin = Math.sin(part.rotationRadians);
   return {
     dx: local.dx * cos - local.dz * sin,
     dz: local.dx * sin + local.dz * cos,
+  };
+}
+
+function isAxisWall(wall: WallSide): wall is AxisWallSide {
+  return (
+    wall === "north" || wall === "east" || wall === "south" || wall === "west"
+  );
+}
+
+export type WallFrame = {
+  readonly from: FloorPoint;
+  readonly to: FloorPoint;
+  /** Unit, from the start corner toward the end. */
+  readonly direction: FloorVector;
+  /** Unit, pointing out of the part through the wall. */
+  readonly normal: FloorVector;
+  readonly lengthMeters: number;
+};
+
+/**
+ * One wall of a part, in the part's own frame.
+ *
+ * Everything that has to place something on a wall — an opening, a band of
+ * wall thickness, a railing — reads it from here, so a chamfer left by a
+ * clipped corner is drawn and measured by exactly the arithmetic a square side
+ * is. The rotation is applied once, outside, where the frame meets the floor.
+ */
+export function partWallFrame(part: RoomPart, wall: WallSide): WallFrame {
+  const { from, to } = partWallSegment(part, wall);
+  return {
+    from,
+    to,
+    direction: localWallDirection(part, wall),
+    normal: localWallNormal(part, wall),
+    lengthMeters: partWallLengthMeters(part, wall),
   };
 }
 
@@ -175,16 +305,12 @@ function localWallPoint(
   wall: WallSide,
   alongMeters: number,
 ): FloorPoint {
-  switch (wall) {
-    case "north":
-      return { xMeters: alongMeters, zMeters: 0 };
-    case "south":
-      return { xMeters: alongMeters, zMeters: part.depthMeters };
-    case "west":
-      return { xMeters: 0, zMeters: alongMeters };
-    case "east":
-      return { xMeters: part.widthMeters, zMeters: alongMeters };
-  }
+  const { from } = partWallSegment(part, wall);
+  const direction = localWallDirection(part, wall);
+  return {
+    xMeters: from.xMeters + direction.dx * alongMeters,
+    zMeters: from.zMeters + direction.dz * alongMeters,
+  };
 }
 
 /** A point on the inside face of a wall, `alongMeters` from its start corner. */
@@ -213,8 +339,33 @@ export function pointAlongWall(
  * opening may stray away from the narrow wall band, but it still changes only
  * the measured distance along that wall.
  */
-export function metersAlongWall(wall: WallSide, point: FloorPoint): number {
+export function metersAlongWall(wall: AxisWallSide, point: FloorPoint): number {
   return wall === "north" || wall === "south" ? point.xMeters : point.zMeters;
+}
+
+/**
+ * How far along one wall of a part a part-local point lies, measured from
+ * where that wall actually starts.
+ *
+ * A clipped corner shortens the two sides meeting at it and moves where they
+ * begin, so a distance along the north wall is measured from the end of the
+ * chamfer rather than from a square corner that is no longer there — which is
+ * where a tape run along that wall would start.
+ */
+export function metersAlongPartWall(
+  part: RoomPart,
+  wall: WallSide,
+  point: FloorPoint,
+): number {
+  const { from } = partWallSegment(part, wall);
+  if (isAxisWall(wall)) {
+    return metersAlongWall(wall, point) - metersAlongWall(wall, from);
+  }
+  const direction = localWallDirection(part, wall);
+  return (
+    (point.xMeters - from.xMeters) * direction.dx +
+    (point.zMeters - from.zMeters) * direction.dz
+  );
 }
 
 /** Distance along an opening's own part wall from a room-local pointer. */
@@ -229,7 +380,7 @@ export function metersAlongOpeningWall(
     xMeters: point.xMeters + origin.xMeters,
     zMeters: point.zMeters + origin.zMeters,
   });
-  return metersAlongWall(opening.wall, local);
+  return metersAlongPartWall(part, opening.wall, local);
 }
 
 export type WallPlacement = {
@@ -257,8 +408,8 @@ export function wallPlacementAt(
         xMeters: point.xMeters + bounds.origin.xMeters,
         zMeters: point.zMeters + bounds.origin.zMeters,
       });
-      return WALL_SIDES.map((wall) => {
-        const alongMeters = metersAlongWall(wall, local);
+      return partWallSides(part).map((wall) => {
+        const alongMeters = metersAlongPartWall(part, wall, local);
         const length = wallLengthMeters(room, wall, part.id);
         const distanceMeters = distanceFromWall(part, wall, local);
         return {
@@ -436,21 +587,30 @@ export function resizeOpeningJamb(
   };
 }
 
-function distanceFromWall(
-  part: { readonly widthMeters: number; readonly depthMeters: number },
+/**
+ * How far a part-local point stands outside one wall — negative when it is on
+ * the room's side of it, which is how far in it stands.
+ */
+export function metersBeyondWall(
+  part: RoomPart,
   wall: WallSide,
   point: FloorPoint,
 ): number {
-  switch (wall) {
-    case "north":
-      return Math.abs(point.zMeters);
-    case "south":
-      return Math.abs(point.zMeters - part.depthMeters);
-    case "west":
-      return Math.abs(point.xMeters);
-    case "east":
-      return Math.abs(point.xMeters - part.widthMeters);
-  }
+  const { from } = partWallSegment(part, wall);
+  const normal = localWallNormal(part, wall);
+  return (
+    (point.xMeters - from.xMeters) * normal.dx +
+    (point.zMeters - from.zMeters) * normal.dz
+  );
+}
+
+/** How far a part-local point stands off the line one wall runs along. */
+function distanceFromWall(
+  part: RoomPart,
+  wall: WallSide,
+  point: FloorPoint,
+): number {
+  return Math.abs(metersBeyondWall(part, wall, point));
 }
 
 /** A wall sample is exterior when another part does not continue through it. */

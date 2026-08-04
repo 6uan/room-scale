@@ -13,21 +13,26 @@
 
 import { footprintRect, type PlacedFurniture } from "@/domain/furniture";
 import {
+  convexPolygonOverlap,
   orientedRectContains,
   orientedRectCorners,
   orientedRectOverlap,
-  orientedRectTurnedUnionOverlapArea,
   overhangs,
   rectOutsideFloor,
   rectOverhang,
-  turnedUnionContains,
   type FloorPoint,
 } from "@/domain/geometry";
 import {
+  PART_CORNERS,
+  WALL_SIDES,
+  metersBeyondWall,
   pointInRoomPart,
   primaryRoomPart,
-  roomPartCorners,
-  roomPartRect,
+  roomContains,
+  roomFootprintOverlapArea,
+  roomPartCut,
+  roomPartIsCut,
+  roomPartPolygon,
   type Floor,
   type Room,
   type RoomPart,
@@ -120,7 +125,7 @@ function pieceProblems(
   const overlaps = floor.rooms
     .map((room) => ({
       room,
-      area: orientedRectTurnedUnionOverlapArea(rect, room.parts),
+      area: roomFootprintOverlapArea(room, rect),
     }))
     .sort((a, b) => b.area - a.area);
   const best = overlaps[0];
@@ -134,7 +139,10 @@ function pieceProblems(
     return [];
   }
 
-  if (room.parts.length === 1) {
+  // One whole rectangle is measured directly against its own four walls. A
+  // section with a corner clipped off is not a rectangle, so it goes the same
+  // way a room of several sections does — against its true outline.
+  if (room.parts.length === 1 && !roomPartIsCut(primaryRoomPart(room))) {
     // Carried into the part's own frame, where the part is a plain box from
     // (0, 0) to its width and depth however it is turned on the floor. The
     // footprint keeps only the turn it has relative to the part.
@@ -164,20 +172,23 @@ function pieceProblems(
   return unionWallProblems(room, rect, instanceId);
 }
 
+/**
+ * One line per wall the piece reaches past, round the compass. A part with no
+ * clipped corners has only its four square sides to report, in the order it
+ * always reported them.
+ */
 function wallProblems(
   room: Room,
   instanceId: string,
-  overhang: Record<WallSide, number>,
+  overhang: Partial<Record<WallSide, number>>,
 ): readonly LayoutProblem[] {
-  return (["north", "east", "south", "west"] as const)
-    .filter((wall) => overhang[wall] > 0)
-    .map((wall) => ({
-      kind: "crosses-wall" as const,
-      instanceId,
-      roomId: room.id,
-      wall,
-      overhangMeters: overhang[wall],
-    }));
+  return WALL_SIDES.filter((wall) => (overhang[wall] ?? 0) > 0).map((wall) => ({
+    kind: "crosses-wall" as const,
+    instanceId,
+    roomId: room.id,
+    wall,
+    overhangMeters: overhang[wall] ?? 0,
+  }));
 }
 
 /** Reports the nearest union boundary for footprint samples outside a room. */
@@ -196,17 +207,14 @@ function unionWallProblems(
         zMeters: (point.zMeters + next.zMeters) / 2,
       };
     }),
-  ].filter((point) => !turnedUnionContains(room.parts, point));
+  ].filter((point) => !roomContains(room, point));
 
   // A convex footprint can bridge a concave notch with every corner inside.
   // Every reflex corner of the union is a part corner or a crossing of two
   // part edges, so those points provide an interior sample for that case.
   if (samples.length === 0) {
     for (const point of unionVertexCandidates(room.parts)) {
-      if (
-        orientedRectContains(rect, point) &&
-        !turnedUnionContains(room.parts, point)
-      ) {
+      if (orientedRectContains(rect, point) && !roomContains(room, point)) {
         samples.push(point);
       }
     }
@@ -215,29 +223,7 @@ function unionWallProblems(
   const greatest: Partial<Record<WallSide, number>> = {};
   for (const point of samples) {
     const nearest = room.parts
-      .flatMap((part) => {
-        // In the part's own frame the walls face the axes again, wherever the
-        // part is turned, so the distances stay real tape measurements.
-        const local = pointInRoomPart(part, point);
-        const choices: { wall: WallSide; distance: number }[] = [];
-        if (local.xMeters < 0) {
-          choices.push({ wall: "west", distance: -local.xMeters });
-        } else if (local.xMeters > part.widthMeters) {
-          choices.push({
-            wall: "east",
-            distance: local.xMeters - part.widthMeters,
-          });
-        }
-        if (local.zMeters < 0) {
-          choices.push({ wall: "north", distance: -local.zMeters });
-        } else if (local.zMeters > part.depthMeters) {
-          choices.push({
-            wall: "south",
-            distance: local.zMeters - part.depthMeters,
-          });
-        }
-        return choices;
-      })
+      .flatMap((part) => wallsPassed(part, point))
       .sort((a, b) => a.distance - b.distance)[0];
     if (nearest !== undefined) {
       greatest[nearest.wall] = Math.max(
@@ -247,16 +233,7 @@ function unionWallProblems(
     }
   }
 
-  const problems = wallProblems(
-    room,
-    instanceId,
-    Object.fromEntries(
-      (["north", "east", "south", "west"] as const).map((wall) => [
-        wall,
-        greatest[wall] ?? 0,
-      ]),
-    ) as Record<WallSide, number>,
-  );
+  const problems = wallProblems(room, instanceId, greatest);
   // The overlap-area test proved a crossing. Keep that fact visible even in a
   // degenerate sampling case caused by coincident floating-point edges.
   return problems.length > 0
@@ -273,6 +250,45 @@ function unionWallProblems(
 }
 
 /**
+ * The walls of one part a floor point stands outside, and by how far.
+ *
+ * In the part's own frame its square sides face the axes again, wherever the
+ * part is turned, so those distances stay real tape measurements. A chamfer
+ * left by a clipped corner is asked the same question the only way it can be:
+ * how far past its own line the point has got.
+ */
+function wallsPassed(
+  part: RoomPart,
+  point: FloorPoint,
+): readonly { wall: WallSide; distance: number }[] {
+  const local = pointInRoomPart(part, point);
+  const choices: { wall: WallSide; distance: number }[] = [];
+
+  if (local.xMeters < 0) {
+    choices.push({ wall: "west", distance: -local.xMeters });
+  } else if (local.xMeters > part.widthMeters) {
+    choices.push({ wall: "east", distance: local.xMeters - part.widthMeters });
+  }
+  if (local.zMeters < 0) {
+    choices.push({ wall: "north", distance: -local.zMeters });
+  } else if (local.zMeters > part.depthMeters) {
+    choices.push({ wall: "south", distance: local.zMeters - part.depthMeters });
+  }
+
+  for (const corner of PART_CORNERS) {
+    if (roomPartCut(part, corner) === null) {
+      continue;
+    }
+    const beyond = metersBeyondWall(part, corner, local);
+    if (beyond > 0) {
+      choices.push({ wall: corner, distance: beyond });
+    }
+  }
+
+  return choices;
+}
+
+/**
  * Every point where the union's outline can turn back on itself: part corners
  * and the crossings of two parts' edges. The Separating Axis Theorem cannot
  * answer "does this footprint bridge the notch", but the notch's own corner
@@ -282,7 +298,7 @@ function unionVertexCandidates(
   parts: readonly RoomPart[],
 ): readonly FloorPoint[] {
   const candidates: FloorPoint[] = [];
-  const outlines = parts.map((part) => roomPartCorners(part));
+  const outlines = parts.map((part) => roomPartPolygon(part));
 
   for (const corners of outlines) {
     candidates.push(...corners);
@@ -371,9 +387,12 @@ function roomProblems(floor: Floor): readonly LayoutProblem[] {
       // apart, where the parts' bounding boxes would cry wolf.
       const overlaps = a.parts.flatMap((partA) =>
         b.parts.flatMap((partB) => {
-          const overlap = orientedRectOverlap(
-            roomPartRect(partA),
-            roomPartRect(partB),
+          // Their true outlines, not the rectangles they were drawn as: a
+          // clipped corner is floor the room does not have, and claiming it
+          // would report an overlap nobody can find with a tape.
+          const overlap = convexPolygonOverlap(
+            roomPartPolygon(partA),
+            roomPartPolygon(partB),
           );
           return overlap === null ? [] : [overlap.depthMeters];
         }),

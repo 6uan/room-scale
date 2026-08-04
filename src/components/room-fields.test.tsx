@@ -5,7 +5,9 @@ import {
   createRoom,
   DEFAULT_FLOOR,
   primaryRoomPart,
-  roomPartRect,
+  roomFloorAreaSquareMeters,
+  roomPartCut,
+  roomPartPivotRect,
   withParts,
   withRoomLength,
   type Floor,
@@ -168,8 +170,8 @@ describe("RoomFields", () => {
       Math.PI / 4,
       10,
     );
-    const before = roomPartRect(primaryRoomPart(room)).center;
-    const after = changed && roomPartRect(primaryRoomPart(changed)).center;
+    const before = roomPartPivotRect(primaryRoomPart(room)).center;
+    const after = changed && roomPartPivotRect(primaryRoomPart(changed)).center;
     expect(after?.xMeters).toBeCloseTo(before.xMeters, 10);
     expect(after?.zMeters).toBeCloseTo(before.zMeters, 10);
   });
@@ -612,5 +614,102 @@ describe("a room's own wall thickness", () => {
         name: "Use the apartment's exterior wall thickness",
       }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("RoomFields: cut corners", () => {
+  function livingRoom(): { floor: Floor; room: Room } {
+    const floor = projectWithLivingRoom().floor;
+    const room = floor.rooms[0];
+    if (room === undefined) {
+      throw new Error("a new project starts with a room");
+    }
+    return { floor, room };
+  }
+
+  it("clips a corner, and squares it again, from the corner pad", async () => {
+    const user = userEvent.setup();
+    const { floor, room } = livingRoom();
+    const onChange = vi.fn();
+    const { rerender } = renderFields(floor, room, onChange);
+
+    await user.click(
+      screen.getByRole("button", { name: "Living room north-west corner cut" }),
+    );
+
+    const clipped = onChange.mock.lastCall?.[0] as Room;
+    expect(roomPartCut(primaryRoomPart(clipped), "north-west")).not.toBeNull();
+    // A clipped corner takes floor off the room rather than adding any.
+    expect(roomFloorAreaSquareMeters(clipped)).toBeLessThan(
+      roomFloorAreaSquareMeters(room),
+    );
+
+    rerender(
+      <RoomFields
+        floor={floor}
+        room={clipped}
+        unit="metric"
+        onChange={onChange}
+        onGestureEnd={vi.fn()}
+        onAddOpening={vi.fn()}
+      />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Living room north-west corner cut" }),
+    );
+
+    const squared = onChange.mock.lastCall?.[0] as Room;
+    expect(roomPartCut(primaryRoomPart(squared), "north-west")).toBeNull();
+  });
+
+  it("keeps both legs typeable, one field each", () => {
+    const { floor, room } = livingRoom();
+    const clipped = {
+      ...room,
+      parts: room.parts.map((part) => ({
+        ...part,
+        cuts: { "south-east": { widthMeters: 0.9144, depthMeters: 0.9144 } },
+      })),
+    };
+    const onChange = vi.fn();
+    renderFields(floor, clipped, onChange);
+
+    fireEvent.change(
+      screen.getByRole("spinbutton", {
+        name: "Living room south-east corner width",
+      }),
+      // Centimeters: the panel is rendered in metric here.
+      { target: { value: "150" } },
+    );
+
+    const changed = onChange.mock.lastCall?.[0] as Room;
+    const cut = roomPartCut(primaryRoomPart(changed), "south-east");
+    expect(cut?.widthMeters).toBeCloseTo(1.5, 10);
+    // The other leg is its own measurement and does not follow.
+    expect(cut?.depthMeters).toBeCloseTo(0.9144, 10);
+  });
+
+  it("offers the chamfer as a wall that can be left open", () => {
+    const { floor, room } = livingRoom();
+    const clipped = {
+      ...room,
+      parts: room.parts.map((part) => ({
+        ...part,
+        cuts: { "north-east": { widthMeters: 0.9, depthMeters: 0.9 } },
+      })),
+    };
+    renderFields(floor, clipped, vi.fn());
+
+    expect(
+      screen.getByRole("button", {
+        name: "Living room north-east wall open",
+      }),
+    ).toBeInTheDocument();
+    // And a corner that is square has no wall to open.
+    expect(
+      screen.queryByRole("button", {
+        name: "Living room south-west wall open",
+      }),
+    ).toBeNull();
   });
 });

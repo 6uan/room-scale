@@ -7,28 +7,36 @@ import { IconButton, LabelledButton } from "@/components/icon-button";
 import { NumberField } from "@/components/number-field";
 import { RoomOpeningsForm } from "@/components/room-openings-form";
 import {
+  PART_CORNERS,
   ROOM_LENGTH_LIMITS,
   ROOM_ORIGIN_LIMITS,
+  cutLegLimits,
+  defaultCornerCut,
   nextPartId,
-  WALL_SIDES,
+  partWallSides,
   WALL_THICKNESS_LIMITS,
   exteriorThicknessMeters,
   interiorThicknessMeters,
   roomFloorAreaSquareMeters,
+  roomPartCut,
   snapRoomOrigin,
   snapRoomResize,
   withOrigin,
   withParts,
   withRoomLength,
+  withRoomPartCut,
   withRoomPartLength,
   withRoomPartOrigin,
   withRoomPartRotation,
   withRoomPartWallOpen,
   withRoomWallThickness,
+  type CutLeg,
   type Floor,
   type OpeningKind,
+  type PartCorner,
   type Room,
   type RoomPart,
+  type WallSide,
 } from "@/domain/room";
 import {
   displayUnitSuffix,
@@ -37,19 +45,53 @@ import {
   type DisplayUnit,
 } from "@/domain/units";
 
-/** Where each wall sits in the compass pad, drawn as the plan is drawn. */
-const WALL_CELLS: Record<(typeof WALL_SIDES)[number], string> = {
+/**
+ * Where each wall sits in the compass pad, drawn as the plan is drawn.
+ *
+ * The corners are cells of the same pad rather than a control somewhere else:
+ * a chamfer left by a clipped corner is a wall, so it is opened and closed
+ * where every other wall of the section is.
+ */
+const WALL_CELLS: Record<WallSide, string> = {
+  "north-west": "col-start-1 row-start-1",
   north: "col-start-2 row-start-1",
+  "north-east": "col-start-3 row-start-1",
   east: "col-start-3 row-start-2",
+  "south-east": "col-start-3 row-start-3",
   south: "col-start-2 row-start-3",
+  "south-west": "col-start-1 row-start-3",
   west: "col-start-1 row-start-2",
 };
 
-const WALL_TITLES: Record<(typeof WALL_SIDES)[number], string> = {
+const WALL_TITLES: Record<WallSide, string> = {
   north: "North",
+  "north-east": "North-east",
   east: "East",
+  "south-east": "South-east",
   south: "South",
+  "south-west": "South-west",
   west: "West",
+  "north-west": "North-west",
+};
+
+/** Two letters for a chamfer, one for a square side. Room for both at 24px. */
+const WALL_INITIALS: Record<WallSide, string> = {
+  north: "N",
+  "north-east": "NE",
+  east: "E",
+  "south-east": "SE",
+  south: "S",
+  "south-west": "SW",
+  west: "W",
+  "north-west": "NW",
+};
+
+/** Where each corner sits in its own pad, laid out the way the plan is. */
+const CORNER_CELLS: Record<PartCorner, string> = {
+  "north-west": "col-start-1 row-start-1",
+  "north-east": "col-start-2 row-start-1",
+  "south-east": "col-start-2 row-start-2",
+  "south-west": "col-start-1 row-start-2",
 };
 
 export type RoomFieldsProps = {
@@ -573,6 +615,14 @@ function RoomPartFields({
           onChange(withRoomPartRotation(room, part.id, radians))
         }
       />
+      <CornerCutFields
+        room={room}
+        part={part}
+        label={label}
+        unit={unit}
+        onChange={onChange}
+        onGestureEnd={onGestureEnd}
+      />
       <fieldset className="flex flex-col gap-2">
         <legend className="sr-only">Open walls</legend>
         <span aria-hidden="true" className="text-xs font-medium">
@@ -585,7 +635,7 @@ function RoomPartFields({
         */}
         <div className="flex items-center gap-3">
           <div className="grid shrink-0 grid-cols-3 grid-rows-3 gap-0.5">
-            {WALL_SIDES.map((wall) => {
+            {partWallSides(part).map((wall) => {
               const open = part.openWalls.includes(wall);
               return (
                 <button
@@ -597,13 +647,13 @@ function RoomPartFields({
                   onClick={() =>
                     onChange(withRoomPartWallOpen(room, part.id, wall, !open))
                   }
-                  className={`flex size-6 items-center justify-center rounded-[5px] text-[11px] font-medium transition-colors ${WALL_CELLS[wall]} ${
+                  className={`flex size-6 items-center justify-center rounded-[5px] text-[10px] font-medium transition-colors ${WALL_CELLS[wall]} ${
                     open
                       ? "bg-black/15 dark:bg-white/25"
                       : "bg-black/[0.05] opacity-50 hover:opacity-100 dark:bg-white/[0.08]"
                   }`}
                 >
-                  {WALL_TITLES[wall][0]}
+                  {WALL_INITIALS[wall]}
                 </button>
               );
             })}
@@ -622,6 +672,129 @@ function RoomPartFields({
   );
 
   return <div className="flex flex-col gap-3">{fields}</div>;
+}
+
+/** The two legs of a clipped corner, named the way the fields read. */
+const CUT_LEGS: readonly { leg: CutLeg; compact: string; noun: string }[] = [
+  { leg: "widthMeters", compact: "W", noun: "width" },
+  { leg: "depthMeters", compact: "D", noun: "depth" },
+];
+
+/**
+ * Corners that are clipped rather than square, as two measurements each.
+ *
+ * The obvious way to take a corner off a room is to drop a rotated square on
+ * it and subtract, the way a drawing tool would. That produces a path, and a
+ * path has no dimensions anybody can type: after the subtract, there is
+ * nothing to put in a field to adjust that corner. What a builder says about
+ * it is *"it's clipped, about three feet by three feet"* — two numbers, one
+ * along each wall, which is what these are.
+ *
+ * The pad presses a corner in or out; the fields below it are the exact path,
+ * and they are held to what the corner at the far end of the same side has
+ * left, because two cuts cannot between them be longer than the wall.
+ */
+function CornerCutFields({
+  room,
+  part,
+  label,
+  unit,
+  onChange,
+  onGestureEnd,
+}: {
+  room: Room;
+  part: RoomPart;
+  label: string;
+  unit: DisplayUnit;
+  onChange: (room: Room, gesture?: string) => void;
+  onGestureEnd: () => void;
+}) {
+  const cutCorners = PART_CORNERS.filter(
+    (corner) => roomPartCut(part, corner) !== null,
+  );
+
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className="sr-only">Cut corners</legend>
+      <span aria-hidden="true" className="text-xs font-medium">
+        Cut corners
+      </span>
+      <div className="flex items-center gap-3">
+        <div className="grid shrink-0 grid-cols-2 grid-rows-2 gap-0.5">
+          {PART_CORNERS.map((corner) => {
+            const cut = roomPartCut(part, corner);
+            return (
+              <button
+                key={corner}
+                type="button"
+                aria-pressed={cut !== null}
+                aria-label={`${label} ${corner} corner cut`}
+                title={`${WALL_TITLES[corner]} corner`}
+                onClick={() =>
+                  onChange(
+                    withRoomPartCut(
+                      room,
+                      part.id,
+                      corner,
+                      cut === null ? defaultCornerCut(part, corner) : null,
+                    ),
+                  )
+                }
+                className={`flex size-6 items-center justify-center rounded-[5px] text-[10px] font-medium transition-colors ${CORNER_CELLS[corner]} ${
+                  cut === null
+                    ? "bg-black/[0.05] opacity-50 hover:opacity-100 dark:bg-white/[0.08]"
+                    : "bg-black/15 dark:bg-white/25"
+                }`}
+              >
+                {WALL_INITIALS[corner]}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-xs leading-relaxed opacity-60">
+          A clipped corner is measured in along each wall. The chamfer it leaves
+          is a wall like any other and can carry a door.
+        </p>
+      </div>
+
+      {cutCorners.map((corner) => {
+        const cut = roomPartCut(part, corner);
+        if (cut === null) {
+          return null;
+        }
+        return (
+          <CompactGroup
+            key={corner}
+            title={`${WALL_TITLES[corner]} corner`}
+            unit={unit}
+            columns={2}
+          >
+            {CUT_LEGS.map(({ leg, compact, noun }) => (
+              <NumberField
+                key={leg}
+                label={`${label} ${corner} corner ${noun}`}
+                compactLabel={compact}
+                scrubGesture={`room-part-cut:${part.id}:${corner}:${noun}`}
+                unit={unit}
+                meters={cut[leg]}
+                limits={cutLegLimits(part, corner, leg)}
+                onMetersChange={(meters, gesture) =>
+                  onChange(
+                    withRoomPartCut(room, part.id, corner, {
+                      ...cut,
+                      [leg]: meters,
+                    }),
+                    gesture,
+                  )
+                }
+                onGestureEnd={onGestureEnd}
+              />
+            ))}
+          </CompactGroup>
+        );
+      })}
+    </fieldset>
+  );
 }
 
 /** Spelled out, because Tailwind reads these classes rather than building them. */

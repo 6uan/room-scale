@@ -50,6 +50,73 @@ function floorOf(rooms: readonly Room[]): Floor {
 }
 
 describe("wallStretches", () => {
+  it("reads a clipped corner as a wall of its own", () => {
+    const clipped = roomOf("room-1", [
+      part({
+        id: "p1",
+        cuts: { "north-west": { widthMeters: 1, depthMeters: 1 } },
+      }),
+    ]);
+    const floor = floorOf([clipped]);
+    const [section] = clipped.parts;
+
+    // The chamfer is shell like the rest of the outside of the room.
+    expect(wallStretches(floor, clipped, section!, "north-west")).toEqual([
+      {
+        startMeters: 0,
+        endMeters: Math.SQRT2,
+        kind: "exterior",
+        thicknessMeters: EXTERIOR,
+      },
+    ]);
+    // And the two walls it eats into are shorter by what it took.
+    expect(wallStretches(floor, clipped, section!, "north")).toEqual([
+      {
+        startMeters: 0,
+        endMeters: 3,
+        kind: "exterior",
+        thicknessMeters: EXTERIOR,
+      },
+    ]);
+    expect(wallStretches(floor, clipped, section!, "west")).toEqual([
+      {
+        startMeters: 0,
+        endMeters: 2,
+        kind: "exterior",
+        thicknessMeters: EXTERIOR,
+      },
+    ]);
+  });
+
+  it("has no stretches for a corner that was never clipped", () => {
+    const square = roomOf("room-1", [part({ id: "p1" })]);
+
+    expect(
+      wallStretches(floorOf([square]), square, square.parts[0]!, "south-east"),
+    ).toEqual([]);
+  });
+
+  it("lets a chamfer be left open, like any other wall", () => {
+    const clipped = roomOf("room-1", [
+      part({
+        id: "p1",
+        cuts: { "south-east": { widthMeters: 1, depthMeters: 1 } },
+      }),
+    ]);
+    const open = withRoomPartWallOpen(clipped, "p1", "south-east", true);
+
+    expect(
+      wallStretches(floorOf([open]), open, open.parts[0]!, "south-east"),
+    ).toEqual([
+      {
+        startMeters: 0,
+        endMeters: Math.SQRT2,
+        kind: "open",
+        thicknessMeters: 0,
+      },
+    ]);
+  });
+
   it("reads a lone room's walls as shell, end to end", () => {
     const alone = roomOf("room-1", [part({ id: "p1" })]);
     const floor = floorOf([alone]);

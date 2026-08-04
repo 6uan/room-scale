@@ -163,6 +163,56 @@ export function clipPolygonToConvex(
   return clipped;
 }
 
+/**
+ * |A ∪ B ∪ …| for convex polygons, by inclusion–exclusion: every non-empty
+ * subset contributes its intersection's area, added or subtracted by the
+ * subset's size. An intersection of convex shapes is convex, so each one is a
+ * chain of half-plane clips and none of them has to be decomposed.
+ *
+ * The subset count is 2ⁿ − 1, which is fine for the handful of sections a room
+ * is built from and would not be for a hundred; a room with that many has
+ * bigger problems than this loop.
+ *
+ * With `base` supplied, every intersection is additionally clipped to it, which
+ * turns the union's area into the area of `base ∩ (A ∪ B ∪ …)`.
+ *
+ * This is the same argument `turnedUnionArea` makes for rectangles, over the
+ * shape a rectangle takes once a corner is cut off it.
+ */
+export function convexUnionArea(
+  polygons: readonly (readonly FloorPoint[])[],
+  base: readonly FloorPoint[] | null = null,
+): number {
+  let area = 0;
+
+  for (let subset = 1; subset < 1 << polygons.length; subset += 1) {
+    let clipped: readonly FloorPoint[] | null = base;
+    let size = 0;
+
+    for (let index = 0; index < polygons.length; index += 1) {
+      if ((subset & (1 << index)) === 0) {
+        continue;
+      }
+      const polygon = polygons[index];
+      if (polygon === undefined) {
+        continue;
+      }
+      size += 1;
+      clipped =
+        clipped === null ? polygon : clipPolygonToConvex(clipped, polygon);
+      if (clipped.length === 0) {
+        break;
+      }
+    }
+
+    if (clipped !== null && clipped.length > 0) {
+      area += (size % 2 === 1 ? 1 : -1) * Math.abs(polygonSignedArea(clipped));
+    }
+  }
+
+  return area;
+}
+
 /** One Sutherland–Hodgman pass: what is left of the polygon on one side. */
 function clipToHalfPlane(
   polygon: readonly FloorPoint[],

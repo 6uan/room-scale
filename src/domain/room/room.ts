@@ -7,6 +7,10 @@ import type {
   TurnedRect,
 } from "@/domain/geometry";
 import {
+  convexPolygonContains,
+  convexUnionArea,
+  orientedRectCorners,
+  orientedRectTurnedUnionOverlapArea,
   turnedRectAsOriented,
   turnedRectContains,
   turnedRectCorners,
@@ -24,6 +28,49 @@ import {
 import { checkOpening, type Opening, type WallSide } from "./openings";
 
 /**
+ * A clipped corner, as two legs measured in from that corner.
+ *
+ * **Two numbers, not a boolean subtract.** The obvious way to take a corner off
+ * is to drop a rotated square on it and subtract — and the result is a path,
+ * which has no typeable dimensions and no wall to hang a door on. What a
+ * builder actually says about that corner is *"it's clipped, about three feet
+ * by three feet"*, and that is exactly what this holds.
+ *
+ * **Two legs rather than one**, so a chamfer is not forced to 45°. That is also
+ * what a tape gives you at a real clipped corner: one reading along each wall.
+ *
+ * The legs are measured in the part's own frame — in from the corner along the
+ * width axis and along the depth axis — so the part's rotation carries them
+ * exactly as it already carries its walls and its openings.
+ */
+export type CornerCut = {
+  readonly widthMeters: number;
+  readonly depthMeters: number;
+};
+
+export type PartCorner =
+  "north-west" | "north-east" | "south-east" | "south-west";
+
+/** Round the part, from its anchor corner, the way its outline is wound. */
+export const PART_CORNERS: readonly PartCorner[] = [
+  "north-west",
+  "north-east",
+  "south-east",
+  "south-west",
+];
+
+/**
+ * Sparse: a corner with no entry is square, which every existing part is.
+ *
+ * Spelled `| undefined` as well as optional because a stored document is
+ * parsed straight into this shape, and `exactOptionalPropertyTypes` holds a
+ * key that is absent and a key that is present and undefined apart.
+ */
+export type PartCuts = {
+  readonly [corner in PartCorner]?: CornerCut | undefined;
+};
+
+/**
  * One rectangular section of a room.
  *
  * The stored origin is the part's own north-west corner — always a physical
@@ -36,10 +83,18 @@ import { checkOpening, type Opening, type WallSide } from "./openings";
  * railing, the open side of a living area. The floor still ends there: an
  * open edge bounds the room exactly as a wall does, it just is not drawn as
  * one and cannot carry a door or a window.
+ *
+ * `cuts` clip corners off that rectangle — see `CornerCut`. A clipped corner
+ * leaves a chamfer, which is a wall like any other: it draws, it carries a
+ * thickness, and it can hold a door. **A rectangle with corners clipped is
+ * still convex**, which is what the Separating Axis Theorem needs, what makes
+ * an intersection a chain of half-plane clips, and what keeps every opening
+ * addressable by a wall and a distance along it.
  */
 export type RoomPart = TurnedRect & {
   readonly id: string;
   readonly openWalls: readonly WallSide[];
+  readonly cuts?: PartCuts | undefined;
 };
 
 export type Room = {
@@ -188,17 +243,334 @@ export function roomBounds(room: Room): AxisAlignedRect {
   );
 }
 
-/** The part described by its center, for the theorems and the drawing. */
-export function roomPartRect(part: RoomPart): OrientedRect {
+/**
+ * The **uncut** rectangle, described by its center.
+ *
+ * This is a pivot and a label centre, not a footprint. A part spins about the
+ * middle of the rectangle it was drawn as — cutting a corner off must not move
+ * the point it turns around — and its name is written there.
+ *
+ * Once a corner is cut, this rectangle is no longer the shape the part
+ * occupies. Anything measuring the part against something else wants
+ * `roomPartPolygon`; passing this to a theorem would silently claim floor the
+ * room does not have.
+ */
+export function roomPartPivotRect(part: RoomPart): OrientedRect {
   return turnedRectAsOriented(part);
 }
 
-export function roomPartCorners(part: RoomPart): readonly FloorPoint[] {
-  return turnedRectCorners(part);
+/** Whether this corner is clipped, and by how much. */
+export function roomPartCut(
+  part: RoomPart,
+  corner: PartCorner,
+): CornerCut | null {
+  return part.cuts?.[corner] ?? null;
+}
+
+/** Whether any corner of this part is clipped. */
+export function roomPartIsCut(part: RoomPart): boolean {
+  return PART_CORNERS.some((corner) => roomPartCut(part, corner) !== null);
+}
+
+/**
+ * The part's true outline in its own frame: four points square, and two in
+ * place of every corner that is clipped, so eight at the most.
+ *
+ * Wound from the anchor corner the way the plan is read — east along the north
+ * side, south down the east side, and back — which is the order
+ * `turnedRectCorners` has always used, so a part with no cuts produces exactly
+ * the four points it always did.
+ */
+export function roomPartLocalPolygon(part: RoomPart): readonly FloorPoint[] {
+  const width = part.widthMeters;
+  const depth = part.depthMeters;
+  const nw = roomPartCut(part, "north-west");
+  const ne = roomPartCut(part, "north-east");
+  const se = roomPartCut(part, "south-east");
+  const sw = roomPartCut(part, "south-west");
+
+  return [
+    ...(nw === null
+      ? [{ xMeters: 0, zMeters: 0 }]
+      : [
+          { xMeters: 0, zMeters: nw.depthMeters },
+          { xMeters: nw.widthMeters, zMeters: 0 },
+        ]),
+    ...(ne === null
+      ? [{ xMeters: width, zMeters: 0 }]
+      : [
+          { xMeters: width - ne.widthMeters, zMeters: 0 },
+          { xMeters: width, zMeters: ne.depthMeters },
+        ]),
+    ...(se === null
+      ? [{ xMeters: width, zMeters: depth }]
+      : [
+          { xMeters: width, zMeters: depth - se.depthMeters },
+          { xMeters: width - se.widthMeters, zMeters: depth },
+        ]),
+    ...(sw === null
+      ? [{ xMeters: 0, zMeters: depth }]
+      : [
+          { xMeters: sw.widthMeters, zMeters: depth },
+          { xMeters: 0, zMeters: depth - sw.depthMeters },
+        ]),
+  ];
+}
+
+/**
+ * The part's true footprint on the floor — the shape everything measures
+ * against. Convex by construction, so it goes straight into the Separating
+ * Axis Theorem and the half-plane clips.
+ */
+export function roomPartPolygon(part: RoomPart): readonly FloorPoint[] {
+  return roomPartIsCut(part)
+    ? roomPartLocalPolygon(part).map((point) => pointOnRoomPart(part, point))
+    : turnedRectCorners(part);
+}
+
+/**
+ * The two ends of one wall of a part, in the part's own frame.
+ *
+ * The four square sides are shortened by whatever the cuts at their ends take
+ * out of them, and each cut adds a chamfer of its own. Every wall is measured
+ * from its western end — the same "the way a plan is read" rule the square
+ * sides have always used, which resolves a chamfer too because a chamfer with
+ * two positive legs is never vertical.
+ *
+ * A corner that is not cut has no chamfer, and comes back as the corner point
+ * twice: a wall of no length, which `partWallSides` leaves out.
+ */
+export function partWallSegment(
+  part: RoomPart,
+  wall: WallSide,
+): { readonly from: FloorPoint; readonly to: FloorPoint } {
+  const width = part.widthMeters;
+  const depth = part.depthMeters;
+  const nw = cutLegs(part, "north-west");
+  const ne = cutLegs(part, "north-east");
+  const se = cutLegs(part, "south-east");
+  const sw = cutLegs(part, "south-west");
+
+  switch (wall) {
+    case "north":
+      return {
+        from: { xMeters: nw.widthMeters, zMeters: 0 },
+        to: { xMeters: width - ne.widthMeters, zMeters: 0 },
+      };
+    case "south":
+      return {
+        from: { xMeters: sw.widthMeters, zMeters: depth },
+        to: { xMeters: width - se.widthMeters, zMeters: depth },
+      };
+    case "west":
+      return {
+        from: { xMeters: 0, zMeters: nw.depthMeters },
+        to: { xMeters: 0, zMeters: depth - sw.depthMeters },
+      };
+    case "east":
+      return {
+        from: { xMeters: width, zMeters: ne.depthMeters },
+        to: { xMeters: width, zMeters: depth - se.depthMeters },
+      };
+    case "north-west":
+      return {
+        from: { xMeters: 0, zMeters: nw.depthMeters },
+        to: { xMeters: nw.widthMeters, zMeters: 0 },
+      };
+    case "north-east":
+      return {
+        from: { xMeters: width - ne.widthMeters, zMeters: 0 },
+        to: { xMeters: width, zMeters: ne.depthMeters },
+      };
+    case "south-east":
+      return {
+        from: { xMeters: width - se.widthMeters, zMeters: depth },
+        to: { xMeters: width, zMeters: depth - se.depthMeters },
+      };
+    case "south-west":
+      return {
+        from: { xMeters: 0, zMeters: depth - sw.depthMeters },
+        to: { xMeters: sw.widthMeters, zMeters: depth },
+      };
+  }
+}
+
+/**
+ * How long one wall of a part is.
+ *
+ * Written as arithmetic on the part's own dimensions rather than as the
+ * distance between the segment's ends, so an uncut side comes back as exactly
+ * the width or depth that was typed — subtracting two zeroes is exact where a
+ * square root is not.
+ */
+export function partWallLengthMeters(part: RoomPart, wall: WallSide): number {
+  const nw = cutLegs(part, "north-west");
+  const ne = cutLegs(part, "north-east");
+  const se = cutLegs(part, "south-east");
+  const sw = cutLegs(part, "south-west");
+
+  switch (wall) {
+    case "north":
+      return part.widthMeters - nw.widthMeters - ne.widthMeters;
+    case "south":
+      return part.widthMeters - sw.widthMeters - se.widthMeters;
+    case "west":
+      return part.depthMeters - nw.depthMeters - sw.depthMeters;
+    case "east":
+      return part.depthMeters - ne.depthMeters - se.depthMeters;
+    default: {
+      const cut = cutLegs(part, wall);
+      return Math.hypot(cut.widthMeters, cut.depthMeters);
+    }
+  }
+}
+
+/** A cut's legs, or a pair of zeroes where the corner is square. */
+function cutLegs(part: RoomPart, corner: PartCorner): CornerCut {
+  return roomPartCut(part, corner) ?? { widthMeters: 0, depthMeters: 0 };
 }
 
 export function roomPartContains(part: RoomPart, point: FloorPoint): boolean {
-  return turnedRectContains(part, point);
+  return roomPartIsCut(part)
+    ? convexPolygonContains(roomPartPolygon(part), point)
+    : turnedRectContains(part, point);
+}
+
+/** Whether a floor point is anywhere on this room's floor. */
+export function roomContains(room: Room, point: FloorPoint): boolean {
+  return room.parts.some((part) => roomPartContains(part, point));
+}
+
+/** Shorter than this is a mitre, not a corner anybody clipped. A centimeter. */
+export const MIN_CUT_METERS = 0.01;
+
+/** What a clipped corner is until it is measured: three feet each way. */
+export const DEFAULT_CUT_METERS = metersFromInches(36);
+
+export type CutProblem =
+  | "not-a-number"
+  | "too-small"
+  /** The two cuts on one side are longer between them than the side is. */
+  | "overruns-side";
+
+/** The corner sharing the north or south side with this one. */
+const WIDTH_PARTNER: Record<PartCorner, PartCorner> = {
+  "north-west": "north-east",
+  "north-east": "north-west",
+  "south-east": "south-west",
+  "south-west": "south-east",
+};
+
+/** The corner sharing the west or east side with this one. */
+const DEPTH_PARTNER: Record<PartCorner, PartCorner> = {
+  "north-west": "south-west",
+  "south-west": "north-west",
+  "north-east": "south-east",
+  "south-east": "north-east",
+};
+
+export type CutLeg = "widthMeters" | "depthMeters";
+
+/**
+ * What one leg of a cut may be: at most whatever the cut at the far end of
+ * that same side has left of it.
+ *
+ * This is the whole of the cuts' geometric rule, expressed where somebody is
+ * typing rather than after the fact — a field that will not take a number is a
+ * better answer than a problem reported once the shape is already wrong.
+ */
+export function cutLegLimits(
+  part: RoomPart,
+  corner: PartCorner,
+  leg: CutLeg,
+): LengthLimits {
+  const partner =
+    leg === "widthMeters" ? WIDTH_PARTNER[corner] : DEPTH_PARTNER[corner];
+  const side = leg === "widthMeters" ? part.widthMeters : part.depthMeters;
+  return {
+    minMeters: MIN_CUT_METERS,
+    maxMeters: Math.max(MIN_CUT_METERS, side - cutLegs(part, partner)[leg]),
+  };
+}
+
+/** A clipped corner of the usual size, held to what the side has room for. */
+export function defaultCornerCut(
+  part: RoomPart,
+  corner: PartCorner,
+): CornerCut {
+  return {
+    widthMeters: Math.min(
+      DEFAULT_CUT_METERS,
+      cutLegLimits(part, corner, "widthMeters").maxMeters,
+    ),
+    depthMeters: Math.min(
+      DEFAULT_CUT_METERS,
+      cutLegLimits(part, corner, "depthMeters").maxMeters,
+    ),
+  };
+}
+
+/** Why this part's clipped corners do not describe a shape, or null. */
+export function checkRoomPartCuts(part: RoomPart): CutProblem | null {
+  for (const corner of PART_CORNERS) {
+    const cut = roomPartCut(part, corner);
+    if (cut === null) {
+      continue;
+    }
+    if (
+      !Number.isFinite(cut.widthMeters) ||
+      !Number.isFinite(cut.depthMeters)
+    ) {
+      return "not-a-number";
+    }
+    if (cut.widthMeters < MIN_CUT_METERS || cut.depthMeters < MIN_CUT_METERS) {
+      return "too-small";
+    }
+  }
+
+  const taken = (corner: PartCorner, leg: CutLeg) => cutLegs(part, corner)[leg];
+  const sides: readonly (readonly [number, number])[] = [
+    [
+      taken("north-west", "widthMeters") + taken("north-east", "widthMeters"),
+      part.widthMeters,
+    ],
+    [
+      taken("south-west", "widthMeters") + taken("south-east", "widthMeters"),
+      part.widthMeters,
+    ],
+    [
+      taken("north-west", "depthMeters") + taken("south-west", "depthMeters"),
+      part.depthMeters,
+    ],
+    [
+      taken("north-east", "depthMeters") + taken("south-east", "depthMeters"),
+      part.depthMeters,
+    ],
+  ];
+
+  return sides.some(([used, side]) => used > side) ? "overruns-side" : null;
+}
+
+/** Clips one corner of a part, or squares it again when the cut is null. */
+export function withRoomPartCut(
+  room: Room,
+  partId: string,
+  corner: PartCorner,
+  cut: CornerCut | null,
+): Room {
+  return withRoomPart(room, partId, (part) => {
+    // Mutable only inside here: a corner is squared again by taking its key
+    // out rather than by storing an absence, so what is stored stays sparse.
+    const cuts: { -readonly [C in PartCorner]?: CornerCut | undefined } = {
+      ...part.cuts,
+    };
+    if (cut === null) {
+      delete cuts[corner];
+    } else {
+      cuts[corner] = cut;
+    }
+    return { ...part, cuts };
+  });
 }
 
 /** A floor point in the part's own frame, measured from its anchor corner. */
@@ -225,7 +597,8 @@ export function isValidRoom(room: Room): boolean {
     room.parts.every(
       (part) =>
         checkRoomLength(part.widthMeters, "widthMeters") === null &&
-        checkRoomLength(part.depthMeters, "depthMeters") === null,
+        checkRoomLength(part.depthMeters, "depthMeters") === null &&
+        checkRoomPartCuts(part) === null,
     ) &&
     room.openings.every((opening) => checkOpening(room, opening) === null)
   );
@@ -459,6 +832,33 @@ export function roomEdgePosition(room: Room, edge: RoomEdge): number {
   }
 }
 
+/**
+ * The room's floor area, counting overlapping sections once.
+ *
+ * Dispatches, the way every other union measurement in this domain does: a
+ * room whose sections are all whole rectangles keeps the exact arithmetic it
+ * has always used, and only a room with a corner clipped off one of them pays
+ * for the general path over its outlines.
+ */
 export function roomFloorAreaSquareMeters(room: Room): number {
-  return turnedUnionArea(room.parts);
+  return room.parts.some(roomPartIsCut)
+    ? convexUnionArea(room.parts.map(roomPartPolygon))
+    : turnedUnionArea(room.parts);
+}
+
+/**
+ * How much of a furniture footprint stands on this room's floor. Sections
+ * overlapping each other are counted once, so an L-shaped room does not
+ * measure its own seam twice.
+ */
+export function roomFootprintOverlapArea(
+  room: Room,
+  footprint: OrientedRect,
+): number {
+  return room.parts.some(roomPartIsCut)
+    ? convexUnionArea(
+        room.parts.map(roomPartPolygon),
+        orientedRectCorners(footprint),
+      )
+    : orientedRectTurnedUnionOverlapArea(footprint, room.parts);
 }

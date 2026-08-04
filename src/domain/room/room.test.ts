@@ -13,7 +13,7 @@ import {
   roomBounds,
   roomFloorAreaSquareMeters,
   roomPartContains,
-  roomPartRect,
+  roomPartPivotRect,
   withOrigin,
   withRoomPart,
   withRoomPartRotation,
@@ -167,8 +167,8 @@ describe("turned parts", () => {
 
   it("spins in place: the center holds still and the corner follows", () => {
     const turned = withRoomPartRotation(LIVING_ROOM, "room-1-part-1", 0.3);
-    const before = roomPartRect(primaryRoomPart(LIVING_ROOM)).center;
-    const after = roomPartRect(primaryRoomPart(turned)).center;
+    const before = roomPartPivotRect(primaryRoomPart(LIVING_ROOM)).center;
+    const after = roomPartPivotRect(primaryRoomPart(turned)).center;
 
     expect(after.xMeters).toBeCloseTo(before.xMeters, 12);
     expect(after.zMeters).toBeCloseTo(before.zMeters, 12);

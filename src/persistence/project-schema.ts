@@ -32,8 +32,10 @@ import type { Project } from "@/domain/project";
  * 10. Added the traceable plan underlay. Existing projects have none.
  * 11. A room may override either wall thickness. Existing rooms take the
  *     floor's, which is what they always did.
+ * 12. A part may have corners clipped. Every existing part is square, which is
+ *     what having no cuts says.
  */
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 12;
 
 /** Meters, cents, and the rest are all plain finite numbers on the way in. */
 const finiteNumber = z
@@ -44,10 +46,30 @@ const wholeNumber = z
   .number()
   .refine(Number.isSafeInteger, "must be a whole number");
 
+/**
+ * Every wall a part can have: its four square sides, and the chamfer left by
+ * each corner that is clipped, named for the corner it replaced.
+ */
+const wallSideSchema = z.enum([
+  "north",
+  "north-east",
+  "east",
+  "south-east",
+  "south",
+  "south-west",
+  "west",
+  "north-west",
+]);
+
+const cornerCutSchema = z.object({
+  widthMeters: finiteNumber,
+  depthMeters: finiteNumber,
+});
+
 const openingFields = {
   id: z.string().min(1),
   partId: z.string().min(1),
-  wall: z.enum(["north", "east", "south", "west"]),
+  wall: wallSideSchema,
   centerMeters: finiteNumber,
   widthMeters: finiteNumber,
 };
@@ -69,7 +91,17 @@ const roomPartSchema = z.object({
   widthMeters: finiteNumber,
   depthMeters: finiteNumber,
   rotationRadians: finiteNumber,
-  openWalls: z.array(z.enum(["north", "east", "south", "west"])),
+  openWalls: z.array(wallSideSchema),
+  // Sparse and optional: a corner with no entry is square, which every part
+  // written before version 12 is. Absent and empty say the same thing.
+  cuts: z
+    .object({
+      "north-west": cornerCutSchema.optional(),
+      "north-east": cornerCutSchema.optional(),
+      "south-east": cornerCutSchema.optional(),
+      "south-west": cornerCutSchema.optional(),
+    })
+    .optional(),
 });
 
 const roomSchema = z.object({
@@ -401,6 +433,10 @@ const MIGRATIONS: Record<number, (document: object) => object> = {
       },
     };
   },
+  // Version 12 let a corner be clipped off a section. Every stored section is
+  // a whole rectangle, and having no cuts is exactly what that says — so this
+  // is a version bump with nothing to rewrite, the way version 6 was.
+  11: (document) => ({ ...document, version: 12 }),
 };
 
 /**
