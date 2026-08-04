@@ -17,7 +17,12 @@
 
 import type { FloorPoint } from "@/domain/geometry";
 import { clipPolygonToRect } from "@/domain/geometry";
-import type { Floor } from "./floor";
+import {
+  exteriorThicknessMeters,
+  interiorThicknessMeters,
+  partitionThicknessMeters,
+  type Floor,
+} from "./floor";
 import {
   roomPartCorners,
   pointOnRoomPart,
@@ -47,6 +52,16 @@ export type WallStretch = {
   readonly startMeters: number;
   readonly endMeters: number;
   readonly kind: WallKind;
+  /**
+   * How thick the band along this stretch is, already resolved.
+   *
+   * It is carried rather than looked up because the answer depends on more
+   * than the kind: an interior stretch is as thick as the partition between
+   * *these two rooms*, and one wall can face several neighbours that each
+   * declare something different. Seams and open stretches have no band at all,
+   * so theirs is zero.
+   */
+  readonly thicknessMeters: number;
 };
 
 /** Shorter than this is a sliver of arithmetic, not a wall anybody builds. */
@@ -64,8 +79,15 @@ export function isWallOpen(part: RoomPart, wall: WallSide): boolean {
  *
  * Seams are cut out first — where the room's own floor continues, there is no
  * wall to classify. What remains is open if the wall was marked open, interior
- * where another room stands within the interior thickness beyond it, and
+ * where another room stands within the partition thickness beyond it, and
  * exterior everywhere else.
+ *
+ * Each neighbouring room is looked for across **its own** partition — the
+ * thicker of what the two rooms declare, see `partitionThicknessMeters` — so a
+ * wall facing a fat plumbing wall on one stretch and an ordinary one on the
+ * next comes back as two stretches of two thicknesses. Where two neighbours
+ * claim the same stretch, the thicker takes it, which is the same rule applied
+ * once more: the fatter wall is the one that errs toward "check this again".
  */
 export function wallStretches(
   floor: Floor,
@@ -90,56 +112,53 @@ export function wallStretches(
   );
 
   const walled = subtractIntervals([{ start: 0, end: length }], seams);
-
-  const stretches: WallStretch[] = seams.map(({ start, end }) => ({
-    startMeters: start,
-    endMeters: end,
-    kind: "seam",
-  }));
+  const stretches: WallStretch[] = withKind(seams, "seam", 0);
 
   if (isWallOpen(part, wall)) {
-    stretches.push(...withKind(walled, "open"));
-  } else {
-    const neighbours = mergeIntervals(
-      floor.rooms
-        .filter((other) => other.id !== room.id)
-        .flatMap((other) => other.parts)
-        .flatMap((theirs) =>
-          bandInterval(part, wall, length, roomPartCorners(theirs), {
-            nearMeters: THROUGH_EPSILON_METERS,
-            // A snapped neighbour's face sits exactly one interior thickness
-            // away; a fingertip of tolerance keeps arithmetic honest.
-            farMeters: floor.interiorWallThicknessMeters + MIN_STRETCH_METERS,
-          }),
-        ),
-    );
-    stretches.push(
-      ...withKind(intersectIntervals(walled, neighbours), "interior"),
-      ...withKind(subtractIntervals(walled, neighbours), "exterior"),
-    );
+    stretches.push(...withKind(walled, "open", 0));
+    return ordered(stretches);
   }
 
+  // Grouped by thickness, thickest first, so that where two neighbours cover
+  // the same stretch the fatter partition claims it before the thinner asks.
+  const groups = new Map<number, Interval[]>();
+  for (const other of floor.rooms) {
+    if (other.id === room.id) {
+      continue;
+    }
+    const thickness = partitionThicknessMeters(floor, room, other);
+    const found = other.parts.flatMap((theirs) =>
+      bandInterval(part, wall, length, roomPartCorners(theirs), {
+        nearMeters: THROUGH_EPSILON_METERS,
+        // A snapped neighbour's face sits exactly one partition thickness
+        // away; a fingertip of tolerance keeps arithmetic honest.
+        farMeters: thickness + MIN_STRETCH_METERS,
+      }),
+    );
+    groups.set(thickness, [...(groups.get(thickness) ?? []), ...found]);
+  }
+
+  let free = walled;
+  for (const [thickness, intervals] of [...groups].sort(([a], [b]) => b - a)) {
+    const merged = mergeIntervals(intervals);
+    stretches.push(
+      ...withKind(intersectIntervals(free, merged), "interior", thickness),
+    );
+    free = subtractIntervals(free, merged);
+  }
+  stretches.push(
+    ...withKind(free, "exterior", exteriorThicknessMeters(floor, room)),
+  );
+
+  return ordered(stretches);
+}
+
+function ordered(stretches: readonly WallStretch[]): readonly WallStretch[] {
   return stretches
     .filter(
       (stretch) => stretch.endMeters - stretch.startMeters > MIN_STRETCH_METERS,
     )
     .sort((a, b) => a.startMeters - b.startMeters);
-}
-
-/**
- * The thickness of the wall band along one stretch kind. Seams and open
- * stretches have no band at all.
- */
-export function wallKindThicknessMeters(floor: Floor, kind: WallKind): number {
-  switch (kind) {
-    case "exterior":
-      return floor.exteriorWallThicknessMeters;
-    case "interior":
-      return floor.interiorWallThicknessMeters;
-    case "seam":
-    case "open":
-      return 0;
-  }
 }
 
 /** The stretch an opening's center sits on, or null off every stretch. */
@@ -174,9 +193,9 @@ export function openingWallThicknessMeters(
       ? null
       : wallStretchAt(floor, room, part, opening.wall, opening.centerMeters);
   if (stretch === null || stretch.kind === "seam" || stretch.kind === "open") {
-    return floor.interiorWallThicknessMeters;
+    return interiorThicknessMeters(floor, room);
   }
-  return wallKindThicknessMeters(floor, stretch.kind);
+  return stretch.thicknessMeters;
 }
 
 type Interval = { readonly start: number; readonly end: number };
@@ -184,11 +203,13 @@ type Interval = { readonly start: number; readonly end: number };
 function withKind(
   intervals: readonly Interval[],
   kind: WallKind,
+  thicknessMeters: number,
 ): WallStretch[] {
   return intervals.map(({ start, end }) => ({
     startMeters: start,
     endMeters: end,
     kind,
+    thicknessMeters,
   }));
 }
 

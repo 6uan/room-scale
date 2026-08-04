@@ -15,6 +15,7 @@ import {
   createRoom,
   primaryRoomPart,
   withOrigin,
+  withRoomWallThickness,
   type Room,
 } from "./room";
 
@@ -135,7 +136,7 @@ describe("snapRoomEdge", () => {
   });
 
   it("ignores the room being redrawn, so it cannot snap to itself", () => {
-    expect(snapRoomEdge(FLOOR, "x", 4.06, FIRST.id)).toBe(4.06);
+    expect(snapRoomEdge(FLOOR, "x", 4.06, FIRST)).toBe(4.06);
   });
 
   it("takes the nearest candidate when two rooms offer one", () => {
@@ -322,5 +323,72 @@ describe("drawnRoom", () => {
     expect(drawn([20, 20], [23, 22]).heightMeters).toBe(
       createRoom("x", "x", { xMeters: 0, zMeters: 0 }).heightMeters,
     );
+  });
+});
+
+describe("snapping when the two rooms disagree about the wall between them", () => {
+  const FAT = 0.3;
+  /** The first room built out of something fatter than the floor's 0.1. */
+  const THICK_FIRST = withRoomWallThickness(FIRST, "interior", FAT);
+  const MIXED = { ...FLOOR, rooms: [THICK_FIRST, SECOND] };
+
+  it("moves a room up against the thicker of the two walls", () => {
+    // The first room ends at 4. Its own partition is the fatter claim, so the
+    // gap is 0.3 rather than the floor's 0.1 — and the room lands at 4.3.
+    expect(
+      snapRoomOrigin(MIXED, SECOND, { xMeters: 4.26, zMeters: 0 }).xMeters,
+    ).toBeCloseTo(4.3, 10);
+    // The floor's own 0.1 is no longer a candidate at all. Typed at 4.1 — the
+    // wall these two rooms would have shared before either overrode anything —
+    // the room stays exactly where it was put rather than being pulled onto a
+    // wall nobody built. 4.3 is further away than the snap reaches.
+    expect(
+      snapRoomOrigin(MIXED, SECOND, { xMeters: 4.1, zMeters: 0 }).xMeters,
+    ).toBe(4.1);
+  });
+
+  it("answers the same whichever of the two is the one being moved", () => {
+    // Dragging the fat room against the thin one has to find the same gap as
+    // dragging the thin one against the fat one, or the pair would settle in
+    // two different places depending on the order they were touched.
+    const away = withOrigin(SECOND, { xMeters: 20, zMeters: 0 });
+    const floor = { ...FLOOR, rooms: [THICK_FIRST, away] };
+    const width = part(THICK_FIRST).widthMeters;
+
+    const thinMoved = snapRoomOrigin(floor, away, {
+      xMeters: 4.26,
+      zMeters: 0,
+    }).xMeters;
+    const fatMoved = snapRoomOrigin(
+      {
+        ...floor,
+        rooms: [withOrigin(away, { xMeters: 4.3, zMeters: 0 }), THICK_FIRST],
+      },
+      THICK_FIRST,
+      { xMeters: 0.04, zMeters: 0 },
+    ).xMeters;
+
+    // The thin room moved east lands a fat wall past the fat room's face; the
+    // fat room moved west leaves a fat wall before the thin room's face. Same
+    // gap either way, which is the whole point of a symmetric rule.
+    expect(thinMoved).toBeCloseTo(4.3, 10);
+    expect(thinMoved - (fatMoved + width)).toBeCloseTo(FAT, 10);
+  });
+
+  it("resizes a wall onto the thicker gap as well", () => {
+    const east = withOrigin(SECOND, { xMeters: 4.3, zMeters: 0 });
+    const floor = { ...FLOOR, rooms: [THICK_FIRST, east] };
+
+    // Pulling the first room's east wall out toward its neighbour lands on 4,
+    // which is the fat partition's width short of the neighbour's face.
+    const resized = snapRoomResize(floor, THICK_FIRST, "east", 3.97);
+
+    expect(part(resized).widthMeters).toBeCloseTo(4, 10);
+  });
+
+  it("leaves a room being drawn on the floor's own thickness", () => {
+    // A rectangle being dragged out is not a room yet, so it has nothing of
+    // its own to declare — but its neighbour still does, and the fatter wins.
+    expect(snapRoomEdge(MIXED, "x", 4.28)).toBeCloseTo(4.3, 10);
   });
 });

@@ -30,8 +30,10 @@ import type { Project } from "@/domain/project";
  * 9. Walls split into exterior and interior thickness; a part wall may be
  *    left open. Existing projects keep one thickness for both, nothing open.
  * 10. Added the traceable plan underlay. Existing projects have none.
+ * 11. A room may override either wall thickness. Existing rooms take the
+ *     floor's, which is what they always did.
  */
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;
 
 /** Meters, cents, and the rest are all plain finite numbers on the way in. */
 const finiteNumber = z
@@ -76,6 +78,10 @@ const roomSchema = z.object({
   heightMeters: finiteNumber,
   parts: z.array(roomPartSchema).min(1),
   openings: z.array(openingSchema),
+  // Null is the ordinary case and means "whatever the floor says". A number
+  // is a thing somebody measured about this room in particular.
+  exteriorWallThicknessMeters: finiteNumber.nullable(),
+  interiorWallThicknessMeters: finiteNumber.nullable(),
 });
 
 const floorSchema = z.object({
@@ -369,6 +375,32 @@ const MIGRATIONS: Record<number, (document: object) => object> = {
     // was traced from nothing, which is an underlay of null.
     project: { ...projectOf(document), underlay: null },
   }),
+  10: (document) => {
+    const project = projectOf(document) as Record<string, unknown>;
+    const floor = objectOf(project.floor);
+    const rooms = Array.isArray(floor.rooms) ? floor.rooms : [];
+    return {
+      ...document,
+      version: 11,
+      project: {
+        ...project,
+        floor: {
+          ...floor,
+          // Version 11 let a room declare its own wall thicknesses. Every
+          // stored room was built out of the floor's two numbers, and null
+          // is how a room says exactly that. The floor's own values are left
+          // alone: the 8" default is what a *new* apartment starts at, and
+          // silently thickening somebody's measured shell would be inventing
+          // a dimension they never typed.
+          rooms: rooms.map((value) => ({
+            ...objectOf(value),
+            exteriorWallThicknessMeters: null,
+            interiorWallThicknessMeters: null,
+          })),
+        },
+      },
+    };
+  },
 };
 
 /**

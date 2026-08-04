@@ -45,6 +45,7 @@ import {
   drawnRoom,
   floorAreaSquareMeters,
   floorBounds,
+  maxWallThicknessMeters,
   metersAlongOpeningWall,
   moveOpening,
   openingAtPoint,
@@ -66,7 +67,6 @@ import {
   snapRoomPartOrigin,
   snapRoomPartResize,
   snapRoomResize,
-  wallKindThicknessMeters,
   wallPlacementAt,
   wallOutwardNormalOnFloor,
   wallStretches,
@@ -1580,14 +1580,6 @@ function pointerReachMeters(floor: Floor, projection: PlanProjection): number {
   );
 }
 
-/** The thicker of the two walls: the reach that always spans a band. */
-function maxWallThicknessMeters(floor: Floor): number {
-  return Math.max(
-    floor.exteriorWallThicknessMeters,
-    floor.interiorWallThicknessMeters,
-  );
-}
-
 function replaceOpening(room: Room, next: Opening): Room {
   return {
     ...room,
@@ -1633,7 +1625,7 @@ function fittedRect(
   floor: Floor,
   underlay: PlanUnderlay | null,
 ): { origin: FloorPoint; extent: FloorExtent } {
-  const thickness = floor.exteriorWallThicknessMeters;
+  const thickness = maxWallThicknessMeters(floor);
   const { origin, extent } = floorBounds(floor);
   let west = origin.xMeters - thickness;
   let north = origin.zMeters - thickness;
@@ -2029,9 +2021,7 @@ function drawRoomWalls(
           alongMeters >= one.startMeters - 0.002 &&
           alongMeters <= one.endMeters + 0.002,
       );
-      return stretch === undefined
-        ? 0
-        : wallKindThicknessMeters(floor, stretch.kind);
+      return stretch?.thicknessMeters ?? 0;
     };
 
     inPartFrame(context, frame, part, (widthPixels, depthPixels) => {
@@ -2041,7 +2031,7 @@ function drawRoomWalls(
             ? part.widthMeters
             : part.depthMeters;
         for (const stretch of sides[wall]) {
-          const thickness = wallKindThicknessMeters(floor, stretch.kind);
+          const thickness = stretch.thicknessMeters;
           if (thickness <= 0) {
             continue;
           }

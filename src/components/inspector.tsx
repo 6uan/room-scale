@@ -29,6 +29,7 @@ import {
   type PlacedFurniture,
 } from "@/domain/furniture";
 import {
+  WALL_THICKNESS_LIMITS,
   floorAreaSquareMeters,
   floorBounds,
   ROOM_ORIGIN_LIMITS,
@@ -50,7 +51,6 @@ import type { PlanUnderlay } from "@/domain/project";
 import { useState } from "react";
 
 /** A stud wall is about 0.114 m; a masonry one is thicker. */
-const WALL_THICKNESS_LIMITS = { minMeters: 0.02, maxMeters: 0.6 };
 
 export type InspectorProps = {
   floor: Floor;
@@ -172,6 +172,10 @@ function FloorInspector({
         Two numbers because an apartment has two kinds of wall: the shell and
         the partitions. Which walls are which is worked out from the rooms —
         a wall is interior where another room stands on its far side.
+
+        They are the apartment's defaults rather than its only answer: a room
+        may declare its own from its own panel. Almost none do, which is why
+        these two stay here and the override is folded away over there.
       */}
       <NumberField
         label="Exterior wall thickness"

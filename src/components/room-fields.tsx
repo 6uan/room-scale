@@ -1,6 +1,7 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
+import { ChevronRight, Plus, Trash2, Undo2 } from "lucide-react";
+import { useState } from "react";
 import { AngleField } from "@/components/angle-field";
 import { IconButton, LabelledButton } from "@/components/icon-button";
 import { NumberField } from "@/components/number-field";
@@ -9,6 +10,9 @@ import {
   ROOM_LENGTH_LIMITS,
   ROOM_ORIGIN_LIMITS,
   WALL_SIDES,
+  WALL_THICKNESS_LIMITS,
+  exteriorThicknessMeters,
+  interiorThicknessMeters,
   roomFloorAreaSquareMeters,
   snapRoomOrigin,
   snapRoomResize,
@@ -19,6 +23,7 @@ import {
   withRoomPartOrigin,
   withRoomPartRotation,
   withRoomPartWallOpen,
+  withRoomWallThickness,
   type Floor,
   type OpeningKind,
   type Room,
@@ -26,6 +31,7 @@ import {
 } from "@/domain/room";
 import {
   displayUnitSuffix,
+  displayValueFromMeters,
   formatArea,
   type DisplayUnit,
 } from "@/domain/units";
@@ -186,6 +192,14 @@ export function RoomFields({
         onRemoveOpening={(opening) => onRemoveOpening?.(opening.id)}
       />
 
+      <WallThicknessFields
+        floor={floor}
+        room={room}
+        unit={unit}
+        onChange={onChange}
+        onGestureEnd={onGestureEnd}
+      />
+
       <div className="flex justify-end">
         <LabelledButton
           label={`Remove ${name}`}
@@ -194,6 +208,126 @@ export function RoomFields({
           onClick={onRemove}
         />
       </div>
+    </div>
+  );
+}
+
+/** The two thicknesses, named the way they read in the summary line. */
+const WALL_KINDS = [
+  { kind: "exterior", noun: "shell", label: "Exterior wall thickness" },
+  { kind: "interior", noun: "partitions", label: "Interior wall thickness" },
+] as const;
+
+/**
+ * A room's own wall thicknesses, folded away until somebody wants them.
+ *
+ * Almost every room is built out of whatever the apartment is built out of,
+ * and a pair of fields repeating the same two numbers in fifteen rooms would
+ * be fifteen chances to disagree with the plan. So it collapses to one line
+ * that reads out what this room's walls actually are and where those numbers
+ * came from — the shape a settings row takes when its value matters more often
+ * than its controls do.
+ *
+ * Opened, the fields show the inherited numbers rather than empty boxes:
+ * typing over one is what makes it this room's, and "Use the apartment's"
+ * hands it back. A field that started blank would be asking for a measurement
+ * where the honest answer is already on the screen.
+ */
+function WallThicknessFields({
+  floor,
+  room,
+  unit,
+  onChange,
+  onGestureEnd,
+}: {
+  floor: Floor;
+  room: Room;
+  unit: DisplayUnit;
+  onChange: (room: Room, gesture?: string) => void;
+  onGestureEnd: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const name = room.name === "" ? "Room" : room.name;
+  const own =
+    room.exteriorWallThicknessMeters !== null ||
+    room.interiorWallThicknessMeters !== null;
+
+  // In the unit the fields below are typed in, rather than through
+  // `formatLength` — a wall is never feet, and `0' 4.5"` is a reading nobody
+  // takes off a tape.
+  const summary = WALL_KINDS.map(({ kind, noun }) => {
+    const meters =
+      kind === "exterior"
+        ? exteriorThicknessMeters(floor, room)
+        : interiorThicknessMeters(floor, room);
+    const value = displayValueFromMeters(meters, unit);
+    return `${Number(value.toFixed(2))} ${displayUnitSuffix(unit)} ${noun}`;
+  }).join(", ");
+
+  return (
+    <div className="flex flex-col gap-3 border-t border-black/10 pt-4 dark:border-white/15">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((was) => !was)}
+        className="flex min-w-0 items-center gap-2 text-left"
+      >
+        <ChevronRight
+          aria-hidden="true"
+          className={`size-3.5 shrink-0 opacity-50 transition-transform ${open ? "rotate-90" : ""}`}
+        />
+        <span className="text-xs font-medium">Walls</span>
+        <span className="min-w-0 flex-1 truncate text-right text-xs opacity-50">
+          {summary}
+          {own ? "" : ", from the apartment"}
+        </span>
+      </button>
+
+      {open ? (
+        <div className="flex flex-col gap-3">
+          <p className="text-xs leading-relaxed opacity-60">
+            {own
+              ? `Measured for ${name} in particular. Every other room keeps the apartment's.`
+              : "The apartment's, until this room is measured on its own. A bathroom's plumbing wall is fatter than the partitions around it."}
+          </p>
+          {WALL_KINDS.map(({ kind, label }) => {
+            const overridden =
+              (kind === "exterior"
+                ? room.exteriorWallThicknessMeters
+                : room.interiorWallThicknessMeters) !== null;
+            return (
+              <div key={kind} className="flex flex-col gap-1.5">
+                <NumberField
+                  label={`${name} ${label.toLowerCase()}`}
+                  unit={unit}
+                  meters={
+                    kind === "exterior"
+                      ? exteriorThicknessMeters(floor, room)
+                      : interiorThicknessMeters(floor, room)
+                  }
+                  limits={WALL_THICKNESS_LIMITS}
+                  scrubGesture={`room-wall:${room.id}:${kind}`}
+                  onMetersChange={(meters, gesture) =>
+                    onChange(withRoomWallThickness(room, kind, meters), gesture)
+                  }
+                  onGestureEnd={onGestureEnd}
+                />
+                {overridden ? (
+                  <div className="flex justify-end">
+                    <LabelledButton
+                      label={`Use the apartment's ${label.toLowerCase()}`}
+                      icon={Undo2}
+                      onClick={() =>
+                        onChange(withRoomWallThickness(room, kind, null))
+                      }
+                    />
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
     </div>
   );
 }
