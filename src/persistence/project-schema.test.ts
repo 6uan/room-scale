@@ -372,6 +372,42 @@ describe("readStoredProject", () => {
     ).toBe(false);
   });
 
+  it("gives a version 9 project no underlay, which is what it had", () => {
+    const project = createProject();
+    const { underlay, ...withoutUnderlay } = project;
+    void underlay;
+    const version9 = {
+      id: "current",
+      version: 9,
+      updatedAt: 1_700_000_000_000,
+      project: withoutUnderlay,
+    };
+
+    const result = readStoredProject(version9);
+
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.project.underlay).toBeNull();
+  });
+
+  it("keeps a calibrated underlay through the round trip", () => {
+    const project = {
+      ...createProject(),
+      underlay: {
+        imageDataUrl: "data:image/png;base64,x",
+        imageWidthPixels: 800,
+        imageHeightPixels: 600,
+        metersPerPixel: 0.0125,
+        origin: { xMeters: -4, zMeters: -3 },
+        visible: true,
+      },
+    };
+    const result = readStoredProject(
+      toStoredProject("current", project, 1_700_000_000_000),
+    );
+
+    expect(result.ok && result.project.underlay).toEqual(project.underlay);
+  });
+
   it("refuses a part whose rotation is missing at the current version", () => {
     const project = createProject();
     const room = project.floor.rooms[0];

@@ -25,16 +25,20 @@ import type { FloorPoint } from "@/domain/geometry";
 import {
   activeInstances,
   buildChecklist,
+  calibratedUnderlay,
+  createUnderlay,
   duplicateLayout,
   nextId,
   nextLayoutName,
   renameLayout,
   type Layout,
 } from "@/domain/project";
+import { readPlanImage } from "@/components/underlay-image";
 import {
   createOpening,
   createRoom,
   drawnRoom,
+  floorBounds,
   roomBounds,
   withOrigin,
   withOpenings,
@@ -58,10 +62,12 @@ import { useProjectStore } from "@/state/project-store";
  */
 export function Workspace() {
   const floor = useProjectStore((state) => state.project.floor);
+  const underlay = useProjectStore((state) => state.project.underlay);
   const unit = useProjectStore((state) => state.project.displayUnit);
   const products = useProjectStore((state) => state.project.products);
   const instances = useProjectStore((state) => activeInstances(state.project));
   const setFloor = useProjectStore((state) => state.setFloor);
+  const setUnderlay = useProjectStore((state) => state.setUnderlay);
   const setUnit = useProjectStore((state) => state.setDisplayUnit);
   const setProducts = useProjectStore((state) => state.setProducts);
   const setInstances = useProjectStore((state) => state.setInstances);
@@ -87,6 +93,13 @@ export function Workspace() {
   const [placingOpening, setPlacingOpening] = useState<{
     readonly roomId: string;
     readonly kind: OpeningKind;
+  } | null>(null);
+  /** Whether the plan is waiting for the underlay's calibration line. */
+  const [calibrating, setCalibrating] = useState(false);
+  /** The drawn line, held until its real length is typed and applied. */
+  const [calibrationLine, setCalibrationLine] = useState<{
+    readonly from: FloorPoint;
+    readonly to: FloorPoint;
   } | null>(null);
 
   const furniture = placedFurniture(instances, products);
@@ -153,6 +166,39 @@ export function Workspace() {
    * drag because it knows pixels; it has no business knowing how big a room
    * usually is, which is why the choice is made here.
    */
+  /** Reads the listing's plan, drops it under the grid, and asks for scale. */
+  async function addPlanImage(file: File): Promise<void> {
+    const image = await readPlanImage(file);
+    const { origin, extent } = floorBounds(floor);
+    setUnderlay(
+      createUnderlay(image.dataUrl, image.widthPixels, image.heightPixels, {
+        xMeters: origin.xMeters + extent.widthMeters / 2,
+        zMeters: origin.zMeters + extent.depthMeters / 2,
+      }),
+    );
+    // Straight into calibration: an unscaled plan is not yet a measurement.
+    setDrawingRoom(false);
+    setPlacingOpening(null);
+    setCalibrationLine(null);
+    setCalibrating(true);
+  }
+
+  /** The typed length reaches the drawn line, and the image takes its scale. */
+  function applyCalibration(realMeters: number): void {
+    if (underlay === null || calibrationLine === null) {
+      return;
+    }
+    setUnderlay(
+      calibratedUnderlay(
+        underlay,
+        calibrationLine.from,
+        calibrationLine.to,
+        realMeters,
+      ),
+    );
+    setCalibrationLine(null);
+  }
+
   function drawRoom(from: FloorPoint, to: FloorPoint | null): void {
     const id = nextId(
       "room",
@@ -356,12 +402,13 @@ export function Workspace() {
       // wherever they are. The plan handles it too, but pressing "Add room"
       // leaves focus on the button rather than on the plan.
       if (
-        (drawingRoom || placingOpening !== null) &&
+        (drawingRoom || placingOpening !== null || calibrating) &&
         pressIs("deselect", event)
       ) {
         event.preventDefault();
         setDrawingRoom(false);
         setPlacingOpening(null);
+        setCalibrating(false);
       } else if (pressIs("undo", event)) {
         event.preventDefault();
         undo();
@@ -512,6 +559,10 @@ export function Workspace() {
               placingOpening={placingOpening}
               onPlaceOpening={placeOpening}
               onPlaceOpeningEnd={() => setPlacingOpening(null)}
+              underlay={underlay}
+              calibrating={calibrating}
+              onCalibrateLine={(from, to) => setCalibrationLine({ from, to })}
+              onCalibrateEnd={() => setCalibrating(false)}
               onDropProduct={(productId, at) => {
                 const product = products.find((one) => one.id === productId);
                 if (product !== undefined) {
@@ -548,6 +599,18 @@ export function Workspace() {
             onSelect={setSelection}
             onFloorChange={setFloor}
             onUnitChange={setUnit}
+            underlay={underlay}
+            calibrating={calibrating}
+            calibrationLine={calibrationLine}
+            onAddPlanImage={(file) => {
+              void addPlanImage(file);
+            }}
+            onCalibrateToggle={() => {
+              setCalibrationLine(null);
+              setCalibrating((on) => !on);
+            }}
+            onApplyCalibration={applyCalibration}
+            onUnderlayChange={setUnderlay}
             onRoomChange={(room, gesture) =>
               setFloor(withRoom(floor, room), gesture)
             }

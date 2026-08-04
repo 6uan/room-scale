@@ -20,9 +20,12 @@ import {
   withLayoutInstances,
   type Layout,
 } from "./layout";
+import type { PlanUnderlay } from "./underlay";
 
 export type Project = {
   readonly floor: Floor;
+  /** The listing's plan under the canvas, or null once measured for real. */
+  readonly underlay: PlanUnderlay | null;
   readonly products: readonly FurnitureProduct[];
   /** Arrangements of those products on that floor. Always at least one. */
   readonly layouts: readonly Layout[];
@@ -37,11 +40,19 @@ export function createProject(): Project {
   const first = createLayout(EMPTY_LAYOUT.id, EMPTY_LAYOUT.name);
   return {
     floor: DEFAULT_FLOOR,
+    underlay: null,
     products: [],
     layouts: [first],
     activeLayoutId: first.id,
     displayUnit: "imperial",
   };
+}
+
+export function withUnderlay(
+  project: Project,
+  underlay: PlanUnderlay | null,
+): Project {
+  return { ...project, underlay };
 }
 
 /**

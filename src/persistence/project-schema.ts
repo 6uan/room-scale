@@ -29,8 +29,9 @@ import type { Project } from "@/domain/project";
  * 8. A part may be turned about its corner. Existing parts are square: zero.
  * 9. Walls split into exterior and interior thickness; a part wall may be
  *    left open. Existing projects keep one thickness for both, nothing open.
+ * 10. Added the traceable plan underlay. Existing projects have none.
  */
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;
 
 /** Meters, cents, and the rest are all plain finite numbers on the way in. */
 const finiteNumber = z
@@ -110,8 +111,24 @@ const layoutSchema = z.object({
   instances: z.array(instanceSchema),
 });
 
+const underlaySchema = z.object({
+  imageDataUrl: z.string().min(1),
+  imageWidthPixels: finiteNumber.refine(
+    (value) => value > 0,
+    "must be positive",
+  ),
+  imageHeightPixels: finiteNumber.refine(
+    (value) => value > 0,
+    "must be positive",
+  ),
+  metersPerPixel: finiteNumber.refine((value) => value > 0, "must be positive"),
+  origin: z.object({ xMeters: finiteNumber, zMeters: finiteNumber }),
+  visible: z.boolean(),
+});
+
 const projectSchema = z.object({
   floor: floorSchema,
+  underlay: underlaySchema.nullable(),
   products: z.array(productSchema),
   // At least one: a project with nowhere to put furniture is not a project,
   // and every accessor is written knowing there is one to fall back to.
@@ -345,6 +362,13 @@ const MIGRATIONS: Record<number, (document: object) => object> = {
       },
     };
   },
+  9: (document) => ({
+    ...document,
+    version: 10,
+    // Version 10 put the listing's plan under the canvas. A stored project
+    // was traced from nothing, which is an underlay of null.
+    project: { ...projectOf(document), underlay: null },
+  }),
 };
 
 /**

@@ -14,9 +14,10 @@ Two rules keep the order honest:
   Steps 4 to 10 are that question end to end. Everything after them makes the
   answer nicer to look at.
 
-Status: **step 18 is done.** Blocked openings (step 19) are set aside for
-now — the apartment on the screen matters more than that check — so the next
-work is entering the real apartment end to end, then step 20.
+Status: **step 18 is done, and the listing can be traced.** Blocked openings
+(step 19) are set aside — the apartment on the screen matters more than that
+check — so the next work is entering the real apartment over its own plan,
+then step 20.
 
 ## Near-term pull requests
 
@@ -33,6 +34,7 @@ calendar time.
 | Done — Step 18a      | Build an L-shaped or notched room from multiple axis-aligned rectangular parts, including persistence and validation             | **High**    | **Highest** | This expresses most currently impossible rooms without taking on rotation at the same time.                     |
 | Done — Step 18b      | Rotate room parts for diagonal walls                                                                                             | Medium      | High        | Required for the real plan, but only after the higher-leverage rectangular-part model is proven.                |
 | Done — Step 18 final | Mark edges open and distinguish exterior from interior wall thickness                                                            | Medium      | High        | Completes balconies, open living areas, and an honest apartment shell without bloating the first room-parts PR. |
+| Done — Trace listing | Put the listing's floor plan under the canvas, scaled by one measured line, and trace the rooms over it                          | **High**    | **Highest** | Entering the apartment was the thing stopping people — the recorded trigger for promoting this from deferred.   |
 | Deferred — 19        | Report furniture that blocks a door or passage                                                                                   | Medium      | Medium      | Set aside: a useful check, but the apartment on the screen and the furnishing answer matter more right now.     |
 | Deferred import      | Try a pasted product URL, with the existing paste-text flow as the permanent fallback                                            | Medium      | Medium      | It can remove typing on cooperative sites, but retailer rendering and anti-bot behavior cap its reliability.    |
 | Step 20              | Add the dimensionally correct perspective view                                                                                   | Medium      | Medium      | It increases confidence and comprehension, but does not unlock a measurement the plan cannot already answer.    |
@@ -781,10 +783,19 @@ Non-rectangular furniture footprints, and an accessibility audit against WCAG
 Non-rectangular **rooms** left this list at step 18: the apartment being planned
 has them, so the engine has to.
 
-Also considered and not scheduled: tracing the plan over a photograph of the
-listing's floor plan, calibrated by drawing a line of known length. It would
-make entering an apartment far easier and it breaks no rule — the image never
-leaves the machine, and it changes no measurement. It waits because a traced
-dimension is an eyeballed one, and steps 17 and 18 are about the numbers being
-right. Worth revisiting if entering the apartment still turns out to be the
-thing that stops people.
+**Tracing the listing's plan was considered here, deferred, and then built.**
+It waited because a traced dimension is an eyeballed one, with a recorded
+trigger: revisit it if entering the apartment turns out to be the thing that
+stops people. It was — the first real attempt at the two-bedroom plan proved
+it — so it shipped, as written: the image is dropped behind the canvas,
+scaled by one line drawn along a wall of known length, and traced over. The
+image never leaves the machine, is stored with the project so nothing is
+dropped twice, and changes no measurement — scaling anchors at the drawn
+line's midpoint so the measured wall stays put, everything traced still snaps
+and stays typeable, and the image is downscaled on ingest because it is a
+guide, not an archive.
+
+Not carried out of that: the underlay moves by typed X/Y only rather than by
+drag, one image covers the whole apartment, and a skewed photograph is not
+straightened — a listing PDF's plan is flat, and a phone photo of one can
+wait until it stops somebody.
