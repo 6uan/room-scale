@@ -1610,8 +1610,12 @@ test.describe("laying the apartment out", () => {
   }) => {
     await openWithUnreadableProject(page);
 
-    const notice = page.getByRole("alert");
-    await expect(notice).toContainText("could not be opened");
+    // Filtered by what it says: Next puts a route announcer of its own on the
+    // page with the same role, and it is empty.
+    const notice = page
+      .getByRole("alert")
+      .filter({ hasText: /could not be opened/ });
+    await expect(notice).toBeVisible();
 
     // A strip, not a panel. The number is generous — this guards against it
     // going back to a bordered card with a paragraph in it, rather than
