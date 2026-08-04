@@ -965,45 +965,56 @@ test.describe("laying the apartment out", () => {
     ).toBeVisible();
   });
 
-  test("traces the listing: an image is dropped, scaled by one line, and kept", async ({
+  test("traces the listing: an image is dropped, resized by a corner, and kept", async ({
     page,
   }) => {
     await openWithLivingRoom(page);
 
-    // The Apartment panel takes the image and goes straight to calibration.
+    // The Apartment panel takes the image and puts it straight under the grid.
     const apartment = details(page).getByRole("region", { name: "Apartment" });
     await apartment
       .locator('input[type="file"]')
       .setInputFiles("e2e/fixtures/plan.png");
-    await expect(
-      plan(page).getByText(/Drag a line along a wall you know/),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("img", { name: "The floor plan being traced" }),
-    ).toBeVisible();
-
-    // One line dragged across the plan…
-    const box = await planImage(page).boundingBox();
-    if (box === null) {
-      throw new Error("the plan has no box to point at");
-    }
-    const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-    await page.mouse.move(centre.x - 60, centre.y);
-    await page.mouse.down();
-    await page.mouse.move(centre.x + 60, centre.y, { steps: 6 });
-    await page.mouse.up();
-
-    // …is given its real length, and the image takes its scale from it.
-    await apartment.getByLabel(/real length/).fill("120");
-    await apartment.getByRole("button", { name: "Apply scale" }).click();
-    await expect(apartment.getByLabel(/real length/)).toHaveCount(0);
-
-    // The image survives a reload, and hides without being lost.
-    await page.reload();
     const image = page.getByRole("img", {
       name: "The floor plan being traced",
     });
     await expect(image).toBeVisible();
+
+    // Its size is a number, and it is the number the corner drags.
+    const width = apartment.getByLabel("Underlay width");
+    const dropped = Number(await width.inputValue());
+    expect(dropped).toBeGreaterThan(0);
+
+    // The south-east corner, pulled away from the image, makes it bigger.
+    const box = await image.boundingBox();
+    if (box === null) {
+      throw new Error("the underlay has no box to point at");
+    }
+    await page.mouse.move(box.x + box.width, box.y + box.height);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width + 80, box.y + box.height + 60, {
+      steps: 8,
+    });
+    await page.mouse.up();
+
+    await expect
+      .poll(async () => Number(await width.inputValue()))
+      .toBeGreaterThan(dropped);
+    // The proportions are kept, so the image is never a drawing that lies
+    // about one axis: it grew on both.
+    const grown = await image.boundingBox();
+    expect(grown?.width ?? 0).toBeGreaterThan(box.width);
+    expect(grown?.height ?? 0).toBeGreaterThan(box.height);
+
+    // A typed width is the exact path, and the top-left corner stays put.
+    await width.fill("240");
+    await expect(width).toHaveValue("240");
+
+    // The image survives a reload, and hides without being lost.
+    await page.reload();
+    await expect(
+      page.getByRole("img", { name: "The floor plan being traced" }),
+    ).toBeVisible();
     await details(page)
       .getByRole("region", { name: "Apartment" })
       .getByRole("button", { name: "Hide image" })

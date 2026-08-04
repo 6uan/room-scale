@@ -6,7 +6,6 @@ import {
   ImagePlus,
   PackageOpen,
   Pencil,
-  Ruler,
   Trash2,
 } from "lucide-react";
 import {
@@ -45,12 +44,14 @@ import {
   formatArea,
   formatCents,
   formatLength,
-  metersFromDisplayValue,
   type DisplayUnit,
 } from "@/domain/units";
-import type { FloorPoint } from "@/domain/geometry";
-import type { PlanUnderlay } from "@/domain/project";
-import { useState } from "react";
+import {
+  UNDERLAY_WIDTH_LIMITS,
+  underlayExtentMeters,
+  underlayWithWidth,
+  type PlanUnderlay,
+} from "@/domain/project";
 
 /** A stud wall is about 0.114 m; a masonry one is thicker. */
 
@@ -63,12 +64,7 @@ export type InspectorProps = {
   onSelect: (selection: Selection) => void;
   onFloorChange: (floor: Floor) => void;
   underlay: PlanUnderlay | null;
-  calibrating: boolean;
-  /** The drawn line waiting for its real length, or null. */
-  calibrationLine: { from: FloorPoint; to: FloorPoint } | null;
   onAddPlanImage: (file: File) => void;
-  onCalibrateToggle: () => void;
-  onApplyCalibration: (realMeters: number) => void;
   onUnderlayChange: (underlay: PlanUnderlay | null) => void;
   onRoomChange: (room: Room, gesture?: string) => void;
   onGestureEnd: () => void;
@@ -163,11 +159,7 @@ function FloorInspector({
   unit,
   onFloorChange,
   underlay,
-  calibrating,
-  calibrationLine,
   onAddPlanImage,
-  onCalibrateToggle,
-  onApplyCalibration,
   onUnderlayChange,
 }: InspectorProps) {
   const { extent } = floorBounds(floor);
@@ -180,11 +172,7 @@ function FloorInspector({
       <UnderlayFields
         underlay={underlay}
         unit={unit}
-        calibrating={calibrating}
-        calibrationLine={calibrationLine}
         onAddPlanImage={onAddPlanImage}
-        onCalibrateToggle={onCalibrateToggle}
-        onApplyCalibration={onApplyCalibration}
         onUnderlayChange={onUnderlayChange}
       />
       {/*
@@ -485,24 +473,14 @@ function ProductInspector({
 function UnderlayFields({
   underlay,
   unit,
-  calibrating,
-  calibrationLine,
   onAddPlanImage,
-  onCalibrateToggle,
-  onApplyCalibration,
   onUnderlayChange,
 }: {
   underlay: PlanUnderlay | null;
   unit: DisplayUnit;
-  calibrating: boolean;
-  calibrationLine: { from: FloorPoint; to: FloorPoint } | null;
   onAddPlanImage: (file: File) => void;
-  onCalibrateToggle: () => void;
-  onApplyCalibration: (realMeters: number) => void;
   onUnderlayChange: (underlay: PlanUnderlay | null) => void;
 }) {
-  const [lengthDraft, setLengthDraft] = useState("");
-
   return (
     <fieldset className="flex flex-col gap-2 border-b border-black/10 pb-4 dark:border-white/15">
       <legend className="sr-only">Plan underlay</legend>
@@ -520,13 +498,6 @@ function UnderlayFields({
           />
         ) : (
           <div className="flex items-center gap-0.5">
-            <IconButton
-              label="Calibrate scale"
-              icon={Ruler}
-              size="small"
-              pressed={calibrating}
-              onClick={onCalibrateToggle}
-            />
             <IconButton
               label={underlay.visible ? "Hide image" : "Show image"}
               icon={underlay.visible ? Eye : EyeOff}
@@ -553,35 +524,17 @@ function UnderlayFields({
         </p>
       ) : (
         <>
-          {calibrationLine === null ? null : (
-            <div className="flex items-end gap-2">
-              <label className="flex flex-col gap-1.5 text-sm font-medium">
-                The line&rsquo;s real length ({displayUnitSuffix(unit)})
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  step="any"
-                  min="0"
-                  value={lengthDraft}
-                  onChange={(event) => setLengthDraft(event.target.value)}
-                  className="w-28 rounded-md border border-black/15 bg-transparent px-2.5 py-1.5 text-sm tabular-nums dark:border-white/20"
-                />
-              </label>
-              <LabelledButton
-                label="Apply scale"
-                icon={Ruler}
-                onClick={() => {
-                  const value = Number(lengthDraft);
-                  if (Number.isFinite(value) && value > 0) {
-                    onApplyCalibration(metersFromDisplayValue(value, unit));
-                    setLengthDraft("");
-                  }
-                }}
-              />
-            </div>
-          )}
+          {/*
+            Where it is and how big it is, in one row.
 
-          <div className="grid grid-cols-2 gap-2">
+            The width used to be set by a tape-measure mode: arm the plan, drag
+            a line along a wall you knew, type its length, press Apply. Four
+            steps to reach one number — and a number nobody checks afterwards,
+            because the image is a guide and it is right when it looks right
+            against what is being drawn. It is a corner to drag now, and this
+            field for anyone who does know the width.
+          */}
+          <div className="grid grid-cols-3 gap-2">
             <NumberField
               label="Underlay X position"
               compactLabel="X"
@@ -608,12 +561,22 @@ function UnderlayFields({
                 })
               }
             />
+            <NumberField
+              label="Underlay width"
+              compactLabel="W"
+              unit={unit}
+              meters={underlayExtentMeters(underlay).widthMeters}
+              limits={UNDERLAY_WIDTH_LIMITS}
+              onMetersChange={(widthMeters) =>
+                onUnderlayChange(underlayWithWidth(underlay, widthMeters))
+              }
+            />
           </div>
 
           <p className="text-xs leading-relaxed opacity-60">
-            {calibrating
-              ? "Drag a line on the plan along a wall you know, then type its length."
-              : "Trace rooms over the image. It guides the drawing and changes no measurement."}
+            Drag a corner of the image to size it against what you are drawing;
+            its proportions are kept. It guides the drawing and changes no
+            measurement.
           </p>
         </>
       )}

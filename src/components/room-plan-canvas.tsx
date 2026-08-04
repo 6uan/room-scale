@@ -103,7 +103,13 @@ import {
   roundToDisplayUnit,
   type DisplayUnit,
 } from "@/domain/units";
-import { underlayExtentMeters, type PlanUnderlay } from "@/domain/project";
+import {
+  resizedUnderlay,
+  underlayCorners,
+  underlayExtentMeters,
+  type PlanUnderlay,
+  type UnderlayCorner,
+} from "@/domain/project";
 
 /**
  * Space kept around the apartment when it is fitted, so its walls are not
@@ -275,14 +281,7 @@ export type RoomPlanCanvasProps = {
   onPlaceOpeningEnd?: () => void;
   /** The listing's plan, drawn dimmed beneath everything and traced over. */
   underlay?: PlanUnderlay | null;
-  /**
-   * Whether the plan is waiting for the calibration line: one drag along a
-   * wall whose real length is known. A mode like drawing a room, for the same
-   * reason — the pointer means one thing at a time.
-   */
-  calibrating?: boolean;
-  onCalibrateLine?: (from: FloorPoint, to: FloorPoint) => void;
-  onCalibrateEnd?: () => void;
+  onUnderlayChange?: (underlay: PlanUnderlay) => void;
 };
 
 /**
@@ -367,11 +366,10 @@ type Drag =
       readonly fromPixel: PixelPoint;
     }
   | {
-      /** The calibration line being dragged along a known wall. */
-      readonly kind: "calibrate";
+      /** One corner of the underlay, sizing the image against the drawing. */
+      readonly kind: "underlay-resize";
       readonly pointerId: number;
-      readonly from: FloorPoint;
-      readonly fromPixel: PixelPoint;
+      readonly corner: UnderlayCorner;
     };
 
 /**
@@ -411,9 +409,7 @@ export function RoomPlanCanvas({
   onPlaceOpening,
   onPlaceOpeningEnd,
   underlay = null,
-  calibrating = false,
-  onCalibrateLine,
-  onCalibrateEnd,
+  onUnderlayChange,
 }: RoomPlanCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const dragRef = useRef<Drag | null>(null);
@@ -487,8 +483,24 @@ export function RoomPlanCanvas({
    */
   const [drawnTo, setDrawnTo] = useState<FloorPoint | null>(null);
 
-  /** The far end of the calibration line being dragged, for the same reason. */
-  const [calibrateTo, setCalibrateTo] = useState<FloorPoint | null>(null);
+  /**
+   * The underlay whose corners can be taken hold of, or null.
+   *
+   * Only while nothing is selected and no tool is armed — which is exactly
+   * when the panel carrying the image's own fields is the one on screen. The
+   * moment a room is selected to trace, the handles are out of the way of the
+   * drawing they are there to serve.
+   */
+  const resizableUnderlay =
+    underlay !== null &&
+    underlay.visible &&
+    !drawing &&
+    placingOpening === null &&
+    selectedId === null &&
+    selectedRoomId === null &&
+    selectedOpeningId === null
+      ? underlay
+      : null;
 
   const [active, setActive] = useState(false);
   const activeRef = useRef(active);
@@ -532,10 +544,7 @@ export function RoomPlanCanvas({
         drawnTo === null || dragRef.current?.kind !== "draw"
           ? null
           : { from: dragRef.current.from, to: drawnTo },
-      calibrationLine:
-        calibrateTo === null || dragRef.current?.kind !== "calibrate"
-          ? null
-          : { from: dragRef.current.from, to: calibrateTo },
+      underlayHandles: resizableUnderlay,
     });
   }, [
     floor,
@@ -549,7 +558,7 @@ export function RoomPlanCanvas({
     size,
     projection,
     drawnTo,
-    calibrateTo,
+    resizableUnderlay,
   ]);
 
   /**
@@ -643,15 +652,24 @@ export function RoomPlanCanvas({
 
     const box = canvas.getBoundingClientRect();
 
-    // Calibration takes the drag before anything else looks at it: in this
-    // mode the pointer is a tape measure laid along one known wall.
-    if (calibrating) {
+    // The underlay's own corners, before anything else looks at the press.
+    // They are only offered while nothing is selected, which is exactly when
+    // the panel showing the image's fields is the one on screen — so they are
+    // never in the way of tracing a room over the picture.
+    const underlayCorner =
+      resizableUnderlay === null
+        ? null
+        : underlayCornerAt(resizableUnderlay, projectionRef.current, {
+            x: event.clientX - box.left,
+            y: event.clientY - box.top,
+          });
+    if (underlayCorner !== null) {
       dragRef.current = {
-        kind: "calibrate",
+        kind: "underlay-resize",
         pointerId: event.pointerId,
-        from: point,
-        fromPixel: { x: event.clientX - box.left, y: event.clientY - box.top },
+        corner: underlayCorner,
       };
+      setCursor("move");
       canvas.focus();
       canvas.setPointerCapture?.(event.pointerId);
       return;
@@ -905,6 +923,21 @@ export function RoomPlanCanvas({
       return cursorForWall(openingHandle.wall);
     }
 
+    const overUnderlay =
+      resizableUnderlay === null
+        ? null
+        : underlayCornerAt(resizableUnderlay, projectionRef.current, {
+            x: event.clientX - box.left,
+            y: event.clientY - box.top,
+          });
+    if (overUnderlay !== null) {
+      // The image is never turned, so the diagonal a corner stretches along is
+      // the one it looks like it stretches along.
+      return overUnderlay === "north-west" || overUnderlay === "south-east"
+        ? "resize-nwse"
+        : "resize-nesw";
+    }
+
     const grabbed = handleAt(
       floor,
       selectedRoomId,
@@ -1154,8 +1187,12 @@ export function RoomPlanCanvas({
       return;
     }
 
-    if (drag.kind === "calibrate") {
-      setCalibrateTo(floorPointAt(canvas, event, projectionRef.current));
+    if (drag.kind === "underlay-resize") {
+      const point = floorPointAt(canvas, event, projectionRef.current);
+      if (underlay === null || point === null) {
+        return;
+      }
+      onUnderlayChange?.(resizedUnderlay(underlay, drag.corner, point));
       return;
     }
 
@@ -1256,30 +1293,6 @@ export function RoomPlanCanvas({
       return;
     }
 
-    if (drag.kind === "calibrate") {
-      const canvas = canvasRef.current;
-      const box = canvas?.getBoundingClientRect();
-      const to = canvas && floorPointAt(canvas, event, projectionRef.current);
-      const travelled =
-        box === undefined
-          ? 0
-          : Math.hypot(
-              event.clientX - box.left - drag.fromPixel.x,
-              event.clientY - box.top - drag.fromPixel.y,
-            );
-      dragRef.current = null;
-      setCalibrateTo(null);
-      setCursor("none");
-      canvas?.releasePointerCapture?.(event.pointerId);
-      // A click was a slip, and the mode stays armed for the real line. A
-      // drag is the line, and the length field takes over from here.
-      if (to !== null && travelled >= DRAW_THRESHOLD_PIXELS) {
-        onCalibrateLine?.(drag.from, to);
-        onCalibrateEnd?.();
-      }
-      return;
-    }
-
     if (drag.kind === "draw") {
       const canvas = canvasRef.current;
       const box = canvas?.getBoundingClientRect();
@@ -1314,16 +1327,13 @@ export function RoomPlanCanvas({
 
   function handleKeyDown(event: KeyboardEvent<HTMLCanvasElement>): void {
     if (pressIs("deselect", event)) {
-      if (drawing || placingOpening !== null || calibrating) {
+      if (drawing || placingOpening !== null) {
         // Called off rather than deselecting: in this mode Escape is the way
         // out of the mode, which is the nearer of the two things it could mean.
         dragRef.current = null;
         setDrawnTo(null);
-        setCalibrateTo(null);
         if (drawing) {
           onDrawEnd?.();
-        } else if (calibrating) {
-          onCalibrateEnd?.();
         } else {
           onPlaceOpeningEnd?.();
         }
@@ -1414,7 +1424,7 @@ export function RoomPlanCanvas({
           onGestureEnd?.();
         }}
         className={`block h-full w-full touch-none outline-none ${
-          drawing || placingOpening !== null || calibrating
+          drawing || placingOpening !== null
             ? "cursor-crosshair"
             : CURSORS[cursor]
         }`}
@@ -1465,19 +1475,12 @@ export function RoomPlanCanvas({
         </p>
       )}
 
-      {calibrating ? (
-        <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-[13px] text-white dark:bg-white/15">
-          Drag a line along a wall you know the length of. Esc to stop.
-        </p>
-      ) : null}
-
       {/* Said once, where it is needed, and gone as soon as it is not — and
           never on an empty floor, where the invitation in the middle of the
           canvas is already saying something more useful. */}
       {active ||
       drawing ||
       placingOpening !== null ||
-      calibrating ||
       floor.rooms.length === 0 ? null : (
         <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-[13px] text-white dark:bg-white/15">
           {selectedRoomPartId !== null
@@ -1675,6 +1678,24 @@ function openingHandleAt(
         jamb,
         wall: found.opening.wall,
       };
+    }
+  }
+  return null;
+}
+
+/** The underlay corner under a pixel, if one is within reach of it. */
+function underlayCornerAt(
+  underlay: PlanUnderlay,
+  projection: PlanProjection,
+  at: PixelPoint,
+): UnderlayCorner | null {
+  for (const { corner, at: point } of underlayCorners(underlay)) {
+    const pixel = projectPoint(projection, point);
+    if (
+      Math.abs(pixel.x - at.x) <= HANDLE_GRAB_PIXELS &&
+      Math.abs(pixel.y - at.y) <= HANDLE_GRAB_PIXELS
+    ) {
+      return corner;
     }
   }
   return null;
@@ -1891,11 +1912,8 @@ type DrawOptions = {
   fontFamily: string;
   /** A room being dragged out right now, drawn as an outline over everything. */
   drawnRect?: { readonly from: FloorPoint; readonly to: FloorPoint } | null;
-  /** The calibration line being dragged along a known wall. */
-  calibrationLine?: {
-    readonly from: FloorPoint;
-    readonly to: FloorPoint;
-  } | null;
+  /** The underlay whose corners can be dragged, or null when none can. */
+  underlayHandles?: PlanUnderlay | null;
 };
 
 /** Everything the drawing helpers need to place a floor coordinate in pixels. */
@@ -1921,7 +1939,7 @@ function drawPlan(
     color,
     fontFamily,
     drawnRect = null,
-    calibrationLine = null,
+    underlayHandles = null,
   }: DrawOptions,
 ): void {
   context.clearRect(0, 0, viewport.width, viewport.height);
@@ -1994,8 +2012,8 @@ function drawPlan(
   if (drawnRect !== null) {
     drawRoomPreview(context, frame, floor, drawnRect);
   }
-  if (calibrationLine !== null) {
-    drawCalibrationLine(context, frame, calibrationLine);
+  if (underlayHandles !== null) {
+    drawUnderlayHandles(context, frame, underlayHandles);
   }
 }
 
@@ -2003,37 +2021,28 @@ function drawPlan(
  * The tape being laid along a known wall: the line, and a tick across each
  * end the way a dimension line closes, so both ends read as ends.
  */
-function drawCalibrationLine(
+/**
+ * A grab at each corner of the underlay, in the same square the room handles
+ * use — it is the same kind of thing, and the image is one more rectangle on
+ * the plan that has a size worth getting right.
+ */
+function drawUnderlayHandles(
   context: CanvasRenderingContext2D,
   frame: PlanFrame,
-  line: { readonly from: FloorPoint; readonly to: FloorPoint },
+  underlay: PlanUnderlay,
 ): void {
-  const a = frame.toPixels(line.from);
-  const b = frame.toPixels(line.to);
-  const length = Math.hypot(b.x - a.x, b.y - a.y);
-  if (length <= 0) {
-    return;
-  }
-  const tick = 6;
-  const across = {
-    x: (-(b.y - a.y) / length) * tick,
-    y: ((b.x - a.x) / length) * tick,
-  };
-
   context.save();
-  context.strokeStyle = frame.color;
-  context.lineWidth = 2;
-  strokeSegments(context, [
-    [a, b],
-    [
-      { x: a.x - across.x, y: a.y - across.y },
-      { x: a.x + across.x, y: a.y + across.y },
-    ],
-    [
-      { x: b.x - across.x, y: b.y - across.y },
-      { x: b.x + across.x, y: b.y + across.y },
-    ],
-  ]);
+  context.fillStyle = frame.color;
+  context.globalAlpha = SYMBOL_ALPHA;
+  for (const { at } of underlayCorners(underlay)) {
+    const point = frame.toPixels(at);
+    context.fillRect(
+      point.x - HANDLE_PIXELS / 2,
+      point.y - HANDLE_PIXELS / 2,
+      HANDLE_PIXELS,
+      HANDLE_PIXELS,
+    );
+  }
   context.restore();
 }
 
