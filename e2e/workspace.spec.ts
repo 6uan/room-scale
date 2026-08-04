@@ -1,5 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
 
+/**
+ * The shell thickness the plan pads its fitted view by, in inches.
+ *
+ * `fittedRect` frames the apartment plus its fattest wall all round, so every
+ * pixel worked out below depends on this. It is the apartment's exterior
+ * default — the partitions are thinner and never set the frame.
+ */
+const SHELL_INCHES = 8;
+
 function contents(page: Page) {
   return page.getByRole("complementary", { name: "Contents" });
 }
@@ -492,8 +501,8 @@ test.describe("laying the apartment out", () => {
     const metres = (inches: number) => inches * 0.0254;
     const padding = 40;
     const scale = Math.min(
-      (box.width - padding * 2) / metres(168 + 4.5 * 2),
-      (box.height - padding * 2) / metres(144 + 4.5 * 2),
+      (box.width - padding * 2) / metres(168 + SHELL_INCHES * 2),
+      (box.height - padding * 2) / metres(144 + SHELL_INCHES * 2),
     );
     const middle = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
     // Clear of the existing centered north window: 36" from the west corner.
@@ -604,7 +613,7 @@ test.describe("laying the apartment out", () => {
       throw new Error("the plan has no box to point at");
     }
     const inches = (value: number) => value * 0.0254;
-    const wall = inches(4.5);
+    const wall = inches(SHELL_INCHES);
     const partTwoWest = 0;
     const partTwoNorth = 72 - 0.1 / 0.0254;
     const partTwoWidth = 126;
@@ -716,7 +725,7 @@ test.describe("laying the apartment out", () => {
       throw new Error("the plan has no box to point at");
     }
     const inches = (value: number) => value * 0.0254;
-    const wall = inches(4.5);
+    const wall = inches(SHELL_INCHES);
     const scale = Math.min(
       (box.width - 80) / (inches(168) + wall * 2),
       (box.height - 80) / (inches(144) + wall * 2),
@@ -852,6 +861,50 @@ test.describe("laying the apartment out", () => {
     ).toHaveValue("9");
   });
 
+  test("lets one room be built out of something else, and hands it back", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await contents(page).getByRole("button", { name: "Living room" }).click();
+    const room = details(page).getByRole("region", { name: "Living room" });
+
+    // Folded away, saying what this room's walls are and where they came from.
+    const walls = room.getByRole("button", { name: /^Walls/ });
+    await expect(walls).toHaveAttribute("aria-expanded", "false");
+    await expect(walls).toContainText("8 in shell, 4.5 in partitions");
+    await expect(walls).toContainText("from the apartment");
+
+    await walls.click();
+    const partition = room.getByLabel("Living room interior wall thickness");
+    // Opened onto the inherited number, not an empty box.
+    await expect(partition).toHaveValue("4.5");
+
+    await partition.fill("7");
+    await expect(walls).toContainText("8 in shell, 7 in partitions");
+    await expect(walls).not.toContainText("from the apartment");
+    // The apartment's own default is untouched by one room measuring itself.
+    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await page.reload();
+    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await expect(
+      details(page)
+        .getByRole("region", { name: "Living room" })
+        .getByRole("button", { name: /^Walls/ }),
+    ).toContainText("8 in shell, 7 in partitions");
+
+    // And handed back, it reads the apartment's again.
+    const reopened = details(page).getByRole("region", { name: "Living room" });
+    await reopened.getByRole("button", { name: /^Walls/ }).click();
+    await reopened
+      .getByRole("button", {
+        name: "Use the apartment's interior wall thickness",
+      })
+      .click();
+    await expect(
+      reopened.getByRole("button", { name: /^Walls/ }),
+    ).toContainText("8 in shell, 4.5 in partitions");
+  });
+
   test("opens a wall into a railing that refuses a door", async ({ page }) => {
     await page.goto("/");
     await contents(page).getByRole("button", { name: "Living room" }).click();
@@ -931,8 +984,8 @@ test.describe("laying the apartment out", () => {
     // handle remains on the original one-room projection while Room 2 is moved.
     const metres = (inches: number) => inches * 0.0254;
     const padding = 40;
-    const across = metres(168 + 4.5 * 2);
-    const down = metres(144 + 4.5 * 2);
+    const across = metres(168 + SHELL_INCHES * 2);
+    const down = metres(144 + SHELL_INCHES * 2);
     const scale = Math.min(
       (box.width - padding * 2) / across,
       (box.height - padding * 2) / down,
@@ -1057,8 +1110,8 @@ test.describe("laying the apartment out", () => {
     // the same arithmetic createPlanProjection does.
     const metres = (inches: number) => inches * 0.0254;
     const padding = 40;
-    const across = metres(168) + metres(4.5) * 2;
-    const down = metres(144) + metres(4.5) * 2;
+    const across = metres(168) + metres(SHELL_INCHES) * 2;
+    const down = metres(144) + metres(SHELL_INCHES) * 2;
     const scale = Math.min(
       (box.width - padding * 2) / across,
       (box.height - padding * 2) / down,
@@ -1100,11 +1153,13 @@ test.describe("laying the apartment out", () => {
     await contents(page).getByRole("button", { name: "Add room" }).click();
 
     // Below and right of the living room, which is centred: clear of it, so
-    // the size that comes out is the size that was dragged.
-    const from = { x: box.x + 40, y: box.y + box.height - 90 };
+    // the size that comes out is the size that was dragged. Big enough that
+    // neither side lands on the minimum a room is allowed to be — clamped in
+    // both directions, a rectangle is a square and proves nothing.
+    const from = { x: box.x + 40, y: box.y + box.height - 130 };
     await page.mouse.move(from.x, from.y);
     await page.mouse.down();
-    await page.mouse.move(from.x + 70, from.y + 50, { steps: 8 });
+    await page.mouse.move(from.x + 160, from.y + 90, { steps: 8 });
     await page.mouse.up();
 
     await expect(
@@ -1221,8 +1276,8 @@ test.describe("laying the apartment out", () => {
 
     const metres = (inches: number) => inches * 0.0254;
     const padding = 40;
-    const across = metres(168) + metres(4.5) * 2;
-    const down = metres(144) + metres(4.5) * 2;
+    const across = metres(168) + metres(SHELL_INCHES) * 2;
+    const down = metres(144) + metres(SHELL_INCHES) * 2;
     const scale = Math.min(
       (box.width - padding * 2) / across,
       (box.height - padding * 2) / down,
@@ -1308,8 +1363,8 @@ test.describe("laying the apartment out", () => {
     const metres = (inches: number) => inches * 0.0254;
     const padding = 40;
     const scale = Math.min(
-      (box.width - padding * 2) / (metres(168) + metres(4.5) * 2),
-      (box.height - padding * 2) / (metres(144) + metres(4.5) * 2),
+      (box.width - padding * 2) / (metres(168) + metres(SHELL_INCHES) * 2),
+      (box.height - padding * 2) / (metres(144) + metres(SHELL_INCHES) * 2),
     );
     const middle = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
     const cursor = () =>

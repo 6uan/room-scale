@@ -26,6 +26,7 @@
  */
 
 import type { FloorExtent, FloorPoint } from "@/domain/geometry";
+import { metersFromInches } from "@/domain/units";
 import {
   DEFAULT_ROOM,
   ROOM_LENGTH_LIMITS,
@@ -48,6 +49,10 @@ export type Floor = {
    * it is visible in every plan ever drawn. Which walls are which is derived
    * from the rooms — a wall is interior where another room stands on its far
    * side — so nobody types it twice. See `walls.ts`.
+   *
+   * These are **defaults**. A room may declare its own; see `Room`. Read them
+   * through `exteriorThicknessMeters` and `interiorThicknessMeters` rather
+   * than directly, so an override is never quietly skipped.
    */
   readonly exteriorWallThicknessMeters: number;
   readonly interiorWallThicknessMeters: number;
@@ -56,13 +61,82 @@ export type Floor = {
 
 /** One living room, which is where every apartment plan starts. */
 export const DEFAULT_FLOOR: Floor = {
-  // 4.5 inches — a 2x4 stud wall with drywall on both faces — for both until
-  // the real shell is measured. Equal values are also what every project made
-  // before there were two numbers means.
-  exteriorWallThicknessMeters: 0.1143,
-  interiorWallThicknessMeters: 0.1143,
+  // 8 inches for the shell: a masonry or double-stud exterior wall, which is
+  // what an apartment is actually wrapped in. It read 4.5" for a while, which
+  // was a migration artifact rather than a measurement — the one old number
+  // copied into both slots — and it made every plan draw a stud partition
+  // where its outside wall belongs.
+  exteriorWallThicknessMeters: metersFromInches(8),
+  // 4.5 inches — a 2x4 stud wall with drywall on both faces.
+  interiorWallThicknessMeters: metersFromInches(4.5),
   rooms: [DEFAULT_ROOM],
 };
+
+/**
+ * What a wall is allowed to be, in meters.
+ *
+ * Two centimeters is a partition of glass or a folding screen; sixty is a
+ * castle. Anything outside that is a typo, and the point of a limit is to
+ * catch the decimal point somebody lost rather than to have an opinion about
+ * construction.
+ */
+export const WALL_THICKNESS_LIMITS = { minMeters: 0.02, maxMeters: 0.6 };
+
+/** What this room's shell is built of: its own number, or the apartment's. */
+export function exteriorThicknessMeters(floor: Floor, room: Room | null) {
+  return room?.exteriorWallThicknessMeters ?? floor.exteriorWallThicknessMeters;
+}
+
+/** What this room's partitions are built of: its own number, or the floor's. */
+export function interiorThicknessMeters(floor: Floor, room: Room | null) {
+  return room?.interiorWallThicknessMeters ?? floor.interiorWallThicknessMeters;
+}
+
+/**
+ * The partition standing between two rooms: **the thicker of what they each
+ * declare.**
+ *
+ * There is one wall between two rooms and two numbers claiming it, so
+ * something has to pick. Three rules were available and this is the one that
+ * holds up:
+ *
+ * - **The mean** invents a number nobody typed and no tape would ever find. A
+ *   6" wall against a 4" one is not a 5" wall; it is one of the two.
+ * - **The host room's** is not symmetric, and there is no host. Which of two
+ *   rooms owns the wall between them is arbitrary, so the same pair of rooms
+ *   would snap to a different gap depending on which one was dragged, and the
+ *   drawing would change when you selected a different room.
+ * - **The thicker** is symmetric, is always a number somebody actually
+ *   measured and entered, and errs the safe way. If it is wrong, the wall is
+ *   drawn fatter than it is and the rooms sit further apart than they are —
+ *   which reports furniture as not fitting when it just fits, never the
+ *   reverse. A tool whose whole point is dimensional honesty should fail
+ *   toward "check this again", not toward "it'll be fine".
+ *
+ * `room` may be null for a room being drawn, which has no override yet.
+ */
+export function partitionThicknessMeters(
+  floor: Floor,
+  room: Room | null,
+  other: Room,
+): number {
+  return Math.max(
+    interiorThicknessMeters(floor, room),
+    interiorThicknessMeters(floor, other),
+  );
+}
+
+/** The fattest wall anywhere on the floor, defaults and overrides together. */
+export function maxWallThicknessMeters(floor: Floor): number {
+  return Math.max(
+    floor.exteriorWallThicknessMeters,
+    floor.interiorWallThicknessMeters,
+    ...floor.rooms.flatMap((room) => [
+      exteriorThicknessMeters(floor, room),
+      interiorThicknessMeters(floor, room),
+    ]),
+  );
+}
 
 /** A floor point in one room's own frame, measured from its north-west corner. */
 export function pointInRoom(room: Room, point: FloorPoint): FloorPoint {
@@ -179,32 +253,23 @@ export function snapRoomOrigin(
   origin: FloorPoint,
 ): FloorPoint {
   const others = floor.rooms.filter((one) => one.id !== room.id);
-  const thickness = floor.interiorWallThicknessMeters;
   const bounds = roomBounds(room);
 
+  // Each neighbour is approached across its own partition, which is the
+  // thicker of what the two rooms declare. A floor of one thickness — which
+  // is almost every floor — makes every candidate the same as it always was.
+  const faces = (axis: "x" | "z") =>
+    others.flatMap((one) =>
+      squareParts(one).map((part) => ({
+        start: partAxisStart(part, axis),
+        length: partAxisLength(part, axis),
+        thickness: partitionThicknessMeters(floor, room, one),
+      })),
+    );
+
   return {
-    xMeters: snapAxis(
-      origin.xMeters,
-      bounds.widthMeters,
-      others.flatMap((one) =>
-        squareParts(one).map((part) => ({
-          start: part.origin.xMeters,
-          length: part.widthMeters,
-        })),
-      ),
-      thickness,
-    ),
-    zMeters: snapAxis(
-      origin.zMeters,
-      bounds.depthMeters,
-      others.flatMap((one) =>
-        squareParts(one).map((part) => ({
-          start: part.origin.zMeters,
-          length: part.depthMeters,
-        })),
-      ),
-      thickness,
-    ),
+    xMeters: snapAxis(origin.xMeters, bounds.widthMeters, faces("x")),
+    zMeters: snapAxis(origin.zMeters, bounds.depthMeters, faces("z")),
   };
 }
 
@@ -275,35 +340,29 @@ export function drawnRoom(
  * gives: two rooms a wall apart have their bands in the same place, so one
  * doorway cut in it opens through both.
  *
- * `exceptRoomId` keeps a room being redrawn from snapping to itself.
+ * `moving` is the room whose edge this is — left out while a room is being
+ * drawn, because a room that does not exist yet has nothing to declare and
+ * takes the floor's thickness. It also keeps a room being redrawn from
+ * snapping to itself.
  */
 export function snapRoomEdge(
   floor: Floor,
   axis: "x" | "z",
   value: number,
-  exceptRoomId?: string,
+  moving?: Room,
 ): number {
-  const thickness = floor.interiorWallThicknessMeters;
-  const others = floor.rooms.filter((one) => one.id !== exceptRoomId);
+  const others = floor.rooms.filter((one) => one.id !== moving?.id);
 
-  const candidates = others.flatMap((room) =>
-    squareParts(room).flatMap((part) => {
-      const start = axis === "x" ? part.origin.xMeters : part.origin.zMeters;
-      const end = start + (axis === "x" ? part.widthMeters : part.depthMeters);
+  const candidates = others.flatMap((room) => {
+    const thickness = partitionThicknessMeters(floor, moving ?? null, room);
+    return squareParts(room).flatMap((part) => {
+      const start = partAxisStart(part, axis);
+      const end = start + partAxisLength(part, axis);
       return [start - thickness, end + thickness, start, end];
-    }),
-  );
+    });
+  });
 
-  let best = value;
-  let nearest = SNAP_METERS;
-  for (const candidate of candidates) {
-    const distance = Math.abs(candidate - value);
-    if (distance < nearest) {
-      best = candidate;
-      nearest = distance;
-    }
-  }
-  return best;
+  return nearestSnap(value, candidates);
 }
 
 /**
@@ -323,7 +382,7 @@ export function snapRoomResize(
   return resizeRoomEdge(
     room,
     edge,
-    snapRoomEdge(floor, axis, positionMeters, room.id),
+    snapRoomEdge(floor, axis, positionMeters, room),
   );
 }
 
@@ -350,7 +409,7 @@ export function snapRoomPartResize(
     room,
     partId,
     edge,
-    snapPartEdge(floor, room.id, partId, axis, positionMeters),
+    snapPartEdge(floor, room, partId, axis, positionMeters),
   );
 }
 
@@ -372,7 +431,7 @@ export function snapRoomPartOrigin(
   return {
     xMeters: snapPartOriginAxis(
       floor,
-      room.id,
+      room,
       part.id,
       "x",
       origin.xMeters,
@@ -380,7 +439,7 @@ export function snapRoomPartOrigin(
     ),
     zMeters: snapPartOriginAxis(
       floor,
-      room.id,
+      room,
       part.id,
       "z",
       origin.zMeters,
@@ -391,56 +450,54 @@ export function snapRoomPartOrigin(
 
 function snapPartEdge(
   floor: Floor,
-  roomId: string,
+  mine: Room,
   partId: string,
   axis: "x" | "z",
   value: number,
 ): number {
-  const candidates = floor.rooms.flatMap((room) =>
-    squareParts(room).flatMap((part) => {
-      if (room.id === roomId && part.id === partId) {
+  const candidates = floor.rooms.flatMap((room) => {
+    const thickness = partitionThicknessMeters(floor, mine, room);
+    return squareParts(room).flatMap((part) => {
+      if (room.id === mine.id && part.id === partId) {
         return [];
       }
       const start = partAxisStart(part, axis);
       const end = start + partAxisLength(part, axis);
-      return room.id === roomId
+      // Sections of the same room meet directly: no wall stands at a seam.
+      return room.id === mine.id
         ? [start, end]
-        : [
-            start - floor.interiorWallThicknessMeters,
-            end + floor.interiorWallThicknessMeters,
-            start,
-            end,
-          ];
-    }),
-  );
+        : [start - thickness, end + thickness, start, end];
+    });
+  });
   return nearestSnap(value, candidates);
 }
 
 function snapPartOriginAxis(
   floor: Floor,
-  roomId: string,
+  mine: Room,
   partId: string,
   axis: "x" | "z",
   value: number,
   length: number,
 ): number {
-  const candidates = floor.rooms.flatMap((room) =>
-    squareParts(room).flatMap((part) => {
-      if (room.id === roomId && part.id === partId) {
+  const candidates = floor.rooms.flatMap((room) => {
+    const thickness = partitionThicknessMeters(floor, mine, room);
+    return squareParts(room).flatMap((part) => {
+      if (room.id === mine.id && part.id === partId) {
         return [];
       }
       const start = partAxisStart(part, axis);
       const theirs = partAxisLength(part, axis);
-      return room.id === roomId
+      return room.id === mine.id
         ? [start + theirs, start - length, start, start + theirs - length]
         : [
-            start + theirs + floor.interiorWallThicknessMeters,
-            start - floor.interiorWallThicknessMeters - length,
+            start + theirs + thickness,
+            start - thickness - length,
             start,
             start + theirs - length,
           ];
-    }),
-  );
+    });
+  });
   return nearestSnap(value, candidates);
 }
 
@@ -469,10 +526,9 @@ function nearestSnap(value: number, candidates: readonly number[]): number {
 function snapAxis(
   value: number,
   length: number,
-  others: readonly { start: number; length: number }[],
-  thickness: number,
+  others: readonly { start: number; length: number; thickness: number }[],
 ): number {
-  const candidates = others.flatMap(({ start, length: theirs }) => [
+  const candidates = others.flatMap(({ start, length: theirs, thickness }) => [
     // Sharing a wall: a thickness past their far edge, or before their near one.
     start + theirs + thickness,
     start - thickness - length,
@@ -481,14 +537,5 @@ function snapAxis(
     start + theirs - length,
   ]);
 
-  let best = value;
-  let nearest = SNAP_METERS;
-  for (const candidate of candidates) {
-    const distance = Math.abs(candidate - value);
-    if (distance < nearest) {
-      best = candidate;
-      nearest = distance;
-    }
-  }
-  return best;
+  return nearestSnap(value, candidates);
 }
