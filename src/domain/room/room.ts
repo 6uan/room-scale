@@ -163,6 +163,21 @@ export function roomPart(room: Room, partId: string): RoomPart | undefined {
   return room.parts.find((part) => part.id === partId);
 }
 
+/**
+ * An id no section of this room is using.
+ *
+ * Counted past the ones already taken rather than from the length, so removing
+ * a middle section and adding another does not hand out an id that is still on
+ * screen. Ids outlive positions: an opening remembers the part it sits on.
+ */
+export function nextPartId(room: Room): string {
+  let number = room.parts.length + 1;
+  while (room.parts.some((part) => part.id === `${room.id}-part-${number}`)) {
+    number += 1;
+  }
+  return `${room.id}-part-${number}`;
+}
+
 export function roomBounds(room: Room): AxisAlignedRect {
   return (
     turnedUnionBounds(room.parts) ?? {

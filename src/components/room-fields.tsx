@@ -9,6 +9,7 @@ import { RoomOpeningsForm } from "@/components/room-openings-form";
 import {
   ROOM_LENGTH_LIMITS,
   ROOM_ORIGIN_LIMITS,
+  nextPartId,
   WALL_SIDES,
   WALL_THICKNESS_LIMITS,
   exteriorThicknessMeters,
@@ -57,6 +58,9 @@ export type RoomFieldsProps = {
   unit: DisplayUnit;
   onChange: (room: Room, gesture?: string) => void;
   onGestureEnd: () => void;
+  /** Whether a drag on the plan is currently drawing one of this room's rectangles. */
+  drawingSection?: boolean;
+  onDrawSection?: () => void;
   onAddOpening: (kind: OpeningKind) => void;
   placingOpeningKind?: OpeningKind | null;
   selectedPartId?: string | null;
@@ -71,6 +75,8 @@ export function RoomFields({
   unit,
   onChange,
   onGestureEnd,
+  drawingSection = false,
+  onDrawSection,
   onAddOpening,
   placingOpeningKind = null,
   selectedPartId = null,
@@ -230,25 +236,35 @@ export function RoomFields({
         />
 
         {/*
-          Named in words rather than worn as a `+`.
+          A mode, not a spawn.
 
-          A bare plus beside "Footprint" said nothing about what it would add,
-          and "section" is not a word anybody arrives already knowing — so the
-          button says it and, until a room has used one, a line underneath says
-          what one is for. This control is temporary: once a section can be
-          drawn against a room on the plan, drawing one *is* adding one, and a
-          button for it stops earning its place.
+          It used to drop a rectangle at a guessed offset from the last one and
+          leave you typing four numbers to move it where it belonged. Now it
+          arms the plan the way "Add room" already does, and the rectangle is
+          drawn where it goes.
+
+          Which the drag means is never inferred from where it lands. Rooms
+          that share a wall sit one partition apart, and a rectangle drawn
+          flush inside a space sits at zero — inches between the two — so
+          reading "another room or another rectangle of this one" off the
+          geometry would answer a structural question by pointer accident.
         */}
         <div className="flex flex-col gap-2">
           <div className="flex justify-start">
-            <LabelledButton label="Add section" icon={Plus} onClick={addPart} />
+            <LabelledButton
+              label="Add section"
+              icon={Plus}
+              pressed={drawingSection}
+              onClick={onDrawSection ?? addPart}
+            />
           </div>
-          {compound ? null : (
-            <p className="text-[13px] leading-relaxed opacity-60">
-              A section is another rectangle of floor. Two of them make an
-              L-shaped room, or a room with a notch taken out of one corner.
-            </p>
-          )}
+          <p className="text-[13px] leading-relaxed opacity-60">
+            {drawingSection
+              ? "Drag on the plan to draw another rectangle of this room. It meets this room's other rectangles directly, and stops a wall short of any other room."
+              : compound
+                ? null
+                : "A section is another rectangle of floor. Two of them make an L-shaped room, or a room with a notch taken out of one corner."}
+          </p>
         </div>
       </div>
 
@@ -606,14 +622,6 @@ function RoomPartFields({
   );
 
   return <div className="flex flex-col gap-3">{fields}</div>;
-}
-
-function nextPartId(room: Room): string {
-  let number = room.parts.length + 1;
-  while (room.parts.some((part) => part.id === `${room.id}-part-${number}`)) {
-    number += 1;
-  }
-  return `${room.id}-part-${number}`;
 }
 
 /** Spelled out, because Tailwind reads these classes rather than building them. */

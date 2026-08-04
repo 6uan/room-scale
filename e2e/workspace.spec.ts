@@ -713,14 +713,61 @@ test.describe("laying the apartment out", () => {
     await expect(room.getByLabel("Room 2 X position")).toHaveValue("88.5");
   });
 
-  test("builds an L-shaped room from a second editable rectangle", async ({
+  test("draws a second rectangle into a room and edits it on its own", async ({
     page,
   }) => {
     await openWithLivingRoom(page);
     await contents(page).getByRole("button", { name: "Living room" }).click();
 
     const room = details(page).getByRole("region", { name: "Living room" });
+    const box = await planImage(page).boundingBox();
+    if (box === null) {
+      throw new Error("the plan has no box to point at");
+    }
+
+    // The living room alone, which is what the plan is fitted to. The new
+    // rectangle is drawn inside it, so these bounds — and this projection —
+    // hold before and after.
+    const inches = (value: number) => value * 0.0254;
+    const wall = inches(SHELL_INCHES);
+    const bounds = { west: -84, north: -72, east: 84, south: 72 };
+    const scale = Math.min(
+      (box.width - 80) / (inches(bounds.east - bounds.west) + wall * 2),
+      (box.height - 80) / (inches(bounds.south - bounds.north) + wall * 2),
+    );
+    const center = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const floorCenter = {
+      x: (bounds.west + bounds.east) / 2,
+      y: (bounds.north + bounds.south) / 2,
+    };
+    const pointOnPlan = (xInches: number, yInches: number) => ({
+      x: center.x + inches(xInches - floorCenter.x) * scale,
+      y: center.y + inches(yInches - floorCenter.y) * scale,
+    });
+
+    // Arming the tool does not add anything by itself: the rectangle is drawn
+    // where it goes, rather than dropped at a guess and moved by typing.
     await room.getByRole("button", { name: "Add section" }).click();
+    await expect(
+      room.getByRole("button", { name: "Add section" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(planImage(page)).toHaveAccessibleName(
+      /built from 1 rectangle/,
+    );
+
+    const partTwoWest = 0;
+    const partTwoNorth = 0;
+    const partTwoWidth = 48;
+    const partTwoDepth = 48;
+    const from = pointOnPlan(partTwoWest, partTwoNorth);
+    const to = pointOnPlan(
+      partTwoWest + partTwoWidth,
+      partTwoNorth + partTwoDepth,
+    );
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(to.x, to.y, { steps: 8 });
+    await page.mouse.up();
 
     await expect(room.getByLabel("Living room section 2 width")).toBeVisible();
     await expect(
@@ -737,41 +784,6 @@ test.describe("laying the apartment out", () => {
     ).toHaveAttribute("aria-pressed", "true");
     await contents(page).getByRole("button", { name: "Section 2" }).click();
 
-    // The selected section gets the same canvas handles as an ordinary
-    // rectangle. Drag its east handle and only Section 2 grows.
-    const box = await planImage(page).boundingBox();
-    if (box === null) {
-      throw new Error("the plan has no box to point at");
-    }
-    const inches = (value: number) => value * 0.0254;
-    const wall = inches(SHELL_INCHES);
-    const partTwoWest = 0;
-    const partTwoNorth = 72 - 0.1 / 0.0254;
-    const partTwoWidth = 126;
-    const partTwoDepth = 72;
-    const bounds = {
-      west: -84,
-      north: -72,
-      east: partTwoWest + partTwoWidth,
-      south: partTwoNorth + partTwoDepth,
-    };
-    const scale = Math.min(
-      (box.width - 80) / (inches(bounds.east - bounds.west) + wall * 2),
-      (box.height - 80) / (inches(bounds.south - bounds.north) + wall * 2),
-    );
-    const center = {
-      x: box.x + box.width / 2,
-      y: box.y + box.height / 2,
-    };
-    const floorCenter = {
-      x: (bounds.west + bounds.east) / 2,
-      y: (bounds.north + bounds.south) / 2,
-    };
-    const pointOnPlan = (xInches: number, yInches: number) => ({
-      x: center.x + inches(xInches - floorCenter.x) * scale,
-      y: center.y + inches(yInches - floorCenter.y) * scale,
-    });
-
     // Double-click drills into either rectangle directly from whole-room
     // selection, so editing a compound room does not depend on the layer list.
     await contents(page).getByRole("button", { name: "Living room" }).click();
@@ -781,7 +793,8 @@ test.describe("laying the apartment out", () => {
       room.getByRole("button", { name: "Select Living room section 1" }),
     ).toHaveAttribute("aria-pressed", "true");
 
-    const partTwoOnly = pointOnPlan(100, 100);
+    // Inside both rectangles, where the later one takes the press.
+    const partTwoOnly = pointOnPlan(24, 24);
     await page.mouse.dblclick(partTwoOnly.x, partTwoOnly.y);
     await expect(
       room.getByRole("button", { name: "Select Living room section 2" }),
@@ -841,7 +854,17 @@ test.describe("laying the apartment out", () => {
     await openWithLivingRoom(page);
     await contents(page).getByRole("button", { name: "Living room" }).click();
     const room = details(page).getByRole("region", { name: "Living room" });
+    const box = await planImage(page).boundingBox();
+    if (box === null) {
+      throw new Error("the plan has no box to point at");
+    }
+
+    // Arm the tool, then press the plan without dragging: one rectangle of the
+    // usual size, where the pointer went down. Where exactly does not matter
+    // here — the angles do.
     await room.getByRole("button", { name: "Add section" }).click();
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await expect(room.getByLabel("Living room section 2 width")).toBeVisible();
 
     await room
       .getByRole("spinbutton", { name: "Living room section 2 angle" })

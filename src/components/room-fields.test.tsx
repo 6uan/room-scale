@@ -384,6 +384,60 @@ describe("RoomFields", () => {
     expect(onSelectPart).toHaveBeenCalledWith(null);
   });
 
+  it("arms the plan instead of spawning a rectangle at a guess", () => {
+    const floor = projectWithLivingRoom().floor;
+    const room = floor.rooms[0];
+    if (room === undefined) {
+      throw new Error("a new project starts with a room");
+    }
+    const onDrawSection = vi.fn();
+    const onChange = vi.fn();
+    render(
+      <RoomFields
+        floor={floor}
+        room={room}
+        unit="metric"
+        onChange={onChange}
+        onGestureEnd={vi.fn()}
+        onAddOpening={vi.fn()}
+        onDrawSection={onDrawSection}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Add section" }));
+
+    // The room is untouched: the rectangle is drawn on the plan, where it
+    // goes, rather than dropped at an offset and moved by typing.
+    expect(onDrawSection).toHaveBeenCalledOnce();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("says the tool is armed while it is", () => {
+    const floor = projectWithLivingRoom().floor;
+    const room = floor.rooms[0];
+    if (room === undefined) {
+      throw new Error("a new project starts with a room");
+    }
+    render(
+      <RoomFields
+        floor={floor}
+        room={room}
+        unit="metric"
+        drawingSection
+        onChange={vi.fn()}
+        onGestureEnd={vi.fn()}
+        onAddOpening={vi.fn()}
+        onDrawSection={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Add section" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByText(/Drag on the plan/)).toBeInTheDocument();
+  });
+
   it("shows one section at a time and switches between them", () => {
     const floor = projectWithLivingRoom().floor;
     const base = floor.rooms[0];

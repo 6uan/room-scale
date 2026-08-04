@@ -73,6 +73,9 @@ export type InspectorProps = {
   onRoomChange: (room: Room, gesture?: string) => void;
   onGestureEnd: () => void;
   onRoomRemove: (room: Room) => void;
+  /** The room whose next drag on the plan draws another of its rectangles. */
+  drawingSectionOf: string | null;
+  onDrawSection: (room: Room) => void;
   onAddOpening: (room: Room, kind: OpeningKind) => void;
   placingOpening: {
     readonly roomId: string;
@@ -255,6 +258,8 @@ function RoomInspector({
   onRoomChange,
   onGestureEnd,
   onRoomRemove,
+  drawingSectionOf,
+  onDrawSection,
   onAddOpening,
   placingOpening,
   onOpeningRemove,
@@ -290,6 +295,8 @@ function RoomInspector({
         unit={unit}
         onChange={onRoomChange}
         onGestureEnd={onGestureEnd}
+        drawingSection={drawingSectionOf === room.id}
+        onDrawSection={() => onDrawSection(room)}
         onAddOpening={(kind) => onAddOpening(room, kind)}
         placingOpeningKind={
           placingOpening?.roomId === room.id ? placingOpening.kind : null
