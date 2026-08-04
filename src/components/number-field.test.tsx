@@ -7,11 +7,13 @@ import { NumberField } from "./number-field";
 function ScrubField({
   onChange,
   onGestureEnd,
+  startInches = 96,
 }: {
   onChange: (meters: number, gesture?: string) => void;
   onGestureEnd: () => void;
+  startInches?: number;
 }) {
-  const [meters, setMeters] = useState(metersFromInches(96));
+  const [meters, setMeters] = useState(metersFromInches(startInches));
 
   return (
     <NumberField
@@ -65,6 +67,31 @@ describe("NumberField compact scrubbing", () => {
       "room-field:room-1:width",
     );
     expect(onGestureEnd).toHaveBeenCalledOnce();
+  });
+
+  it("lands a scrub on a round number rather than carrying a fraction", () => {
+    const onChange = vi.fn();
+    render(
+      <ScrubField
+        onChange={onChange}
+        onGestureEnd={() => undefined}
+        startInches={286.93}
+      />,
+    );
+
+    const slider = screen.getByRole("slider", { name: "W drag handle" });
+    mockPointerCapture(slider);
+
+    fireEvent.pointerDown(slider, { pointerId: 3, button: 0, clientX: 100 });
+    fireEvent.pointerMove(slider, { pointerId: 3, clientX: 105 });
+    fireEvent.pointerUp(slider, { pointerId: 3, clientX: 105 });
+
+    // Five pixels from 286.93 is 291.93 if the step is what gets rounded, and
+    // 292 if the value is. A dimension nobody can drag to a whole inch is the
+    // bug this guards: the fraction used to survive every gesture forever.
+    expect(
+      screen.getByRole("spinbutton", { name: "Living room width" }),
+    ).toHaveValue(292);
   });
 
   it("also adjusts from the keyboard while the number stays typeable", () => {

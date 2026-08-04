@@ -303,6 +303,14 @@ function squareParts(room: Room): readonly RoomPart[] {
  * Held to the minimum a room is allowed to be. A rectangle two centimeters
  * across is a slip rather than a cupboard, and the alternative — refusing it —
  * would mean a drag that produced nothing and said nothing about why.
+ *
+ * `roundMeters` lands each corner on a whole unit of whatever the reader is
+ * working in before it is offered a neighbour to snap to. Without it a room
+ * kept the pointer's own precision forever: every width and depth read like
+ * 286.93 inches, and no amount of editing afterwards could tidy it, because
+ * each field could only move that number by whole steps. Rounding first and
+ * snapping second is the right order — sharing a wall matters more than being
+ * round, so a neighbour still wins where there is one.
  */
 export function drawnRoom(
   floor: Floor,
@@ -310,14 +318,15 @@ export function drawnRoom(
   name: string,
   from: FloorPoint,
   to: FloorPoint,
+  roundMeters: (meters: number) => number = (meters) => meters,
 ): Room {
   const xs = [
-    snapRoomEdge(floor, "x", from.xMeters),
-    snapRoomEdge(floor, "x", to.xMeters),
+    snapRoomEdge(floor, "x", roundMeters(from.xMeters)),
+    snapRoomEdge(floor, "x", roundMeters(to.xMeters)),
   ].sort((a, b) => a - b);
   const zs = [
-    snapRoomEdge(floor, "z", from.zMeters),
-    snapRoomEdge(floor, "z", to.zMeters),
+    snapRoomEdge(floor, "z", roundMeters(from.zMeters)),
+    snapRoomEdge(floor, "z", roundMeters(to.zMeters)),
   ].sort((a, b) => a - b);
 
   const west = xs[0] ?? 0;

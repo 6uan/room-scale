@@ -131,9 +131,15 @@ export function NumberField({
     if (scrub === null || scrub.pointerId !== event.pointerId) {
       return;
     }
-    const displayValue =
+    // Rounded as a whole value rather than as a whole step from where it
+    // started. Rounding the step preserved whatever fraction the field already
+    // had — a width of 286.93 inches scrubbed to 287.93 and 288.93 and could
+    // never reach a round number at all, however long you dragged. A dragged
+    // dimension should land on the kind of number a tape reads.
+    const displayValue = Math.round(
       scrub.startDisplayValue +
-      Math.round((event.clientX - scrub.startClientX) * SCRUB_UNITS_PER_PIXEL);
+        (event.clientX - scrub.startClientX) * SCRUB_UNITS_PER_PIXEL,
+    );
     applyScrubbedDisplayValue(displayValue, scrubGesture);
   }
 
