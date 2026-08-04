@@ -230,7 +230,11 @@ export function Workspace() {
         ),
       ),
     );
-    setSelection(null);
+    // Removed from its own editor, the selection is gone with it. Removed
+    // from the room's panel, the room stays selected and the work goes on.
+    if (selection?.kind === "opening" && selection.id === opening.id) {
+      setSelection(null);
+    }
   }
 
   /** Puts a product in the room, either where it was dropped or in the middle. */

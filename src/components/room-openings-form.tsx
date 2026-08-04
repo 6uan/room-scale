@@ -1,7 +1,7 @@
 "use client";
 
 import { NumberField } from "@/components/number-field";
-import { openingName } from "@/components/opening-name";
+import { openingListName, openingName } from "@/components/opening-name";
 import {
   MIN_OPENING_METERS,
   WALL_SIDES,
@@ -35,13 +35,23 @@ export type RoomOpeningsFormProps = {
   room: Room;
   placingKind?: OpeningKind | null;
   onAddOpening: (kind: OpeningKind) => void;
+  /** Opens the opening's own editor, the same selection the list makes. */
+  onSelectOpening?: (opening: Opening) => void;
+  onRemoveOpening?: (opening: Opening) => void;
 };
 
-/** Arms the plan to put a door, window, or passage on this room's wall. */
+/**
+ * Arms the plan to put a door, window, or passage on this room's wall, and
+ * lists what the room already has — each row selectable for exact editing,
+ * and removable right here, so taking a door out does not mean going to find
+ * it somewhere else first.
+ */
 export function RoomOpeningsForm({
   room,
   placingKind = null,
   onAddOpening,
+  onSelectOpening,
+  onRemoveOpening,
 }: RoomOpeningsFormProps) {
   return (
     <div className="flex flex-col gap-3 border-t border-black/10 pt-4 dark:border-white/15">
@@ -66,11 +76,39 @@ export function RoomOpeningsForm({
         ))}
       </div>
 
+      {room.openings.length === 0 ? null : (
+        <ul className="flex flex-col gap-1">
+          {room.openings.map((opening) => (
+            <li
+              key={opening.id}
+              className="flex items-center justify-between gap-2"
+            >
+              <button
+                type="button"
+                onClick={() => onSelectOpening?.(opening)}
+                className="min-w-0 flex-1 truncate rounded px-1.5 py-1 text-left text-sm hover:bg-black/5 dark:hover:bg-white/10"
+              >
+                {openingListName(room, opening)}
+                <span className="opacity-50"> · {opening.wall} wall</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onRemoveOpening?.(opening)}
+                aria-label={`Remove ${openingName(room, opening)}`}
+                className="shrink-0 text-xs underline underline-offset-4 opacity-60 hover:opacity-100"
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
       <p className="text-xs leading-relaxed opacity-60">
         {placingKind === null
           ? room.openings.length === 0
             ? "Choose a kind, then click the wall where it belongs."
-            : `${room.openings.length} ${room.openings.length === 1 ? "opening" : "openings"}. Select one in the Apartment list or on the plan to edit its measurements.`
+            : "Select an opening to type its exact measurements, or drag it on the plan."
           : `Click a ${room.name === "" ? "room" : room.name} wall to place it. Press Esc to stop.`}
       </p>
     </div>

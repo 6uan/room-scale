@@ -759,6 +759,30 @@ test.describe("laying the apartment out", () => {
     await expect(plan(page).getByText("168.0 sq ft")).toBeVisible();
   });
 
+  test("removes an opening from the room's own panel, keeping the room selected", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await contents(page).getByRole("button", { name: "Living room" }).click();
+
+    const room = details(page).getByRole("region", { name: "Living room" });
+    await expect(planImage(page)).toHaveAccessibleName(/a window/);
+
+    await room
+      .getByRole("button", { name: "Remove Living room window 1" })
+      .click();
+
+    // The window is gone everywhere, and the room is still being edited.
+    await expect(planImage(page)).not.toHaveAccessibleName(/a window/);
+    await expect(
+      contents(page).getByRole("button", { name: "Window 1" }),
+    ).toHaveCount(0);
+    await expect(room).toBeVisible();
+    await expect(
+      room.getByRole("button", { name: "Remove Living room door 1" }),
+    ).toBeVisible();
+  });
+
   test("keeps shell and partition walls as two typed numbers", async ({
     page,
   }) => {
