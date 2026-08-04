@@ -28,7 +28,6 @@
 import type { FloorExtent, FloorPoint } from "@/domain/geometry";
 import { metersFromInches } from "@/domain/units";
 import {
-  DEFAULT_ROOM,
   ROOM_LENGTH_LIMITS,
   createRoom,
   primaryRoomPart,
@@ -59,7 +58,15 @@ export type Floor = {
   readonly rooms: readonly Room[];
 };
 
-/** One living room, which is where every apartment plan starts. */
+/**
+ * An apartment nobody has measured yet.
+ *
+ * It used to ship a 14'×12' living room with a door and a window already in
+ * it, and that was a fiction: you landed on measurements nobody took, in a
+ * room nobody lives in, and the first real job was deleting it. Two numbers
+ * are all a new floor can honestly assert — how thick its walls are going to
+ * be — and even those are only defaults waiting to be corrected.
+ */
 export const DEFAULT_FLOOR: Floor = {
   // 8 inches for the shell: a masonry or double-stud exterior wall, which is
   // what an apartment is actually wrapped in. It read 4.5" for a while, which
@@ -69,7 +76,7 @@ export const DEFAULT_FLOOR: Floor = {
   exteriorWallThicknessMeters: metersFromInches(8),
   // 4.5 inches — a 2x4 stud wall with drywall on both faces.
   interiorWallThicknessMeters: metersFromInches(4.5),
-  rooms: [DEFAULT_ROOM],
+  rooms: [],
 };
 
 /**

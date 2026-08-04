@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { DEFAULT_ROOM, type Opening } from "@/domain/room";
+import { type Opening } from "@/domain/room";
+import { LIVING_ROOM } from "@/domain/room/fixtures";
 import { metersFromInches } from "@/domain/units";
 import { OpeningFields, RoomOpeningsForm } from "./room-openings-form";
 
@@ -10,7 +11,7 @@ describe("RoomOpeningsForm", () => {
     const user = userEvent.setup();
     const onAddOpening = vi.fn();
     const { rerender } = render(
-      <RoomOpeningsForm room={DEFAULT_ROOM} onAddOpening={onAddOpening} />,
+      <RoomOpeningsForm room={LIVING_ROOM} onAddOpening={onAddOpening} />,
     );
 
     await user.click(screen.getByRole("button", { name: "Add window" }));
@@ -18,7 +19,7 @@ describe("RoomOpeningsForm", () => {
 
     rerender(
       <RoomOpeningsForm
-        room={DEFAULT_ROOM}
+        room={LIVING_ROOM}
         placingKind="window"
         onAddOpening={onAddOpening}
       />,
@@ -44,7 +45,7 @@ describe("RoomOpeningsForm", () => {
     const onRemoveOpening = vi.fn();
     render(
       <RoomOpeningsForm
-        room={DEFAULT_ROOM}
+        room={LIVING_ROOM}
         onAddOpening={vi.fn()}
         onSelectOpening={onSelectOpening}
         onRemoveOpening={onRemoveOpening}
@@ -53,18 +54,18 @@ describe("RoomOpeningsForm", () => {
 
     // The default room ships a south door and a north window.
     await user.click(screen.getByRole("button", { name: /Door 1/ }));
-    expect(onSelectOpening).toHaveBeenCalledWith(DEFAULT_ROOM.openings[0]);
+    expect(onSelectOpening).toHaveBeenCalledWith(LIVING_ROOM.openings[0]);
 
     await user.click(
       screen.getByRole("button", { name: "Remove Living room window 1" }),
     );
-    expect(onRemoveOpening).toHaveBeenCalledWith(DEFAULT_ROOM.openings[1]);
+    expect(onRemoveOpening).toHaveBeenCalledWith(LIVING_ROOM.openings[1]);
   });
 });
 
 describe("OpeningFields", () => {
   it("keeps a typed center exact in the reader's unit", () => {
-    const opening = DEFAULT_ROOM.openings[0];
+    const opening = LIVING_ROOM.openings[0];
     if (opening === undefined) {
       throw new Error("the default room has a door");
     }
@@ -72,7 +73,7 @@ describe("OpeningFields", () => {
 
     render(
       <OpeningFields
-        room={DEFAULT_ROOM}
+        room={LIVING_ROOM}
         opening={opening}
         unit="imperial"
         onChange={onChange}

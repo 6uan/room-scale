@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createInstance } from "@/domain/furniture";
 import { createProject, withInstances, withProducts } from "@/domain/project";
 import { exportProject, importProject } from "./project-transfer";
+import { projectWithLivingRoom } from "@/domain/project/fixtures";
 
 const WHEN = 1_700_000_000_000;
 
@@ -26,7 +27,7 @@ function furnished() {
 
 describe("exportProject", () => {
   it("writes the document in the envelope storage uses", () => {
-    const text = exportProject(createProject(), WHEN);
+    const text = exportProject(projectWithLivingRoom(), WHEN);
     const parsed = JSON.parse(text);
 
     expect(parsed.version).toBeGreaterThan(0);

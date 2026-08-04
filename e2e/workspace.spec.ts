@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { openWithLivingRoom } from "./fixtures/living-room";
 
 /**
  * The shell thickness the plan pads its fitted view by, in inches.
@@ -63,10 +64,10 @@ async function addProduct(
 }
 
 test.describe("the workspace", () => {
-  test("opens on three panels and the apartment it starts with", async ({
+  test("opens on three panels and a room somebody measured", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
 
     await expect(
       contents(page).getByRole("button", { name: "Living room" }),
@@ -78,10 +79,52 @@ test.describe("the workspace", () => {
     ).toBeVisible();
   });
 
-  test("selects a room from the list and edits it on the right", async ({
+  test("opens a new project on an empty floor, and says what to do with it", async ({
     page,
   }) => {
     await page.goto("/");
+
+    // No fictional living room: nothing in the list, nothing on the plan.
+    await expect(
+      contents(page).getByRole("button", { name: /room/i }),
+    ).toHaveCount(1);
+    await expect(planImage(page)).toHaveAccessibleName(/no rooms in it yet/);
+
+    // And the plan itself names both ways in rather than leaving a blank grid.
+    const invitation = plan(page);
+    await expect(invitation.getByText("Nothing measured yet")).toBeVisible();
+    await expect(
+      invitation.getByRole("button", { name: "Add room" }),
+    ).toBeVisible();
+    await expect(invitation.getByLabel("Add plan image")).toBeAttached();
+  });
+
+  test("takes the invitation, and it goes once there is a room", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    const box = await planImage(page).boundingBox();
+    if (box === null) {
+      throw new Error("the plan has no box to point at");
+    }
+
+    const invite = plan(page).getByRole("button", { name: "Add room" });
+    await invite.click();
+    await expect(invite).toHaveAttribute("aria-pressed", "true");
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+
+    await expect(
+      contents(page).getByRole("button", { name: "Room 1" }),
+    ).toBeVisible();
+    // Gone without being dismissed: a plan with something on it explains
+    // itself.
+    await expect(plan(page).getByText("Nothing measured yet")).toBeHidden();
+  });
+
+  test("selects a room from the list and edits it on the right", async ({
+    page,
+  }) => {
+    await openWithLivingRoom(page);
 
     await contents(page).getByRole("button", { name: "Living room" }).click();
 
@@ -100,7 +143,7 @@ test.describe("the workspace", () => {
   });
 
   test("renames a room directly in the apartment list", async ({ page }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
 
     const room = contents(page).getByRole("button", { name: "Living room" });
     await room.click();
@@ -134,7 +177,7 @@ test.describe("the workspace", () => {
   test("adds a room, and it appears in the list and the plan", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
 
     await addRoom(page);
 
@@ -149,7 +192,7 @@ test.describe("the workspace", () => {
   });
 
   test("enters a product and places it in the room", async ({ page }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     await addProduct(page, { name: "Rug", width: "96", depth: "60" });
 
     await contents(page)
@@ -166,7 +209,7 @@ test.describe("the workspace", () => {
   test("moves a placed piece by typing, and the plan follows", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     await addProduct(page, { name: "Rug", width: "96", depth: "60" });
     await contents(page)
       .getByRole("button", { name: "Place Rug in the room" })
@@ -180,7 +223,7 @@ test.describe("the workspace", () => {
   });
 
   test("reports what does not fit, under the plan", async ({ page }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     await addProduct(page, { name: "Sectional", width: "94.5", depth: "63" });
     await contents(page)
       .getByRole("button", { name: "Place Sectional in the room" })
@@ -198,7 +241,7 @@ test.describe("the workspace", () => {
   });
 
   test("keeps everything across a reload", async ({ page }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     await addProduct(page, {
       name: "Olive tree",
       width: "24",
@@ -225,7 +268,7 @@ test.describe("editing the product behind a piece", () => {
   test("reaches the product from the piece standing in the room", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     await addProduct(page, {
       name: "Rug",
       width: "96",
@@ -258,7 +301,7 @@ test.describe("the plan as a canvas", () => {
   }
 
   async function placeRug(page: Page) {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     await addProduct(page, { name: "Rug", width: "96", depth: "60" });
     await contents(page)
       .getByRole("button", { name: "Place Rug in the room" })
@@ -358,7 +401,7 @@ test.describe("workspace navigation", () => {
   });
 
   test("has a document title", async ({ page }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     await expect(page).toHaveTitle(/RoomScale/);
   });
 });
@@ -366,7 +409,7 @@ test.describe("workspace navigation", () => {
 test.describe("comparing layouts", () => {
   /** Two products in the catalogue, one of them placed. */
   async function withASofa(page: Page) {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     await addProduct(page, {
       name: "Sectional",
       width: "94.5",
@@ -469,7 +512,7 @@ test.describe("comparing layouts", () => {
   });
 
   test("deletes an arrangement, but never the last one", async ({ page }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
 
     // One layout: there is nothing to delete.
     await expect(page.getByRole("button", { name: /^Delete/ })).toBeHidden();
@@ -486,7 +529,7 @@ test.describe("laying the apartment out", () => {
   test("places, lists, selects, moves, and resizes an opening on the plan", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     await contents(page).getByRole("button", { name: "Living room" }).click();
 
     await details(page).getByRole("button", { name: "Add door" }).click();
@@ -571,7 +614,7 @@ test.describe("laying the apartment out", () => {
   test("snaps a room against its neighbour, sharing one wall", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     await addRoom(page);
 
     // The living room runs to 84 inches and the wall is 4.5 thick, so sharing
@@ -585,7 +628,7 @@ test.describe("laying the apartment out", () => {
   test("builds an L-shaped room from a second editable rectangle", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     await contents(page).getByRole("button", { name: "Living room" }).click();
 
     const room = details(page).getByRole("region", { name: "Living room" });
@@ -679,7 +722,7 @@ test.describe("laying the apartment out", () => {
   test("turns a section to an exact typed angle, which survives a reload", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     await contents(page).getByRole("button", { name: "Living room" }).click();
 
     const room = details(page).getByRole("region", { name: "Living room" });
@@ -699,7 +742,7 @@ test.describe("laying the apartment out", () => {
   });
 
   test("turns one section without turning its neighbour", async ({ page }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     await contents(page).getByRole("button", { name: "Living room" }).click();
     const room = details(page).getByRole("region", { name: "Living room" });
     await room.getByRole("button", { name: "Add section" }).click();
@@ -717,7 +760,7 @@ test.describe("laying the apartment out", () => {
   test("rotates a section by dragging the round handle past its north wall", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     await contents(page).getByRole("button", { name: "Living room" }).click();
 
     const box = await planImage(page).boundingBox();
@@ -771,7 +814,7 @@ test.describe("laying the apartment out", () => {
   test("removes an opening from the room's own panel, keeping the room selected", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     await contents(page).getByRole("button", { name: "Living room" }).click();
 
     const room = details(page).getByRole("region", { name: "Living room" });
@@ -795,7 +838,7 @@ test.describe("laying the apartment out", () => {
   test("traces the listing: an image is dropped, scaled by one line, and kept", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
 
     // The Apartment panel takes the image and goes straight to calibration.
     const apartment = details(page).getByRole("region", { name: "Apartment" });
@@ -841,7 +884,7 @@ test.describe("laying the apartment out", () => {
   test("keeps shell and partition walls as two typed numbers", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
 
     // Nothing selected: the apartment's own settings, now with two walls.
     const apartment = details(page).getByRole("region", { name: "Apartment" });
@@ -864,7 +907,7 @@ test.describe("laying the apartment out", () => {
   test("lets one room be built out of something else, and hands it back", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     await contents(page).getByRole("button", { name: "Living room" }).click();
     const room = details(page).getByRole("region", { name: "Living room" });
 
@@ -906,7 +949,7 @@ test.describe("laying the apartment out", () => {
   });
 
   test("opens a wall into a railing that refuses a door", async ({ page }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     await contents(page).getByRole("button", { name: "Living room" }).click();
 
     const room = details(page).getByRole("region", { name: "Living room" });
@@ -938,7 +981,7 @@ test.describe("laying the apartment out", () => {
   test("snaps a scrubbed width to a neighbouring room's shared wall", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     await addRoom(page);
 
     // Put Room 2 east of the living room. Its west face is at 100", so the
@@ -970,7 +1013,7 @@ test.describe("laying the apartment out", () => {
   test("snaps a canvas resize to the same neighbouring wall", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     await addRoom(page);
     await details(page).getByLabel("Room 2 X position").fill("100");
     await contents(page).getByRole("button", { name: "Living room" }).click();
@@ -1010,7 +1053,7 @@ test.describe("laying the apartment out", () => {
   test("leaves a room where it was put when nothing is near", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     await addRoom(page);
 
     const room = details(page).getByRole("region", { name: "Room 2" });
@@ -1022,7 +1065,7 @@ test.describe("laying the apartment out", () => {
   test("takes a negative position, so the apartment grows either way", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     await addRoom(page);
 
     const room = details(page).getByRole("region", { name: "Room 2" });
@@ -1035,7 +1078,7 @@ test.describe("laying the apartment out", () => {
   test("selects a room by clicking the plan, and drags it", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     const box = await planImage(page).boundingBox();
     if (box === null) {
       throw new Error("the plan has no box to point at");
@@ -1077,7 +1120,7 @@ test.describe("laying the apartment out", () => {
   test("reads out the selection's corner, and what the floor adds up to", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
 
     // A fourteen by twelve foot room is 168 square feet.
     await expect(plan(page).getByText("168.0 sq ft")).toBeVisible();
@@ -1094,7 +1137,7 @@ test.describe("laying the apartment out", () => {
   test("resizes a room by dragging its wall, landing on whole inches", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     await contents(page).getByRole("button", { name: "Living room" }).click();
 
     const room = details(page).getByRole("region", { name: "Living room" });
@@ -1144,7 +1187,7 @@ test.describe("laying the apartment out", () => {
   });
 
   test("draws a room by dragging a rectangle on the plan", async ({ page }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     const box = await planImage(page).boundingBox();
     if (box === null) {
       throw new Error("the plan has no box to point at");
@@ -1180,7 +1223,7 @@ test.describe("laying the apartment out", () => {
   test("stops drawing after one room, so the next drag adjusts it", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     const box = await planImage(page).boundingBox();
     if (box === null) {
       throw new Error("the plan has no box to point at");
@@ -1221,7 +1264,7 @@ test.describe("laying the apartment out", () => {
   });
 
   test("stops drawing on Escape, and the button says so", async ({ page }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     const add = contents(page).getByRole("button", { name: "Add room" });
 
     // The mode shows as a lit button rather than as changed wording, so the
@@ -1239,7 +1282,7 @@ test.describe("laying the apartment out", () => {
   test("drops a room where it is clicked, rather than east of everything", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     const box = await planImage(page).boundingBox();
     if (box === null) {
       throw new Error("the plan has no box to point at");
@@ -1263,7 +1306,7 @@ test.describe("laying the apartment out", () => {
   test("drags the west wall without the plan running away from the pointer", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     await contents(page).getByRole("button", { name: "Living room" }).click();
 
     const room = details(page).getByRole("region", { name: "Living room" });
@@ -1315,7 +1358,7 @@ test.describe("laying the apartment out", () => {
   test("will not let the apartment be panned off the screen", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     const box = await planImage(page).boundingBox();
     if (box === null) {
       throw new Error("the plan has no box to point at");
@@ -1353,7 +1396,7 @@ test.describe("laying the apartment out", () => {
   });
 
   test("says with the pointer what it is about to move", async ({ page }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     await contents(page).getByRole("button", { name: "Living room" }).click();
 
     const box = await planImage(page).boundingBox();
@@ -1391,7 +1434,7 @@ test.describe("laying the apartment out", () => {
   });
 
   test("opens on numbers somebody could have measured", async ({ page }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     await contents(page).getByRole("button", { name: "Living room" }).click();
 
     const room = details(page).getByRole("region", { name: "Living room" });

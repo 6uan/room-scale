@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createProject, withDisplayUnit } from "@/domain/project";
+import { withDisplayUnit } from "@/domain/project";
 import { withRoom, withRoomLength } from "@/domain/room";
 import {
   CURRENT_PROJECT_ID,
@@ -8,6 +8,7 @@ import {
   type RoomScaleDatabase,
 } from "./project-database";
 import { clearProject, loadProject, saveProject } from "./project-repository";
+import { projectWithLivingRoom } from "@/domain/project/fixtures";
 
 /**
  * Runs against `fake-indexeddb`, which is a real IndexedDB implementation
@@ -33,7 +34,7 @@ describe("loadProject", () => {
   });
 
   it("reads back what was saved", async () => {
-    const project = withDisplayUnit(createProject(), "metric");
+    const project = withDisplayUnit(projectWithLivingRoom(), "metric");
     await saveProject(project, 1_700_000_000_000, database);
 
     await expect(loadProject(database)).resolves.toEqual({
@@ -43,7 +44,7 @@ describe("loadProject", () => {
   });
 
   it("reads back a room that was edited", async () => {
-    const project = createProject();
+    const project = projectWithLivingRoom();
     const [room] = project.floor.rooms;
     if (room === undefined) {
       throw new Error("a new project starts with one room");
@@ -62,8 +63,12 @@ describe("loadProject", () => {
   });
 
   it("keeps the newest save rather than accumulating rows", async () => {
-    await saveProject(createProject(), 1, database);
-    await saveProject(withDisplayUnit(createProject(), "metric"), 2, database);
+    await saveProject(projectWithLivingRoom(), 1, database);
+    await saveProject(
+      withDisplayUnit(projectWithLivingRoom(), "metric"),
+      2,
+      database,
+    );
 
     const result = await loadProject(database);
     expect(result.status === "loaded" && result.project.displayUnit).toBe(
@@ -98,7 +103,7 @@ describe("loadProject", () => {
     await loadProject(database);
 
     // Quarantined under its own id, and still there after a later save.
-    await saveProject(createProject(), 1, database);
+    await saveProject(projectWithLivingRoom(), 1, database);
     await expect(database.projects.get(QUARANTINE_ID)).resolves.toMatchObject({
       project: { room: "not a room" },
     });
@@ -109,7 +114,7 @@ describe("loadProject", () => {
       id: CURRENT_PROJECT_ID,
       version: 99,
       updatedAt: 0,
-      project: createProject(),
+      project: projectWithLivingRoom(),
     });
 
     await expect(loadProject(database)).resolves.toEqual({
@@ -121,7 +126,7 @@ describe("loadProject", () => {
 
 describe("clearProject", () => {
   it("returns storage to a first visit", async () => {
-    await saveProject(createProject(), 1, database);
+    await saveProject(projectWithLivingRoom(), 1, database);
     await clearProject(database);
 
     await expect(loadProject(database)).resolves.toEqual({ status: "empty" });

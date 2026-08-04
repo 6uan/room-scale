@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { metersFromInches } from "@/domain/units";
-import { DEFAULT_ROOM } from "./room";
+import { LIVING_ROOM } from "./fixtures";
 import {
   MIN_OPENING_METERS,
   checkOpening,
@@ -29,7 +29,7 @@ const PART = {
   rotationRadians: 0,
   openWalls: [],
 };
-const ROOM = { ...DEFAULT_ROOM, parts: [PART], openings: [] };
+const ROOM = { ...LIVING_ROOM, parts: [PART], openings: [] };
 
 function passage(overrides: Partial<Opening> = {}): Opening {
   return {

@@ -5,12 +5,13 @@ import {
   type PlacedFurniture,
 } from "@/domain/furniture";
 import type { FurnitureProduct } from "@/domain/furniture";
-import { DEFAULT_FLOOR, DEFAULT_ROOM } from "@/domain/room";
+import { DEFAULT_FLOOR } from "@/domain/room";
+import { LIVING_ROOM } from "@/domain/room/fixtures";
 import { checkLayout, troubledInstanceIds } from "./layout";
 
 /** A one-room apartment, four by three. */
 const ROOM = {
-  ...DEFAULT_ROOM,
+  ...LIVING_ROOM,
   parts: [
     {
       id: "room-1-part-1",

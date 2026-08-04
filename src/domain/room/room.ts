@@ -82,46 +82,15 @@ export const ROOM_ORIGIN_LIMITS: LengthLimits = {
   maxMeters: 60,
 };
 
-const DEFAULT_PART: RoomPart = {
-  id: "room-1-part-1",
-  origin: {
-    xMeters: -metersFromInches(84),
-    zMeters: -metersFromInches(72),
-  },
-  widthMeters: metersFromInches(168),
-  depthMeters: metersFromInches(144),
-  rotationRadians: 0,
-  openWalls: [],
-};
-
-export const DEFAULT_ROOM: Room = {
-  id: "room-1",
-  name: "Living room",
-  heightMeters: metersFromInches(96),
-  parts: [DEFAULT_PART],
-  exteriorWallThicknessMeters: null,
-  interiorWallThicknessMeters: null,
-  openings: [
-    {
-      id: "door-1",
-      kind: "door",
-      partId: DEFAULT_PART.id,
-      wall: "south",
-      centerMeters: metersFromInches(36),
-      widthMeters: metersFromInches(32),
-      hinge: "start",
-      swing: "inward",
-    },
-    {
-      id: "window-1",
-      kind: "window",
-      partId: DEFAULT_PART.id,
-      wall: "north",
-      centerMeters: metersFromInches(84),
-      widthMeters: metersFromInches(48),
-    },
-  ],
-};
+/**
+ * How tall a room is until somebody measures it: eight feet.
+ *
+ * The one thing a new room can be given that is a fair guess rather than a
+ * fiction — every other dimension comes off a tape, and a plan view cannot
+ * show this one anyway. What used to sit here was a whole furnished living
+ * room, which is why `DEFAULT_ROOM` is gone; see `DEFAULT_FLOOR`.
+ */
+export const DEFAULT_ROOM_HEIGHT_METERS = metersFromInches(96);
 
 export function createRoomPart(
   id: string,
@@ -158,7 +127,7 @@ export function createRoom(id: string, name: string, origin: FloorPoint): Room {
   return {
     id,
     name,
-    heightMeters: DEFAULT_ROOM.heightMeters,
+    heightMeters: DEFAULT_ROOM_HEIGHT_METERS,
     parts: [createRoomPart(`${id}-part-1`, origin)],
     openings: [],
     // A new room is built out of whatever the apartment is built out of. An

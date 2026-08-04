@@ -1,7 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { createProject } from "@/domain/project";
 import {
   createRoom,
   DEFAULT_FLOOR,
@@ -13,6 +12,7 @@ import {
   type Room,
 } from "@/domain/room";
 import { RoomFields } from "./room-fields";
+import { projectWithLivingRoom } from "@/domain/project/fixtures";
 
 function snappingFloor(): { floor: Floor; room: Room } {
   const room = withRoomLength(
@@ -63,7 +63,7 @@ function mockPointerCapture(element: HTMLElement) {
 
 describe("RoomFields", () => {
   it("groups design-tool coordinates and dimensions without repeating the name", () => {
-    const floor = createProject().floor;
+    const floor = projectWithLivingRoom().floor;
     const room = floor.rooms[0];
     if (room === undefined) {
       throw new Error("a new project starts with a room");
@@ -151,7 +151,7 @@ describe("RoomFields", () => {
   });
 
   it("turns a section by its typed angle, spinning it in place", () => {
-    const floor = createProject().floor;
+    const floor = projectWithLivingRoom().floor;
     const room = floor.rooms[0];
     if (room === undefined) {
       throw new Error("a new project starts with a room");
@@ -209,7 +209,7 @@ describe("RoomFields", () => {
   });
 
   it("opens a wall from its toggle, and closes it again", () => {
-    const floor = createProject().floor;
+    const floor = projectWithLivingRoom().floor;
     const room = floor.rooms[0];
     if (room === undefined) {
       throw new Error("a new project starts with a room");
@@ -232,7 +232,7 @@ describe("RoomFields", () => {
   });
 
   it("closes an opened wall from the same toggle", () => {
-    const floor = createProject().floor;
+    const floor = projectWithLivingRoom().floor;
     const base = floor.rooms[0];
     if (base === undefined) {
       throw new Error("a new project starts with a room");
@@ -258,7 +258,7 @@ describe("RoomFields", () => {
   });
 
   it("adds an editable rectangular section to the room", () => {
-    const floor = createProject().floor;
+    const floor = projectWithLivingRoom().floor;
     const room = floor.rooms[0];
     if (room === undefined) {
       throw new Error("a new project starts with a room");
@@ -287,7 +287,7 @@ describe("RoomFields", () => {
   });
 
   it("shows a plain footprint instead of Section 1 for a rectangular room", () => {
-    const floor = createProject().floor;
+    const floor = projectWithLivingRoom().floor;
     const room = floor.rooms[0];
     if (room === undefined) {
       throw new Error("a new project starts with a room");
@@ -312,7 +312,7 @@ describe("RoomFields", () => {
   });
 
   it("selects a section from its sidebar card once the room is compound", () => {
-    const floor = createProject().floor;
+    const floor = projectWithLivingRoom().floor;
     const base = floor.rooms[0];
     if (base === undefined) {
       throw new Error("a new project starts with a room");
@@ -349,7 +349,7 @@ describe("RoomFields", () => {
   });
 
   it("collapses selection back to the room when one part remains", () => {
-    const floor = createProject().floor;
+    const floor = projectWithLivingRoom().floor;
     const base = floor.rooms[0];
     if (base === undefined) {
       throw new Error("a new project starts with a room");

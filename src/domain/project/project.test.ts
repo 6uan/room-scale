@@ -6,17 +6,21 @@ import {
   withProducts,
   withFloor,
 } from "./project";
-import { primaryRoomPart } from "@/domain/room";
 
 describe("project", () => {
-  it("starts with an apartment, no furniture, and a reading preference", () => {
+  it("starts on an empty floor, with nothing measured and nothing bought", () => {
     const project = createProject();
 
+    // No fictional living room: a new project opens on measurements nobody
+    // took only if we put them there, and then the first job is deleting them.
+    expect(project.floor.rooms).toEqual([]);
     expect(project.products).toEqual([]);
     expect(project.displayUnit).toBe("imperial");
-    expect(project.floor.rooms).toHaveLength(1);
-    const room = project.floor.rooms[0];
-    expect(room && primaryRoomPart(room).widthMeters).toBeGreaterThan(0);
+    // The two wall thicknesses are the exception: they are what the rooms
+    // about to be drawn will be built out of, and they are defaults, not
+    // measurements.
+    expect(project.floor.exteriorWallThicknessMeters).toBeGreaterThan(0);
+    expect(project.floor.interiorWallThicknessMeters).toBeGreaterThan(0);
   });
 
   it("replaces each part without mutating the original", () => {

@@ -3,13 +3,13 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { withParts, withRoom, type Floor, type Room } from "@/domain/room";
-import { createProject } from "@/domain/project";
 import type { Selection } from "@/components/selection";
 import { ApartmentLayers } from "./apartment-layers";
+import { projectWithLivingRoom } from "@/domain/project/fixtures";
 
 function LayersHarness({ compound = false }: { compound?: boolean }) {
   const [floor, setFloor] = useState<Floor>(() => {
-    const initial = createProject().floor;
+    const initial = projectWithLivingRoom().floor;
     const room = initial.rooms[0];
     if (!compound || room === undefined) {
       return initial;

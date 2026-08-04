@@ -1617,6 +1617,16 @@ function floorPointAt(
 }
 
 /**
+ * How much floor an empty plan shows, in meters across.
+ *
+ * A new project has nothing to fit, and fitting nothing gives a rectangle of
+ * zero that zooms to infinity. Twelve meters is a two-bedroom apartment's worth
+ * of floor: enough that a room dragged out at a real size looks like a real
+ * size, and the grid squares read as the meters they are.
+ */
+const EMPTY_FLOOR_SPAN_METERS = 12;
+
+/**
  * What the plan fits into its viewport: the apartment plus its shell all
  * round, stretched to keep the whole underlay reachable — an image being
  * traced is no use half off the screen.
@@ -1627,10 +1637,12 @@ function fittedRect(
 ): { origin: FloorPoint; extent: FloorExtent } {
   const thickness = maxWallThicknessMeters(floor);
   const { origin, extent } = floorBounds(floor);
-  let west = origin.xMeters - thickness;
-  let north = origin.zMeters - thickness;
-  let east = origin.xMeters + extent.widthMeters + thickness;
-  let south = origin.zMeters + extent.depthMeters + thickness;
+  const empty = floor.rooms.length === 0;
+  const span = empty ? EMPTY_FLOOR_SPAN_METERS / 2 : 0;
+  let west = origin.xMeters - thickness - span;
+  let north = origin.zMeters - thickness - span;
+  let east = origin.xMeters + extent.widthMeters + thickness + span;
+  let south = origin.zMeters + extent.depthMeters + thickness + span;
 
   if (underlay !== null && underlay.visible) {
     const image = underlayExtentMeters(underlay);

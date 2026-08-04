@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { openWithLivingRoom } from "./fixtures/living-room";
 
 function contents(page: Page) {
   return page.getByRole("complementary", { name: "Contents" });
@@ -26,14 +27,14 @@ test.describe("taking it back", () => {
   test("has nothing to undo on a project nobody has touched", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
 
     await expect(undoButton(page)).toBeDisabled();
     await expect(page.getByRole("button", { name: "Redo" })).toBeDisabled();
   });
 
   test("brings a deleted room back", async ({ page }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     await addRoom(page);
     const room = contents(page).getByRole("button", { name: "Room 2" });
     await expect(room).toBeVisible();
@@ -54,7 +55,7 @@ test.describe("taking it back", () => {
   });
 
   test("takes a typed dimension back to what it was", async ({ page }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     await contents(page).getByRole("button", { name: "Living room" }).click();
     const width = details(page).getByLabel("Living room width");
     const before = await width.inputValue();
@@ -70,7 +71,7 @@ test.describe("taking it back", () => {
   });
 
   test("takes a scrubbed dimension back in one step", async ({ page }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     await contents(page).getByRole("button", { name: "Living room" }).click();
 
     const inspector = details(page);
@@ -95,7 +96,7 @@ test.describe("taking it back", () => {
   });
 
   test("puts back what was taken back", async ({ page }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     await addRoom(page);
     await expect(
       contents(page).getByRole("button", { name: "Room 2" }),
@@ -114,7 +115,7 @@ test.describe("taking it back", () => {
   });
 
   test("shows what the keys do, and closes again", async ({ page }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
 
     await page.getByRole("button", { name: "Keys" }).click();
 
@@ -128,7 +129,7 @@ test.describe("taking it back", () => {
   });
 
   test("opens the guide from the keyboard", async ({ page }) => {
-    await page.goto("/");
+    await openWithLivingRoom(page);
     // The workspace is held back until storage has been read, and a key
     // pressed before it mounts lands on nothing.
     await expect(page.getByRole("button", { name: "Keys" })).toBeVisible();
