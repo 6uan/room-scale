@@ -14,7 +14,7 @@ const ROOMS = new Map([
 ]);
 
 function renderProblems(problems: readonly LayoutProblem[]) {
-  render(
+  return render(
     <LayoutProblems
       problems={problems}
       names={NAMES}
@@ -25,10 +25,16 @@ function renderProblems(problems: readonly LayoutProblem[]) {
 }
 
 describe("LayoutProblems", () => {
-  it("says so when there is nothing wrong", () => {
-    renderProblems([]);
+  it("says nothing at all when there is nothing wrong", () => {
+    const { container } = renderProblems([]);
 
-    expect(screen.getByText(/Everything fits/)).toBeInTheDocument();
+    // A plan with no red on it already says everything fits. The old
+    // "Everything fits" line was on screen almost always, over the drawing.
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
+    expect(container).toHaveTextContent("");
+    // The live region outlives the message, so the first problem to arrive is
+    // announced rather than appearing along with the region that holds it.
+    expect(container.querySelector("[aria-live]")).toBeInTheDocument();
   });
 
   it("names both pieces of an overlap, and the amount", () => {
