@@ -1025,35 +1025,29 @@ test.describe("laying the apartment out", () => {
     await expect(image).toHaveCount(0);
   });
 
-  test("keeps shell and partition walls as two typed numbers", async ({
+  test("keeps the apartment's wall thickness as one typed number", async ({
     page,
   }) => {
     await openWithLivingRoom(page);
 
-    // Nothing selected: the apartment's own settings. The two walls are folded
-    // away behind one line that reads them out, because they are set once and
-    // read often — so the summary has to carry the numbers.
+    // Nothing selected: the apartment's own settings. The wall is folded away
+    // behind one line that reads it out, because it is set once and read
+    // often — so the summary has to carry the number.
     const apartment = details(page).getByRole("region", { name: "Apartment" });
-    const defaults = apartment.getByRole("button", { name: /^Wall defaults/ });
-    await expect(defaults).toHaveAttribute("aria-expanded", "false");
-    await expect(defaults).toContainText("8 in shell, 4.5 in partitions");
+    const walls = apartment.getByRole("button", { name: /^Wall thickness/ });
+    await expect(walls).toHaveAttribute("aria-expanded", "false");
+    await expect(walls).toContainText("4.5 in walls");
 
-    await defaults.click();
-    await apartment.getByLabel("Exterior wall thickness").fill("9");
-    await expect(apartment.getByLabel("Exterior wall thickness")).toHaveValue(
-      "9",
-    );
-    await expect(apartment.getByLabel("Interior wall thickness")).toHaveValue(
-      "4.5",
-    );
-    await expect(defaults).toContainText("9 in shell, 4.5 in partitions");
+    await walls.click();
+    const thickness = apartment.getByLabel("Wall thickness");
+    await thickness.fill("9");
+    await expect(thickness).toHaveValue("9");
+    await expect(walls).toContainText("9 in walls");
 
     await page.reload();
     const reopened = details(page).getByRole("region", { name: "Apartment" });
-    await reopened.getByRole("button", { name: /^Wall defaults/ }).click();
-    await expect(reopened.getByLabel("Exterior wall thickness")).toHaveValue(
-      "9",
-    );
+    await reopened.getByRole("button", { name: /^Wall thickness/ }).click();
+    await expect(reopened.getByLabel("Wall thickness")).toHaveValue("9");
   });
 
   test("counts the floor up only once there is a floor to count", async ({
@@ -1086,18 +1080,19 @@ test.describe("laying the apartment out", () => {
     // Folded away, saying what this room's walls are and where they came from.
     const walls = room.getByRole("button", { name: /^Walls/ });
     await expect(walls).toHaveAttribute("aria-expanded", "false");
-    await expect(walls).toContainText("8 in shell, 4.5 in partitions");
+    await expect(walls).toContainText("4.5 in walls");
     await expect(walls).toContainText("from the apartment");
 
     await walls.click();
-    const partition = room.getByLabel("Living room interior wall thickness");
+    const thickness = room.getByLabel("Living room wall thickness");
     // Opened onto the inherited number, not an empty box.
-    await expect(partition).toHaveValue("4.5");
+    await expect(thickness).toHaveValue("4.5");
 
-    await partition.fill("7");
-    await expect(walls).toContainText("8 in shell, 7 in partitions");
+    await thickness.fill("7");
+    await expect(walls).toContainText("7 in walls");
     await expect(walls).not.toContainText("from the apartment");
-    // The apartment's own default is untouched by one room measuring itself.
+    // Typed once, it stays this room's: the apartment's own default no longer
+    // reaches it, and it survives a reload.
     await contents(page).getByRole("button", { name: "Living room" }).click();
     await page.reload();
     await contents(page).getByRole("button", { name: "Living room" }).click();
@@ -1105,19 +1100,17 @@ test.describe("laying the apartment out", () => {
       details(page)
         .getByRole("region", { name: "Living room" })
         .getByRole("button", { name: /^Walls/ }),
-    ).toContainText("8 in shell, 7 in partitions");
+    ).toContainText("7 in walls");
 
     // And handed back, it reads the apartment's again.
     const reopened = details(page).getByRole("region", { name: "Living room" });
     await reopened.getByRole("button", { name: /^Walls/ }).click();
     await reopened
-      .getByRole("button", {
-        name: "Use the apartment's interior wall thickness",
-      })
+      .getByRole("button", { name: "Use the apartment's wall thickness" })
       .click();
     await expect(
       reopened.getByRole("button", { name: /^Walls/ }),
-    ).toContainText("8 in shell, 4.5 in partitions");
+    ).toContainText("4.5 in walls");
   });
 
   test("opens a wall into a railing that refuses a door", async ({ page }) => {

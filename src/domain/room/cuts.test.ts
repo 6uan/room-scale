@@ -51,8 +51,7 @@ function roomOf(part: RoomPart): Room {
       heightMeters: 2.4,
       parts: [],
       openings: [],
-      exteriorWallThicknessMeters: null,
-      interiorWallThicknessMeters: null,
+      wallThicknessMeters: null,
     },
     [part],
   );

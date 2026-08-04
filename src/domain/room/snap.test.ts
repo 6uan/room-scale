@@ -37,8 +37,7 @@ const FIRST: Room = {
 const SECOND = createRoom("room-2", "Hall", { xMeters: 9, zMeters: 9 });
 const FLOOR = {
   ...DEFAULT_FLOOR,
-  exteriorWallThicknessMeters: 0.1,
-  interiorWallThicknessMeters: 0.1,
+  wallThicknessMeters: 0.1,
   rooms: [FIRST, SECOND],
 };
 const part = (room: Room) => primaryRoomPart(room);
@@ -371,11 +370,11 @@ describe("drawnRoom", () => {
 describe("snapping when the two rooms disagree about the wall between them", () => {
   const FAT = 0.3;
   /** The first room built out of something fatter than the floor's 0.1. */
-  const THICK_FIRST = withRoomWallThickness(FIRST, "interior", FAT);
+  const THICK_FIRST = withRoomWallThickness(FIRST, FAT);
   const MIXED = { ...FLOOR, rooms: [THICK_FIRST, SECOND] };
 
   it("moves a room up against the thicker of the two walls", () => {
-    // The first room ends at 4. Its own partition is the fatter claim, so the
+    // The first room ends at 4. Its own wall is the fatter claim, so the
     // gap is 0.3 rather than the floor's 0.1 — and the room lands at 4.3.
     expect(
       snapRoomOrigin(MIXED, SECOND, { xMeters: 4.26, zMeters: 0 }).xMeters,

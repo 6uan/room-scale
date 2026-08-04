@@ -6,7 +6,7 @@ import { Disclosure } from "./disclosure";
 describe("a folded-away setting", () => {
   function renderOne() {
     return render(
-      <Disclosure label="Wall defaults" summary="8 in shell, 4.5 in partitions">
+      <Disclosure label="Wall defaults" summary="4.5 in walls">
         <p>the controls</p>
       </Disclosure>,
     );
@@ -17,7 +17,7 @@ describe("a folded-away setting", () => {
 
     const button = screen.getByRole("button", { name: /^Wall defaults/ });
     expect(button).toHaveAttribute("aria-expanded", "false");
-    expect(button).toHaveTextContent("8 in shell, 4.5 in partitions");
+    expect(button).toHaveTextContent("4.5 in walls");
     // Shut means shut: the controls are not in the document at all.
     expect(screen.queryByText("the controls")).not.toBeInTheDocument();
   });
@@ -33,6 +33,6 @@ describe("a folded-away setting", () => {
     expect(button).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("the controls")).toBeInTheDocument();
     // Still carries the value, so opening it never costs you the answer.
-    expect(button).toHaveTextContent("8 in shell, 4.5 in partitions");
+    expect(button).toHaveTextContent("4.5 in walls");
   });
 });

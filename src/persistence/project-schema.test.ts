@@ -12,6 +12,32 @@ const STORED = toStoredProject(
   1_700_000_000_000,
 );
 
+/**
+ * The living room's floor as a build before version 13 stored it: two wall
+ * thicknesses rather than one, on the floor and on every room.
+ *
+ * The fixture describes the shape this build writes, and a migration test has
+ * to hand the reader the shape the *older* build wrote. Spelled out here once
+ * rather than in each of the tests that needs it.
+ */
+function floorWithTwoThicknesses(
+  project: ReturnType<typeof projectWithLivingRoom>,
+) {
+  return {
+    exteriorWallThicknessMeters: 0.2032,
+    interiorWallThicknessMeters: 0.1143,
+    rooms: project.floor.rooms.map((room) => {
+      const { wallThicknessMeters, ...rest } = room;
+      void wallThicknessMeters;
+      return {
+        ...rest,
+        exteriorWallThicknessMeters: null,
+        interiorWallThicknessMeters: null,
+      };
+    }),
+  };
+}
+
 describe("readStoredProject", () => {
   it("reads back a document this build wrote", () => {
     const result = readStoredProject(STORED);
@@ -259,18 +285,15 @@ describe("readStoredProject", () => {
 
     const result = readStoredProject(version5);
 
-    // The same project, save for the one thickness the old floor carried
-    // becoming both of the two this build has. A stored measurement is never
+    // The same project, save for the thickness the old floor carried. It was
+    // split into two on the way to version 9 and put back into one at 13, and
+    // comes out as the number that went in. A stored measurement is never
     // replaced by a newer default.
     expect(result).toEqual({
       ok: true,
       project: {
         ...project,
-        floor: {
-          ...project.floor,
-          exteriorWallThicknessMeters: 0.1143,
-          interiorWallThicknessMeters: 0.1143,
-        },
+        floor: { ...project.floor, wallThicknessMeters: 0.1143 },
       },
     });
     expect(
@@ -350,7 +373,7 @@ describe("readStoredProject", () => {
     expect(result.ok && result.project.floor.rooms[0]?.parts).toEqual([part]);
   });
 
-  it("splits a version 8 wall thickness into shell and partitions", () => {
+  it("carries a version 8 wall thickness through the split and back", () => {
     const project = projectWithLivingRoom();
     const room = project.floor.rooms[0];
     const part = room?.parts[0];
@@ -375,17 +398,16 @@ describe("readStoredProject", () => {
     const result = readStoredProject(version8);
 
     expect(result.ok).toBe(true);
-    expect(result.ok && result.project.floor.exteriorWallThicknessMeters).toBe(
-      0.2,
-    );
-    expect(result.ok && result.project.floor.interiorWallThicknessMeters).toBe(
-      0.2,
-    );
+    // Version 9 split the one thickness into two, and version 13 put them
+    // back into one. A project that had a single number all along comes out
+    // the far end with that same number.
+    expect(result.ok && result.project.floor.wallThicknessMeters).toBe(0.2);
     expect(
       result.ok && result.project.floor.rooms[0]?.parts[0]?.openWalls,
     ).toEqual([]);
     expect(
-      result.ok && "wallThicknessMeters" in (result.project.floor as object),
+      result.ok &&
+        "exteriorWallThicknessMeters" in (result.project.floor as object),
     ).toBe(false);
   });
 
@@ -397,7 +419,7 @@ describe("readStoredProject", () => {
       id: "current",
       version: 9,
       updatedAt: 1_700_000_000_000,
-      project: withoutUnderlay,
+      project: { ...withoutUnderlay, floor: floorWithTwoThicknesses(project) },
     };
 
     const result = readStoredProject(version9);
@@ -406,19 +428,14 @@ describe("readStoredProject", () => {
     expect(result.ok && result.project.underlay).toBeNull();
   });
 
-  it("leaves a version 10 room taking the floor's wall thicknesses", () => {
+  it("leaves a version 10 room taking the floor's wall thickness", () => {
     const project = projectWithLivingRoom();
     const room = project.floor.rooms[0];
     if (room === undefined) {
       throw new Error("a new project starts with one room");
     }
-    const {
-      exteriorWallThicknessMeters,
-      interiorWallThicknessMeters,
-      ...bare
-    } = room;
-    void exteriorWallThicknessMeters;
-    void interiorWallThicknessMeters;
+    const { wallThicknessMeters, ...bare } = room;
+    void wallThicknessMeters;
     const version10 = {
       id: "current",
       version: 10,
@@ -438,16 +455,56 @@ describe("readStoredProject", () => {
     expect(result.ok).toBe(true);
     // Null, meaning "whatever the floor says" — which is what it always did.
     expect(
-      result.ok && result.project.floor.rooms[0]?.exteriorWallThicknessMeters,
+      result.ok && result.project.floor.rooms[0]?.wallThicknessMeters,
     ).toBeNull();
+    // And the floor keeps its own measured number rather than taking the
+    // default a new apartment starts on.
+    expect(result.ok && result.project.floor.wallThicknessMeters).toBe(0.1143);
+  });
+
+  it("keeps the partition when a version 12 project's two thicknesses collapse", () => {
+    const project = projectWithLivingRoom();
+    const room = project.floor.rooms[0];
+    if (room === undefined) {
+      throw new Error("a new project starts with one room");
+    }
+    const { wallThicknessMeters, ...bare } = room;
+    void wallThicknessMeters;
+    const version12 = {
+      id: "current",
+      version: 12,
+      updatedAt: 1_700_000_000_000,
+      project: {
+        ...project,
+        floor: {
+          exteriorWallThicknessMeters: 0.2032,
+          interiorWallThicknessMeters: 0.1143,
+          rooms: [
+            {
+              ...bare,
+              exteriorWallThicknessMeters: null,
+              interiorWallThicknessMeters: 0.3,
+            },
+          ],
+        },
+      },
+    };
+
+    const result = readStoredProject(version12);
+
+    expect(result.ok).toBe(true);
+    // The interior number is the one kept, on the floor and on the room: it
+    // is what decides how far apart snapped rooms stand, so keeping it leaves
+    // every room exactly where it was.
+    expect(result.ok && result.project.floor.wallThicknessMeters).toBe(0.1143);
     expect(
-      result.ok && result.project.floor.rooms[0]?.interiorWallThicknessMeters,
-    ).toBeNull();
-    // And the floor keeps its own measured numbers. The new 8" shell default
-    // belongs to a new apartment, not to somebody's stored one.
-    expect(result.ok && result.project.floor.exteriorWallThicknessMeters).toBe(
-      0.1143,
-    );
+      result.ok && result.project.floor.rooms[0]?.wallThicknessMeters,
+    ).toBe(0.3);
+    // And the keys it replaced are gone rather than carried along.
+    expect(
+      result.ok &&
+        "interiorWallThicknessMeters" in (result.project.floor as object),
+    ).toBe(false);
   });
 
   it("leaves a version 11 section square, with no corners clipped", () => {
@@ -456,7 +513,7 @@ describe("readStoredProject", () => {
       id: "current",
       version: 11,
       updatedAt: 1_700_000_000_000,
-      project,
+      project: { ...project, floor: floorWithTwoThicknesses(project) },
     };
 
     const result = readStoredProject(version11);
@@ -534,7 +591,7 @@ describe("readStoredProject", () => {
         ...project,
         floor: {
           ...project.floor,
-          rooms: [{ ...room, interiorWallThicknessMeters: 0.3 }],
+          rooms: [{ ...room, wallThicknessMeters: 0.3 }],
         },
       },
     };
@@ -542,7 +599,7 @@ describe("readStoredProject", () => {
     const result = readStoredProject(stored);
 
     expect(
-      result.ok && result.project.floor.rooms[0]?.interiorWallThicknessMeters,
+      result.ok && result.project.floor.rooms[0]?.wallThicknessMeters,
     ).toBe(0.3);
   });
 

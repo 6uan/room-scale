@@ -30,8 +30,7 @@ function snappingFloor(): { floor: Floor; room: Room } {
     room,
     floor: {
       ...DEFAULT_FLOOR,
-      exteriorWallThicknessMeters: 0.1,
-      interiorWallThicknessMeters: 0.1,
+      wallThicknessMeters: 0.1,
       rooms: [room, neighbor],
     },
   };
@@ -533,8 +532,7 @@ describe("RoomFields", () => {
 describe("a room's own wall thickness", () => {
   const FLOOR: Floor = {
     ...DEFAULT_FLOOR,
-    exteriorWallThicknessMeters: 0.2,
-    interiorWallThicknessMeters: 0.1,
+    wallThicknessMeters: 0.1,
     rooms: [createRoom("room-1", "Living room", { xMeters: 0, zMeters: 0 })],
   };
   const ROOM = FLOOR.rooms[0]!;
@@ -547,26 +545,21 @@ describe("a room's own wall thickness", () => {
     renderFields(FLOOR, ROOM, vi.fn());
 
     expect(walls()).toHaveAttribute("aria-expanded", "false");
-    expect(walls()).toHaveTextContent("20 cm shell, 10 cm partitions");
+    expect(walls()).toHaveTextContent("10 cm walls");
     expect(walls()).toHaveTextContent("from the apartment");
-    // Folded means folded: the fields are not in the document at all.
+    // Folded means folded: the field is not in the document at all.
     expect(
-      screen.queryByLabelText("Living room interior wall thickness"),
+      screen.queryByLabelText("Living room wall thickness"),
     ).not.toBeInTheDocument();
   });
 
-  it("opens onto the inherited numbers rather than empty boxes", async () => {
+  it("opens onto the inherited number rather than an empty box", async () => {
     renderFields(FLOOR, ROOM, vi.fn());
 
     await userEvent.click(walls());
 
     expect(walls()).toHaveAttribute("aria-expanded", "true");
-    expect(
-      screen.getByLabelText("Living room exterior wall thickness"),
-    ).toHaveValue(20);
-    expect(
-      screen.getByLabelText("Living room interior wall thickness"),
-    ).toHaveValue(10);
+    expect(screen.getByLabelText("Living room wall thickness")).toHaveValue(10);
   });
 
   it("makes the number this room's as soon as it is typed over", async () => {
@@ -574,35 +567,32 @@ describe("a room's own wall thickness", () => {
     renderFields(FLOOR, ROOM, onChange);
     await userEvent.click(walls());
 
-    fireEvent.change(
-      screen.getByLabelText("Living room interior wall thickness"),
-      { target: { value: "30" } },
-    );
+    fireEvent.change(screen.getByLabelText("Living room wall thickness"), {
+      target: { value: "30" },
+    });
 
     expect(onChange).toHaveBeenCalled();
     const [next] = onChange.mock.calls.at(-1) as [Room];
-    expect(next.interiorWallThicknessMeters).toBeCloseTo(0.3, 10);
-    // The other one is untouched: overriding is per number, not per room.
-    expect(next.exteriorWallThicknessMeters).toBeNull();
+    expect(next.wallThicknessMeters).toBeCloseTo(0.3, 10);
   });
 
-  it("hands a number back to the apartment, and says so while it is not", async () => {
-    const own: Room = { ...ROOM, interiorWallThicknessMeters: 0.3 };
+  it("hands the number back to the apartment, and says so while it is not", async () => {
+    const own: Room = { ...ROOM, wallThicknessMeters: 0.3 };
     const onChange = vi.fn();
     renderFields(FLOOR, own, onChange);
 
-    expect(walls()).toHaveTextContent("20 cm shell, 30 cm partitions");
+    expect(walls()).toHaveTextContent("30 cm walls");
     expect(walls()).not.toHaveTextContent("from the apartment");
 
     await userEvent.click(walls());
     await userEvent.click(
       screen.getByRole("button", {
-        name: "Use the apartment's interior wall thickness",
+        name: "Use the apartment's wall thickness",
       }),
     );
 
     const [next] = onChange.mock.calls.at(-1) as [Room];
-    expect(next.interiorWallThicknessMeters).toBeNull();
+    expect(next.wallThicknessMeters).toBeNull();
   });
 
   it("offers no way back for a number that was never overridden", async () => {
@@ -611,7 +601,7 @@ describe("a room's own wall thickness", () => {
 
     expect(
       screen.queryByRole("button", {
-        name: "Use the apartment's exterior wall thickness",
+        name: "Use the apartment's wall thickness",
       }),
     ).not.toBeInTheDocument();
   });

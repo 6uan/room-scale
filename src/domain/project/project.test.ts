@@ -16,11 +16,9 @@ describe("project", () => {
     expect(project.floor.rooms).toEqual([]);
     expect(project.products).toEqual([]);
     expect(project.displayUnit).toBe("imperial");
-    // The two wall thicknesses are the exception: they are what the rooms
-    // about to be drawn will be built out of, and they are defaults, not
-    // measurements.
-    expect(project.floor.exteriorWallThicknessMeters).toBeGreaterThan(0);
-    expect(project.floor.interiorWallThicknessMeters).toBeGreaterThan(0);
+    // The wall thickness is the exception: it is what the rooms about to be
+    // drawn will be built out of, and it is a default, not a measurement.
+    expect(project.floor.wallThicknessMeters).toBeGreaterThan(0);
   });
 
   it("replaces each part without mutating the original", () => {

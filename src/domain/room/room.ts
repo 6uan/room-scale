@@ -104,17 +104,15 @@ export type Room = {
   readonly parts: readonly RoomPart[];
   readonly openings: readonly Opening[];
   /**
-   * This room's own wall thicknesses, or null to take the floor's.
+   * This room's own wall thickness, or null to take the apartment's.
    *
-   * Almost every room takes the floor's, which is why the floor still carries
-   * both numbers and why the control for these is folded away. The rooms that
-   * do not are real, though: a bathroom's plumbing wall is fatter than the
-   * partitions around it, and a room built into a chimney breast is fatter
-   * still. Typing that once per apartment would be typing the wrong number
-   * everywhere else.
+   * Almost every room takes the apartment's, which is why the floor carries
+   * the number and why the control for this is folded away. The rooms that do
+   * not are real, though: a bathroom's plumbing wall is fatter than the
+   * partitions around it. Typing that once per apartment would be typing the
+   * wrong number everywhere else.
    */
-  readonly exteriorWallThicknessMeters: number | null;
-  readonly interiorWallThicknessMeters: number | null;
+  readonly wallThicknessMeters: number | null;
 };
 
 export type RoomDimension = "widthMeters" | "depthMeters" | "heightMeters";
@@ -187,23 +185,16 @@ export function createRoom(id: string, name: string, origin: FloorPoint): Room {
     openings: [],
     // A new room is built out of whatever the apartment is built out of. An
     // override is a thing somebody measured and meant, never a starting point.
-    exteriorWallThicknessMeters: null,
-    interiorWallThicknessMeters: null,
+    wallThicknessMeters: null,
   };
 }
 
 /**
- * The same room with one of its wall thicknesses overridden, or handed back to
- * the floor's default when the value is null.
+ * The same room with its wall thickness overridden, or handed back to the
+ * apartment's default when the value is null.
  */
-export function withRoomWallThickness(
-  room: Room,
-  kind: "exterior" | "interior",
-  meters: number | null,
-): Room {
-  return kind === "exterior"
-    ? { ...room, exteriorWallThicknessMeters: meters }
-    : { ...room, interiorWallThicknessMeters: meters };
+export function withRoomWallThickness(room: Room, meters: number | null): Room {
+  return { ...room, wallThicknessMeters: meters };
 }
 
 export function primaryRoomPart(room: Room): RoomPart {

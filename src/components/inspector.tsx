@@ -176,39 +176,32 @@ function FloorInspector({
         onUnderlayChange={onUnderlayChange}
       />
       {/*
-        Two numbers because an apartment has two kinds of wall: the shell and
-        the partitions. Which walls are which is worked out from the rooms —
-        a wall is interior where another room stands on its far side.
+        One number, for every wall on the floor.
 
-        Folded away for the same reason a room's own override is: they are set
-        once, if ever, and read far more often than changed. Two labelled
-        fields and two unit conversions was the first thing a new project put
-        in front of somebody, which is a strange thing to open a tool on.
+        It was two — a thicker shell and thinner partitions, with which was
+        which derived from where the rooms stood. That drew a wall shared for
+        part of its run at two widths, with a step where the neighbour ended,
+        and an apartment of a dozen rooms came out ragged. It is a number that
+        changes no answer: nothing in the fit checking reads it.
+
+        Folded away for the same reason a room's own override is: set once, if
+        ever, and read far more often than changed.
       */}
       <Disclosure
-        label="Wall defaults"
-        summary={`${thicknessLabel(floor.exteriorWallThicknessMeters, unit)} shell, ${thicknessLabel(floor.interiorWallThicknessMeters, unit)} partitions`}
+        label="Wall thickness"
+        summary={`${thicknessLabel(floor.wallThicknessMeters, unit)} walls`}
       >
         <p className="text-[13px] leading-relaxed opacity-60">
           What every room is built out of until it says otherwise. A single room
           can be measured on its own from its own panel.
         </p>
         <NumberField
-          label="Exterior wall thickness"
+          label="Wall thickness"
           unit={unit}
-          meters={floor.exteriorWallThicknessMeters}
+          meters={floor.wallThicknessMeters}
           limits={WALL_THICKNESS_LIMITS}
-          onMetersChange={(exteriorWallThicknessMeters) =>
-            onFloorChange({ ...floor, exteriorWallThicknessMeters })
-          }
-        />
-        <NumberField
-          label="Interior wall thickness"
-          unit={unit}
-          meters={floor.interiorWallThicknessMeters}
-          limits={WALL_THICKNESS_LIMITS}
-          onMetersChange={(interiorWallThicknessMeters) =>
-            onFloorChange({ ...floor, interiorWallThicknessMeters })
+          onMetersChange={(wallThicknessMeters) =>
+            onFloorChange({ ...floor, wallThicknessMeters })
           }
         />
       </Disclosure>

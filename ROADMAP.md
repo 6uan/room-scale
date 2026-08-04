@@ -33,7 +33,7 @@ calendar time.
 | Done — #26           | Place, select, move, and resize doors, windows, and passages on the plan while keeping every value typeable                      | **Highest** | **Highest** | Fourteen openings are the largest remaining source of repetitive arithmetic in entering the real apartment.     |
 | Done — Step 18a      | Build an L-shaped or notched room from multiple axis-aligned rectangular parts, including persistence and validation             | **High**    | **Highest** | This expresses most currently impossible rooms without taking on rotation at the same time.                     |
 | Done — Step 18b      | Rotate room parts for diagonal walls                                                                                             | Medium      | High        | Required for the real plan, but only after the higher-leverage rectangular-part model is proven.                |
-| Done — Step 18 final | Mark edges open and distinguish exterior from interior wall thickness                                                            | Medium      | High        | Completes balconies, open living areas, and an honest apartment shell without bloating the first room-parts PR. |
+| Done — Step 18 final | Mark edges open, and give the apartment one wall thickness rooms may override                                                    | Medium      | High        | Completes balconies and open living areas; the shell/partition split it shipped with was reversed for evenness. |
 | Done — Trace listing | Put the listing's floor plan under the canvas, size it against the drawing, and trace the rooms over it                          | **High**    | **Highest** | Entering the apartment was the thing stopping people — the recorded trigger for promoting this from deferred.   |
 | Deferred — 19        | Report furniture that blocks a door or passage                                                                                   | Medium      | Medium      | Set aside: a useful check, but the apartment on the screen and the furnishing answer matter more right now.     |
 | Deferred import      | Try a pasted product URL, with the existing paste-text flow as the permanent fallback                                            | Medium      | Medium      | It can remove typing on cooperative sites, but retailer rendering and anti-bot behavior cap its reliability.    |
@@ -641,7 +641,8 @@ What a room becomes, and why this shape rather than a polygon:
 - **Interior and exterior wall thickness are two numbers, not one.** Step 11
   gave the floor one thickness because an apartment has one kind of wall. It
   has two: the shell is thicker than the partitions, and it is visible in every
-  plan ever drawn.
+  plan ever drawn. _(Reversed afterwards — see the note at the end of this
+  step.)_
 
 Area, bounds, containment, which-room-is-this-piece-in, and the plan's punch
 order all follow the parts. The stored document goes to version 7; a version 6
@@ -701,10 +702,22 @@ The drawing follows the stretches, an opening cuts as deep as the wall it
 actually sits in, rooms snap one interior thickness apart, and the stored
 document goes to version 9 with the old single thickness becoming both.
 
-Not carried out of this step: a wall reads as interior only within the
-interior thickness, so two rooms deliberately built a shell's width apart
-read as shell between them — which is what the drawing then shows, and
-arguably what the tape would say.
+**Two kinds of wall were then taken back out, and the reason is worth
+keeping.** Deriving the thickness was true to how a plan is drawn and wrong
+for this tool. A wall shared for part of its run drew at two widths, with a
+step where the neighbour ended, so an apartment of a dozen rooms came out
+visibly ragged — and sorting that out is cognitive load spent on a number
+that changes no answer. Wall thickness appears nowhere in `checkLayout`;
+furniture is measured against the floor a room encloses, never against its
+walls. So there is one thickness again: the apartment's, or a room's own if
+it says otherwise, and `wallStretches` is left working out only where a wall
+exists at all — seam, open, or wall. The stored document goes to version 13,
+keeping the interior number, because that is the one that decides how far
+apart snapped rooms stand and keeping it leaves every room where it was.
+
+The reversal is recorded rather than tidied away: the step above shipped what
+it says it shipped, and the thing that made it wrong was only visible once a
+whole apartment was on the screen.
 
 Done when: the apartment above is on the screen at its real dimensions, with
 nothing squared off that is not square, and every measurement it reports is one
