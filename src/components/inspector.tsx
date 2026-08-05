@@ -13,6 +13,7 @@ import {
   IconFileButton,
   LabelledButton,
 } from "@/components/icon-button";
+import { cn } from "@/components/cn";
 import { Disclosure } from "@/components/disclosure";
 import { NumberField } from "@/components/number-field";
 import { openingName } from "@/components/opening-name";
@@ -130,16 +131,37 @@ function Panel({
   title,
   subtitle,
   action,
+  sectioned = false,
   children,
 }: {
   title: string;
   subtitle?: string;
   action?: React.ReactNode;
+  /**
+   * Whether the children are `PanelSection`s, which carry their own rhythm.
+   *
+   * The panels are being moved onto that one at a time; the ones still built
+   * out of loose controls keep the old spacing until their turn.
+   */
+  sectioned?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <section aria-label={title} className="flex flex-col gap-5 p-5">
-      <header className="flex items-start justify-between gap-2">
+    <section
+      aria-label={title}
+      className={cn("flex flex-col p-4", sectioned ? "gap-0" : "gap-5 p-5")}
+    >
+      {/*
+        Top-aligned only when there are two lines to align to. With a name and
+        nothing under it, the remove button hung a couple of pixels above the
+        middle of the word it belongs to, which is the sort of thing you see
+        before you can say what it is.
+      */}
+      <header
+        className={`flex justify-between gap-2 ${
+          subtitle === undefined ? "items-center" : "items-start"
+        }`}
+      >
         <div className="flex min-w-0 flex-col gap-1">
           <h2 className="text-[17px] font-semibold tracking-tight">{title}</h2>
           {subtitle === undefined ? null : (
@@ -261,6 +283,7 @@ function RoomInspector({
   return (
     <Panel
       title={name}
+      sectioned
       action={
         <IconButton
           label={`Remove ${name}`}

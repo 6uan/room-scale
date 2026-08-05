@@ -208,7 +208,7 @@ describe("RoomFields", () => {
     );
   });
 
-  it("cycles a wall through walled, open, and dividing", () => {
+  it("leaves the wall alone until a kind is chosen for it", () => {
     const floor = projectWithLivingRoom().floor;
     const room = floor.rooms[0];
     if (room === undefined) {
@@ -217,17 +217,35 @@ describe("RoomFields", () => {
     const onChange = vi.fn();
     renderFields(floor, room, onChange);
 
-    // The name carries the state, because three of them cannot be a pressed
-    // toggle and somebody reading the button has to know which it is on.
+    // Picking a side is a selection, not an edit. The three kinds are all on
+    // screen either way; what a side does not have is a hidden fourth press.
     fireEvent.click(
       screen.getByRole("button", { name: "Living room north wall, walled" }),
+    );
+    expect(onChange).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Make the north wall open" }),
     );
 
     const opened = onChange.mock.lastCall?.[0] as Room | undefined;
     if (opened === undefined) {
-      throw new Error("the toggle reported no change");
+      throw new Error("the kind reported no change");
     }
     expect(primaryRoomPart(opened).openWalls).toEqual(["north"]);
+  });
+
+  it("offers no kind until a side has been picked", () => {
+    const floor = projectWithLivingRoom().floor;
+    const room = floor.rooms[0];
+    if (room === undefined) {
+      throw new Error("a new project starts with a room");
+    }
+    renderFields(floor, room, vi.fn());
+
+    expect(
+      screen.getByRole("button", { name: "Make the selected wall open" }),
+    ).toBeDisabled();
   });
 
   it("turns an open wall into a dividing one, then back to plain", () => {
@@ -249,6 +267,9 @@ describe("RoomFields", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Living room north wall, open" }),
     );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Make the north wall dividing" }),
+    );
 
     const dividing = onChange.mock.lastCall?.[0] as Room;
     // Never both at once: a side cannot be missing its wall and keeping it.
@@ -261,6 +282,15 @@ describe("RoomFields", () => {
       screen.getAllByRole("button", {
         name: "Living room north wall, dividing",
       })[0]!,
+    );
+    // The last one: both panels are still mounted, and both have picked their
+    // north wall, so both offer this button.
+    fireEvent.click(
+      screen
+        .getAllByRole("button", {
+          name: "Make the north wall walled",
+        })
+        .at(-1)!,
     );
 
     const plain = onChangeAgain.mock.lastCall?.[0] as Room;
@@ -313,7 +343,11 @@ describe("RoomFields", () => {
       />,
     );
 
-    expect(screen.getByText("Footprint")).toBeInTheDocument();
+    // Nothing to pick between, so nothing asking which. The fields below are
+    // the room's, and the panel above them already said whose.
+    expect(
+      screen.queryByRole("group", { name: "Sections" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Select Living room" }),
     ).not.toBeInTheDocument();
@@ -490,8 +524,9 @@ describe("RoomFields", () => {
       screen.queryByRole("spinbutton", { name: "Living room section 1 width" }),
     ).not.toBeInTheDocument();
 
-    // The heading never renames itself, however many rectangles there are.
-    expect(screen.getByText("Footprint")).toBeInTheDocument();
+    // The row of numbers is what says there is more than one rectangle. No
+    // heading announces it, and none renames itself when the second arrives.
+    expect(screen.getByRole("group", { name: "Sections" })).toBeInTheDocument();
     expect(screen.queryByText("Room sections")).not.toBeInTheDocument();
 
     fireEvent.click(
@@ -548,15 +583,17 @@ describe("a room's own wall thickness", () => {
   };
   const ROOM = FLOOR.rooms[0]!;
 
+  // Not "Walls": that is the row of sides in the footprint above, and the
+  // two used to share a name in one panel.
   function walls() {
-    return screen.getByRole("button", { name: /^Walls/ });
+    return screen.getByRole("button", { name: /^Wall thickness/ });
   }
 
   it("stays folded away, reading out what the apartment gave it", () => {
     renderFields(FLOOR, ROOM, vi.fn());
 
     expect(walls()).toHaveAttribute("aria-expanded", "false");
-    expect(walls()).toHaveTextContent("10 cm walls");
+    expect(walls()).toHaveTextContent("10 cm");
     expect(walls()).toHaveTextContent("from the apartment");
     // Folded means folded: the field is not in the document at all.
     expect(
@@ -592,7 +629,7 @@ describe("a room's own wall thickness", () => {
     const onChange = vi.fn();
     renderFields(FLOOR, own, onChange);
 
-    expect(walls()).toHaveTextContent("30 cm walls");
+    expect(walls()).toHaveTextContent("30 cm");
     expect(walls()).not.toHaveTextContent("from the apartment");
 
     await userEvent.click(walls());

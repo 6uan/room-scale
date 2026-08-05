@@ -1,10 +1,15 @@
 "use client";
 
 import { Plus, Trash2, Undo2 } from "lucide-react";
+import { useState } from "react";
 import { Disclosure } from "@/components/disclosure";
 import { AngleField } from "@/components/angle-field";
 import { IconButton, LabelledButton } from "@/components/icon-button";
 import { NumberField } from "@/components/number-field";
+import { Chip, ChipRow } from "@/components/panel/chip";
+import { CornerGlyph, WallLine } from "@/components/panel/glyphs";
+import { PanelRow } from "@/components/panel/row";
+import { PanelSection } from "@/components/panel/section";
 import { RoomOpeningsForm } from "@/components/room-openings-form";
 import {
   PART_CORNERS,
@@ -46,24 +51,6 @@ import {
   type DisplayUnit,
 } from "@/domain/units";
 
-/**
- * Where each wall sits in the compass pad, drawn as the plan is drawn.
- *
- * The corners are cells of the same pad rather than a control somewhere else:
- * a chamfer left by a clipped corner is a wall, so it is opened and closed
- * where every other wall of the section is.
- */
-const WALL_CELLS: Record<WallSide, string> = {
-  "north-west": "col-start-1 row-start-1",
-  north: "col-start-2 row-start-1",
-  "north-east": "col-start-3 row-start-1",
-  east: "col-start-3 row-start-2",
-  "south-east": "col-start-3 row-start-3",
-  south: "col-start-2 row-start-3",
-  "south-west": "col-start-1 row-start-3",
-  west: "col-start-1 row-start-2",
-};
-
 const WALL_TITLES: Record<WallSide, string> = {
   north: "North",
   "north-east": "North-east",
@@ -75,7 +62,38 @@ const WALL_TITLES: Record<WallSide, string> = {
   "north-west": "North-west",
 };
 
-/** Two letters for a chamfer, one for a square side. Room for both at 24px. */
+/** The three, in the order the buttons offer them. */
+const WALL_STATES: readonly WallState[] = ["auto", "open", "dividing"];
+
+/** One word for the state, so the accessible name carries it. */
+const WALL_STATE_WORDS: Record<WallState, string> = {
+  auto: "walled",
+  open: "open",
+  dividing: "dividing",
+};
+
+/** The same three as the buttons print them. */
+const WALL_STATE_BUTTONS: Record<WallState, string> = {
+  auto: "Wall",
+  open: "Open",
+  dividing: "Dividing",
+};
+
+/**
+ * Why you would want each, waiting under the pointer.
+ *
+ * The buttons draw what each one looks like and name it in a word; this is the
+ * paragraph that used to be printed beside the pad and read by everybody every
+ * time, whether or not they had a question.
+ */
+const WALL_STATE_HINTS: Record<WallState, string> = {
+  auto: "Walled where this room's floor ends.",
+  open: "A railing rather than a wall, and it takes no doors. The floor still ends here.",
+  dividing:
+    "A wall where this room's own floor carries on — a laundry in the corner of a kitchen. It takes a door like any other.",
+};
+
+/** Two letters for a chamfer, one for a square side. */
 const WALL_INITIALS: Record<WallSide, string> = {
   north: "N",
   "north-east": "NE",
@@ -85,41 +103,6 @@ const WALL_INITIALS: Record<WallSide, string> = {
   "south-west": "SW",
   west: "W",
   "north-west": "NW",
-};
-
-/** What one press does, and what the side looks like in each state. */
-const NEXT_WALL_STATE: Record<WallState, WallState> = {
-  auto: "open",
-  open: "dividing",
-  dividing: "auto",
-};
-
-/** One word for the state, so the accessible name carries it. */
-const WALL_STATE_WORDS: Record<WallState, string> = {
-  auto: "walled",
-  open: "open",
-  dividing: "dividing",
-};
-
-const WALL_STATE_TITLES: Record<WallState, string> = {
-  auto: "walled where the floor ends",
-  open: "open, drawn as a railing",
-  dividing: "walled even where the floor carries on",
-};
-
-const WALL_STATE_CLASSES: Record<WallState, string> = {
-  auto: "bg-black/[0.05] opacity-50 hover:opacity-100 dark:bg-white/[0.08]",
-  open: "bg-black/15 dark:bg-white/25",
-  dividing:
-    "bg-black/[0.05] outline outline-1 outline-current dark:bg-white/[0.08]",
-};
-
-/** Where each corner sits in its own pad, laid out the way the plan is. */
-const CORNER_CELLS: Record<PartCorner, string> = {
-  "north-west": "col-start-1 row-start-1",
-  "north-east": "col-start-2 row-start-1",
-  "south-east": "col-start-2 row-start-2",
-  "south-west": "col-start-1 row-start-2",
 };
 
 export type RoomFieldsProps = {
@@ -231,20 +214,12 @@ export function RoomFields({
   }
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-4">
-        {/*
-          One heading, whatever the room is made of.
-
-          It used to rename itself "Room sections" the moment a second
-          rectangle appeared, which told a reader their footprint had turned
-          into something else. It had not: a room has always been a union of
-          rectangles, and one of them is the ordinary case rather than a
-          different feature.
-        */}
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-medium">Footprint</span>
-          {compound ? (
+    <>
+      <PanelSection
+        title="Footprint"
+        first
+        action={
+          compound ? (
             <IconButton
               label={`Remove ${shownLabel}`}
               icon={Trash2}
@@ -252,9 +227,9 @@ export function RoomFields({
               tone="danger"
               onClick={() => removePart(shown)}
             />
-          ) : null}
-        </div>
-
+          ) : undefined
+        }
+      >
         {/*
           One section's fields at a time, and a row to pick which.
 
@@ -270,28 +245,22 @@ export function RoomFields({
           only ever describes one.
         */}
         {compound ? (
-          <div
-            role="group"
-            aria-label="Sections"
-            className="flex flex-wrap gap-1"
-          >
-            {room.parts.map((part, index) => (
-              <button
-                key={part.id}
-                type="button"
-                aria-pressed={part.id === shown.id}
-                aria-label={`Select ${roomName} section ${index + 1}`}
-                onClick={() => onSelectPart?.(part.id)}
-                className={`h-7 min-w-7 rounded-md px-2 text-xs font-medium tabular-nums transition-colors ${
-                  part.id === shown.id
-                    ? "bg-black/12 dark:bg-white/20"
-                    : "bg-black/[0.05] opacity-70 hover:opacity-100 dark:bg-white/[0.08]"
-                }`}
-              >
-                {index + 1}
-              </button>
-            ))}
-          </div>
+          <PanelRow name="Sections" label="Section">
+            {/* The row is the group; a second one inside it would announce the
+                same set twice and break every query that names it. */}
+            <div className="flex min-w-0 flex-1 gap-1">
+              {room.parts.map((part, index) => (
+                <Chip
+                  key={part.id}
+                  label={`Select ${roomName} section ${index + 1}`}
+                  pressed={part.id === shown.id}
+                  onClick={() => onSelectPart?.(part.id)}
+                >
+                  {index + 1}
+                </Chip>
+              ))}
+            </div>
+          </PanelRow>
         ) : null}
 
         <RoomPartFields
@@ -318,32 +287,28 @@ export function RoomFields({
           flush inside a space sits at zero — inches between the two — so
           reading "another room or another rectangle of this one" off the
           geometry would answer a structural question by pointer accident.
+
+          What the floor now measures rides on the same row: it is the answer
+          to having pressed the button, and it had a row of its own with
+          nothing else in it.
         */}
-        <div className="flex flex-col gap-2">
-          <div className="flex justify-start">
+        <PanelRow name="Floor" label="Floor">
+          <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
             <LabelledButton
               label="Add section"
+              title="Another rectangle of this room's floor — two of them make an L, or a notch. Drawn on the plan."
               icon={Plus}
               pressed={drawingSection}
               onClick={onDrawSection ?? addPart}
             />
+            <span className="text-[13px] tabular-nums opacity-55">
+              {drawingSection
+                ? "Drag on the plan"
+                : formatArea(roomFloorAreaSquareMeters(room), unit)}
+            </span>
           </div>
-          <p className="text-[13px] leading-relaxed opacity-60">
-            {drawingSection
-              ? "Drag on the plan to draw another rectangle of this room. It meets this room's other rectangles directly, and stops a wall short of any other room."
-              : compound
-                ? null
-                : "A section is another rectangle of floor. Two of them make an L-shaped room, or a room with a notch taken out of one corner."}
-          </p>
-        </div>
-      </div>
-
-      <p className="text-[13px] leading-relaxed opacity-60">
-        {formatArea(roomFloorAreaSquareMeters(room), unit)} of floor.
-        {compound
-          ? " Overlapping sections count once, so rectangles can describe an L-shaped or notched room without inventing floor area at their seam."
-          : null}
-      </p>
+        </PanelRow>
+      </PanelSection>
 
       <RoomOpeningsForm
         room={room}
@@ -360,7 +325,7 @@ export function RoomFields({
         onChange={onChange}
         onGestureEnd={onGestureEnd}
       />
-    </div>
+    </>
   );
 }
 
@@ -399,18 +364,18 @@ function WallThicknessFields({
   // In the unit the field below is typed in, rather than through
   // `formatLength` — a wall is never feet, and `0' 4.5"` is a reading nobody
   // takes off a tape.
-  const summary = `${Number(displayValueFromMeters(meters, unit).toFixed(2))} ${displayUnitSuffix(unit)} walls`;
+  const summary = `${Number(displayValueFromMeters(meters, unit).toFixed(2))} ${displayUnitSuffix(unit)}`;
 
   return (
+    // Not "Walls": the row of sides above is called that, and one panel cannot
+    // have two controls with one name.
     <Disclosure
-      label="Walls"
+      label="Wall thickness"
       summary={own ? summary : `${summary}, from the apartment`}
     >
-      <p className="text-[13px] leading-relaxed opacity-60">
-        {own
-          ? `Measured for ${name} in particular. Every other room keeps the apartment's.`
-          : "The apartment's, until this room is measured on its own. A bathroom's plumbing wall is fatter than the partitions around it."}
-      </p>
+      {/* The summary line above already says whose number this is, and the
+          field below says what it is. A paragraph repeating both was the third
+          telling. */}
       <NumberField
         label={`${name} wall thickness`}
         unit={unit}
@@ -462,7 +427,7 @@ function RoomPartFields({
   const square = part.rotationRadians === 0;
   const fields = (
     <>
-      <CompactGroup title="Position" unit={unit} columns={2}>
+      <PanelRow name="Position">
         <NumberField
           label={`${label} X position`}
           compactLabel="X"
@@ -515,7 +480,7 @@ function RoomPartFields({
           }
           onGestureEnd={onGestureEnd}
         />
-      </CompactGroup>
+      </PanelRow>
       {/*
         Width, depth and height together, because a room is quoted as all
         three at once. Height sat alone in a group of its own labelled "Room",
@@ -527,7 +492,7 @@ function RoomPartFields({
         any of them edits the room, which reads plainly enough once only the
         selected section is on screen.
       */}
-      <CompactGroup title="Size" unit={unit} columns={3}>
+      <PanelRow name="Size">
         <NumberField
           label={`${label} width`}
           compactLabel="W"
@@ -604,16 +569,29 @@ function RoomPartFields({
           }
           onGestureEnd={onGestureEnd}
         />
-      </CompactGroup>
+      </PanelRow>
       <AngleField
         label={`${label} angle`}
+        compactLabel="∠"
         presets
         radians={part.rotationRadians}
         onRadiansChange={(radians) =>
           onChange(withRoomPartRotation(room, part.id, radians))
         }
       />
-      <CornerCutFields
+      <CornerCutChips
+        room={room}
+        part={part}
+        label={label}
+        onChange={onChange}
+      />
+      <WallStateChips
+        room={room}
+        part={part}
+        label={label}
+        onChange={onChange}
+      />
+      <CornerCutLegs
         room={room}
         part={part}
         label={label}
@@ -621,63 +599,10 @@ function RoomPartFields({
         onChange={onChange}
         onGestureEnd={onGestureEnd}
       />
-      <fieldset className="flex flex-col gap-2">
-        <legend className="sr-only">Walls</legend>
-        <span aria-hidden="true" className="text-xs font-medium">
-          Walls
-        </span>
-        {/*
-          Laid out as the room is, rather than as a row of four words. Which
-          wall "east" is takes a moment to work out from a list and none at all
-          from a square — and the plan beside it is drawn the same way up.
-
-          One press cycles a side through its three states, because they are
-          three settings of one thing rather than two separate switches, and a
-          side is almost always left alone.
-        */}
-        <div className="flex items-center gap-3">
-          <div className="grid shrink-0 grid-cols-3 grid-rows-3 gap-0.5">
-            {partWallSides(part).map((wall) => {
-              const state = roomPartWallState(part, wall);
-              return (
-                <button
-                  key={wall}
-                  type="button"
-                  aria-label={`${label} ${wall} wall, ${WALL_STATE_WORDS[state]}`}
-                  title={`${WALL_TITLES[wall]} wall — ${WALL_STATE_TITLES[state]}`}
-                  onClick={() =>
-                    onChange(
-                      withRoomPartWallState(
-                        room,
-                        part.id,
-                        wall,
-                        NEXT_WALL_STATE[state],
-                      ),
-                    )
-                  }
-                  className={`flex size-6 items-center justify-center rounded-[5px] text-[10px] font-medium transition-colors ${WALL_CELLS[wall]} ${WALL_STATE_CLASSES[state]}`}
-                >
-                  {WALL_INITIALS[wall]}
-                </button>
-              );
-            })}
-            <span
-              aria-hidden="true"
-              className="col-start-2 row-start-2 m-1 rounded-[3px] border border-current opacity-20"
-            />
-          </div>
-          <p className="text-xs leading-relaxed opacity-60">
-            Press a side to cycle it. <b>Open</b> draws a railing and takes no
-            doors; the floor still ends there. <b>Dividing</b> keeps the wall
-            where this room&rsquo;s own floor carries on — a laundry in the
-            corner of a kitchen — and it takes a door like any other.
-          </p>
-        </div>
-      </fieldset>
     </>
   );
 
-  return <div className="flex flex-col gap-3">{fields}</div>;
+  return <div className="flex min-w-0 flex-col gap-4">{fields}</div>;
 }
 
 /** The two legs of a clipped corner, named the way the fields read. */
@@ -687,20 +612,176 @@ const CUT_LEGS: readonly { leg: CutLeg; compact: string; noun: string }[] = [
 ];
 
 /**
- * Corners that are clipped rather than square, as two measurements each.
+ * Which corner a pair of legs belongs to, in the label column's two letters.
+ *
+ * The column is 56px and "North-east corner" is not; the chip that clipped it
+ * is directly above, drawn facing the same way, so the initials land on the
+ * corner the reader has just pressed.
+ */
+const CUT_LABELS: Record<PartCorner, string> = {
+  "north-west": "NW cut",
+  "north-east": "NE cut",
+  "south-east": "SE cut",
+  "south-west": "SW cut",
+};
+
+/**
+ * Which sides of this rectangle are walls: pick a side, then say what it is.
+ *
+ * One press used to cycle a side through all three, which meant the three
+ * could never be seen at once — you found out what they were by pressing a
+ * wall repeatedly and watching. Every drawing tool with this problem solves it
+ * the same way: the kinds are a row of buttons each drawn in the kind it sets,
+ * and the thing being changed is picked separately.
+ *
+ * The picker was a small drawing of the rectangle, which was a good argument
+ * and a bad control — a diagram among rows of chips reads as something
+ * dropped in from another program. It is a row of chips like everything else
+ * now, and the plan beside it draws the room far better than 96 pixels could.
+ */
+function WallStateChips({
+  room,
+  part,
+  label,
+  onChange,
+}: {
+  room: Room;
+  part: RoomPart;
+  label: string;
+  onChange: (room: Room, gesture?: string) => void;
+}) {
+  const sides = partWallSides(part);
+  const [picked, setPicked] = useState<WallSide | null>(null);
+  // A chamfer stops being a side the moment its corner is squared, and a side
+  // that is gone cannot be the one the buttons are about to change.
+  const selected = picked !== null && sides.includes(picked) ? picked : null;
+
+  return (
+    <PanelRow name="Walls" label="Walls" align="top">
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <ChipRow name={`${label} wall`}>
+          {sides.map((wall) => {
+            const state = roomPartWallState(part, wall);
+            return (
+              <Chip
+                key={wall}
+                label={`${label} ${wall} wall, ${WALL_STATE_WORDS[state]}`}
+                title={`${WALL_TITLES[wall]} wall · ${WALL_STATE_WORDS[state]}`}
+                pressed={wall === selected}
+                onClick={() => setPicked(wall === selected ? null : wall)}
+              >
+                {WALL_INITIALS[wall]}
+              </Chip>
+            );
+          })}
+        </ChipRow>
+
+        {/*
+          Always all three, drawn rather than described, and dimmed until there
+          is a side for them to be about. A disabled row asks for the side; a
+          row that acted on whichever side was last touched would change a wall
+          somebody had stopped looking at.
+        */}
+        <ChipRow name={`${label} wall kind`}>
+          {WALL_STATES.map((state) => (
+            <Chip
+              key={state}
+              stacked
+              disabled={selected === null}
+              pressed={
+                selected !== null && roomPartWallState(part, selected) === state
+              }
+              label={
+                selected === null
+                  ? `Make the selected wall ${WALL_STATE_WORDS[state]}`
+                  : `Make the ${selected} wall ${WALL_STATE_WORDS[state]}`
+              }
+              title={WALL_STATE_HINTS[state]}
+              onClick={() =>
+                selected === null
+                  ? undefined
+                  : onChange(
+                      withRoomPartWallState(room, part.id, selected, state),
+                    )
+              }
+            >
+              <WallLine state={state} />
+              {WALL_STATE_BUTTONS[state]}
+            </Chip>
+          ))}
+        </ChipRow>
+      </div>
+    </PanelRow>
+  );
+}
+
+/**
+ * Which corners are clipped rather than square.
  *
  * The obvious way to take a corner off a room is to drop a rotated square on
  * it and subtract, the way a drawing tool would. That produces a path, and a
  * path has no dimensions anybody can type: after the subtract, there is
  * nothing to put in a field to adjust that corner. What a builder says about
  * it is *"it's clipped, about three feet by three feet"* — two numbers, one
- * along each wall, which is what these are.
+ * along each wall, which is what `CornerCutLegs` below holds.
  *
- * The pad presses a corner in or out; the fields below it are the exact path,
- * and they are held to what the corner at the far end of the same side has
- * left, because two cuts cannot between them be longer than the wall.
+ * Each chip draws the corner it clips: two walls meeting at a right angle, or
+ * the chamfer across them. The state is drawn twice over — the fill says the
+ * corner is on, and the glyph says what being on did to it.
  */
-function CornerCutFields({
+function CornerCutChips({
+  room,
+  part,
+  label,
+  onChange,
+}: {
+  room: Room;
+  part: RoomPart;
+  label: string;
+  onChange: (room: Room, gesture?: string) => void;
+}) {
+  return (
+    <PanelRow name="Cut corners" label="Corners">
+      <ChipRow name={`${label} corners`}>
+        {PART_CORNERS.map((corner) => {
+          const cut = roomPartCut(part, corner);
+          return (
+            <Chip
+              key={corner}
+              label={`${label} ${corner} corner cut`}
+              title={`${WALL_TITLES[corner]} corner · ${
+                cut === null
+                  ? "square — press to clip it"
+                  : "clipped — press to square it"
+              }`}
+              pressed={cut !== null}
+              onClick={() =>
+                onChange(
+                  withRoomPartCut(
+                    room,
+                    part.id,
+                    corner,
+                    cut === null ? defaultCornerCut(part, corner) : null,
+                  ),
+                )
+              }
+            >
+              <CornerGlyph corner={corner} cut={cut !== null} />
+            </Chip>
+          );
+        })}
+      </ChipRow>
+    </PanelRow>
+  );
+}
+
+/**
+ * The exact legs of each clipped corner.
+ *
+ * Held to what the corner at the far end of the same side has left, because
+ * two cuts cannot between them be longer than the wall.
+ */
+function CornerCutLegs({
   room,
   part,
   label,
@@ -720,60 +801,17 @@ function CornerCutFields({
   );
 
   return (
-    <fieldset className="flex flex-col gap-2">
-      <legend className="sr-only">Cut corners</legend>
-      <span aria-hidden="true" className="text-xs font-medium">
-        Cut corners
-      </span>
-      <div className="flex items-center gap-3">
-        <div className="grid shrink-0 grid-cols-2 grid-rows-2 gap-0.5">
-          {PART_CORNERS.map((corner) => {
-            const cut = roomPartCut(part, corner);
-            return (
-              <button
-                key={corner}
-                type="button"
-                aria-pressed={cut !== null}
-                aria-label={`${label} ${corner} corner cut`}
-                title={`${WALL_TITLES[corner]} corner`}
-                onClick={() =>
-                  onChange(
-                    withRoomPartCut(
-                      room,
-                      part.id,
-                      corner,
-                      cut === null ? defaultCornerCut(part, corner) : null,
-                    ),
-                  )
-                }
-                className={`flex size-6 items-center justify-center rounded-[5px] text-[10px] font-medium transition-colors ${CORNER_CELLS[corner]} ${
-                  cut === null
-                    ? "bg-black/[0.05] opacity-50 hover:opacity-100 dark:bg-white/[0.08]"
-                    : "bg-black/15 dark:bg-white/25"
-                }`}
-              >
-                {WALL_INITIALS[corner]}
-              </button>
-            );
-          })}
-        </div>
-        <p className="text-xs leading-relaxed opacity-60">
-          A clipped corner is measured in along each wall. The chamfer it leaves
-          is a wall like any other and can carry a door.
-        </p>
-      </div>
-
+    <>
       {cutCorners.map((corner) => {
         const cut = roomPartCut(part, corner);
         if (cut === null) {
           return null;
         }
         return (
-          <CompactGroup
+          <PanelRow
             key={corner}
-            title={`${WALL_TITLES[corner]} corner`}
-            unit={unit}
-            columns={2}
+            name={`${WALL_TITLES[corner]} corner`}
+            label={CUT_LABELS[corner]}
           >
             {CUT_LEGS.map(({ leg, compact, noun }) => (
               <NumberField
@@ -796,45 +834,9 @@ function CornerCutFields({
                 onGestureEnd={onGestureEnd}
               />
             ))}
-          </CompactGroup>
+          </PanelRow>
         );
       })}
-    </fieldset>
-  );
-}
-
-/** Spelled out, because Tailwind reads these classes rather than building them. */
-const GRID_COLUMNS: Record<1 | 2 | 3, string> = {
-  1: "grid-cols-1",
-  2: "grid-cols-2",
-  3: "grid-cols-3",
-};
-
-function CompactGroup({
-  title,
-  unit,
-  columns,
-  children,
-}: {
-  title: string;
-  unit: DisplayUnit;
-  columns: 1 | 2 | 3;
-  children: React.ReactNode;
-}) {
-  return (
-    <fieldset className="flex min-w-0 flex-col gap-2">
-      <legend className="sr-only">{title}</legend>
-      <div className="flex items-baseline justify-between gap-2">
-        <span aria-hidden="true" className="text-sm font-medium">
-          {title}
-        </span>
-        <span className="text-[13px] opacity-55">
-          {displayUnitSuffix(unit)}
-        </span>
-      </div>
-      <div className={`grid min-w-0 gap-2 ${GRID_COLUMNS[columns]}`}>
-        {children}
-      </div>
-    </fieldset>
+    </>
   );
 }

@@ -1036,7 +1036,7 @@ test.describe("laying the apartment out", () => {
     const apartment = details(page).getByRole("region", { name: "Apartment" });
     const walls = apartment.getByRole("button", { name: /^Wall thickness/ });
     await expect(walls).toHaveAttribute("aria-expanded", "false");
-    await expect(walls).toContainText("4.5 in walls");
+    await expect(walls).toContainText("4.5 in");
 
     await walls.click();
     const thickness = apartment.getByLabel("Wall thickness");
@@ -1078,9 +1078,11 @@ test.describe("laying the apartment out", () => {
     const room = details(page).getByRole("region", { name: "Living room" });
 
     // Folded away, saying what this room's walls are and where they came from.
-    const walls = room.getByRole("button", { name: /^Walls/ });
+    // "Wall thickness", not "Walls": the footprint above has a row of sides
+    // by that name, and one panel cannot have two controls with one name.
+    const walls = room.getByRole("button", { name: /^Wall thickness/ });
     await expect(walls).toHaveAttribute("aria-expanded", "false");
-    await expect(walls).toContainText("4.5 in walls");
+    await expect(walls).toContainText("4.5 in");
     await expect(walls).toContainText("from the apartment");
 
     await walls.click();
@@ -1089,7 +1091,7 @@ test.describe("laying the apartment out", () => {
     await expect(thickness).toHaveValue("4.5");
 
     await thickness.fill("7");
-    await expect(walls).toContainText("7 in walls");
+    await expect(walls).toContainText("7 in");
     await expect(walls).not.toContainText("from the apartment");
     // Typed once, it stays this room's: the apartment's own default no longer
     // reaches it, and it survives a reload.
@@ -1099,31 +1101,34 @@ test.describe("laying the apartment out", () => {
     await expect(
       details(page)
         .getByRole("region", { name: "Living room" })
-        .getByRole("button", { name: /^Walls/ }),
-    ).toContainText("7 in walls");
+        .getByRole("button", { name: /^Wall thickness/ }),
+    ).toContainText("7 in");
 
     // And handed back, it reads the apartment's again.
     const reopened = details(page).getByRole("region", { name: "Living room" });
-    await reopened.getByRole("button", { name: /^Walls/ }).click();
+    await reopened.getByRole("button", { name: /^Wall thickness/ }).click();
     await reopened
       .getByRole("button", { name: "Use the apartment's wall thickness" })
       .click();
     await expect(
-      reopened.getByRole("button", { name: /^Walls/ }),
-    ).toContainText("4.5 in walls");
+      reopened.getByRole("button", { name: /^Wall thickness/ }),
+    ).toContainText("4.5 in");
   });
 
-  test("cycles a wall into a railing that refuses a door, then into a divider", async ({
+  test("turns a wall into a railing that refuses a door, then into a divider", async ({
     page,
   }) => {
     await openWithLivingRoom(page);
     await contents(page).getByRole("button", { name: "Living room" }).click();
 
-    // One control, three states, and the state is in the name — three of them
-    // cannot be a pressed toggle.
+    // Pick the side, then say what it is. All three kinds are on screen the
+    // whole time; the side's own name carries which it is now.
     const room = details(page).getByRole("region", { name: "Living room" });
     await room
       .getByRole("button", { name: "Living room north wall, walled" })
+      .click();
+    await room
+      .getByRole("button", { name: "Make the north wall open" })
       .click();
     await expect(
       room.getByRole("button", { name: "Living room north wall, open" }),
@@ -1145,9 +1150,12 @@ test.describe("laying the apartment out", () => {
       reopened.getByRole("button", { name: "Living room north wall, open" }),
     ).toBeVisible();
 
-    // Once more round: a wall kept even where the room's own floor carries on.
+    // The third kind: a wall kept even where the room's own floor carries on.
     await reopened
       .getByRole("button", { name: "Living room north wall, open" })
+      .click();
+    await reopened
+      .getByRole("button", { name: "Make the north wall dividing" })
       .click();
     await expect(
       reopened.getByRole("button", {
