@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { metersFromInches, roundToDisplayUnit } from "@/domain/units";
 import {
   ROOM_LENGTH_LIMITS,
+  checkRoomLength,
   createRoom,
   primaryRoomPart,
   resizeRoomEdge,
@@ -72,8 +73,21 @@ describe("resizeRoomEdge", () => {
     // Dragging the east wall past the west one, and the other way round.
     expect(part(resizeRoomEdge(ROOM, "east", -10)).widthMeters).toBe(smallest);
     const squashed = resizeRoomEdge(ROOM, "west", 99);
+    // Exactly the minimum, not the minimum plus a rounding error: the width
+    // is what is being held, so it is the width that is worked out first.
     expect(part(squashed).widthMeters).toBe(smallest);
     expect(roomEdgePosition(squashed, "east")).toBe(4);
+  });
+
+  it("lets a section be the size of a nib beside a doorway", () => {
+    // Ten centimetres — under four inches. The floor used to stop at half a
+    // metre, which is nineteen and a half, and no shape needing less than
+    // that could be drawn at all.
+    const slim = resizeRoomEdge(ROOM, "east", 0.1);
+
+    expect(part(slim).widthMeters).toBe(0.1);
+    expect(checkRoomLength(0.1, "widthMeters")).toBeNull();
+    expect(checkRoomLength(0.05, "widthMeters")).toBe("too-small");
   });
 
   it("leaves the other axis alone", () => {
