@@ -131,9 +131,24 @@ export const ROOM_DIMENSIONS: readonly RoomDimension[] = [
   "heightMeters",
 ];
 
+/**
+ * What a section may measure.
+ *
+ * The floor of a section used to stop at half a metre — 19.69 inches, which
+ * is a number nobody typed and everybody ran into. Half a metre is a fair
+ * smallest *room*, and a section is not a room: it is a rectangle of floor
+ * used to build a shape, and the useful ones are small. A nib beside a
+ * doorway, the shoulder of a chimney breast, the ten inches a bulkhead takes
+ * out of a kitchen — all of them are shorter than the old minimum, and none
+ * of them could be drawn.
+ *
+ * Ten centimetres is where it stops now, and the reason is one somebody can
+ * check: **nothing thinner than a wall is a piece of floor.** It is still far
+ * enough from zero that a stray drag cannot collapse a section into a line.
+ */
 export const ROOM_LENGTH_LIMITS: Record<RoomDimension, LengthLimits> = {
-  widthMeters: { minMeters: 0.5, maxMeters: 30 },
-  depthMeters: { minMeters: 0.5, maxMeters: 30 },
+  widthMeters: { minMeters: 0.1, maxMeters: 30 },
+  depthMeters: { minMeters: 0.1, maxMeters: 30 },
   heightMeters: { minMeters: 1.5, maxMeters: 6 },
 };
 
@@ -896,14 +911,17 @@ export function resizeRoomPartEdgeToPoint(
     const smallest = ROOM_LENGTH_LIMITS.widthMeters.minMeters;
     switch (edge) {
       case "west": {
-        const shift = Math.min(
-          roundMeters(local.xMeters),
-          part.widthMeters - smallest,
+        const widthMeters = Math.max(
+          smallest,
+          part.widthMeters - roundMeters(local.xMeters),
         );
         return {
           ...part,
-          origin: pointOnRoomPart(part, { xMeters: shift, zMeters: 0 }),
-          widthMeters: part.widthMeters - shift,
+          origin: pointOnRoomPart(part, {
+            xMeters: part.widthMeters - widthMeters,
+            zMeters: 0,
+          }),
+          widthMeters,
         };
       }
       case "east":
@@ -912,14 +930,17 @@ export function resizeRoomPartEdgeToPoint(
           widthMeters: Math.max(smallest, roundMeters(local.xMeters)),
         };
       case "north": {
-        const shift = Math.min(
-          roundMeters(local.zMeters),
-          part.depthMeters - smallest,
+        const depthMeters = Math.max(
+          smallest,
+          part.depthMeters - roundMeters(local.zMeters),
         );
         return {
           ...part,
-          origin: pointOnRoomPart(part, { xMeters: 0, zMeters: shift }),
-          depthMeters: part.depthMeters - shift,
+          origin: pointOnRoomPart(part, {
+            xMeters: 0,
+            zMeters: part.depthMeters - depthMeters,
+          }),
+          depthMeters,
         };
       }
       case "south":
@@ -939,12 +960,15 @@ function resizePartEdge(
   const smallest = ROOM_LENGTH_LIMITS.widthMeters.minMeters;
   switch (edge) {
     case "west": {
+      // The width is worked out first and the corner from it, rather than the
+      // other way round: held at the minimum it should read exactly the
+      // minimum, and `east - (east - smallest)` is not reliably `smallest`.
       const east = part.origin.xMeters + part.widthMeters;
-      const xMeters = Math.min(positionMeters, east - smallest);
+      const widthMeters = Math.max(smallest, east - positionMeters);
       return {
         ...part,
-        origin: { ...part.origin, xMeters },
-        widthMeters: east - xMeters,
+        origin: { ...part.origin, xMeters: east - widthMeters },
+        widthMeters,
       };
     }
     case "east":
@@ -954,11 +978,11 @@ function resizePartEdge(
       };
     case "north": {
       const south = part.origin.zMeters + part.depthMeters;
-      const zMeters = Math.min(positionMeters, south - smallest);
+      const depthMeters = Math.max(smallest, south - positionMeters);
       return {
         ...part,
-        origin: { ...part.origin, zMeters },
-        depthMeters: south - zMeters,
+        origin: { ...part.origin, zMeters: south - depthMeters },
+        depthMeters,
       };
     }
     case "south":
