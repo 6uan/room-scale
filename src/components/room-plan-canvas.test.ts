@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ROTATE_HANDLE_CLEARANCE_PIXELS,
+  roomHandles,
   roomPartHandles,
   rotateHandlePixel,
   underlayFrame,
@@ -50,6 +51,73 @@ describe("roomPartHandles", () => {
     );
     expect(southEast?.at.xMeters).toBeCloseTo(2, 10);
     expect(southEast?.at.zMeters).toBeCloseTo(6, 10);
+  });
+});
+
+describe("roomHandles", () => {
+  const room = {
+    id: "room-1",
+    name: "Living room",
+    heightMeters: 2.4,
+    openings: [],
+    wallThicknessMeters: null,
+    parts: [
+      {
+        id: "wide",
+        origin: { xMeters: 0, zMeters: 0 },
+        widthMeters: 8,
+        depthMeters: 3,
+        rotationRadians: 0,
+        openWalls: [],
+      },
+      {
+        id: "tall",
+        origin: { xMeters: 0, zMeters: 3 },
+        widthMeters: 4,
+        depthMeters: 4,
+        rotationRadians: 0,
+        openWalls: [],
+      },
+    ],
+  };
+
+  it("gives one rectangle the eight handles it has always had", () => {
+    expect(roomHandles({ ...room, parts: [room.parts[0]!] })).toHaveLength(8);
+  });
+
+  it("gives a room of several sections its four outline walls", () => {
+    const handles = roomHandles(room);
+
+    expect(handles).toHaveLength(4);
+    expect(handles.map((handle) => handle.edges.join())).toEqual([
+      "north",
+      "east",
+      "south",
+      "west",
+    ]);
+  });
+
+  it("puts each grab on a wall that is really there", () => {
+    const handles = roomHandles(room);
+    const on = (edge: string) =>
+      handles.find((handle) => handle.edges.join() === edge)?.at;
+
+    // The east handle belongs to the wide arm, which is the only section
+    // reaching that far, so it sits half way down that arm rather than half
+    // way down an outline whose lower half is open floor.
+    expect(on("east")).toEqual({ xMeters: 8, zMeters: 1.5 });
+    // The south handle belongs to the tall arm, for the same reason.
+    expect(on("south")).toEqual({ xMeters: 2, zMeters: 7 });
+    // Two sections share the west edge; the grab goes on the wider run.
+    expect(on("west")).toEqual({ xMeters: 0, zMeters: 5 });
+  });
+
+  it("offers no corner handles, because a corner can be nobody's", () => {
+    // The inside corner of an L hangs in open floor, and a handle floating
+    // off the drawing is a worse answer than not offering one.
+    expect(roomHandles(room).every((handle) => handle.edges.length === 1)).toBe(
+      true,
+    );
   });
 });
 

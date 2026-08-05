@@ -3,9 +3,12 @@ import { metersFromInches, roundToDisplayUnit } from "@/domain/units";
 import {
   ROOM_LENGTH_LIMITS,
   createRoom,
+  partsOnRoomEdge,
   primaryRoomPart,
   resizeRoomEdge,
+  resizeRoomPartEdge,
   roomEdgePosition,
+  withParts,
   type Room,
 } from "./room";
 
@@ -108,6 +111,96 @@ describe("roundToDisplayUnit", () => {
     expect(roundToDisplayUnit(metersFromInches(-12.6), "imperial")).toBeCloseTo(
       metersFromInches(-13),
       10,
+    );
+  });
+});
+
+describe("resizing a room built from several sections", () => {
+  /**
+   * An L: a wide arm across the north, and a narrower one hanging south from
+   * its western half.
+   *
+   *   0        4        8
+   * 0 +-----------------+
+   *   |       wide      |
+   * 3 +--------+--------+
+   *   |  tall  |
+   * 7 +--------+
+   */
+  const L: Room = withParts(ROOM, [
+    {
+      id: "wide",
+      origin: { xMeters: 0, zMeters: 0 },
+      widthMeters: 8,
+      depthMeters: 3,
+      rotationRadians: 0,
+      openWalls: [],
+    },
+    {
+      id: "tall",
+      origin: { xMeters: 0, zMeters: 3 },
+      widthMeters: 4,
+      depthMeters: 4,
+      rotationRadians: 0,
+      openWalls: [],
+    },
+  ]);
+  const section = (room: Room, id: string) =>
+    room.parts.find((one) => one.id === id)!;
+
+  it("moves every section standing on the edge, and only those", () => {
+    const wider = resizeRoomEdge(L, "west", -2);
+
+    // Both sections have their west side on the outline's west edge.
+    expect(section(wider, "wide").origin.xMeters).toBe(-2);
+    expect(section(wider, "wide").widthMeters).toBe(10);
+    expect(section(wider, "tall").origin.xMeters).toBe(-2);
+    expect(section(wider, "tall").widthMeters).toBe(6);
+  });
+
+  it("leaves a section round the corner exactly as it was measured", () => {
+    const deeper = resizeRoomEdge(L, "south", 9);
+
+    // Only the southern arm reaches the outline's south edge.
+    expect(section(deeper, "tall").depthMeters).toBe(6);
+    expect(section(deeper, "wide")).toEqual(section(L, "wide"));
+  });
+
+  it("moves only the arm that reaches the eastern edge", () => {
+    const narrower = resizeRoomEdge(L, "east", 6);
+
+    expect(section(narrower, "wide").widthMeters).toBe(6);
+    expect(section(narrower, "tall")).toEqual(section(L, "tall"));
+  });
+
+  it("names the sections standing on each edge", () => {
+    expect(partsOnRoomEdge(L, "north").map((part) => part.id)).toEqual([
+      "wide",
+    ]);
+    expect(partsOnRoomEdge(L, "west").map((part) => part.id)).toEqual([
+      "wide",
+      "tall",
+    ]);
+    expect(partsOnRoomEdge(L, "south").map((part) => part.id)).toEqual([
+      "tall",
+    ]);
+  });
+
+  it("still resizes a room of one rectangle exactly as it always did", () => {
+    // The single section is on all four of its own edges, so nothing about
+    // this path changes for the room every apartment is mostly made of.
+    expect(resizeRoomEdge(ROOM, "east", 5)).toEqual(
+      resizeRoomPartEdge(ROOM, primaryRoomPart(ROOM).id, "east", 5),
+    );
+  });
+
+  it("falls back to the first section when every one of them is turned", () => {
+    const turned = withParts(ROOM, [
+      { ...primaryRoomPart(ROOM), rotationRadians: Math.PI / 4 },
+    ]);
+
+    expect(resizeRoomEdge(turned, "east", 5)).toEqual(
+      resizeRoomPartEdge(turned, primaryRoomPart(turned).id, "east", 5),
     );
   });
 });

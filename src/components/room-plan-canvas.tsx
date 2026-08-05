@@ -62,6 +62,8 @@ import {
   primaryRoomPart,
   resizeOpeningJamb,
   resizeRoomPartEdgeToPoint,
+  partsOnRoomEdge,
+  roomEdgePosition,
   roomPart,
   roomPartContains,
   roomPartCutHandles,
@@ -1078,10 +1080,15 @@ export function RoomPlanCanvas({
       }
       // A turned part's walls lie on no axis line, so its edges chase the
       // pointer in the part's own frame instead — exactly under the hand,
-      // rounded to the unit on screen, with nothing to axis-snap to.
+      // rounded to the unit on screen, with nothing to axis-snap to. Only the
+      // section itself can be dragged that way: a room outline handle belongs
+      // to whichever sections stand on that edge, which a turned one never
+      // does.
       const turnedPart =
         drag.partId === null
-          ? primaryRoomPart(sizing)
+          ? sizing.parts.length === 1
+            ? primaryRoomPart(sizing)
+            : undefined
           : sizing.parts.find((one) => one.id === drag.partId);
       if (turnedPart !== undefined && turnedPart.rotationRadians !== 0) {
         const next = drag.edges.reduce(
@@ -1543,7 +1550,24 @@ function handleAt(
         ? primaryRoomPart(room)
         : undefined
       : room.parts.find((one) => one.id === selectedRoomPartId);
+
+  // A room of several sections with none of them selected: the handles are the
+  // room's own outline walls, and they move whichever sections stand on them.
   if (part === undefined) {
+    for (const handle of roomHandles(room)) {
+      const point = projectPoint(projection, handle.at);
+      if (
+        Math.abs(point.x - at.x) <= HANDLE_GRAB_PIXELS &&
+        Math.abs(point.y - at.y) <= HANDLE_GRAB_PIXELS
+      ) {
+        return {
+          kind: "resize",
+          roomId: room.id,
+          partId: null,
+          edges: handle.edges,
+        };
+      }
+    }
     return null;
   }
 
@@ -2524,13 +2548,52 @@ function drawRoomName(
 export function roomHandles(
   room: Room,
 ): readonly { edges: readonly RoomEdge[]; at: FloorPoint }[] {
-  // Resizing the union bounds would be ambiguous once a room has several
-  // parts. Those parts stay fully numeric in the inspector; one-part rooms
-  // retain the direct canvas handles they have always had.
-  if (room.parts.length !== 1) {
-    return [];
+  // One rectangle is on all four of its own edges, so it keeps the eight
+  // handles it has always had, corners included.
+  if (room.parts.length === 1) {
+    return roomPartHandles(primaryRoomPart(room));
   }
-  return roomPartHandles(primaryRoomPart(room));
+
+  // A room built from several rectangles gets its four outline walls and no
+  // corners. A corner of the outline can hang in mid-air — the inside corner
+  // of an L is nobody's corner — and a handle floating off the drawing is a
+  // worse answer than not offering one. The sections keep their own eight.
+  return (["north", "east", "south", "west"] as const).flatMap((edge) => {
+    const alongWidth = edge === "north" || edge === "south";
+    const on = partsOnRoomEdge(room, edge);
+    // The widest section on the edge, so the grab is always on a real wall
+    // rather than in a gap between two sections that share the edge.
+    const widest = on.reduce<RoomPart | null>(
+      (best, part) =>
+        best === null ||
+        spanAlong(part, alongWidth) > spanAlong(best, alongWidth)
+          ? part
+          : best,
+      null,
+    );
+    if (widest === null) {
+      return [];
+    }
+    const middle =
+      startAlong(widest, alongWidth) + spanAlong(widest, alongWidth) / 2;
+    const at = roomEdgePosition(room, edge);
+    return [
+      {
+        edges: [edge],
+        at: alongWidth
+          ? { xMeters: middle, zMeters: at }
+          : { xMeters: at, zMeters: middle },
+      },
+    ];
+  });
+}
+
+function spanAlong(part: RoomPart, alongWidth: boolean): number {
+  return alongWidth ? part.widthMeters : part.depthMeters;
+}
+
+function startAlong(part: RoomPart, alongWidth: boolean): number {
+  return alongWidth ? part.origin.xMeters : part.origin.zMeters;
 }
 
 export function roomPartHandles(
