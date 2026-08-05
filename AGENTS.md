@@ -174,6 +174,13 @@ Furniture is measured against the room it stands in, which is the room it
 overlaps most. Reaching past that room's walls is reported even when another
 room is on the far side: furniture cannot occupy a wall.
 
+Unless there is no wall. A side marked open with another room's floor beyond
+it is a way through, and a piece standing across it has walked into the next
+room rather than through anything — which is how a living room open to a
+kitchen is drawn: two rooms, meeting flush, with the sides between them open.
+A balcony rail is open too and the floor simply stops there, so reaching past
+one is still reported.
+
 Every geometry utility must have unit tests.
 
 ## Measurement rules

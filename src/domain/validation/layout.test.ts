@@ -5,7 +5,7 @@ import {
   type PlacedFurniture,
 } from "@/domain/furniture";
 import type { FurnitureProduct } from "@/domain/furniture";
-import { DEFAULT_FLOOR } from "@/domain/room";
+import { DEFAULT_FLOOR, withRoomPartWallOpen, type Floor } from "@/domain/room";
 import { LIVING_ROOM } from "@/domain/room/fixtures";
 import { checkLayout, troubledInstanceIds } from "./layout";
 
@@ -451,5 +451,95 @@ describe("checkLayout: a room with a corner clipped off it", () => {
     expect(
       checkLayout({ ...DEFAULT_FLOOR, rooms: [CLIPPED, neighbour] }, []),
     ).toEqual([]);
+  });
+});
+
+describe("checkLayout: two rooms open to one another", () => {
+  /**
+   * A living room, and a kitchen against its east side.
+   *
+   * **Flush, not a wall apart.** Two rooms with a wall between them sit one
+   * thickness apart, which is where the snapping puts them and where the
+   * shared band goes. Two rooms open to one another have no wall between
+   * them, so there is nothing for a gap to hold: they meet.
+   */
+  const KITCHEN = {
+    ...ROOM,
+    id: "room-2",
+    name: "Kitchen",
+    parts: [
+      {
+        ...BASE_PART,
+        id: "room-2-part-1",
+        origin: { xMeters: 4, zMeters: 0 },
+      },
+    ],
+  };
+
+  function openBetween(): Floor {
+    return {
+      ...DEFAULT_FLOOR,
+      rooms: [
+        withRoomPartWallOpen(ROOM, BASE_PART.id, "east", true),
+        withRoomPartWallOpen(KITCHEN, "room-2-part-1", "west", true),
+      ],
+    };
+  }
+
+  /** A sofa standing squarely across the join between the two. */
+  const ACROSS = place("i1", SECTIONAL, 4, 2);
+
+  it("reports a piece across the join while a wall stands there", () => {
+    const walled = { ...DEFAULT_FLOOR, rooms: [ROOM, KITCHEN] };
+
+    expect(checkLayout(walled, [ACROSS])).toEqual([
+      {
+        kind: "crosses-wall",
+        instanceId: "i1",
+        roomId: "room-1",
+        wall: "east",
+        overhangMeters: expect.closeTo(1.2, 6),
+      },
+    ]);
+  });
+
+  it("says nothing once the side is open and the floor carries on", () => {
+    // Which is the whole point of an open-plan living room and kitchen: the
+    // sofa has walked into the next room rather than through a wall.
+    expect(checkLayout(openBetween(), [ACROSS])).toEqual([]);
+  });
+
+  it("still reports a piece reaching past a railing onto nothing", () => {
+    // A balcony rail is open too, and the floor simply stops there.
+    const balcony = {
+      ...DEFAULT_FLOOR,
+      rooms: [withRoomPartWallOpen(ROOM, BASE_PART.id, "east", true)],
+    };
+
+    expect(checkLayout(balcony, [ACROSS])).toEqual([
+      {
+        kind: "crosses-wall",
+        instanceId: "i1",
+        roomId: "room-1",
+        wall: "east",
+        overhangMeters: expect.closeTo(1.2, 6),
+      },
+    ]);
+  });
+
+  it("keeps measuring the walls that are still walls", () => {
+    // North is untouched, and a piece pushed through it is still reported
+    // even while the room's east side stands open to the kitchen.
+    const north = place("i2", SECTIONAL, 2, 0);
+
+    expect(checkLayout(openBetween(), [north])).toEqual([
+      {
+        kind: "crosses-wall",
+        instanceId: "i2",
+        roomId: "room-1",
+        wall: "north",
+        overhangMeters: expect.closeTo(0.8, 6),
+      },
+    ]);
   });
 });
