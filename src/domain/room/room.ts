@@ -809,16 +809,71 @@ export function resizeRoomPartEdge(
   );
 }
 
+/** How near a section has to be to the outline to count as standing on it. */
+const ON_EDGE_METERS = 0.001;
+
+/** Where one side of a section sits, for a section square to the plan. */
+function partEdgePosition(part: RoomPart, edge: RoomEdge): number {
+  switch (edge) {
+    case "west":
+      return part.origin.xMeters;
+    case "east":
+      return part.origin.xMeters + part.widthMeters;
+    case "north":
+      return part.origin.zMeters;
+    case "south":
+      return part.origin.zMeters + part.depthMeters;
+  }
+}
+
+/** The sections whose own edge lies on this edge of the room's outline. */
+export function partsOnRoomEdge(
+  room: Room,
+  edge: RoomEdge,
+): readonly RoomPart[] {
+  const at = roomEdgePosition(room, edge);
+  return room.parts.filter(
+    (part) =>
+      // A turned section's sides lie on no axis line, so none of them is the
+      // outline's straight edge however close it comes.
+      part.rotationRadians === 0 &&
+      Math.abs(partEdgePosition(part, edge) - at) <= ON_EDGE_METERS,
+  );
+}
+
+/**
+ * Moves one edge of the room's outline.
+ *
+ * **Every section standing on that edge moves with it, and no other section
+ * moves at all.** Resizing the outline of a room built from several rectangles
+ * used to be refused as ambiguous, and the ambiguity is real — but only if the
+ * question is "how much of this does each section absorb". Asked as "this wall
+ * is somewhere else now", it has one answer: the sections that *are* that wall
+ * follow it, and a section round the corner keeps the number somebody measured
+ * for it.
+ *
+ * A room of one rectangle is on all four of its own edges, so this is exactly
+ * what it always did. A room whose sections are all turned has nothing lying
+ * on a straight edge, and falls back to the first, which is also what it
+ * always did.
+ */
 export function resizeRoomEdge(
   room: Room,
   edge: RoomEdge,
   positionMeters: number,
 ): Room {
-  return resizeRoomPartEdge(
+  const moving = partsOnRoomEdge(room, edge);
+  if (moving.length === 0) {
+    return resizeRoomPartEdge(
+      room,
+      primaryRoomPart(room).id,
+      edge,
+      positionMeters,
+    );
+  }
+  return moving.reduce(
+    (next, part) => resizeRoomPartEdge(next, part.id, edge, positionMeters),
     room,
-    primaryRoomPart(room).id,
-    edge,
-    positionMeters,
   );
 }
 
