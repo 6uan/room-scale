@@ -180,7 +180,7 @@ export function NumberField({
       <div
         className={
           compact
-            ? "flex min-w-0 items-center rounded-lg border border-black/15 bg-transparent focus-within:border-black/40 dark:border-white/20 dark:focus-within:border-white/45"
+            ? "flex h-8 min-w-0 items-center rounded-lg border border-black/15 bg-transparent focus-within:border-black/40 dark:border-white/20 dark:focus-within:border-white/45"
             : "flex items-center gap-2"
         }
       >
@@ -205,14 +205,19 @@ export function NumberField({
                 handleScrubKey(event.key);
               }
             }}
-            className={`flex w-10 shrink-0 touch-none select-none items-center gap-0.5 pl-2 text-xs font-medium outline-none hover:opacity-100 focus-visible:opacity-100 ${
-              scrubbing
-                ? "cursor-ew-resize opacity-100"
-                : "cursor-ew-resize opacity-50"
+            /*
+              The letter is the handle. It used to be the letter *and* a
+              double arrow, which cost eighteen pixels in every field of every
+              row — enough that a width of 118.28 inches was drawn as 118.2,
+              and a measurement you cannot read is the one thing this panel
+              cannot afford. The cursor, the tooltip and the arrow keys say it
+              can be dragged.
+            */
+            className={`flex shrink-0 cursor-ew-resize touch-none select-none items-center pl-2.5 pr-1 text-xs font-medium outline-none hover:opacity-100 focus-visible:opacity-100 ${
+              scrubbing ? "opacity-100" : "opacity-50"
             }`}
           >
-            <span aria-hidden="true">{compactLabel}</span>
-            <ScrubIcon />
+            {compactLabel}
           </span>
         ) : null}
         <input
@@ -226,8 +231,8 @@ export function NumberField({
           onChange={(event) => handleChange(event.target.value)}
           className={
             compact
-              ? "compact-number-input min-w-0 flex-1 bg-transparent py-2 pr-1.5 text-sm tabular-nums outline-none"
-              : "w-28 rounded-lg border border-black/15 bg-transparent px-3 py-2 text-sm tabular-nums dark:border-white/20"
+              ? "compact-number-input h-full min-w-0 flex-1 bg-transparent pr-1.5 text-sm tabular-nums outline-none"
+              : "h-8 w-28 rounded-lg border border-black/15 bg-transparent px-3 text-sm tabular-nums dark:border-white/20"
           }
         />
         {compact ? null : (
@@ -249,23 +254,6 @@ export function NumberField({
         </p>
       )}
     </div>
-  );
-}
-
-function ScrubIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 12 8"
-      className="h-2 w-3 shrink-0"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M1 4h10M3 2 1 4l2 2M9 2l2 2-2 2" />
-    </svg>
   );
 }
 

@@ -34,9 +34,7 @@ describe("RoomOpeningsForm", () => {
       "aria-pressed",
       "false",
     );
-    expect(
-      screen.getByText(/Click a Living room wall to place it/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Click a wall to place it/)).toBeInTheDocument();
   });
 
   it("lists each opening with its wall, selectable and removable in place", async () => {

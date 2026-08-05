@@ -9,6 +9,15 @@ import {
 
 export type AngleFieldProps = {
   label: string;
+  /**
+   * A badge worn inside the field, the way `NumberField`'s X and W are.
+   *
+   * "Room 4 section 1 angle" printed above a box two inches wide left the rest
+   * of the row empty and said, at length, what the panel around it had just
+   * said. The long name stays on the control, where a screen reader still
+   * reads it and the tests still find it.
+   */
+  compactLabel?: string;
   radians: number;
   onRadiansChange: (radians: number) => void;
   /** Offer the handful of angles walls are actually built at. */
@@ -36,12 +45,14 @@ const PRESET_DEGREES = [0, 30, 45, 60, 90] as const;
  */
 export function AngleField({
   label,
+  compactLabel,
   radians,
   onRadiansChange,
   presets = false,
 }: AngleFieldProps) {
   const inputId = useId();
   const messageId = `${inputId}-message`;
+  const compact = compactLabel !== undefined;
 
   const [draft, setDraft] = useState(() => textFromRadians(radians));
   const [applied, setApplied] = useState(radians);
@@ -68,52 +79,88 @@ export function AngleField({
   }
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={inputId} className="text-sm font-medium">
-        {label}
-      </label>
-      <div className="flex items-center gap-2">
-        <input
-          id={inputId}
-          type="number"
-          inputMode="decimal"
-          step="any"
-          value={draft}
-          aria-invalid={parsed === null}
-          {...(parsed === null ? { "aria-describedby": messageId } : {})}
-          onChange={(event) => handleChange(event.target.value)}
-          className="w-28 rounded-md border border-black/15 bg-transparent px-2.5 py-1.5 text-sm tabular-nums dark:border-white/20"
-        />
-        <span className="text-sm opacity-60">°</span>
-      </div>
-      {presets ? (
-        <div className="flex flex-wrap gap-1">
-          {PRESET_DEGREES.map((degrees) => {
-            const current = Math.abs(currentDegrees(radians) - degrees) < 0.05;
-            return (
-              <button
-                key={degrees}
-                type="button"
-                aria-pressed={current}
-                aria-label={`${label} ${degrees} degrees`}
-                onClick={() => {
-                  const next = radiansFromDegrees(degrees);
-                  setApplied(next);
-                  setDraft(String(degrees));
-                  onRadiansChange(next);
-                }}
-                className={`h-7 rounded-md px-2 text-xs font-medium tabular-nums transition-colors ${
-                  current
-                    ? "bg-black/12 dark:bg-white/20"
-                    : "bg-black/[0.05] opacity-70 hover:opacity-100 dark:bg-white/[0.08]"
-                }`}
-              >
-                {degrees}°
-              </button>
-            );
-          })}
+    <div className="flex min-w-0 flex-col gap-2">
+      {compact ? null : (
+        <label htmlFor={inputId} className="text-sm font-medium">
+          {label}
+        </label>
+      )}
+      {/*
+        The field and the angles it is usually set to, on one line, headed by
+        nothing. A row reading "Angle" above a box reading "0" above five
+        buttons reading "0° 30° 45° 60° 90°" is one number told three times.
+        The ∠ is the same badge Position and Size wear inside their fields, and
+        the presets say what the unit is by carrying it.
+      */}
+      <div className="flex min-w-0 items-center gap-2">
+        <div
+          className={
+            compact
+              ? "flex h-8 w-[58px] shrink-0 items-center rounded-lg border border-black/15 focus-within:border-black/40 dark:border-white/20 dark:focus-within:border-white/45"
+              : "flex items-center gap-2"
+          }
+        >
+          {compact ? (
+            <span
+              aria-hidden="true"
+              className="shrink-0 pl-2.5 text-xs font-medium opacity-50"
+            >
+              {compactLabel}
+            </span>
+          ) : null}
+          <input
+            id={inputId}
+            type="number"
+            inputMode="decimal"
+            step="any"
+            value={draft}
+            {...(compact ? { "aria-label": label } : {})}
+            aria-invalid={parsed === null}
+            {...(parsed === null ? { "aria-describedby": messageId } : {})}
+            onChange={(event) => handleChange(event.target.value)}
+            className={
+              compact
+                ? "compact-number-input h-full min-w-0 flex-1 bg-transparent px-1 text-sm tabular-nums outline-none"
+                : "h-8 w-28 rounded-lg border border-black/15 bg-transparent px-3 text-sm tabular-nums dark:border-white/20"
+            }
+          />
+          <span
+            aria-hidden="true"
+            className={compact ? "hidden" : "text-sm opacity-60"}
+          >
+            °
+          </span>
         </div>
-      ) : null}
+        {presets ? (
+          <div className="flex min-w-0 flex-1 gap-1">
+            {PRESET_DEGREES.map((degrees) => {
+              const current =
+                Math.abs(currentDegrees(radians) - degrees) < 0.05;
+              return (
+                <button
+                  key={degrees}
+                  type="button"
+                  aria-pressed={current}
+                  aria-label={`${label} ${degrees} degrees`}
+                  onClick={() => {
+                    const next = radiansFromDegrees(degrees);
+                    setApplied(next);
+                    setDraft(String(degrees));
+                    onRadiansChange(next);
+                  }}
+                  className={`h-8 min-w-0 flex-1 rounded-md text-[11px] font-medium tabular-nums transition-colors ${
+                    current
+                      ? "bg-black/12 dark:bg-white/20"
+                      : "bg-black/[0.05] opacity-70 hover:opacity-100 dark:bg-white/[0.08]"
+                  }`}
+                >
+                  {degrees}°
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
       {/*
         Only when something is wrong. This used to read the applied angle back
         under the field — which was the number already in the field, printed

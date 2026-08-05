@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { IconButton } from "@/components/icon-button";
 import { NumberField } from "@/components/number-field";
+import { PanelSection } from "@/components/panel/section";
 import { openingListName, openingName } from "@/components/opening-name";
 import {
   MIN_OPENING_METERS,
@@ -73,11 +74,11 @@ export function RoomOpeningsForm({
   onRemoveOpening,
 }: RoomOpeningsFormProps) {
   return (
-    <div className="flex flex-col gap-3 border-t border-black/10 pt-4 dark:border-white/15">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-xs font-medium">Openings</h3>
-        {/* Lit while the plan is waiting for the wall, rather than reworded:
-            the button you press to stop is the one you pressed to start. */}
+    <PanelSection
+      title="Openings"
+      action={
+        /* Lit while the plan is waiting for the wall, rather than reworded:
+           the button you press to stop is the one you pressed to start. */
         <div className="flex items-center gap-0.5">
           {KINDS.map(({ kind, label, icon }) => (
             <IconButton
@@ -90,8 +91,8 @@ export function RoomOpeningsForm({
             />
           ))}
         </div>
-      </div>
-
+      }
+    >
       {room.openings.length === 0 ? null : (
         <ul className="flex flex-col gap-1">
           {room.openings.map((opening) => (
@@ -119,14 +120,19 @@ export function RoomOpeningsForm({
         </ul>
       )}
 
-      <p className="text-xs leading-relaxed opacity-60">
-        {placingKind === null
-          ? room.openings.length === 0
-            ? "Choose a kind, then click the wall where it belongs."
-            : "Select an opening to type its exact measurements, or drag it on the plan."
-          : `Click a ${room.name === "" ? "room" : room.name} wall to place it. Press Esc to stop.`}
-      </p>
-    </div>
+      {/*
+        One line, and only where it is the next thing to do. What an opening
+        already in the list can be done to, its own row and the plan show
+        better than a sentence under them does.
+      */}
+      {placingKind === null && room.openings.length > 0 ? null : (
+        <p className="text-xs leading-relaxed opacity-55">
+          {placingKind === null
+            ? "Pick a kind, then click a wall."
+            : "Click a wall to place it. Esc to stop."}
+        </p>
+      )}
+    </PanelSection>
   );
 }
 

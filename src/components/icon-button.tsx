@@ -100,6 +100,7 @@ export function IconFileButton({
  */
 export function LabelledButton({
   label,
+  title,
   icon: Icon,
   onClick,
   type = "button",
@@ -108,6 +109,13 @@ export function LabelledButton({
   tone = "normal",
 }: {
   label: string;
+  /**
+   * What the button does, for the reader who wants more than its name.
+   *
+   * A sentence that would otherwise be printed beside the button and read by
+   * everybody, every time, forever.
+   */
+  title?: string;
   icon: LucideIcon;
   onClick?: () => void;
   type?: "button" | "submit";
@@ -119,6 +127,7 @@ export function LabelledButton({
   return (
     <button
       type={type}
+      {...(title === undefined ? {} : { title })}
       disabled={disabled}
       {...(pressed === undefined ? {} : { "aria-pressed": pressed })}
       {...(onClick === undefined ? {} : { onClick })}
