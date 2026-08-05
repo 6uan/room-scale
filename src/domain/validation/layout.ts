@@ -30,6 +30,7 @@ import {
   primaryRoomPart,
   roomContains,
   roomFootprintOverlapArea,
+  roomsAt,
   roomPartCut,
   roomPartIsCut,
   roomPartPolygon,
@@ -140,9 +141,15 @@ function pieceProblems(
   }
 
   // One whole rectangle is measured directly against its own four walls. A
-  // section with a corner clipped off is not a rectangle, so it goes the same
-  // way a room of several sections does — against its true outline.
-  if (room.parts.length === 1 && !roomPartIsCut(primaryRoomPart(room))) {
+  // section with a corner clipped off is not a rectangle, and a section with
+  // a side left open has somewhere the room may legitimately be walked out
+  // of, which the four edges alone cannot tell. Both go the way a room of
+  // several sections does — against its true outline, sample by sample.
+  if (
+    room.parts.length === 1 &&
+    !roomPartIsCut(primaryRoomPart(room)) &&
+    primaryRoomPart(room).openWalls.length === 0
+  ) {
     // Carried into the part's own frame, where the part is a plain box from
     // (0, 0) to its width and depth however it is turned on the floor. The
     // footprint keeps only the turn it has relative to the part.
@@ -169,7 +176,7 @@ function pieceProblems(
     return wallProblems(room, instanceId, overhang);
   }
 
-  return unionWallProblems(room, rect, instanceId);
+  return unionWallProblems(floor, room, rect, instanceId);
 }
 
 /**
@@ -193,6 +200,7 @@ function wallProblems(
 
 /** Reports the nearest union boundary for footprint samples outside a room. */
 function unionWallProblems(
+  floor: Floor,
   room: Room,
   rect: ReturnType<typeof footprintRect>,
   instanceId: string,
@@ -221,23 +229,48 @@ function unionWallProblems(
   }
 
   const greatest: Partial<Record<WallSide, number>> = {};
+  /** Whether any sample stood outside only by way of an opened side. */
+  let wentThrough = false;
   for (const point of samples) {
     const nearest = room.parts
       .flatMap((part) => wallsPassed(part, point))
       .sort((a, b) => a.distance - b.distance)[0];
-    if (nearest !== undefined) {
-      greatest[nearest.wall] = Math.max(
-        greatest[nearest.wall] ?? 0,
-        nearest.distance,
-      );
+    if (nearest === undefined) {
+      continue;
     }
+    // A side left open with another room's floor beyond it is a way through,
+    // not a wall crossed. A sofa standing across the join between a living
+    // room and the kitchen it opens onto has not gone through anything —
+    // which is the whole point of saying the side is open.
+    //
+    // The floor beyond it is what makes the difference. A balcony rail is
+    // open too, and the floor simply stops there, so reaching past one is
+    // still reported exactly as it was.
+    if (
+      nearest.open &&
+      roomsAt(floor, point).some((other) => other.id !== room.id)
+    ) {
+      wentThrough = true;
+      continue;
+    }
+    greatest[nearest.wall] = Math.max(
+      greatest[nearest.wall] ?? 0,
+      nearest.distance,
+    );
   }
 
   const problems = wallProblems(room, instanceId, greatest);
-  // The overlap-area test proved a crossing. Keep that fact visible even in a
-  // degenerate sampling case caused by coincident floating-point edges.
-  return problems.length > 0
-    ? problems
+  if (problems.length > 0) {
+    return problems;
+  }
+  // Nothing to report, and two ways to arrive there. If the parts of the
+  // piece outside this room were all standing in the next one through a side
+  // left open, it has crossed nothing and there is nothing to say. Otherwise
+  // the overlap-area test proved a crossing that the sampling then failed to
+  // find — coincident edges, floating point — and that fact stays visible
+  // rather than being quietly dropped.
+  return wentThrough
+    ? []
     : [
         {
           kind: "crosses-wall",
@@ -260,7 +293,7 @@ function unionWallProblems(
 function wallsPassed(
   part: RoomPart,
   point: FloorPoint,
-): readonly { wall: WallSide; distance: number }[] {
+): readonly { wall: WallSide; distance: number; open: boolean }[] {
   const local = pointInRoomPart(part, point);
   const choices: { wall: WallSide; distance: number }[] = [];
 
@@ -285,7 +318,10 @@ function wallsPassed(
     }
   }
 
-  return choices;
+  return choices.map((choice) => ({
+    ...choice,
+    open: part.openWalls.includes(choice.wall),
+  }));
 }
 
 /**
