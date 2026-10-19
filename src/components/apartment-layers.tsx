@@ -141,7 +141,7 @@ export function ApartmentLayers({
   return (
     <div
       {...scroll}
-      className={`flex min-h-0 flex-col gap-5 overflow-y-auto p-5 ${scroll.className}`}
+      className={`flex min-h-0 min-w-0 flex-col gap-5 overflow-y-auto p-5 ${scroll.className}`}
     >
       {/* Lit while the plan is waiting for a rectangle, so the mode it turns
           on is visible in the one place that turned it on. */}

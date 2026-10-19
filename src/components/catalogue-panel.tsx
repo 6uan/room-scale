@@ -46,7 +46,7 @@ export function CataloguePanel({
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <div className="flex max-h-[42vh] min-h-0 flex-col gap-4 border-t border-black/10 p-5 dark:border-white/15">
+    <div className="flex max-h-[42vh] min-h-0 min-w-0 flex-col gap-4 border-t border-black/10 p-5 dark:border-white/15">
       <PanelHeader
         title="Furniture"
         action="New product"
