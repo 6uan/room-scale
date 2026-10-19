@@ -60,8 +60,8 @@ describe("NumberField compact scrubbing", () => {
     fireEvent.pointerUp(slider, { pointerId: 7, clientX: 112 });
 
     expect(
-      screen.getByRole("spinbutton", { name: "Living room width" }),
-    ).toHaveValue(108);
+      screen.getByRole("textbox", { name: "Living room width" }),
+    ).toHaveValue("108");
     expect(onChange).toHaveBeenLastCalledWith(
       metersFromInches(108),
       "room-field:room-1:width",
@@ -90,8 +90,8 @@ describe("NumberField compact scrubbing", () => {
     // 292 if the value is. A dimension nobody can drag to a whole inch is the
     // bug this guards: the fraction used to survive every gesture forever.
     expect(
-      screen.getByRole("spinbutton", { name: "Living room width" }),
-    ).toHaveValue(292);
+      screen.getByRole("textbox", { name: "Living room width" }),
+    ).toHaveValue("292");
   });
 
   it("also adjusts from the keyboard while the number stays typeable", () => {
@@ -105,10 +105,10 @@ describe("NumberField compact scrubbing", () => {
       { key: "ArrowRight" },
     );
 
-    const field = screen.getByRole("spinbutton", {
+    const field = screen.getByRole("textbox", {
       name: "Living room width",
     });
-    expect(field).toHaveValue(97);
+    expect(field).toHaveValue("97");
     expect(field).toHaveClass("compact-number-input");
     expect(onChange).toHaveBeenLastCalledWith(metersFromInches(97), undefined);
   });
@@ -127,8 +127,8 @@ describe("NumberField compact scrubbing", () => {
     fireEvent.pointerMove(slider, { pointerId: 8, clientX: -1000 });
 
     expect(
-      screen.getByRole("spinbutton", { name: "Living room width" }),
-    ).toHaveValue(19.69);
+      screen.getByRole("textbox", { name: "Living room width" }),
+    ).toHaveValue("19.69");
     expect(onChange.mock.lastCall?.[0]).toBe(0.5);
   });
 });

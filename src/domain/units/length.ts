@@ -115,6 +115,54 @@ export function displayValueFromMeters(
  * unit on screen means a dragged wall lands on the same kind of number a typed
  * one does, and the field beside it does not fill with noise.
  */
+/**
+ * Reads a typed length into meters, or null when it is not one yet.
+ *
+ * A bare number is in the display unit, the way the fields have always read.
+ * In imperial a tape measure's own notation is taken too: `11'`, `11' 6"`,
+ * `11'6`, `11 ft 6 in`, `6"`, `11.5'`. The apostrophe and the quote are the
+ * marks on the tape, so a person typing what the tape says gets the room the
+ * tape measured. In metric, `m` and `cm` are read the same way.
+ */
+export function parseLength(text: string, unit: DisplayUnit): number | null {
+  const trimmed = text.trim().toLowerCase();
+  if (trimmed === "") {
+    return null;
+  }
+  if (/^-?\d*\.?\d+$/.test(trimmed)) {
+    return metersFromDisplayValue(Number(trimmed), unit);
+  }
+
+  const number = String.raw`(\d*\.?\d+)`;
+  if (unit === "imperial") {
+    // Feet, then inches, either optional but not both absent.
+    const match = new RegExp(
+      String.raw`^(?:${number}\s*(?:'|ft|feet|foot))?\s*(?:${number}\s*(?:"|''|in|inches|inch)?)?$`,
+    ).exec(trimmed);
+    if (match === null || (match[1] === undefined && match[2] === undefined)) {
+      return null;
+    }
+    // A bare second number with no mark after a foot mark is inches: 11'6.
+    const feet = match[1] === undefined ? 0 : Number(match[1]);
+    const inches = match[2] === undefined ? 0 : Number(match[2]);
+    return metersFromFeetAndInches(feet, inches);
+  }
+
+  const match = new RegExp(String.raw`^${number}\s*(m|cm|mm)$`).exec(trimmed);
+  if (match === null) {
+    return null;
+  }
+  const value = Number(match[1]);
+  switch (match[2]) {
+    case "m":
+      return value;
+    case "cm":
+      return metersFromCentimeters(value);
+    default:
+      return metersFromMillimeters(value);
+  }
+}
+
 export function roundToDisplayUnit(meters: number, unit: DisplayUnit): number {
   return metersFromDisplayValue(
     Math.round(displayValueFromMeters(meters, unit)),

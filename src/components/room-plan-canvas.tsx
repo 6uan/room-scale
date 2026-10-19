@@ -81,6 +81,7 @@ import {
   snapRoomOrigin,
   snapRoomPartOrigin,
   snapRoomPartResize,
+  roundedResizeTarget,
   snapRoomResize,
   wallPlacementAt,
   wallOutwardNormalOnFloor,
@@ -1184,36 +1185,27 @@ export function RoomPlanCanvas({
         );
         return;
       }
-      // Rounded to the unit on screen, so a dragged wall lands on the same
-      // kind of number a typed one does.
-      const next = drag.edges.reduce(
-        (room, edge) =>
+      // The length between the walls lands on the unit on screen, so a
+      // dragged wall leaves the same kind of number a typed one does — and
+      // the opposite wall, wherever it stands, is what it is measured from.
+      const next = drag.edges.reduce((room, edge) => {
+        const horizontal = edge === "west" || edge === "east";
+        const pointer = horizontal ? point.xMeters : point.zMeters;
+        const sized =
           drag.partId === null
-            ? snapRoomResize(
-                floor,
-                room,
-                edge,
-                roundToDisplayUnit(
-                  edge === "west" || edge === "east"
-                    ? point.xMeters
-                    : point.zMeters,
-                  unit,
-                ),
-              )
-            : snapRoomPartResize(
-                floor,
-                room,
-                drag.partId,
-                edge,
-                roundToDisplayUnit(
-                  edge === "west" || edge === "east"
-                    ? point.xMeters
-                    : point.zMeters,
-                  unit,
-                ),
-              ),
-        sizing,
-      );
+            ? undefined
+            : sizing.parts.find((one) => one.id === drag.partId);
+        const fixed =
+          sized === undefined
+            ? roomEdgePosition(room, OPPOSITE_EDGE[edge])
+            : partEdgePosition(sized, OPPOSITE_EDGE[edge]);
+        const target = roundedResizeTarget(fixed, pointer, (m) =>
+          roundToDisplayUnit(m, unit),
+        );
+        return drag.partId === null
+          ? snapRoomResize(floor, room, edge, target)
+          : snapRoomPartResize(floor, room, drag.partId, edge, target);
+      }, sizing);
       onRoomChange?.(
         next,
         drag.partId === null
@@ -3124,6 +3116,27 @@ function drawFurniture(
   }
 
   context.restore();
+}
+
+const OPPOSITE_EDGE: Record<RoomEdge, RoomEdge> = {
+  west: "east",
+  east: "west",
+  north: "south",
+  south: "north",
+};
+
+/** Where one edge of a square part stands on its axis. */
+function partEdgePosition(part: RoomPart, edge: RoomEdge): number {
+  switch (edge) {
+    case "west":
+      return part.origin.xMeters;
+    case "east":
+      return part.origin.xMeters + part.widthMeters;
+    case "north":
+      return part.origin.zMeters;
+    case "south":
+      return part.origin.zMeters + part.depthMeters;
+  }
 }
 
 /** How far a gap's end ticks reach either side of the line, in pixels. */

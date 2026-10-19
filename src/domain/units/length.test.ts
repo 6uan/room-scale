@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  parseLength,
   centimetersFromMeters,
   checkLength,
   displayUnitSuffix,
@@ -85,6 +86,41 @@ describe("checkLength", () => {
   it("rejects values that are not real numbers", () => {
     expect(checkLength(Number.NaN, limits)).toBe("not-a-number");
     expect(checkLength(Number.POSITIVE_INFINITY, limits)).toBe("not-a-number");
+  });
+});
+
+describe("parseLength", () => {
+  it("reads a bare number in the display unit", () => {
+    expect(parseLength("36", "imperial")).toBeCloseTo(0.9144, 10);
+    expect(parseLength("420", "metric")).toBeCloseTo(4.2, 10);
+    expect(parseLength(" 1.5 ", "imperial")).toBeCloseTo(0.0381, 10);
+  });
+
+  it("reads what a tape says, in feet and inches", () => {
+    const eleven = metersFromFeetAndInches(11);
+    const elevenSix = metersFromFeetAndInches(11, 6);
+    expect(parseLength("11'", "imperial")).toBeCloseTo(eleven, 10);
+    expect(parseLength("11' 6\"", "imperial")).toBeCloseTo(elevenSix, 10);
+    expect(parseLength("11'6", "imperial")).toBeCloseTo(elevenSix, 10);
+    expect(parseLength("11 ft 6 in", "imperial")).toBeCloseTo(elevenSix, 10);
+    expect(parseLength("11.5'", "imperial")).toBeCloseTo(
+      metersFromFeetAndInches(11.5),
+      10,
+    );
+    expect(parseLength('6"', "imperial")).toBeCloseTo(metersFromInches(6), 10);
+  });
+
+  it("reads meters and centimeters when spelled out", () => {
+    expect(parseLength("1.2 m", "metric")).toBeCloseTo(1.2, 10);
+    expect(parseLength("120cm", "metric")).toBeCloseTo(1.2, 10);
+    expect(parseLength("1200 mm", "metric")).toBeCloseTo(1.2, 10);
+  });
+
+  it("is null for anything else", () => {
+    expect(parseLength("", "imperial")).toBeNull();
+    expect(parseLength("eleven", "imperial")).toBeNull();
+    expect(parseLength("'", "imperial")).toBeNull();
+    expect(parseLength("12 ft", "metric")).toBeNull();
   });
 });
 

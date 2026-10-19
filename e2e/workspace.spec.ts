@@ -1888,6 +1888,19 @@ test.describe("laying the apartment out", () => {
     await expect(plan(page)).toBeVisible();
   });
 
+  test("takes a room size typed the way a tape reads it", async ({ page }) => {
+    await openWithLivingRoom(page);
+    await contents(page).getByRole("button", { name: "Living room" }).click();
+    const room = details(page).getByRole("region", { name: "Living room" });
+
+    await room.getByLabel("Living room width").fill("11' 6\"");
+    // Feet and inches in, inches stored, and the room read back in feet.
+    await expect(room.getByText(/^11' 6\.0" ×/)).toBeVisible();
+    await planImage(page).press("Escape");
+    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await expect(room.getByLabel("Living room width")).toHaveValue("138");
+  });
+
   test("opens on numbers somebody could have measured", async ({ page }) => {
     await openWithLivingRoom(page);
     await contents(page).getByRole("button", { name: "Living room" }).click();

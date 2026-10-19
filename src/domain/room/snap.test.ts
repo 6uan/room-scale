@@ -9,6 +9,7 @@ import {
   snapRoomOrigin,
   snapRoomPartOrigin,
   snapRoomPartResize,
+  roundedResizeTarget,
   snapRoomResize,
 } from "./floor";
 import {
@@ -154,6 +155,26 @@ describe("snapRoomEdge", () => {
     const empty = { ...FLOOR, rooms: [] };
 
     expect(snapRoomEdge(empty, "x", 4.06)).toBe(4.06);
+  });
+});
+
+describe("roundedResizeTarget", () => {
+  const wholeInches = (meters: number) => Math.round(meters / 0.0254) * 0.0254;
+
+  it("rounds the length between the walls, not the dragged coordinate", () => {
+    // The fixed wall stands on a fraction; the dragged one lands wherever
+    // makes the room a whole number of inches wide.
+    const fixed = 0.0254 * 10.5;
+    const target = roundedResizeTarget(fixed, 0.0254 * 130.7, wholeInches);
+
+    expect((target - fixed) / 0.0254).toBeCloseTo(120, 10);
+  });
+
+  it("works the same way dragging toward the negative side", () => {
+    const fixed = 0.0254 * 10.5;
+    const target = roundedResizeTarget(fixed, -0.0254 * 109.7, wholeInches);
+
+    expect((fixed - target) / 0.0254).toBeCloseTo(120, 10);
   });
 });
 
