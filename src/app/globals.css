@@ -46,6 +46,15 @@ body {
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
   transition: scrollbar-color 200ms;
+  /* Rows fade out at the top and bottom edge rather than being cut off:
+     a soft edge says there is more, where a hard one looks like a mistake. */
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black 14px,
+    black calc(100% - 14px),
+    transparent
+  );
 }
 .scroll-fade:hover,
 .scroll-fade[data-scrolling="true"] {
