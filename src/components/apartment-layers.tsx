@@ -2,6 +2,8 @@
 
 import {
   DoorOpen,
+  Eye,
+  EyeOff,
   MoveHorizontal,
   PanelsTopLeft,
   Sofa,
@@ -9,7 +11,9 @@ import {
   SquareDashed,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
+import { IconButton } from "@/components/icon-button";
+import { useScrollFade } from "@/components/scroll-fade";
 import { openingListName } from "@/components/opening-name";
 import { PanelHeader } from "@/components/panel-header";
 import { placedNames, type PlacedFurniture } from "@/domain/furniture";
@@ -26,7 +30,14 @@ export type ApartmentLayersProps = {
   onAddRoom: () => void;
   /** Whether the plan is waiting for a room to be drawn on it. */
   drawingRoom?: boolean;
+  /** Sets a piece aside, or brings it back. */
+  onToggleHidden?: (instanceId: string) => void;
+  /** Puts one piece where another is in the order, by a drag in the list. */
+  onReorder?: (instanceId: string, beforeInstanceId: string) => void;
 };
+
+/** The drag type a list row carries, so a product drag is not mistaken for it. */
+const LAYER_DRAG_TYPE = "application/x-roomscale-layer";
 
 /**
  * Everything in the apartment, as one list.
@@ -46,8 +57,77 @@ export function ApartmentLayers({
   onRoomChange,
   onAddRoom,
   drawingRoom = false,
+  onToggleHidden,
+  onReorder,
 }: ApartmentLayersProps) {
   const names = placedNames(furniture);
+  const scroll = useScrollFade();
+  /** The row a dragged piece is held over, which is where it would land. */
+  const [over, setOver] = useState<string | null>(null);
+
+  /** One placed piece as a row: selectable, hideable, and draggable. */
+  const pieceRow = (
+    placed: PlacedFurniture,
+    name: string,
+    troubled: boolean,
+  ) => {
+    const id = placed.instance.id;
+    const hidden = placed.instance.hidden === true;
+    return (
+      <li
+        key={id}
+        draggable={onReorder !== undefined}
+        onDragStart={(event: DragEvent<HTMLLIElement>) => {
+          event.dataTransfer.setData(LAYER_DRAG_TYPE, id);
+          event.dataTransfer.effectAllowed = "move";
+        }}
+        onDragOver={(event: DragEvent<HTMLLIElement>) => {
+          if (event.dataTransfer.types.includes(LAYER_DRAG_TYPE)) {
+            event.preventDefault();
+            setOver(id);
+          }
+        }}
+        onDragLeave={() => setOver((was) => (was === id ? null : was))}
+        onDrop={(event: DragEvent<HTMLLIElement>) => {
+          const from = event.dataTransfer.getData(LAYER_DRAG_TYPE);
+          setOver(null);
+          if (from !== "" && from !== id) {
+            event.preventDefault();
+            onReorder?.(from, id);
+          }
+        }}
+        className={over === id ? "border-t-2 border-current" : ""}
+      >
+        <Row
+          label={name}
+          icon={Sofa}
+          depth
+          troubled={troubled}
+          dimmed={hidden}
+          selected={isSelected(selection, "instance", id)}
+          onSelect={() => onSelect({ kind: "instance", id })}
+          trailing={
+            onToggleHidden === undefined ? null : (
+              <span
+                className={
+                  hidden
+                    ? ""
+                    : "opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
+                }
+              >
+                <IconButton
+                  label={hidden ? `Show ${name}` : `Hide ${name}`}
+                  icon={hidden ? EyeOff : Eye}
+                  size="small"
+                  onClick={() => onToggleHidden(id)}
+                />
+              </span>
+            )
+          }
+        />
+      </li>
+    );
+  };
   const inRoom = (roomId: string | null) =>
     furniture
       .map((placed, index) => ({ placed, name: names[index] ?? "" }))
@@ -59,7 +139,10 @@ export function ApartmentLayers({
   const homeless = inRoom(null);
 
   return (
-    <div className="flex min-h-0 flex-col gap-5 overflow-y-auto p-5">
+    <div
+      {...scroll}
+      className={`flex min-h-0 flex-col gap-5 overflow-y-auto p-5 ${scroll.className}`}
+    >
       {/* Lit while the plan is waiting for a rectangle, so the mode it turns
           on is visible in the one place that turned it on. */}
       <PanelHeader
@@ -117,24 +200,9 @@ export function ApartmentLayers({
                   />
                 </li>
               ))}
-              {inRoom(room.id).map(({ placed, name }) => (
-                <li key={placed.instance.id}>
-                  <Row
-                    label={name}
-                    icon={Sofa}
-                    depth
-                    troubled={troubledIds.has(placed.instance.id)}
-                    selected={isSelected(
-                      selection,
-                      "instance",
-                      placed.instance.id,
-                    )}
-                    onSelect={() =>
-                      onSelect({ kind: "instance", id: placed.instance.id })
-                    }
-                  />
-                </li>
-              ))}
+              {inRoom(room.id).map(({ placed, name }) =>
+                pieceRow(placed, name, troubledIds.has(placed.instance.id)),
+              )}
             </ul>
           </li>
         ))}
@@ -144,23 +212,7 @@ export function ApartmentLayers({
         <div className="flex flex-col gap-1">
           <h3 className="text-[13px] font-medium text-red-600">In no room</h3>
           <ul className="flex flex-col">
-            {homeless.map(({ placed, name }) => (
-              <li key={placed.instance.id}>
-                <Row
-                  label={name}
-                  icon={Sofa}
-                  troubled
-                  selected={isSelected(
-                    selection,
-                    "instance",
-                    placed.instance.id,
-                  )}
-                  onSelect={() =>
-                    onSelect({ kind: "instance", id: placed.instance.id })
-                  }
-                />
-              </li>
-            ))}
+            {homeless.map(({ placed, name }) => pieceRow(placed, name, true))}
           </ul>
         </div>
       )}
@@ -258,42 +310,55 @@ function Row({
   icon: Icon,
   depth = false,
   troubled = false,
+  dimmed = false,
   selected,
   onSelect,
   onDoubleClick,
   title,
+  trailing = null,
 }: {
   label: string;
   icon: LucideIcon;
   depth?: boolean;
   troubled?: boolean;
+  /** Set aside: still listed, drawn faint. */
+  dimmed?: boolean;
   selected: boolean;
   onSelect: () => void;
   onDoubleClick?: () => void;
   title?: string;
+  /** A control beside the name, outside the row's own button. */
+  trailing?: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      aria-pressed={selected}
-      onClick={onSelect}
-      onDoubleClick={onDoubleClick}
-      title={title}
-      className={`flex w-full min-w-0 items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors ${
-        depth ? "pl-6" : ""
-      } ${
+    <div
+      className={`group flex min-w-0 items-center rounded-lg pr-1 transition-colors ${
         selected
-          ? "bg-black/10 font-medium dark:bg-white/15"
+          ? "bg-black/10 dark:bg-white/15"
           : "hover:bg-black/5 dark:hover:bg-white/10"
-      } ${troubled ? "text-red-600" : ""}`}
+      }`}
     >
-      {/* The glyph says what kind of thing the row is; the words say which
-          one. Hidden from the name, so the row is still found by its words. */}
-      <Icon
-        aria-hidden="true"
-        className={`size-3.5 shrink-0 ${troubled ? "" : "opacity-45"}`}
-      />
-      <span className="min-w-0 truncate">{label}</span>
-    </button>
+      <button
+        type="button"
+        aria-pressed={selected}
+        onClick={onSelect}
+        onDoubleClick={onDoubleClick}
+        title={title}
+        className={`flex min-w-0 flex-1 items-center gap-2 px-2.5 py-1.5 text-left text-sm ${
+          depth ? "pl-6" : ""
+        } ${selected ? "font-medium" : ""} ${troubled ? "text-red-600" : ""} ${
+          dimmed ? "opacity-45" : ""
+        }`}
+      >
+        {/* The glyph says what kind of thing the row is; the words say which
+            one. Hidden from the name, so the row is still found by its words. */}
+        <Icon
+          aria-hidden="true"
+          className={`size-3.5 shrink-0 ${troubled ? "" : "opacity-45"}`}
+        />
+        <span className="min-w-0 truncate">{label}</span>
+      </button>
+      {trailing}
+    </div>
   );
 }

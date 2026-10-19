@@ -38,3 +38,22 @@ body {
   appearance: none;
   -webkit-appearance: none;
 }
+
+/* A list's scrollbar is there while it is being used and gone when it is
+   not: thin, and transparent until the pointer is over the list or it has
+   just scrolled. The data attribute is set by `useScrollFade`. */
+.scroll-fade {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 200ms;
+}
+.scroll-fade:hover,
+.scroll-fade[data-scrolling="true"] {
+  scrollbar-color: rgb(0 0 0 / 0.28) transparent;
+}
+@media (prefers-color-scheme: dark) {
+  .scroll-fade:hover,
+  .scroll-fade[data-scrolling="true"] {
+    scrollbar-color: rgb(255 255 255 / 0.28) transparent;
+  }
+}

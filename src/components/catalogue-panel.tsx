@@ -3,6 +3,7 @@
 import { GripVertical } from "lucide-react";
 import { PRODUCT_CATEGORY_LABELS } from "@/components/product-form";
 import { PanelHeader } from "@/components/panel-header";
+import { useScrollFade } from "@/components/scroll-fade";
 import {
   countPlaced,
   type FurnitureInstance,
@@ -39,8 +40,13 @@ export function CataloguePanel({
   onSelect,
   onPlace,
 }: CataloguePanelProps) {
+  const scroll = useScrollFade();
+
   return (
-    <div className="flex max-h-[70vh] min-h-0 flex-col gap-4 overflow-y-auto border-t border-black/10 p-5 dark:border-white/15">
+    <div
+      {...scroll}
+      className={`flex max-h-[42vh] min-h-0 flex-col gap-4 overflow-y-auto border-t border-black/10 p-5 dark:border-white/15 ${scroll.className}`}
+    >
       <PanelHeader
         title="Furniture"
         action="New product"

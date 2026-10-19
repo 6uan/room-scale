@@ -97,6 +97,23 @@ describe("buildChecklist", () => {
   });
 });
 
+describe("buildChecklist: what is set aside", () => {
+  it("leaves a hidden piece off the bill", () => {
+    const [sofa] = placed("sofa", 1);
+    if (sofa === undefined) {
+      throw new Error("one sofa was placed");
+    }
+    const checklist = buildChecklist(
+      [SOFA, PILLOW],
+      [{ ...sofa, hidden: true }, ...placed("pillow", 2)],
+    );
+
+    expect(checklist.lines.map((line) => line.product.id)).toEqual(["pillow"]);
+    expect(checklist.totalCents).toBe(9000);
+    expect(checklist.unplaced.map((product) => product.id)).toEqual(["sofa"]);
+  });
+});
+
 describe("buildChecklist: what is still owed", () => {
   const instances = [...placed("rug", 1), ...placed("sofa", 1)];
 

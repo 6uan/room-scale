@@ -45,8 +45,10 @@ import { FIRST_PROJECT_NAME, type Project } from "@/domain/project";
  *     what not having said is.
  * 17. A door has a style: hinged, bifold, or sliding. Every existing door
  *     was drawn hinged, so that is what it is.
+ * 18. A placed piece may be hidden. Absent is shown, which is what every
+ *     existing piece is, so there is nothing to rewrite.
  */
-export const SCHEMA_VERSION = 17;
+export const SCHEMA_VERSION = 18;
 
 /** Meters, cents, and the rest are all plain finite numbers on the way in. */
 const finiteNumber = z
@@ -164,6 +166,7 @@ const instanceSchema = z.object({
   productId: z.string().min(1),
   position: z.object({ xMeters: finiteNumber, zMeters: finiteNumber }),
   rotationRadians: finiteNumber,
+  hidden: z.boolean().optional(),
 });
 
 const layoutSchema = z.object({
@@ -561,6 +564,9 @@ const MIGRATIONS: Record<number, (document: object) => object> = {
       },
     };
   },
+  // Version 18 let a piece be hidden. Nothing stored was, and absent is
+  // what shown says.
+  17: (document) => ({ ...document, version: 18 }),
 };
 
 /**

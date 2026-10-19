@@ -33,6 +33,8 @@ import {
   placedNames,
   placementFor,
   withInstance,
+  withInstanceHidden,
+  shownFurniture,
   type FurnitureInstance,
   type FurnitureProduct,
 } from "@/domain/furniture";
@@ -140,7 +142,10 @@ export function Workspace() {
   );
 
   const furniture = placedFurniture(instances, products);
-  const problems = checkLayout(floor, furniture);
+  // What is set aside stays in the list, but is off the plan, out of the
+  // checks, and off the bill.
+  const shown = shownFurniture(furniture);
+  const problems = checkLayout(floor, shown);
   const troubledIds = troubledInstanceIds(problems);
   const roomNames = new Map(
     floor.rooms.map((room) => [
@@ -619,6 +624,30 @@ export function Workspace() {
               setDrawingRoom((on) => !on);
             }}
             drawingRoom={drawingRoom}
+            onToggleHidden={(id) => {
+              const instance = instances.find((one) => one.id === id);
+              if (instance !== undefined) {
+                setInstances(
+                  withInstance(
+                    instances,
+                    withInstanceHidden(instance, instance.hidden !== true),
+                  ),
+                );
+              }
+            }}
+            onReorder={(id, beforeId) => {
+              const moving = instances.find((one) => one.id === id);
+              if (moving === undefined) {
+                return;
+              }
+              const rest = instances.filter((one) => one.id !== id);
+              const at = rest.findIndex((one) => one.id === beforeId);
+              setInstances(
+                at === -1
+                  ? [...rest, moving]
+                  : [...rest.slice(0, at), moving, ...rest.slice(at)],
+              );
+            }}
           />
           <CataloguePanel
             products={products}
@@ -639,7 +668,7 @@ export function Workspace() {
           <div className="absolute inset-0">
             <RoomPlanCanvas
               floor={floor}
-              furniture={furniture}
+              furniture={shown}
               unit={unit}
               selectedIds={selectedInstanceIds(selection)}
               troubledIds={troubledIds}

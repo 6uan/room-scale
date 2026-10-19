@@ -76,6 +76,28 @@ test.describe("the overview", () => {
     ).toBeVisible();
   });
 
+  test("leaves a hidden piece off the bill", async ({ page }) => {
+    await furnish(page);
+
+    await contents(page)
+      .getByRole("button", { name: "Hide Sectional" })
+      .click();
+    await page.getByRole("button", { name: "Shopping list" }).click();
+
+    // Two pillows only: the sectional is set aside, not bought.
+    const list = page.getByRole("dialog", { name: "Shopping list" });
+    await expect(totalFor(list, "Everything in the room")).toHaveText("$90.00");
+    await page.keyboard.press("Escape");
+
+    await contents(page)
+      .getByRole("button", { name: "Show Sectional" })
+      .click();
+    await page.getByRole("button", { name: "Shopping list" }).click();
+    await expect(totalFor(list, "Everything in the room")).toHaveText(
+      "$2,089.00",
+    );
+  });
+
   test("closes again, leaving the plan where it was", async ({ page }) => {
     await page.goto("/");
 
@@ -137,7 +159,7 @@ test.describe("the overview", () => {
 
     await page.getByRole("link", { name: "Back to the plan" }).click();
     await contents(page)
-      .getByRole("button", { name: "Olive pillow 2" })
+      .getByRole("button", { name: "Olive pillow 2", exact: true })
       .click();
     await details(page)
       .getByRole("button", { name: "Take Olive pillow 2 out of the room" })
