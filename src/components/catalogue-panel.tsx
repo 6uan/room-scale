@@ -119,7 +119,7 @@ export function CataloguePanel({
                         );
                         event.dataTransfer.effectAllowed = "copy";
                       }}
-                      className={`group flex min-w-0 cursor-grab items-center gap-1 rounded-lg py-2 pr-1 pl-1.5 text-sm transition-colors active:cursor-grabbing ${
+                      className={`group flex min-w-0 cursor-grab items-center gap-1 rounded-lg px-2.5 py-2 text-sm transition-colors active:cursor-grabbing ${
                         isSelected(selection, "product", product.id)
                           ? "bg-black/10 dark:bg-white/15"
                           : "hover:bg-black/5 dark:hover:bg-white/10"
