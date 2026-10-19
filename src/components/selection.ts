@@ -20,14 +20,61 @@ export type Selection =
       readonly id: string;
     }
   | { readonly kind: "instance"; readonly id: string }
+  /** Several things at once, to be moved or removed together. Always 2+. */
+  | {
+      readonly kind: "group";
+      readonly instanceIds: readonly string[];
+      readonly roomIds: readonly string[];
+    }
   | { readonly kind: "product"; readonly id: string }
   /** A product being entered that does not exist yet. */
   | { readonly kind: "new-product" }
   | null;
 
-/** The selected instance, for the canvas, which only knows about furniture. */
-export function selectedInstanceId(selection: Selection): string | null {
-  return selection?.kind === "instance" ? selection.id : null;
+/** The selected pieces, on their own or as part of a group. */
+export function selectedInstanceIds(selection: Selection): readonly string[] {
+  return selection?.kind === "instance"
+    ? [selection.id]
+    : selection?.kind === "group"
+      ? selection.instanceIds
+      : [];
+}
+
+/** The rooms in a group. A room selected on its own is not a group. */
+export function groupedRoomIds(selection: Selection): readonly string[] {
+  return selection?.kind === "group" ? selection.roomIds : [];
+}
+
+/**
+ * None, one thing, or a group, as the selection type spells each.
+ *
+ * One piece or one room on its own is that thing's own selection, so its
+ * panel opens rather than a group of one.
+ */
+export function groupSelection(
+  instanceIds: readonly string[],
+  roomIds: readonly string[],
+): Selection {
+  const [firstInstance] = instanceIds;
+  const [firstRoom] = roomIds;
+  if (instanceIds.length + roomIds.length === 0) {
+    return null;
+  }
+  if (
+    instanceIds.length === 1 &&
+    firstInstance !== undefined &&
+    roomIds.length === 0
+  ) {
+    return { kind: "instance", id: firstInstance };
+  }
+  if (
+    roomIds.length === 1 &&
+    firstRoom !== undefined &&
+    instanceIds.length === 0
+  ) {
+    return { kind: "room", id: firstRoom };
+  }
+  return { kind: "group", instanceIds, roomIds };
 }
 
 export function isSelected(
@@ -35,6 +82,13 @@ export function isSelected(
   kind: NonNullable<Selection>["kind"],
   id: string,
 ): boolean {
+  if (selection?.kind === "group") {
+    return kind === "instance"
+      ? selection.instanceIds.includes(id)
+      : kind === "room"
+        ? selection.roomIds.includes(id)
+        : false;
+  }
   return (
     selection !== null &&
     selection.kind === kind &&

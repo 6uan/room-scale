@@ -16,6 +16,7 @@ import {
   MIN_ZOOM,
   clampToViewport,
   createPlanProjection,
+  orientedRectCorners,
   panBy,
   projectLength,
   projectPoint,
@@ -30,6 +31,7 @@ import {
 import {
   clampToFloor,
   furnitureAt,
+  footprintRect,
   moveInstance,
   nearestGaps,
   snapInstancePosition,
@@ -225,10 +227,23 @@ export type RoomPlanCanvasProps = {
   furniture: readonly PlacedFurniture[];
   unit: DisplayUnit;
   /** Which piece is being worked on, or null. Never persisted: this is UI state. */
-  selectedId: string | null;
+  /** The selected pieces: none, one, or a group dragged as one. */
+  selectedIds: readonly string[];
   /** Pieces the validation has something to say about, marked as they are drawn. */
   troubledIds: ReadonlySet<string>;
-  onSelect: (instanceId: string | null) => void;
+  /** The rooms in a group, drawn as selected and dragged with it. */
+  groupRoomIds?: readonly string[];
+  onSelect: (
+    instanceIds: readonly string[],
+    roomIds: readonly string[],
+  ) => void;
+  /** Several rooms moved as one, by a group drag. */
+  onRoomsChange?: (rooms: readonly Room[], gesture?: Gesture) => void;
+  /** Several pieces moved as one, by a group drag or a nudge. */
+  onInstancesChange?: (
+    instances: readonly FurnitureInstance[],
+    gesture?: string,
+  ) => void;
   /**
    * A changed piece, and what is doing the changing.
    *
@@ -318,6 +333,26 @@ type Drag =
       readonly grabOffset: FloorPoint;
     }
   | {
+      /** Everything selected, moved together by whichever one was grabbed. */
+      readonly kind: "group";
+      readonly pointerId: number;
+      readonly fromPixel: PixelPoint;
+      readonly from: FloorPoint;
+      /** The grabbed thing, which is what snaps; the rest follow it. */
+      readonly leader:
+        | { readonly kind: "instance"; readonly id: string }
+        | { readonly kind: "room"; readonly id: string };
+      readonly instanceOrigins: ReadonlyMap<string, FloorPoint>;
+      readonly roomOrigins: ReadonlyMap<string, FloorPoint>;
+    }
+  | {
+      /** A rectangle dragged over the floor, selecting what it touches. */
+      readonly kind: "marquee";
+      readonly pointerId: number;
+      readonly fromPixel: PixelPoint;
+      readonly from: FloorPoint;
+    }
+  | {
       readonly kind: "room";
       readonly pointerId: number;
       readonly roomId: string;
@@ -376,6 +411,15 @@ type Drag =
       readonly kind: "pan";
       readonly pointerId: number;
       readonly from: PixelPoint;
+      /**
+       * What was under a Shift press, to put in or out of the group if the
+       * press turns out to be a click rather than a drag of the view.
+       */
+      readonly toggle?:
+        | { readonly kind: "instance"; readonly id: string }
+        | { readonly kind: "room"; readonly id: string }
+        | undefined;
+      readonly fromPixel?: PixelPoint | undefined;
     }
   | {
       /** A new room being dragged out. Both corners are in floor meters. */
@@ -408,10 +452,13 @@ export function RoomPlanCanvas({
   floor,
   furniture,
   unit,
-  selectedId,
+  selectedIds,
   troubledIds,
   onSelect,
   onInstanceChange,
+  onInstancesChange,
+  groupRoomIds = [],
+  onRoomsChange,
   onDropProduct,
   selectedRoomId = null,
   selectedRoomPartId = null,
@@ -470,6 +517,7 @@ export function RoomPlanCanvas({
    * can read off, and the corner is the same number the panel on the right
    * holds — so the readout and the field agree rather than nearly agreeing.
    */
+  const selectedId = selectedIds.length === 1 ? (selectedIds[0] ?? null) : null;
   const selectedOpening = findOpening(floor, selectedOpeningId);
   const selectedRoom = floor.rooms.find((room) => room.id === selectedRoomId);
   const selectedPart = selectedRoom?.parts.find(
@@ -501,20 +549,29 @@ export function RoomPlanCanvas({
    * to repaint with every move and go the moment the piece is let go.
    */
   const [movingId, setMovingId] = useState<string | null>(null);
+  /** The selection rectangle being dragged, in pixels, or null. */
+  const [marquee, setMarquee] = useState<{
+    readonly from: PixelPoint;
+    readonly to: PixelPoint;
+  } | null>(null);
+
   /** Where the armed product would land, under the pointer, snapped. */
   const [ghostAt, setGhostAt] = useState<FloorPoint | null>(null);
-  const ghost: PlacedFurniture | null =
-    placingProduct === null || ghostAt === null
-      ? null
-      : {
-          instance: {
-            id: "ghost",
-            productId: placingProduct.id,
-            position: ghostAt,
-            rotationRadians: 0,
+  const ghost = useMemo(
+    (): PlacedFurniture | null =>
+      placingProduct === null || ghostAt === null
+        ? null
+        : {
+            instance: {
+              id: "ghost",
+              productId: placingProduct.id,
+              position: ghostAt,
+              rotationRadians: 0,
+            },
+            product: placingProduct,
           },
-          product: placingProduct,
-        };
+    [placingProduct, ghostAt],
+  );
 
   /** Where an armed product lands if put down here: on the floor, snapped. */
   function landingPoint(product: FurnitureProduct, point: FloorPoint) {
@@ -621,7 +678,7 @@ export function RoomPlanCanvas({
     underlay.visible &&
     !drawing &&
     placingOpening === null &&
-    selectedId === null &&
+    selectedIds.length === 0 &&
     selectedRoomId === null &&
     selectedOpeningId === null
       ? underlay
@@ -657,8 +714,9 @@ export function RoomPlanCanvas({
       projection,
       floor,
       furniture,
-      selectedId,
+      selectedIds,
       selectedRoomId,
+      groupRoomIds,
       selectedRoomPartId,
       selectedOpeningId,
       troubledIds,
@@ -677,8 +735,9 @@ export function RoomPlanCanvas({
     unit,
     movingId,
     ghost,
-    selectedId,
+    selectedIds,
     selectedRoomId,
+    groupRoomIds,
     selectedRoomPartId,
     selectedOpeningId,
     troubledIds,
@@ -740,7 +799,13 @@ export function RoomPlanCanvas({
       return;
     }
 
-    setView(held(panBy(current, -(event.deltaX ?? 0), -(event.deltaY ?? 0))));
+    // A scroll pans down the plan; with Shift it pans across it. Most
+    // browsers already hand a Shift notch over as sideways, and the ones
+    // that do not get it turned here, so the two agree.
+    const dx = event.deltaX ?? 0;
+    const dy = event.deltaY ?? 0;
+    const [acrossBy, downBy] = event.shiftKey && dx === 0 ? [dy, 0] : [dx, dy];
+    setView(held(panBy(current, -acrossBy, -downBy)));
   }
 
   // Held in a ref so the listener below never goes stale without being
@@ -961,22 +1026,90 @@ export function RoomPlanCanvas({
     // earlier ones, being the ones drawn on top.
     const room = hit === null ? (roomsAt(floor, point).at(-1) ?? null) : null;
 
-    // Space held, the middle button, or floor with nothing on it: the view
-    // moves instead of anything in it.
-    if (
-      panningRef.current ||
-      event.button === 1 ||
-      (hit === null && room === null)
-    ) {
-      if (hit === null && room === null && !panningRef.current) {
-        onSelect(null);
-      }
+    // Space held, Shift held, or the middle button: the view moves instead
+    // of anything in it. A plain drag on open floor used to pan too; it
+    // draws a selection rectangle now, and scrolling pans. A Shift press that
+    // never becomes a drag is a click, which puts what it hit in or out of
+    // the group — decided on release, once it is known which it was.
+    if (panningRef.current || event.shiftKey || event.button === 1) {
+      const pixel = { x: event.clientX - box.left, y: event.clientY - box.top };
       dragRef.current = {
         kind: "pan",
         pointerId: event.pointerId,
-        from: { x: event.clientX - box.left, y: event.clientY - box.top },
+        from: pixel,
+        fromPixel: pixel,
+        toggle: !event.shiftKey
+          ? undefined
+          : hit !== null
+            ? { kind: "instance", id: hit.instance.id }
+            : room !== null
+              ? { kind: "room", id: room.id }
+              : undefined,
       };
       setCursor("panning");
+      canvas.setPointerCapture?.(event.pointerId);
+      return;
+    }
+
+    /** Begins moving everything selected, led by what was grabbed. */
+    const startGroupDrag = (
+      leader: Extract<Drag, { kind: "group" }>["leader"],
+    ) => {
+      dragRef.current = {
+        kind: "group",
+        pointerId: event.pointerId,
+        fromPixel: { x: event.clientX - box.left, y: event.clientY - box.top },
+        from: point,
+        leader,
+        instanceOrigins: new Map(
+          furniture
+            .filter(({ instance }) => selectedIds.includes(instance.id))
+            .map(({ instance }) => [instance.id, instance.position]),
+        ),
+        roomOrigins: new Map(
+          floor.rooms
+            .filter((one) => groupRoomIds.includes(one.id))
+            .map((one) => [one.id, roomBounds(one).origin]),
+        ),
+      };
+      if (leader.kind === "instance") {
+        setMovingId(leader.id);
+      }
+      setCursor("move");
+      canvas.focus();
+      canvas.setPointerCapture?.(event.pointerId);
+    };
+    const groupSize = selectedIds.length + groupRoomIds.length;
+    if (
+      hit !== null &&
+      groupSize > 1 &&
+      selectedIds.includes(hit.instance.id)
+    ) {
+      startGroupDrag({ kind: "instance", id: hit.instance.id });
+      return;
+    }
+    if (
+      hit === null &&
+      room !== null &&
+      groupSize > 1 &&
+      groupRoomIds.includes(room.id)
+    ) {
+      startGroupDrag({ kind: "room", id: room.id });
+      return;
+    }
+
+    // Open floor: a rectangle, selecting what it touches. A click that never
+    // becomes a rectangle selects nothing, which is what a click on open
+    // floor always did.
+    if (hit === null && room === null) {
+      dragRef.current = {
+        kind: "marquee",
+        pointerId: event.pointerId,
+        fromPixel: { x: event.clientX - box.left, y: event.clientY - box.top },
+        from: point,
+      };
+      setCursor("none");
+      canvas.focus();
       canvas.setPointerCapture?.(event.pointerId);
       return;
     }
@@ -1022,7 +1155,7 @@ export function RoomPlanCanvas({
       return;
     }
 
-    onSelect(hit.instance.id);
+    onSelect([hit.instance.id], []);
     dragRef.current = {
       kind: "move",
       pointerId: event.pointerId,
@@ -1045,7 +1178,9 @@ export function RoomPlanCanvas({
     canvas: HTMLCanvasElement,
     event: PointerEvent<HTMLCanvasElement>,
   ): Cursor {
-    if (panningRef.current) {
+    // Space or Shift held: the hand, wherever the pointer is. Without them
+    // open floor draws a rectangle, which no hand should promise.
+    if (panningRef.current || event.shiftKey) {
       return "pan";
     }
 
@@ -1117,8 +1252,9 @@ export function RoomPlanCanvas({
     ) {
       return "move";
     }
-    // Floor with nothing on it is where a drag pans, so it offers a hand.
-    return roomsAt(floor, point).length > 0 ? "move" : "pan";
+    // Floor with nothing on it is where a drag draws the selection
+    // rectangle: the plain arrow, as any tool that selects by rectangle.
+    return roomsAt(floor, point).length > 0 ? "move" : "none";
   }
 
   function handlePointerMove(event: PointerEvent<HTMLCanvasElement>): void {
@@ -1330,6 +1466,23 @@ export function RoomPlanCanvas({
       return;
     }
 
+    if (drag.kind === "group") {
+      const point = floorPointAt(canvas, event, projectionRef.current);
+      if (point !== null) {
+        moveGroup(drag, point, event.altKey);
+      }
+      return;
+    }
+
+    if (drag.kind === "marquee") {
+      const box = canvas.getBoundingClientRect();
+      setMarquee({
+        from: drag.fromPixel,
+        to: { x: event.clientX - box.left, y: event.clientY - box.top },
+      });
+      return;
+    }
+
     if (drag.kind === "underlay-resize") {
       const point = floorPointAt(canvas, event, projectionRef.current);
       if (underlay === null || point === null) {
@@ -1372,6 +1525,88 @@ export function RoomPlanCanvas({
       moveInstance(placed.instance, clampToFloor(floor, landed)),
       `piece-move:${drag.instanceId}`,
     );
+  }
+
+  /**
+   * Moves everything in the group by the leader's move.
+   *
+   * The leader lands the way it would on its own — a piece against the
+   * nearest wall or piece, a room against a neighbour's wall — and the rest
+   * follow by exactly that much, so what was flush stays flush and what was
+   * a foot apart stays a foot apart.
+   */
+  function moveGroup(
+    drag: Extract<Drag, { kind: "group" }>,
+    point: FloorPoint,
+    altKey: boolean,
+  ): void {
+    const raw = {
+      xMeters: point.xMeters - drag.from.xMeters,
+      zMeters: point.zMeters - drag.from.zMeters,
+    };
+    let delta = raw;
+    if (drag.leader.kind === "instance") {
+      const leader = furniture.find(
+        ({ instance }) => instance.id === drag.leader.id,
+      );
+      const origin = drag.instanceOrigins.get(drag.leader.id);
+      if (leader !== undefined && origin !== undefined) {
+        const dropped = {
+          xMeters: origin.xMeters + raw.xMeters,
+          zMeters: origin.zMeters + raw.zMeters,
+        };
+        const landed = altKey
+          ? dropped
+          : snapInstancePosition(floor, furniture, leader, dropped);
+        delta = {
+          xMeters: landed.xMeters - origin.xMeters,
+          zMeters: landed.zMeters - origin.zMeters,
+        };
+      }
+    } else {
+      const leader = floor.rooms.find((one) => one.id === drag.leader.id);
+      const origin = drag.roomOrigins.get(drag.leader.id);
+      if (leader !== undefined && origin !== undefined) {
+        const landed = snapRoomOrigin(floor, leader, {
+          xMeters: origin.xMeters + raw.xMeters,
+          zMeters: origin.zMeters + raw.zMeters,
+        });
+        delta = {
+          xMeters: landed.xMeters - origin.xMeters,
+          zMeters: landed.zMeters - origin.zMeters,
+        };
+      }
+    }
+
+    const gesture = `group-move:${drag.leader.id}`;
+    const rooms = floor.rooms.flatMap((one) => {
+      const origin = drag.roomOrigins.get(one.id);
+      return origin === undefined
+        ? []
+        : [
+            withOrigin(one, {
+              xMeters: origin.xMeters + delta.xMeters,
+              zMeters: origin.zMeters + delta.zMeters,
+            }),
+          ];
+    });
+    if (rooms.length > 0) {
+      onRoomsChange?.(rooms, gesture);
+    }
+    const instances = furniture.flatMap(({ instance }) => {
+      const origin = drag.instanceOrigins.get(instance.id);
+      return origin === undefined
+        ? []
+        : [
+            moveInstance(instance, {
+              xMeters: origin.xMeters + delta.xMeters,
+              zMeters: origin.zMeters + delta.zMeters,
+            }),
+          ];
+    });
+    if (instances.length > 0) {
+      onInstancesChange?.(instances, gesture);
+    }
   }
 
   /**
@@ -1427,6 +1662,10 @@ export function RoomPlanCanvas({
       setCursor("none");
       return;
     }
+    if (event.key === "Shift" && dragRef.current === null) {
+      setCursor("none");
+      return;
+    }
     // A key let go ends the nudge it was making, so holding an arrow is one
     // step back and tapping it three times is three.
     if (pressIs("nudge", event) || pressIs("turn", event)) {
@@ -1466,6 +1705,87 @@ export function RoomPlanCanvas({
       return;
     }
 
+    if (drag.kind === "marquee") {
+      const canvas = canvasRef.current;
+      const box = canvas?.getBoundingClientRect();
+      const to = canvas && floorPointAt(canvas, event, projectionRef.current);
+      const travelled =
+        box === undefined
+          ? 0
+          : Math.hypot(
+              event.clientX - box.left - drag.fromPixel.x,
+              event.clientY - box.top - drag.fromPixel.y,
+            );
+      if (
+        to === null ||
+        to === undefined ||
+        travelled < DRAW_THRESHOLD_PIXELS
+      ) {
+        onSelect([], []);
+      } else {
+        onSelect(
+          furniture
+            .filter((placed) => rectTouches(placed, drag.from, to))
+            .map(({ instance }) => instance.id),
+          floor.rooms
+            .filter((one) => boundsTouch(roomBounds(one), drag.from, to))
+            .map((one) => one.id),
+        );
+      }
+      dragRef.current = null;
+      setMarquee(null);
+      canvas?.releasePointerCapture?.(event.pointerId);
+      return;
+    }
+
+    if (drag.kind === "pan" && drag.toggle !== undefined) {
+      const box = canvasRef.current?.getBoundingClientRect();
+      const from = drag.fromPixel ?? drag.from;
+      const travelled =
+        box === undefined
+          ? 0
+          : Math.hypot(
+              event.clientX - box.left - from.x,
+              event.clientY - box.top - from.y,
+            );
+      if (travelled < DRAW_THRESHOLD_PIXELS) {
+        const { kind, id } = drag.toggle;
+        const has = (ids: readonly string[]) => ids.includes(id);
+        const flip = (ids: readonly string[]) =>
+          has(ids) ? ids.filter((one) => one !== id) : [...ids, id];
+        // A room on its own joins the group too, so Shift-clicking a room
+        // and then a piece makes a group of both.
+        const rooms =
+          groupRoomIds.length === 0 && selectedRoomId !== null
+            ? [selectedRoomId]
+            : groupRoomIds;
+        onSelect(
+          kind === "instance" ? flip(selectedIds) : selectedIds,
+          kind === "room" ? flip(rooms) : rooms,
+        );
+      }
+    }
+
+    // A press on one thing in a group that never became a drag picks that
+    // thing out of the group, the way a click always selected what was hit.
+    if (drag.kind === "group") {
+      const box = canvasRef.current?.getBoundingClientRect();
+      const travelled =
+        box === undefined
+          ? 0
+          : Math.hypot(
+              event.clientX - box.left - drag.fromPixel.x,
+              event.clientY - box.top - drag.fromPixel.y,
+            );
+      if (travelled < DRAW_THRESHOLD_PIXELS) {
+        if (drag.leader.kind === "instance") {
+          onSelect([drag.leader.id], []);
+        } else {
+          onSelect([], [drag.leader.id]);
+        }
+      }
+    }
+
     dragRef.current = null;
     setCursor("none");
     setMovingId(null);
@@ -1491,7 +1811,11 @@ export function RoomPlanCanvas({
         }
         return;
       }
-      onSelect(null);
+      if (dragRef.current?.kind === "marquee") {
+        dragRef.current = null;
+        setMarquee(null);
+      }
+      onSelect([], []);
       return;
     }
 
@@ -1508,16 +1832,53 @@ export function RoomPlanCanvas({
       setCursor("pan");
       return;
     }
+    if (event.key === "Shift" && dragRef.current === null) {
+      setCursor("pan");
+      return;
+    }
 
-    const placed = furniture.find(({ instance }) => instance.id === selectedId);
-    const next = placed && instanceFromKeyPress(floor, placed.instance, event);
-    if (!next) {
+    const chosen = furniture.filter(({ instance }) =>
+      selectedIds.includes(instance.id),
+    );
+    const moved = chosen.map(({ instance }) =>
+      instanceFromKeyPress(floor, instance, event),
+    );
+    const first = moved[0];
+    if (first === undefined || first === null) {
       return;
     }
     // Only once a key has been acted on: an arrow with nothing selected still
     // scrolls the page, which is what an arrow normally does.
     event.preventDefault();
-    onInstanceChange(next, `piece-key:${placed.instance.id}`);
+    const gesture = `piece-key:${selectedIds.join(",")}`;
+    if (moved.length === 1 && groupRoomIds.length === 0) {
+      onInstanceChange(first, gesture);
+      return;
+    }
+    onInstancesChange?.(
+      moved.filter((one): one is FurnitureInstance => one !== null),
+      gesture,
+    );
+    // The rooms go by the same step the pieces did.
+    const leader = chosen[0]?.instance;
+    if (leader !== undefined && groupRoomIds.length > 0) {
+      const delta = {
+        xMeters: first.position.xMeters - leader.position.xMeters,
+        zMeters: first.position.zMeters - leader.position.zMeters,
+      };
+      onRoomsChange?.(
+        floor.rooms
+          .filter((one) => groupRoomIds.includes(one.id))
+          .map((one) => {
+            const origin = roomBounds(one).origin;
+            return withOrigin(one, {
+              xMeters: origin.xMeters + delta.xMeters,
+              zMeters: origin.zMeters + delta.zMeters,
+            });
+          }),
+        gesture,
+      );
+    }
   }
 
   return (
@@ -1642,6 +2003,19 @@ export function RoomPlanCanvas({
         <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-[13px] text-white dark:bg-white/15">
           Click where {placingProduct.name} goes. Esc to stop.
         </p>
+      )}
+
+      {marquee === null ? null : (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute border border-dashed border-current bg-current/10 opacity-70"
+          style={{
+            left: Math.min(marquee.from.x, marquee.to.x),
+            top: Math.min(marquee.from.y, marquee.to.y),
+            width: Math.abs(marquee.to.x - marquee.from.x),
+            height: Math.abs(marquee.to.y - marquee.from.y),
+          }}
+        />
       )}
 
       {/* Said once, where it is needed, and gone as soon as it is not — and
@@ -2089,8 +2463,9 @@ type DrawOptions = {
   projection: PlanProjection;
   floor: Floor;
   furniture: readonly PlacedFurniture[];
-  selectedId: string | null;
+  selectedIds: readonly string[];
   selectedRoomId: string | null;
+  groupRoomIds?: readonly string[];
   selectedRoomPartId: string | null;
   selectedOpeningId: string | null;
   troubledIds: ReadonlySet<string>;
@@ -2122,8 +2497,9 @@ function drawPlan(
     projection,
     floor,
     furniture,
-    selectedId,
+    selectedIds,
     selectedRoomId,
+    groupRoomIds = [],
     selectedRoomPartId,
     selectedOpeningId,
     troubledIds,
@@ -2205,14 +2581,14 @@ function drawPlan(
 
   for (const room of floor.rooms) {
     drawRoomName(context, frame, room, fontFamily);
-    if (room.id === selectedRoomId) {
+    if (room.id === selectedRoomId || groupRoomIds.includes(room.id)) {
       markSelectedRoom(context, frame, room, selectedRoomPartId);
     }
   }
 
   for (const placed of furniture) {
     drawFurniture(context, frame, placed, {
-      selected: placed.instance.id === selectedId,
+      selected: selectedIds.includes(placed.instance.id),
       troubled: troubledIds.has(placed.instance.id),
     });
   }
@@ -3218,6 +3594,39 @@ function drawFurniture(
   }
 
   context.restore();
+}
+
+/** Whether an axis-aligned box reaches into the rectangle between two points. */
+function boundsTouch(
+  bounds: { origin: FloorPoint; widthMeters: number; depthMeters: number },
+  from: FloorPoint,
+  to: FloorPoint,
+): boolean {
+  return (
+    bounds.origin.xMeters <= Math.max(from.xMeters, to.xMeters) &&
+    bounds.origin.xMeters + bounds.widthMeters >=
+      Math.min(from.xMeters, to.xMeters) &&
+    bounds.origin.zMeters <= Math.max(from.zMeters, to.zMeters) &&
+    bounds.origin.zMeters + bounds.depthMeters >=
+      Math.min(from.zMeters, to.zMeters)
+  );
+}
+
+/** Whether a piece's footprint reaches into the rectangle between two points. */
+function rectTouches(
+  placed: PlacedFurniture,
+  from: FloorPoint,
+  to: FloorPoint,
+): boolean {
+  const corners = orientedRectCorners(footprintRect(placed));
+  const xs = corners.map((corner) => corner.xMeters);
+  const zs = corners.map((corner) => corner.zMeters);
+  return (
+    Math.min(...xs) <= Math.max(from.xMeters, to.xMeters) &&
+    Math.max(...xs) >= Math.min(from.xMeters, to.xMeters) &&
+    Math.min(...zs) <= Math.max(from.zMeters, to.zMeters) &&
+    Math.max(...zs) >= Math.min(from.zMeters, to.zMeters)
+  );
 }
 
 const OPPOSITE_EDGE: Record<RoomEdge, RoomEdge> = {

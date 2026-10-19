@@ -17,7 +17,12 @@ import { LayoutProblems } from "@/components/layout-problems";
 import { LayoutSwitcher } from "@/components/layout-switcher";
 import { ProjectSwitcher } from "@/components/project-switcher";
 import { RoomPlanCanvas } from "@/components/room-plan-canvas";
-import { selectedInstanceId, type Selection } from "@/components/selection";
+import {
+  groupSelection,
+  groupedRoomIds,
+  selectedInstanceIds,
+  type Selection,
+} from "@/components/selection";
 import { ShortcutsGuide } from "@/components/shortcuts-guide";
 import { pressIs } from "@/components/shortcuts";
 import {
@@ -411,6 +416,19 @@ export function Workspace() {
         setSelection(null);
         return;
       }
+      case "group": {
+        setFloor(
+          withRooms(
+            floor,
+            floor.rooms.filter((one) => !selection.roomIds.includes(one.id)),
+          ),
+        );
+        setInstances(
+          instances.filter((one) => !selection.instanceIds.includes(one.id)),
+        );
+        setSelection(null);
+        return;
+      }
       case "product": {
         const product = products.find((one) => one.id === selection.id);
         if (product !== undefined) {
@@ -617,13 +635,35 @@ export function Workspace() {
               floor={floor}
               furniture={furniture}
               unit={unit}
-              selectedId={selectedInstanceId(selection)}
+              selectedIds={selectedInstanceIds(selection)}
               troubledIds={troubledIds}
-              onSelect={(id) =>
-                setSelection(id === null ? null : { kind: "instance", id })
+              groupRoomIds={groupedRoomIds(selection)}
+              onSelect={(instanceIds, roomIds) =>
+                setSelection(groupSelection(instanceIds, roomIds))
+              }
+              onRoomsChange={(rooms, gesture) =>
+                setFloor(
+                  withRooms(
+                    floor,
+                    floor.rooms.map(
+                      (one) =>
+                        rooms.find((moved) => moved.id === one.id) ?? one,
+                    ),
+                  ),
+                  gesture,
+                )
               }
               onInstanceChange={(instance, gesture) =>
                 setInstances(withInstance(instances, instance), gesture)
+              }
+              onInstancesChange={(moved, gesture) =>
+                setInstances(
+                  moved.reduce(
+                    (all, instance) => withInstance(all, instance),
+                    instances,
+                  ),
+                  gesture,
+                )
               }
               selectedRoomId={
                 selection?.kind === "room"
@@ -747,6 +787,18 @@ export function Workspace() {
             }
             onInstanceRemove={(instance: FurnitureInstance) => {
               setInstances(instances.filter((one) => one.id !== instance.id));
+              setSelection(null);
+            }}
+            onGroupRemove={(instanceIds, roomIds) => {
+              setFloor(
+                withRooms(
+                  floor,
+                  floor.rooms.filter((one) => !roomIds.includes(one.id)),
+                ),
+              );
+              setInstances(
+                instances.filter((one) => !instanceIds.includes(one.id)),
+              );
               setSelection(null);
             }}
             onProductSave={saveProduct}

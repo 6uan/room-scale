@@ -72,7 +72,7 @@ export const SHORTCUTS: readonly Shortcut[] = [
     id: "pan-scroll",
     group: PLAN_GROUP,
     keys: ["Scroll"],
-    describe: () => "Pans the plan.",
+    describe: () => "Pans the plan down; with Shift, across.",
   },
   {
     id: "zoom-scroll",
@@ -83,8 +83,9 @@ export const SHORTCUTS: readonly Shortcut[] = [
   {
     id: "pan-space",
     group: PLAN_GROUP,
-    keys: ["Space", "Drag"],
-    describe: () => "Pans the plan without selecting anything.",
+    keys: ["Shift", "Drag"],
+    describe: () =>
+      "Pans the plan without selecting anything. Space with a drag does the same.",
     matches: (press) => press.key === " ",
   },
   {
@@ -117,6 +118,19 @@ export const SHORTCUTS: readonly Shortcut[] = [
     describe: (unit) =>
       `Moves it ${formatLength(FINE_NUDGE_METERS, unit)}, for the last of it.`,
     matches: (press) => isNudge(press) && press.shiftKey,
+  },
+  {
+    id: "select-many",
+    group: SELECTION_GROUP,
+    keys: ["Drag"],
+    describe: () =>
+      "On open floor, draws a rectangle and selects every room and piece it touches.",
+  },
+  {
+    id: "select-toggle",
+    group: SELECTION_GROUP,
+    keys: ["Shift", "Click"],
+    describe: () => "Adds a room or a piece to the selection, or takes it out.",
   },
   {
     id: "drag-free",

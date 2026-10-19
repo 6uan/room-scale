@@ -22,10 +22,13 @@ import { OpeningFields } from "@/components/room-openings-form";
 import { ProductForm } from "@/components/product-form";
 import { RoomFields } from "@/components/room-fields";
 import { PanelSection } from "@/components/panel/section";
+import { orientedRectCorners } from "@/domain/geometry";
+import { roomBounds } from "@/domain/room";
 import { PlacementFields } from "@/components/placement-fields";
 import type { Selection } from "@/components/selection";
 import {
   createProduct,
+  footprintRect,
   placedNames,
   type FurnitureInstance,
   type FurnitureProduct,
@@ -84,6 +87,11 @@ export type InspectorProps = {
   onOpeningRemove: (room: Room, opening: Opening) => void;
   onInstanceChange: (instance: FurnitureInstance) => void;
   onInstanceRemove: (instance: FurnitureInstance) => void;
+  /** A whole group at once, pieces and rooms, so one undo puts it all back. */
+  onGroupRemove: (
+    instanceIds: readonly string[],
+    roomIds: readonly string[],
+  ) => void;
   onProductSave: (product: FurnitureProduct) => void;
   onProductRemove: (product: FurnitureProduct) => void;
   productProblem: string | null;
@@ -113,6 +121,8 @@ export function Inspector(props: InspectorProps) {
         <OpeningInspector {...props} selection={selection} />
       ) : selection.kind === "instance" ? (
         <InstanceInspector {...props} selection={selection} />
+      ) : selection.kind === "group" ? (
+        <GroupInspector {...props} selection={selection} />
       ) : (
         <ProductInspector {...props} selection={selection} />
       )}
@@ -443,6 +453,107 @@ function InstanceInspector({
             />
           </div>
         )}
+      </PanelSection>
+    </Panel>
+  );
+}
+
+/**
+ * Several pieces at once: what they are, how much floor they cover together,
+ * and the one thing to do to all of them. Each is still a row in the list on
+ * the left for anyone who wants one of them on its own.
+ */
+function GroupInspector({
+  floor,
+  furniture,
+  unit,
+  selection,
+  onGroupRemove,
+}: InspectorProps & {
+  selection: {
+    kind: "group";
+    instanceIds: readonly string[];
+    roomIds: readonly string[];
+  };
+}) {
+  const names = placedNames(furniture);
+  const chosen = furniture
+    .map((placed, index) => ({ placed, name: names[index] ?? "" }))
+    .filter(({ placed }) => selection.instanceIds.includes(placed.instance.id));
+  const rooms = floor.rooms.filter((one) => selection.roomIds.includes(one.id));
+  const corners = chosen.flatMap(({ placed }) =>
+    orientedRectCorners(footprintRect(placed)),
+  );
+  const roomCorners = rooms.flatMap((room) => {
+    const bounds = roomBounds(room);
+    return [
+      bounds.origin,
+      {
+        xMeters: bounds.origin.xMeters + bounds.widthMeters,
+        zMeters: bounds.origin.zMeters + bounds.depthMeters,
+      },
+    ];
+  });
+  const xs = [...corners, ...roomCorners].map((corner) => corner.xMeters);
+  const zs = [...corners, ...roomCorners].map((corner) => corner.zMeters);
+  const widthMeters = Math.max(...xs) - Math.min(...xs);
+  const depthMeters = Math.max(...zs) - Math.min(...zs);
+  const count = chosen.length + rooms.length;
+  const title =
+    rooms.length === 0
+      ? `${chosen.length} pieces`
+      : chosen.length === 0
+        ? `${rooms.length} rooms`
+        : `${rooms.length} ${rooms.length === 1 ? "room" : "rooms"} and ${chosen.length} ${chosen.length === 1 ? "piece" : "pieces"}`;
+
+  return (
+    <Panel
+      title={title}
+      sectioned
+      action={
+        <IconButton
+          label={`Remove these ${count} things`}
+          icon={Trash2}
+          tone="danger"
+          onClick={() =>
+            onGroupRemove(selection.instanceIds, selection.roomIds)
+          }
+        />
+      }
+    >
+      <PanelSection title="Together" first>
+        <p className="text-[19px] font-semibold tracking-tight tabular-nums">
+          {formatLength(widthMeters, unit)} × {formatLength(depthMeters, unit)}
+        </p>
+        <p className="-mt-2 text-[12px] opacity-50">
+          The rectangle around all of them. Drag any one to move them as one;
+          the arrow keys nudge them together.
+        </p>
+        <ul className="flex flex-col gap-1 text-sm">
+          {rooms.map((room) => {
+            const bounds = roomBounds(room);
+            return (
+              <li key={room.id} className="flex justify-between gap-3">
+                <span className="truncate">
+                  {room.name === "" ? "Unnamed room" : room.name}
+                </span>
+                <span className="shrink-0 tabular-nums opacity-55">
+                  {formatLength(bounds.widthMeters, unit)} ×{" "}
+                  {formatLength(bounds.depthMeters, unit)}
+                </span>
+              </li>
+            );
+          })}
+          {chosen.map(({ placed, name }) => (
+            <li key={placed.instance.id} className="flex justify-between gap-3">
+              <span className="truncate">{name}</span>
+              <span className="shrink-0 tabular-nums opacity-55">
+                {formatLength(placed.product.footprint.widthMeters, unit)} ×{" "}
+                {formatLength(placed.product.footprint.depthMeters, unit)}
+              </span>
+            </li>
+          ))}
+        </ul>
       </PanelSection>
     </Panel>
   );
