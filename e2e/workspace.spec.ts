@@ -469,6 +469,60 @@ test.describe("the plan as a canvas", () => {
     expect(rugBefore - rugWest).toBeCloseTo(lampBefore - lampWest, 0);
   });
 
+  test("takes the room into the group, and moves it with its furniture", async ({
+    page,
+  }) => {
+    await placeRug(page);
+    const rugBefore = Number(
+      await details(page).getByLabel("From west").inputValue(),
+    );
+    const centre = await planCentre(page);
+    const box = await planImage(page).boundingBox();
+    if (box === null) {
+      throw new Error("the plan has no box to point at");
+    }
+
+    // A rectangle across the whole plan takes the room and the rug.
+    await page.mouse.move(box.x + 8, box.y + 8);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width - 8, box.y + box.height - 8, {
+      steps: 8,
+    });
+    await page.mouse.up();
+    await expect(
+      details(page).getByRole("heading", { name: "1 room and 1 piece" }),
+    ).toBeVisible();
+
+    // Dragging the rug carries the room with it.
+    await page.mouse.move(centre.x, centre.y);
+    await page.mouse.down();
+    await page.mouse.move(centre.x + 60, centre.y, { steps: 10 });
+    await page.mouse.up();
+
+    await page.mouse.click(centre.x + 60, centre.y);
+    const rugWest = Number(
+      await details(page).getByLabel("From west").inputValue(),
+    );
+    expect(rugWest).toBeGreaterThan(rugBefore);
+    await contents(page).getByRole("button", { name: "Living room" }).click();
+    const room = details(page).getByRole("region", { name: "Living room" });
+    const roomWest = Number(
+      await room.getByLabel("Living room X position").inputValue(),
+    );
+    expect(roomWest - -84).toBeCloseTo(rugWest - rugBefore, 0);
+
+    // Shift and a drag pans rather than selecting, with the hand to say so.
+    await page.keyboard.down("Shift");
+    await page.mouse.move(centre.x, centre.y);
+    await page.mouse.down();
+    await page.mouse.move(centre.x - 40, centre.y - 40, { steps: 6 });
+    await page.mouse.up();
+    await page.keyboard.up("Shift");
+    await expect(room.getByLabel("Living room X position")).toHaveValue(
+      String(roomWest),
+    );
+  });
+
   test("zooms toward the pointer without moving the furniture", async ({
     page,
   }) => {
@@ -1905,8 +1959,14 @@ test.describe("laying the apartment out", () => {
     expect(await cursor()).toBe("nwse-resize");
 
     // Off the apartment altogether: a hand, because a drag there pans.
+    // Open floor is where a drag draws the selection rectangle, so it is the
+    // plain arrow; the hand only comes with Shift held, which is what pans.
     await page.mouse.move(box.x + 8, box.y + 8);
+    expect(await cursor()).toBe("default");
+    await page.keyboard.down("Shift");
+    await page.mouse.move(box.x + 10, box.y + 10);
     expect(await cursor()).toBe("grab");
+    await page.keyboard.up("Shift");
   });
 
   test("says a stored project could not be read, in a bar that stays out of the way", async ({

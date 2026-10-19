@@ -23,6 +23,7 @@ import { ProductForm } from "@/components/product-form";
 import { RoomFields } from "@/components/room-fields";
 import { PanelSection } from "@/components/panel/section";
 import { orientedRectCorners } from "@/domain/geometry";
+import { roomBounds } from "@/domain/room";
 import { PlacementFields } from "@/components/placement-fields";
 import type { Selection } from "@/components/selection";
 import {
@@ -86,8 +87,11 @@ export type InspectorProps = {
   onOpeningRemove: (room: Room, opening: Opening) => void;
   onInstanceChange: (instance: FurnitureInstance) => void;
   onInstanceRemove: (instance: FurnitureInstance) => void;
-  /** Several at once, in one edit, so one undo puts them all back. */
-  onInstancesRemove: (ids: readonly string[]) => void;
+  /** A whole group at once, pieces and rooms, so one undo puts it all back. */
+  onGroupRemove: (
+    instanceIds: readonly string[],
+    roomIds: readonly string[],
+  ) => void;
   onProductSave: (product: FurnitureProduct) => void;
   onProductRemove: (product: FurnitureProduct) => void;
   productProblem: string | null;
@@ -117,7 +121,7 @@ export function Inspector(props: InspectorProps) {
         <OpeningInspector {...props} selection={selection} />
       ) : selection.kind === "instance" ? (
         <InstanceInspector {...props} selection={selection} />
-      ) : selection.kind === "instances" ? (
+      ) : selection.kind === "group" ? (
         <GroupInspector {...props} selection={selection} />
       ) : (
         <ProductInspector {...props} selection={selection} />
@@ -460,35 +464,60 @@ function InstanceInspector({
  * the left for anyone who wants one of them on its own.
  */
 function GroupInspector({
+  floor,
   furniture,
   unit,
   selection,
-  onInstancesRemove,
+  onGroupRemove,
 }: InspectorProps & {
-  selection: { kind: "instances"; ids: readonly string[] };
+  selection: {
+    kind: "group";
+    instanceIds: readonly string[];
+    roomIds: readonly string[];
+  };
 }) {
   const names = placedNames(furniture);
   const chosen = furniture
     .map((placed, index) => ({ placed, name: names[index] ?? "" }))
-    .filter(({ placed }) => selection.ids.includes(placed.instance.id));
+    .filter(({ placed }) => selection.instanceIds.includes(placed.instance.id));
+  const rooms = floor.rooms.filter((one) => selection.roomIds.includes(one.id));
   const corners = chosen.flatMap(({ placed }) =>
     orientedRectCorners(footprintRect(placed)),
   );
-  const xs = corners.map((corner) => corner.xMeters);
-  const zs = corners.map((corner) => corner.zMeters);
+  const roomCorners = rooms.flatMap((room) => {
+    const bounds = roomBounds(room);
+    return [
+      bounds.origin,
+      {
+        xMeters: bounds.origin.xMeters + bounds.widthMeters,
+        zMeters: bounds.origin.zMeters + bounds.depthMeters,
+      },
+    ];
+  });
+  const xs = [...corners, ...roomCorners].map((corner) => corner.xMeters);
+  const zs = [...corners, ...roomCorners].map((corner) => corner.zMeters);
   const widthMeters = Math.max(...xs) - Math.min(...xs);
   const depthMeters = Math.max(...zs) - Math.min(...zs);
+  const count = chosen.length + rooms.length;
+  const title =
+    rooms.length === 0
+      ? `${chosen.length} pieces`
+      : chosen.length === 0
+        ? `${rooms.length} rooms`
+        : `${rooms.length} ${rooms.length === 1 ? "room" : "rooms"} and ${chosen.length} ${chosen.length === 1 ? "piece" : "pieces"}`;
 
   return (
     <Panel
-      title={`${chosen.length} pieces`}
+      title={title}
       sectioned
       action={
         <IconButton
-          label={`Take ${chosen.length} pieces out of the room`}
-          icon={PackageOpen}
+          label={`Remove these ${count} things`}
+          icon={Trash2}
           tone="danger"
-          onClick={() => onInstancesRemove(selection.ids)}
+          onClick={() =>
+            onGroupRemove(selection.instanceIds, selection.roomIds)
+          }
         />
       }
     >
@@ -501,6 +530,20 @@ function GroupInspector({
           the arrow keys nudge them together.
         </p>
         <ul className="flex flex-col gap-1 text-sm">
+          {rooms.map((room) => {
+            const bounds = roomBounds(room);
+            return (
+              <li key={room.id} className="flex justify-between gap-3">
+                <span className="truncate">
+                  {room.name === "" ? "Unnamed room" : room.name}
+                </span>
+                <span className="shrink-0 tabular-nums opacity-55">
+                  {formatLength(bounds.widthMeters, unit)} ×{" "}
+                  {formatLength(bounds.depthMeters, unit)}
+                </span>
+              </li>
+            );
+          })}
           {chosen.map(({ placed, name }) => (
             <li key={placed.instance.id} className="flex justify-between gap-3">
               <span className="truncate">{name}</span>

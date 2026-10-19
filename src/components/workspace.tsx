@@ -18,7 +18,8 @@ import { LayoutSwitcher } from "@/components/layout-switcher";
 import { ProjectSwitcher } from "@/components/project-switcher";
 import { RoomPlanCanvas } from "@/components/room-plan-canvas";
 import {
-  instanceSelection,
+  groupSelection,
+  groupedRoomIds,
   selectedInstanceIds,
   type Selection,
 } from "@/components/selection";
@@ -415,9 +416,15 @@ export function Workspace() {
         setSelection(null);
         return;
       }
-      case "instances": {
+      case "group": {
+        setFloor(
+          withRooms(
+            floor,
+            floor.rooms.filter((one) => !selection.roomIds.includes(one.id)),
+          ),
+        );
         setInstances(
-          instances.filter((one) => !selection.ids.includes(one.id)),
+          instances.filter((one) => !selection.instanceIds.includes(one.id)),
         );
         setSelection(null);
         return;
@@ -630,7 +637,22 @@ export function Workspace() {
               unit={unit}
               selectedIds={selectedInstanceIds(selection)}
               troubledIds={troubledIds}
-              onSelect={(ids) => setSelection(instanceSelection(ids))}
+              groupRoomIds={groupedRoomIds(selection)}
+              onSelect={(instanceIds, roomIds) =>
+                setSelection(groupSelection(instanceIds, roomIds))
+              }
+              onRoomsChange={(rooms, gesture) =>
+                setFloor(
+                  withRooms(
+                    floor,
+                    floor.rooms.map(
+                      (one) =>
+                        rooms.find((moved) => moved.id === one.id) ?? one,
+                    ),
+                  ),
+                  gesture,
+                )
+              }
               onInstanceChange={(instance, gesture) =>
                 setInstances(withInstance(instances, instance), gesture)
               }
@@ -767,8 +789,16 @@ export function Workspace() {
               setInstances(instances.filter((one) => one.id !== instance.id));
               setSelection(null);
             }}
-            onInstancesRemove={(ids) => {
-              setInstances(instances.filter((one) => !ids.includes(one.id)));
+            onGroupRemove={(instanceIds, roomIds) => {
+              setFloor(
+                withRooms(
+                  floor,
+                  floor.rooms.filter((one) => !roomIds.includes(one.id)),
+                ),
+              );
+              setInstances(
+                instances.filter((one) => !instanceIds.includes(one.id)),
+              );
               setSelection(null);
             }}
             onProductSave={saveProduct}
