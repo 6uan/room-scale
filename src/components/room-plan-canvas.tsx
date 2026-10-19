@@ -32,6 +32,8 @@ import {
   furnitureAt,
   moveInstance,
   snapInstancePosition,
+  wallGaps,
+  type WallGap,
   placedNames,
   type FurnitureInstance,
   type PlacedFurniture,
@@ -478,6 +480,12 @@ export function RoomPlanCanvas({
 
   /** What the pointer is over, kept in state because it is only a cursor. */
   const [cursor, setCursor] = useState<Cursor>("none");
+  /**
+   * The piece being dragged, for the gaps drawn from it to the walls while it
+   * moves. State rather than read from the drag ref, because the lines have
+   * to repaint with every move and go the moment the piece is let go.
+   */
+  const [movingId, setMovingId] = useState<string | null>(null);
 
   /**
    * The two corners of a room being drawn, or null when none is.
@@ -576,11 +584,14 @@ export function RoomPlanCanvas({
       fontFamily: style.fontFamily,
       drawnPart,
       underlayHandles: resizableUnderlay,
+      measuredId: movingId,
+      unit,
     });
   }, [
     floor,
     furniture,
     unit,
+    movingId,
     selectedId,
     selectedRoomId,
     selectedRoomPartId,
@@ -925,6 +936,7 @@ export function RoomPlanCanvas({
       },
     };
     setCursor("move");
+    setMovingId(hit.instance.id);
     // Focus follows the grab, so a piece can be dragged roughly into place and
     // then nudged the last centimeter without reaching for the mouse again.
     canvas.focus();
@@ -1361,6 +1373,7 @@ export function RoomPlanCanvas({
 
     dragRef.current = null;
     setCursor("none");
+    setMovingId(null);
     canvasRef.current?.releasePointerCapture?.(event.pointerId);
     onGestureEnd?.();
   }
@@ -1978,6 +1991,9 @@ type DrawOptions = {
   drawnPart?: DrawnPart | null;
   /** The underlay whose corners can be dragged, or null when none can. */
   underlayHandles?: PlanUnderlay | null;
+  /** The piece whose gaps to the walls are drawn and printed, if any. */
+  measuredId?: string | null;
+  unit: DisplayUnit;
 };
 
 /** Everything the drawing helpers need to place a floor coordinate in pixels. */
@@ -2004,6 +2020,8 @@ function drawPlan(
     fontFamily,
     drawnPart = null,
     underlayHandles = null,
+    measuredId = null,
+    unit,
   }: DrawOptions,
 ): void {
   context.clearRect(0, 0, viewport.width, viewport.height);
@@ -2076,6 +2094,13 @@ function drawPlan(
       selected: placed.instance.id === selectedId,
       troubled: troubledIds.has(placed.instance.id),
     });
+  }
+
+  // The gaps from the piece being dragged to the walls around it, over the
+  // furniture so the numbers are never under a neighbour.
+  const measured = furniture.find(({ instance }) => instance.id === measuredId);
+  if (measured !== undefined) {
+    drawWallGaps(context, frame, wallGaps(floor, measured), unit, fontFamily);
   }
 
   // Last, over everything: it is the thing being made right now.
@@ -2937,6 +2962,75 @@ function drawFurniture(
     }
   }
 
+  context.restore();
+}
+
+/** How far a gap's end ticks reach either side of the line, in pixels. */
+const GAP_TICK_PIXELS = 4;
+
+/**
+ * The gaps from a piece to the walls on each side, drawn as a line with a
+ * tick at either end and the length printed beside it — the way a plan is
+ * dimensioned. A gap of nothing is still drawn: flush is a fact worth seeing.
+ * A negative gap is a piece through the wall, which the problem list already
+ * shouts about, so the line is left out rather than drawn backwards.
+ */
+function drawWallGaps(
+  context: CanvasRenderingContext2D,
+  frame: PlanFrame,
+  gaps: readonly WallGap[],
+  unit: DisplayUnit,
+  fontFamily: string,
+): void {
+  context.save();
+  context.strokeStyle = frame.color;
+  context.fillStyle = frame.color;
+  context.lineWidth = 1;
+  context.font = `${LABEL_PIXELS}px ${fontFamily}`;
+  context.textBaseline = "middle";
+
+  for (const gap of gaps) {
+    if (gap.gapMeters < 0) {
+      continue;
+    }
+    const horizontal = gap.side === "west" || gap.side === "east";
+    const from = frame.toPixels(
+      horizontal
+        ? { xMeters: gap.edgeMeters, zMeters: gap.alongMeters }
+        : { xMeters: gap.alongMeters, zMeters: gap.edgeMeters },
+    );
+    const to = frame.toPixels(
+      horizontal
+        ? { xMeters: gap.faceMeters, zMeters: gap.alongMeters }
+        : { xMeters: gap.alongMeters, zMeters: gap.faceMeters },
+    );
+
+    context.globalAlpha = 0.8;
+    context.beginPath();
+    context.moveTo(from.x, from.y);
+    context.lineTo(to.x, to.y);
+    for (const end of [from, to]) {
+      if (horizontal) {
+        context.moveTo(end.x, end.y - GAP_TICK_PIXELS);
+        context.lineTo(end.x, end.y + GAP_TICK_PIXELS);
+      } else {
+        context.moveTo(end.x - GAP_TICK_PIXELS, end.y);
+        context.lineTo(end.x + GAP_TICK_PIXELS, end.y);
+      }
+    }
+    context.stroke();
+
+    // Beside the line rather than on it, so a short gap stays legible: above
+    // a horizontal one, to the right of a vertical one.
+    const middle = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+    context.globalAlpha = 1;
+    context.textAlign = horizontal ? "center" : "left";
+    context.fillText(
+      formatLength(gap.gapMeters, unit),
+      horizontal ? middle.x : middle.x + 6,
+      horizontal ? middle.y - 9 : middle.y,
+    );
+  }
   context.restore();
 }
 

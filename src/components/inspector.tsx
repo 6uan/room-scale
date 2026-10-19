@@ -381,6 +381,7 @@ function InstanceInspector({
       <PlacementFields
         floor={floor}
         instance={placed.instance}
+        product={placed.product}
         name={name}
         unit={unit}
         onInstanceChange={onInstanceChange}

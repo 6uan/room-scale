@@ -396,6 +396,24 @@ test.describe("the plan as a canvas", () => {
     await expect(details(page).getByLabel("From west")).toHaveValue("-34");
   });
 
+  test("types a piece's gap to a wall, and reads it back", async ({ page }) => {
+    await placeRug(page);
+    // The rug is 96" wide in the middle of a room whose west wall is 84" out,
+    // so it starts 36" off that wall.
+    await expect(details(page).getByLabel("Gap to west wall")).toHaveValue(
+      "36",
+    );
+
+    await details(page).getByLabel("Gap to west wall").fill("6");
+
+    // Six inches off the wall: its centre is the wall, plus the gap, plus
+    // half its width.
+    await expect(details(page).getByLabel("From west")).toHaveValue("-30");
+    await expect(details(page).getByLabel("Gap to east wall")).toHaveValue(
+      "66",
+    );
+  });
+
   test("zooms toward the pointer without moving the furniture", async ({
     page,
   }) => {
