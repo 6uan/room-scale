@@ -119,6 +119,13 @@ export const SHORTCUTS: readonly Shortcut[] = [
     matches: (press) => isNudge(press) && press.shiftKey,
   },
   {
+    id: "drag-free",
+    group: SELECTION_GROUP,
+    keys: ["Alt", "Drag"],
+    describe: () =>
+      "Moves a piece exactly where the pointer says. Without it, a piece dragged near a wall or another piece lands against it.",
+  },
+  {
     id: "turn",
     group: SELECTION_GROUP,
     keys: [...TURN_KEYS],

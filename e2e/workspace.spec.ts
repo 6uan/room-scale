@@ -346,6 +346,56 @@ test.describe("the plan as a canvas", () => {
     ).toBeGreaterThan(Number(before));
   });
 
+  test("lands a piece dragged near a wall flush against it", async ({
+    page,
+  }) => {
+    await placeRug(page);
+    const box = await planImage(page).boundingBox();
+    if (box === null) {
+      throw new Error("the plan has no box to point at");
+    }
+    const metres = (inches: number) => inches * 0.0254;
+    const padding = 40;
+    const scale = Math.min(
+      (box.width - padding * 2) / metres(168 + WALL_INCHES * 2),
+      (box.height - padding * 2) / metres(144 + WALL_INCHES * 2),
+    );
+    const centre = await planCentre(page);
+
+    // The rug is 96" wide at the middle of a room whose west wall is 84" out.
+    // Dragged until its west edge stops 2" short of that wall, which is the
+    // kind of gap a hand leaves and a plan should not keep.
+    const stopShortInches = -84 + 48 + 2;
+    await page.mouse.move(centre.x, centre.y);
+    await page.mouse.down();
+    await page.mouse.move(
+      centre.x + metres(stopShortInches) * scale,
+      centre.y,
+      {
+        steps: 10,
+      },
+    );
+    await page.mouse.up();
+
+    // Flush: its centre is half its width in from the wall.
+    await expect(details(page).getByLabel("From west")).toHaveValue("-36");
+
+    // Alt puts it exactly where the pointer says, gap and all.
+    await page.mouse.move(centre.x + metres(-36) * scale, centre.y);
+    await page.keyboard.down("Alt");
+    await page.mouse.down();
+    await page.mouse.move(
+      centre.x + metres(stopShortInches) * scale,
+      centre.y,
+      {
+        steps: 10,
+      },
+    );
+    await page.mouse.up();
+    await page.keyboard.up("Alt");
+    await expect(details(page).getByLabel("From west")).toHaveValue("-34");
+  });
+
   test("zooms toward the pointer without moving the furniture", async ({
     page,
   }) => {
