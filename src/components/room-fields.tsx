@@ -3,6 +3,7 @@
 import { Plus, Trash2, Undo2 } from "lucide-react";
 import { useState } from "react";
 import { Disclosure } from "@/components/disclosure";
+import { cn } from "@/components/cn";
 import { AngleField } from "@/components/angle-field";
 import { IconButton, LabelledButton } from "@/components/icon-button";
 import { NumberField } from "@/components/number-field";
@@ -724,7 +725,24 @@ function WallStateChips({
                 pressed={wall === selected}
                 onClick={() => setPicked(wall === selected ? null : wall)}
               >
-                {WALL_INITIALS[wall]}
+                {/* What the side is, before it is picked: a bar under the
+                    letter where there is a wall, and a faded letter where
+                    there is not. The highlight is still for the picked one. */}
+                <span
+                  className={cn(
+                    "flex flex-col items-center gap-0.5",
+                    choice === "open" && "opacity-45",
+                  )}
+                >
+                  {WALL_INITIALS[wall]}
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "h-0.5 w-3 rounded-full bg-current",
+                      choice === "open" && "opacity-0",
+                    )}
+                  />
+                </span>
               </Chip>
             );
           })}
