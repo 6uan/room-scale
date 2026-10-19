@@ -5,7 +5,12 @@ import {
   type PlacedFurniture,
 } from "@/domain/furniture";
 import type { FurnitureProduct } from "@/domain/furniture";
-import { DEFAULT_FLOOR, withRoomPartWallOpen, type Floor } from "@/domain/room";
+import {
+  DEFAULT_FLOOR,
+  createOpening,
+  withRoomPartWallOpen,
+  type Floor,
+} from "@/domain/room";
 import { LIVING_ROOM } from "@/domain/room/fixtures";
 import { checkLayout, troubledInstanceIds } from "./layout";
 
@@ -542,5 +547,61 @@ describe("checkLayout: two rooms open to one another", () => {
         overhangMeters: expect.closeTo(0.8, 6),
       },
     ]);
+  });
+});
+
+describe("checkLayout: a door that cannot open", () => {
+  /** A 32" door on the north wall, hinged at the west jamb, swinging in. */
+  const made = createOpening("door", "d1", ROOM, "north", 1);
+  if (made.kind !== "door") {
+    throw new Error("a door was asked for");
+  }
+  const door = made;
+  const withDoor: Floor = {
+    ...FLOOR,
+    rooms: [{ ...ROOM, openings: [door] }],
+  };
+  const widthMeters = door.widthMeters;
+
+  it("reports a piece standing in the swing, and how far it reaches in", () => {
+    // Inside the room, within a door-width of the hinge: in the arc.
+    const stool = place("stool", TABLE, 1 - widthMeters / 2 + 0.3, 0.6);
+
+    const problems = checkLayout(withDoor, [stool]);
+
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        kind: "blocks-door",
+        instanceId: "stool",
+        roomId: ROOM.id,
+        openingId: "d1",
+      }),
+    );
+    expect(troubledInstanceIds(problems).has("stool")).toBe(true);
+  });
+
+  it("lets a piece stand beside the door, clear of the swing", () => {
+    // Past the far jamb by more than a door-width, flush with the wall.
+    const stool = place("stool", TABLE, 1 + widthMeters + 0.6, 0.45);
+
+    expect(
+      checkLayout(withDoor, [stool]).filter(
+        (one) => one.kind === "blocks-door",
+      ),
+    ).toEqual([]);
+  });
+
+  it("finds the swing on the other side of a door hung to swing out", () => {
+    const outward: Floor = {
+      ...FLOOR,
+      rooms: [{ ...ROOM, openings: [{ ...door, swing: "outward" }] }],
+    };
+    const inside = place("stool", TABLE, 1 - widthMeters / 2 + 0.3, 0.6);
+
+    expect(
+      checkLayout(outward, [inside]).filter(
+        (one) => one.kind === "blocks-door",
+      ),
+    ).toEqual([]);
   });
 });

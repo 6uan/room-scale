@@ -27,6 +27,7 @@ import {
   type Room,
   type RoomPart,
 } from "./room";
+import { pointOnFloor } from "./floor";
 
 /** The four sides a rectangle always has, whatever is cut off its corners. */
 export type AxisWallSide = "north" | "east" | "south" | "west";
@@ -659,4 +660,59 @@ function openingSegmentIsExterior(room: Room, opening: Opening): boolean {
 
 function clamp(value: number, low: number, high: number): number {
   return Math.min(Math.max(value, low), high);
+}
+
+/** How many straight pieces stand in for the arc. Enough to hug it. */
+const SWING_ARC_SEGMENTS = 8;
+
+/**
+ * The floor a door sweeps as it opens, as a convex polygon on the floor.
+ *
+ * A quarter disc, hinged at one jamb, reaching one door-width into the room
+ * — or out of it, for a door hung to swing outward. Its arc is drawn as eight
+ * short sides, which hug the curve closely enough that nothing a tape could
+ * tell apart is missed, and a sector this size is convex, so the Separating
+ * Axis Theorem applies to it as to any footprint.
+ *
+ * Nothing inside this is the door's business except whether it can open: a
+ * console standing in it means the door stops against the console.
+ */
+export function doorSwingPolygon(
+  room: Room,
+  door: Door,
+): readonly FloorPoint[] {
+  const part = roomPart(room, door.partId) ?? primaryRoomPart(room);
+  const { start, end } = openingEndpoints(room, door);
+  const hinge = pointOnFloor(room, door.hinge === "start" ? start : end);
+  const farJamb = pointOnFloor(room, door.hinge === "start" ? end : start);
+  const width = Math.hypot(
+    farJamb.xMeters - hinge.xMeters,
+    farJamb.zMeters - hinge.zMeters,
+  );
+  if (width <= 0) {
+    return [];
+  }
+
+  const outward = wallOutwardNormalOnFloor(part, door.wall);
+  const reach = door.swing === "inward" ? -1 : 1;
+  const tipAngle = Math.atan2(outward.dz * reach, outward.dx * reach);
+  const jambAngle = Math.atan2(
+    farJamb.zMeters - hinge.zMeters,
+    farJamb.xMeters - hinge.xMeters,
+  );
+  // The shorter way round from the open leaf to the closed one: a quarter
+  // turn, in whichever direction the far jamb lies.
+  let sweep = jambAngle - tipAngle;
+  while (sweep > Math.PI) sweep -= 2 * Math.PI;
+  while (sweep < -Math.PI) sweep += 2 * Math.PI;
+
+  const arc: FloorPoint[] = [];
+  for (let step = 0; step <= SWING_ARC_SEGMENTS; step += 1) {
+    const angle = tipAngle + (sweep * step) / SWING_ARC_SEGMENTS;
+    arc.push({
+      xMeters: hinge.xMeters + Math.cos(angle) * width,
+      zMeters: hinge.zMeters + Math.sin(angle) * width,
+    });
+  }
+  return [hinge, ...arc];
 }

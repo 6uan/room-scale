@@ -25,6 +25,8 @@ import {
 import {
   PART_CORNERS,
   WALL_SIDES,
+  checkOpening,
+  doorSwingPolygon,
   metersBeyondWall,
   pointInRoomPart,
   primaryRoomPart,
@@ -63,7 +65,16 @@ export type LayoutProblem =
       readonly depthMeters: number;
     }
   /** A piece that is not in the room at all. */
-  | { readonly kind: "outside-room"; readonly instanceId: string };
+  | { readonly kind: "outside-room"; readonly instanceId: string }
+  /** A piece standing where a door swings, so the door stops against it. */
+  | {
+      readonly kind: "blocks-door";
+      readonly instanceId: string;
+      readonly roomId: string;
+      readonly openingId: string;
+      /** How far into the swing it reaches: the least it must move. */
+      readonly depthMeters: number;
+    };
 
 /**
  * Every problem with a layout, in a stable order: each piece's own problems in
@@ -82,6 +93,12 @@ export function checkLayout(
 
   for (const placed of furniture) {
     problems.push(...pieceProblems(floor, placed));
+  }
+
+  // Doors last among a piece's own problems: a piece through the wall beside
+  // a door is reported for the wall first, which is the thing to fix first.
+  for (const placed of furniture) {
+    problems.push(...doorProblems(floor, placed));
   }
 
   // Every pair once. A overlapping B is the same problem as B overlapping A.
@@ -443,6 +460,43 @@ function roomProblems(floor: Floor): readonly LayoutProblem[] {
     }
   }
 
+  return problems;
+}
+
+/**
+ * Every door this piece stops from opening.
+ *
+ * A door's swing is the quarter disc its leaf sweeps, and a piece reaching
+ * into it is a piece the door hits. Checked against every door on the floor,
+ * not only the room the piece stands in: a door swinging out into a hall is
+ * blocked by what stands in the hall.
+ */
+function doorProblems(
+  floor: Floor,
+  placed: PlacedFurniture,
+): readonly LayoutProblem[] {
+  const corners = orientedRectCorners(footprintRect(placed));
+  const problems: LayoutProblem[] = [];
+  for (const room of floor.rooms) {
+    for (const opening of room.openings) {
+      if (opening.kind !== "door" || checkOpening(room, opening) !== null) {
+        continue;
+      }
+      const overlap = convexPolygonOverlap(
+        doorSwingPolygon(room, opening),
+        corners,
+      );
+      if (overlap !== null) {
+        problems.push({
+          kind: "blocks-door",
+          instanceId: placed.instance.id,
+          roomId: room.id,
+          openingId: opening.id,
+          depthMeters: overlap.depthMeters,
+        });
+      }
+    }
+  }
   return problems;
 }
 
