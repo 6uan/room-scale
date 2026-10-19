@@ -34,6 +34,7 @@ import {
   roomFootprintOverlapArea,
   roomsAt,
   roomPartCut,
+  roomPartPivotRect,
   roomPartIsCut,
   roomPartPolygon,
   type Floor,
@@ -66,6 +67,14 @@ export type LayoutProblem =
     }
   /** A piece that is not in the room at all. */
   | { readonly kind: "outside-room"; readonly instanceId: string }
+  /** A section inside its room's other floor with no walls of its own. */
+  | {
+      readonly kind: "section-inside";
+      readonly roomId: string;
+      readonly partId: string;
+      /** Which section it is, counted the way the list counts them. */
+      readonly partNumber: number;
+    }
   /** A piece standing where a door swings, so the door stops against it. */
   | {
       readonly kind: "blocks-door";
@@ -90,6 +99,7 @@ export function checkLayout(
   const problems: LayoutProblem[] = [];
 
   problems.push(...roomProblems(floor));
+  problems.push(...sectionProblems(floor));
 
   for (const placed of furniture) {
     problems.push(...pieceProblems(floor, placed));
@@ -464,6 +474,41 @@ function roomProblems(floor: Floor): readonly LayoutProblem[] {
 }
 
 /**
+ * A section drawn entirely on floor the room already has, with no walls.
+ *
+ * A section is how a room gets a corner the first rectangle could not give
+ * it, or — walled off — a closet in its corner. Drawn inside the room with
+ * none of its sides kept as a wall, it is neither: it gives the room nothing
+ * and draws nothing. Said as a problem, because a section that does nothing
+ * is the kind of mistake that is otherwise invisible.
+ */
+function sectionProblems(floor: Floor): readonly LayoutProblem[] {
+  const problems: LayoutProblem[] = [];
+  for (const room of floor.rooms) {
+    if (room.parts.length < 2) {
+      continue;
+    }
+    room.parts.forEach((part, index) => {
+      if ((part.dividingWalls?.length ?? 0) > 0) {
+        return;
+      }
+      const rest = { ...room, parts: room.parts.filter((one) => one !== part) };
+      const rect = roomPartPivotRect(part);
+      const own = rect.widthMeters * rect.depthMeters;
+      if (roomFootprintOverlapArea(rest, rect) >= own - 0.000001) {
+        problems.push({
+          kind: "section-inside",
+          roomId: room.id,
+          partId: part.id,
+          partNumber: index + 1,
+        });
+      }
+    });
+  }
+  return problems;
+}
+
+/**
  * Every door this piece stops from opening.
  *
  * A door's swing is the quarter disc its leaf sweeps, and a piece reaching
@@ -515,6 +560,7 @@ export function troubledInstanceIds(
         ids.add(problem.instanceIds[1]);
         break;
       case "rooms-overlap":
+      case "section-inside":
         break;
       default:
         ids.add(problem.instanceId);

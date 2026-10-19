@@ -107,14 +107,15 @@ describe("ApartmentLayers room names", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("lists and selects sections once the room is compound", async () => {
+  it("lists and selects the added sections once the room is compound", async () => {
     const user = userEvent.setup();
     render(<LayersHarness compound />);
 
-    const section = screen.getByRole("button", { name: "Section 1" });
+    // The first rectangle is the room itself, on the room's own row.
     expect(
-      screen.getByRole("button", { name: "Section 2" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: "Section 1" }),
+    ).not.toBeInTheDocument();
+    const section = screen.getByRole("button", { name: "Section 2" });
     await user.click(section);
 
     expect(section).toHaveAttribute("aria-pressed", "true");

@@ -71,6 +71,12 @@ function problemMessage(
 ): string {
   const name = (id: string) => names.get(id) ?? "A piece of furniture";
   const roomName = (id: string) => roomNames.get(id) ?? "a room";
+  // "the living room", but "Room 2": a name that is already a label does
+  // not take an article.
+  const theRoom = (id: string) => {
+    const named = roomName(id);
+    return /^Room \d+$/.test(named) ? named : `the ${named}`;
+  };
   const openingName = (id: string) => openingNames.get(id) ?? "a door";
 
   switch (problem.kind) {
@@ -82,12 +88,18 @@ function problemMessage(
       );
     case "crosses-wall":
       return (
-        `${name(problem.instanceId)} crosses the ${problem.wall} wall of the ` +
-        `${roomName(problem.roomId)} by ` +
+        `${name(problem.instanceId)} crosses the ${problem.wall} wall of ` +
+        `${theRoom(problem.roomId)} by ` +
         `${formatLength(problem.overhangMeters, unit)}.`
       );
     case "outside-room":
       return `${name(problem.instanceId)} is not in any room.`;
+    case "section-inside":
+      return (
+        `Section ${problem.partNumber} of ${theRoom(problem.roomId)} lies ` +
+        `inside the room's floor and has no walls of its own, so it adds ` +
+        `nothing. Give it walls to make it a closet, or remove it.`
+      );
     case "blocks-door":
       return (
         `${name(problem.instanceId)} is in the swing of ` +
@@ -114,6 +126,8 @@ function problemKey(problem: LayoutProblem): string {
       return `outside:${problem.instanceId}`;
     case "blocks-door":
       return `door:${problem.instanceId}:${problem.openingId}`;
+    case "section-inside":
+      return `section:${problem.roomId}:${problem.partId}`;
     case "rooms-overlap":
       return `rooms:${problem.roomIds.join(":")}`;
   }

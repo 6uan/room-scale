@@ -762,9 +762,10 @@ export function RoomPlanCanvas({
   /** Wheel: pan, unless a modifier makes it a zoom toward the pointer. */
   function handleWheel(
     event: WheelEventInit & { preventDefault(): void },
+    fromElsewhere = false,
   ): void {
     const canvas = canvasRef.current;
-    if (!canvas || !activeRef.current) {
+    if (!canvas || (!activeRef.current && !fromElsewhere)) {
       // Not clicked into: the wheel belongs to whatever is behind it, and the
       // plan stays where it was left.
       return;
@@ -822,7 +823,36 @@ export function RoomPlanCanvas({
     }
     const listener = (event: globalThis.WheelEvent) => wheelRef.current(event);
     canvas.addEventListener("wheel", listener, { passive: false });
-    return () => canvas.removeEventListener("wheel", listener);
+    // A zoom asked for anywhere on the page is a zoom of the plan: the
+    // browser would otherwise zoom the whole page, which nobody wants in a
+    // drawing tool, and a hand that has drifted to the panel is still
+    // looking at the plan. It zooms about the plan's middle, since the
+    // pointer is not on it.
+    const anywhere = (event: globalThis.WheelEvent) => {
+      if (
+        !(event.ctrlKey || event.metaKey) ||
+        canvas.contains(event.target as Node)
+      ) {
+        return;
+      }
+      const box = canvas.getBoundingClientRect();
+      wheelRef.current(
+        {
+          ctrlKey: true,
+          deltaY: event.deltaY,
+          deltaX: 0,
+          clientX: box.left + box.width / 2,
+          clientY: box.top + box.height / 2,
+          preventDefault: () => event.preventDefault(),
+        },
+        true,
+      );
+    };
+    window.addEventListener("wheel", anywhere, { passive: false });
+    return () => {
+      canvas.removeEventListener("wheel", listener);
+      window.removeEventListener("wheel", anywhere);
+    };
   }, []);
 
   function handlePointerDown(event: PointerEvent<HTMLCanvasElement>): void {
