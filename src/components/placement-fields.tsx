@@ -117,10 +117,12 @@ export function PlacementFields({
           onInstanceChange(turnInstance(instance, radians))
         }
       />
-      {/* Announced as it changes, so a drag or a nudge is not silent. */}
-      <p role="status" className="text-[12px] tabular-nums opacity-55">
-        {formatLength(instance.position.xMeters, unit)} from west ·{" "}
-        {formatLength(instance.position.zMeters, unit)} from north ·{" "}
+      {/* Announced as it changes so a drag or a nudge is not silent, but
+          not shown: the gaps below say where the piece is in words a room is
+          read in, and a coordinate from the apartment's corner is not. */}
+      <p role="status" className="sr-only">
+        {formatLength(instance.position.xMeters, unit)} from west,{" "}
+        {formatLength(instance.position.zMeters, unit)} from north, turned{" "}
         {formatAngle(instance.rotationRadians)}
       </p>
 
