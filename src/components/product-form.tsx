@@ -1,20 +1,21 @@
 "use client";
 
-import { Check } from "lucide-react";
+import { ChevronDown, ClipboardPaste } from "lucide-react";
 import { useId, useState } from "react";
-import { LabelledButton } from "@/components/icon-button";
 import { NumberField } from "@/components/number-field";
 import { PriceField } from "@/components/price-field";
 import { ProductImportPanel } from "@/components/product-import-panel";
 import type { ExtractedProduct } from "@/domain/import";
 import {
   MAX_NAME_LENGTH,
+  PRODUCT_CATEGORIES,
   PRODUCT_LENGTH_LIMITS,
   PURCHASE_STATUSES,
   checkProduct,
   hasProblems,
   withFootprint,
   type FurnitureProduct,
+  type ProductCategory,
   type ProductProblems,
   type PurchaseStatus,
 } from "@/domain/furniture";
@@ -26,11 +27,24 @@ export const PURCHASE_STATUS_LABELS: Record<PurchaseStatus, string> = {
   owned: "Already own it",
 };
 
+export const PRODUCT_CATEGORY_LABELS: Record<ProductCategory, string> = {
+  seating: "Seating",
+  table: "Table",
+  storage: "Storage",
+  bed: "Bed",
+  rug: "Rug",
+  lighting: "Lighting",
+  decor: "Decor",
+  other: "Other",
+};
+
 export type ProductFormProps = {
   /** The product to start from. Remount with a `key` to start from another. */
   initial: FurnitureProduct;
   unit: DisplayUnit;
   submitLabel: string;
+  /** Something the save itself refused, printed above the buttons. */
+  problem?: string | null;
   onSave: (product: FurnitureProduct) => void;
   onCancel?: (() => void) | undefined;
 };
@@ -39,19 +53,28 @@ export type ProductFormProps = {
  * One product, entered as it reads on the page you are buying from.
  *
  * The draft is held here and only handed up on save, so a partly typed product
- * never reaches the catalogue. Dimensions go through `NumberField` and the price
+ * never reaches the list. Dimensions go through `NumberField` and the price
  * through `PriceField`, which means neither can commit a value the domain would
  * reject.
+ *
+ * The name comes first, because it is what you know before anything else, and
+ * the three sizes sit in one row the way a listing prints them. Pasting a page
+ * is a way of filling the fields rather than a section of its own, so it is a
+ * small button beside the name that opens the paste box when asked. The two
+ * buttons stay at the bottom of the panel whatever is scrolled, because a save
+ * button you have to go looking for is one you forget to press.
  */
 export function ProductForm({
   initial,
   unit,
   submitLabel,
+  problem = null,
   onSave,
   onCancel,
 }: ProductFormProps) {
   const [draft, setDraft] = useState(initial);
   const [submitted, setSubmitted] = useState(false);
+  const [pasting, setPasting] = useState(false);
   const problems = checkProduct(draft);
 
   // Problems stay quiet until the first save attempt, so an untouched blank
@@ -90,9 +113,11 @@ export function ProductForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-5" noValidate>
-      <ProductImportPanel unit={unit} onExtracted={applyExtracted} />
-
+    <form
+      onSubmit={handleSubmit}
+      className="-mb-5 flex min-h-0 flex-1 flex-col gap-5"
+      noValidate
+    >
       <TextField
         label="Name"
         value={draft.name}
@@ -105,14 +130,38 @@ export function ProductForm({
               : null
         }
         onValueChange={(name) => setDraft({ ...draft, name })}
+        action={
+          <button
+            type="button"
+            aria-expanded={pasting}
+            onClick={() => setPasting((open) => !open)}
+            className="flex items-center gap-1.5 text-[13px] opacity-60 transition-opacity hover:opacity-100"
+          >
+            <ClipboardPaste aria-hidden="true" className="size-3.5" />
+            Paste from a product page
+          </button>
+        }
       />
 
-      <div className="flex flex-wrap gap-4">
+      {pasting ? (
+        <ProductImportPanel unit={unit} onExtracted={applyExtracted} />
+      ) : null}
+
+      <SelectField
+        label="Category"
+        value={draft.category}
+        options={PRODUCT_CATEGORIES}
+        labels={PRODUCT_CATEGORY_LABELS}
+        onValueChange={(category) => setDraft({ ...draft, category })}
+      />
+
+      <div className="grid grid-cols-3 gap-3">
         <NumberField
           label="Width"
           unit={unit}
           meters={draft.footprint.widthMeters}
           limits={PRODUCT_LENGTH_LIMITS}
+          hint={false}
           onMetersChange={(meters) =>
             setDraft(withFootprint(draft, "widthMeters", meters))
           }
@@ -122,6 +171,7 @@ export function ProductForm({
           unit={unit}
           meters={draft.footprint.depthMeters}
           limits={PRODUCT_LENGTH_LIMITS}
+          hint={false}
           onMetersChange={(meters) =>
             setDraft(withFootprint(draft, "depthMeters", meters))
           }
@@ -131,20 +181,24 @@ export function ProductForm({
           unit={unit}
           meters={draft.heightMeters}
           limits={PRODUCT_LENGTH_LIMITS}
+          hint={false}
           onMetersChange={(heightMeters) =>
             setDraft({ ...draft, heightMeters })
           }
         />
       </div>
 
-      <div className="flex flex-wrap gap-4">
+      <div className="grid grid-cols-2 gap-3">
         <PriceField
           label="Price"
           cents={draft.priceCents}
           onCentsChange={(priceCents) => setDraft({ ...draft, priceCents })}
         />
-        <StatusField
+        <SelectField
+          label="Status"
           value={draft.purchaseStatus}
+          options={PURCHASE_STATUSES}
+          labels={PURCHASE_STATUS_LABELS}
           onValueChange={(purchaseStatus) =>
             setDraft({ ...draft, purchaseStatus })
           }
@@ -171,17 +225,34 @@ export function ProductForm({
         onValueChange={(productUrl) => setDraft({ ...draft, productUrl })}
       />
 
-      <div className="flex flex-wrap items-center gap-3">
-        <LabelledButton label={submitLabel} icon={Check} type="submit" />
+      {problem === null ? null : (
+        <p role="alert" className="text-[13px] text-red-600">
+          {problem}
+        </p>
+      )}
+
+      {/* Pinned to the bottom of the panel: `sticky` against the inspector's
+          own scroll, with the panel's padding pulled back out so the bar runs
+          edge to edge and sits on its own background rather than over the
+          fields scrolling under it. */}
+      <div className="sticky bottom-0 -mx-5 mt-auto flex items-center justify-between gap-3 border-t border-black/10 bg-background px-5 py-3 dark:border-white/15">
         {onCancel ? (
           <button
             type="button"
             onClick={onCancel}
-            className="text-sm opacity-60 underline underline-offset-4 hover:opacity-100"
+            className="h-8 rounded-lg px-3 text-sm font-medium opacity-70 transition-colors hover:bg-black/[0.06] hover:opacity-100 dark:hover:bg-white/10"
           >
             Cancel
           </button>
-        ) : null}
+        ) : (
+          <span />
+        )}
+        <button
+          type="submit"
+          className="h-8 rounded-lg bg-foreground px-4 text-sm font-medium text-background transition-opacity hover:opacity-85"
+        >
+          {submitLabel}
+        </button>
       </div>
     </form>
   );
@@ -195,6 +266,8 @@ type TextFieldProps = {
   type?: "text" | "url";
   required?: boolean;
   placeholder?: string;
+  /** Something small to offer beside the label, on the right. */
+  action?: React.ReactNode;
 };
 
 function TextField({
@@ -205,15 +278,19 @@ function TextField({
   type = "text",
   required = false,
   placeholder,
+  action,
 }: TextFieldProps) {
   const inputId = useId();
   const messageId = `${inputId}-message`;
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={inputId} className="text-sm font-medium">
-        {label}
-      </label>
+      <div className="flex items-center justify-between gap-2">
+        <label htmlFor={inputId} className="text-sm font-medium">
+          {label}
+        </label>
+        {action}
+      </div>
       <input
         id={inputId}
         type={type}
@@ -226,10 +303,10 @@ function TextField({
         aria-invalid={problem !== null}
         {...(problem === null ? {} : { "aria-describedby": messageId })}
         onChange={(event) => onValueChange(event.target.value)}
-        className="w-full max-w-md rounded-md border border-black/15 bg-transparent px-2.5 py-1.5 text-sm dark:border-white/20"
+        className="h-8 w-full rounded-lg border border-black/15 bg-transparent px-2.5 text-sm outline-none focus:border-black/40 dark:border-white/20 dark:focus:border-white/45"
       />
       {problem === null ? null : (
-        <p id={messageId} className="text-xs text-red-600">
+        <p id={messageId} className="text-[13px] text-red-600">
           {problem}
         </p>
       )}
@@ -237,34 +314,50 @@ function TextField({
   );
 }
 
-function StatusField({
+/**
+ * A closed choice, drawn as the other fields are.
+ *
+ * The browser's own select arrow sits hard against the right edge of the box,
+ * so it is hidden and a chevron drawn in its place with room around it.
+ */
+function SelectField<T extends string>({
+  label,
   value,
+  options,
+  labels,
   onValueChange,
 }: {
-  value: PurchaseStatus;
-  onValueChange: (value: PurchaseStatus) => void;
+  label: string;
+  value: T;
+  options: readonly T[];
+  labels: Record<T, string>;
+  onValueChange: (value: T) => void;
 }) {
   const selectId = useId();
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex min-w-0 flex-col gap-1.5">
       <label htmlFor={selectId} className="text-sm font-medium">
-        Status
+        {label}
       </label>
-      <select
-        id={selectId}
-        value={value}
-        onChange={(event) =>
-          onValueChange(event.target.value as PurchaseStatus)
-        }
-        className="rounded-md border border-black/15 bg-transparent px-2.5 py-1.5 text-sm dark:border-white/20"
-      >
-        {PURCHASE_STATUSES.map((status) => (
-          <option key={status} value={status}>
-            {PURCHASE_STATUS_LABELS[status]}
-          </option>
-        ))}
-      </select>
+      <div className="relative">
+        <select
+          id={selectId}
+          value={value}
+          onChange={(event) => onValueChange(event.target.value as T)}
+          className="h-8 w-full appearance-none rounded-lg border border-black/15 bg-transparent pr-8 pl-2.5 text-sm outline-none focus:border-black/40 dark:border-white/20 dark:focus:border-white/45"
+        >
+          {options.map((option) => (
+            <option key={option} value={option}>
+              {labels[option]}
+            </option>
+          ))}
+        </select>
+        <ChevronDown
+          aria-hidden="true"
+          className="pointer-events-none absolute top-1/2 right-2.5 size-4 -translate-y-1/2 opacity-50"
+        />
+      </div>
     </div>
   );
 }

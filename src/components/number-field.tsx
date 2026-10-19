@@ -40,6 +40,8 @@ export type NumberFieldProps = {
   /** Optional pointer/slider path when scrubbing has spatial behavior. */
   onScrubbedMetersChange?: (meters: number, gesture?: string) => void;
   onGestureEnd?: () => void;
+  /** Whether to print the value back in feet and inches under the field. */
+  hint?: boolean;
 };
 
 /**
@@ -60,6 +62,7 @@ export function NumberField({
   onMetersChange,
   onScrubbedMetersChange = onMetersChange,
   onGestureEnd,
+  hint = true,
 }: NumberFieldProps) {
   const inputId = useId();
   const messageId = `${inputId}-message`;
@@ -179,9 +182,7 @@ export function NumberField({
       </label>
       <div
         className={
-          compact
-            ? "flex h-8 min-w-0 items-center rounded-lg border border-black/15 bg-transparent focus-within:border-black/40 dark:border-white/20 dark:focus-within:border-white/45"
-            : "flex items-center gap-2"
+          "flex h-8 min-w-0 items-center rounded-lg border border-black/15 bg-transparent focus-within:border-black/40 dark:border-white/20 dark:focus-within:border-white/45"
         }
       >
         {compact ? (
@@ -227,19 +228,23 @@ export function NumberField({
           step="any"
           value={draft}
           aria-invalid={problem !== null}
-          aria-describedby={compact && problem === null ? undefined : messageId}
+          aria-describedby={
+            (compact || !hint) && problem === null ? undefined : messageId
+          }
           onChange={(event) => handleChange(event.target.value)}
           className={
             compact
               ? "compact-number-input h-full min-w-0 flex-1 bg-transparent pr-1.5 text-sm tabular-nums outline-none"
-              : "h-8 w-28 rounded-lg border border-black/15 bg-transparent px-3 text-sm tabular-nums dark:border-white/20"
+              : "h-full min-w-0 flex-1 bg-transparent pl-2.5 text-sm tabular-nums outline-none"
           }
         />
         {compact ? null : (
-          <span className="text-sm opacity-60">{displayUnitSuffix(unit)}</span>
+          <span className="pr-2 text-xs opacity-50">
+            {displayUnitSuffix(unit)}
+          </span>
         )}
       </div>
-      {compact && problem === null ? null : (
+      {(compact || !hint) && problem === null ? null : (
         <p
           id={messageId}
           className={

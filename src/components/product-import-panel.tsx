@@ -19,7 +19,8 @@ export type ProductImportPanelProps = {
 /**
  * Paste a product page, get the form filled in.
  *
- * Nothing here saves anything. It reads what it can, says what it read and
+ * Shown by the form when asked for, not folded under a disclosure of its
+ * own: the form decides where it goes. Nothing here saves anything. It reads what it can, says what it read and
  * where each value came from, and leaves the form to be corrected and
  * submitted as normal — the confirmation step ADR 0005 requires.
  */
@@ -38,37 +39,34 @@ export function ProductImportPanel({
   }
 
   return (
-    <details className="rounded-lg border border-black/10 p-4 dark:border-white/15">
-      <summary className="cursor-pointer text-sm font-medium">
-        Paste from a product page
-      </summary>
-
-      <div className="mt-4 flex flex-col gap-3">
-        <label htmlFor={textareaId} className="text-sm">
-          Open the product page, select all of it, copy, and paste it here.
-          Whatever can be read is filled into the form below for you to check.
-        </label>
-        <textarea
-          id={textareaId}
-          value={text}
-          rows={5}
-          onChange={(event) => setText(event.target.value)}
-          className="w-full rounded-md border border-black/15 bg-transparent px-2.5 py-1.5 font-mono text-xs dark:border-white/20"
+    <div className="flex flex-col gap-3 rounded-lg border border-black/10 p-3 dark:border-white/15">
+      <label
+        htmlFor={textareaId}
+        className="text-[13px] leading-relaxed opacity-70"
+      >
+        Open the product page, select all of it, copy, and paste it here.
+        Whatever can be read is filled into the form for you to check.
+      </label>
+      <textarea
+        id={textareaId}
+        value={text}
+        rows={5}
+        onChange={(event) => setText(event.target.value)}
+        className="w-full rounded-md border border-black/15 bg-transparent px-2.5 py-1.5 font-mono text-xs dark:border-white/20"
+      />
+      <div>
+        <LabelledButton
+          label="Fill the form"
+          icon={WandSparkles}
+          disabled={text.trim() === ""}
+          onClick={handleFill}
         />
-        <div>
-          <LabelledButton
-            label="Fill the form"
-            icon={WandSparkles}
-            disabled={text.trim() === ""}
-            onClick={handleFill}
-          />
-        </div>
-
-        {report === null ? null : (
-          <ExtractionReport report={report} unit={unit} />
-        )}
       </div>
-    </details>
+
+      {report === null ? null : (
+        <ExtractionReport report={report} unit={unit} />
+      )}
+    </div>
   );
 }
 

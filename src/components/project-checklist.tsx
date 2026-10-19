@@ -52,8 +52,8 @@ export function ProjectChecklist() {
       <div className="flex flex-col gap-4">
         <p className="text-sm opacity-60">
           Nothing is in the room yet, so there is nothing to buy. Add furniture
-          in the catalogue, then place it in the room — the list counts what is
-          standing in the plan, not what is in the catalogue.
+          in the furniture list, then place it in the room — the list counts
+          what is standing in the plan, not what is in the list.
         </p>
         <Unplaced products={checklist.unplaced} />
       </div>
@@ -282,7 +282,7 @@ function Unplaced({ products }: { products: readonly FurnitureProduct[] }) {
     <div className="flex flex-col gap-2">
       <h3 className="text-sm font-medium">Not in the room</h3>
       <p className="text-xs leading-relaxed opacity-60">
-        In the catalogue but not placed, so not counted:{" "}
+        In the furniture list but not placed, so not counted:{" "}
         {products.map((product) => product.name).join(", ")}.
       </p>
     </div>

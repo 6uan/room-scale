@@ -21,6 +21,33 @@ import {
 
 export type PurchaseStatus = "considering" | "ordered" | "owned";
 
+/**
+ * What kind of thing it is, so a long list reads in groups.
+ *
+ * A closed list rather than free text: a category typed as "Sofa", "sofas"
+ * and "Seating" is three groups of one. Nothing in the fit checking reads it.
+ */
+export type ProductCategory =
+  | "seating"
+  | "table"
+  | "storage"
+  | "bed"
+  | "rug"
+  | "lighting"
+  | "decor"
+  | "other";
+
+export const PRODUCT_CATEGORIES: readonly ProductCategory[] = [
+  "seating",
+  "table",
+  "storage",
+  "bed",
+  "rug",
+  "lighting",
+  "decor",
+  "other",
+];
+
 export const PURCHASE_STATUSES: readonly PurchaseStatus[] = [
   "considering",
   "ordered",
@@ -40,6 +67,7 @@ export type FurnitureProduct = {
   readonly productUrl: string;
   readonly priceCents: Cents;
   readonly purchaseStatus: PurchaseStatus;
+  readonly category: ProductCategory;
   readonly footprint: Footprint;
   readonly heightMeters: number;
 };
@@ -153,6 +181,7 @@ export function createProduct(id: string): FurnitureProduct {
     productUrl: "",
     priceCents: 0,
     purchaseStatus: "considering",
+    category: "other",
     footprint: { widthMeters: 0.5, depthMeters: 0.5 },
     heightMeters: 0.5,
   };

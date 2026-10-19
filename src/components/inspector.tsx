@@ -149,7 +149,10 @@ function Panel({
   return (
     <section
       aria-label={title}
-      className={cn("flex flex-col p-4", sectioned ? "gap-0" : "gap-5 p-5")}
+      className={cn(
+        "flex min-h-full flex-col p-4",
+        sectioned ? "gap-0" : "gap-5 p-5",
+      )}
     >
       {/*
         Top-aligned only when there are two lines to align to. With a name and
@@ -449,31 +452,27 @@ function ProductInspector({
   return (
     <Panel
       title={existing === undefined ? "New product" : existing.name}
-      subtitle="Catalogue"
+      subtitle="Furniture"
+      action={
+        existing === undefined ? undefined : (
+          <IconButton
+            label={`Remove ${existing.name}`}
+            icon={Trash2}
+            tone="danger"
+            onClick={() => onProductRemove(existing)}
+          />
+        )
+      }
     >
       <ProductForm
         key={existing?.id ?? "new"}
         initial={initial}
         unit={unit}
         submitLabel={existing === undefined ? "Add product" : "Save changes"}
+        problem={productProblem}
         onSave={onProductSave}
         onCancel={() => onSelect(null)}
       />
-      {productProblem === null ? null : (
-        <p role="alert" className="text-xs text-red-600">
-          {productProblem}
-        </p>
-      )}
-      {existing === undefined ? null : (
-        <div className="self-start">
-          <LabelledButton
-            label={`Remove ${existing.name}`}
-            icon={Trash2}
-            tone="danger"
-            onClick={() => onProductRemove(existing)}
-          />
-        </div>
-      )}
     </Panel>
   );
 }

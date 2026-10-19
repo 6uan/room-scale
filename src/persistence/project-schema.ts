@@ -41,8 +41,10 @@ import { FIRST_PROJECT_NAME, type Project } from "@/domain/project";
  *     says.
  * 15. A project has a name, because there can be more than one. An existing
  *     project is the first.
+ * 16. A product has a category. Existing products are "other", which is
+ *     what not having said is.
  */
-export const SCHEMA_VERSION = 15;
+export const SCHEMA_VERSION = 16;
 
 /** Meters, cents, and the rest are all plain finite numbers on the way in. */
 const finiteNumber = z
@@ -137,6 +139,16 @@ const productSchema = z.object({
   productUrl: z.string(),
   priceCents: wholeNumber,
   purchaseStatus: z.enum(["considering", "ordered", "owned"]),
+  category: z.enum([
+    "seating",
+    "table",
+    "storage",
+    "bed",
+    "rug",
+    "lighting",
+    "decor",
+    "other",
+  ]),
   footprint: z.object({
     widthMeters: finiteNumber,
     depthMeters: finiteNumber,
@@ -501,6 +513,22 @@ const MIGRATIONS: Record<number, (document: object) => object> = {
     version: 15,
     project: { ...projectOf(document), name: FIRST_PROJECT_NAME },
   }),
+  // Version 16 gave products a category. "Other" is what an unsorted one is.
+  15: (document) => {
+    const project = projectOf(document) as Record<string, unknown>;
+    const products = Array.isArray(project.products) ? project.products : [];
+    return {
+      ...document,
+      version: 16,
+      project: {
+        ...project,
+        products: products.map((value) => ({
+          ...objectOf(value),
+          category: "other",
+        })),
+      },
+    };
+  },
 };
 
 /**

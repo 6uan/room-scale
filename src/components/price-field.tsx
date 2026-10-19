@@ -24,7 +24,9 @@ export type PriceFieldProps = {
  *
  * Like `NumberField`, the text is kept as typed and only a value that parses is
  * reported upward, so a half-typed amount does not momentarily become a
- * different price.
+ * different price. The currency sign sits inside the box, and nothing is
+ * printed under it unless something is wrong: the number in the box is the
+ * price, and echoing it formatted underneath said the same thing twice.
  */
 export function PriceField({ label, cents, onCentsChange }: PriceFieldProps) {
   const inputId = useId();
@@ -54,31 +56,28 @@ export function PriceField({ label, cents, onCentsChange }: PriceFieldProps) {
   }
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex min-w-0 flex-col gap-1.5">
       <label htmlFor={inputId} className="text-sm font-medium">
         {label}
       </label>
-      <div className="flex items-center gap-2">
-        <span className="text-sm opacity-60">$</span>
+      <div className="flex h-8 min-w-0 items-center rounded-lg border border-black/15 bg-transparent focus-within:border-black/40 dark:border-white/20 dark:focus-within:border-white/45">
+        <span className="pl-2.5 text-xs opacity-50">$</span>
         <input
           id={inputId}
           type="text"
           inputMode="decimal"
           value={draft}
           aria-invalid={problem !== null}
-          aria-describedby={messageId}
+          {...(problem === null ? {} : { "aria-describedby": messageId })}
           onChange={(event) => handleChange(event.target.value)}
-          className="w-32 rounded-md border border-black/15 bg-transparent px-2.5 py-1.5 text-sm tabular-nums dark:border-white/20"
+          className="h-full min-w-0 flex-1 bg-transparent px-2 text-sm tabular-nums outline-none"
         />
       </div>
-      <p
-        id={messageId}
-        className={
-          problem === null ? "text-xs opacity-60" : "text-xs text-red-600"
-        }
-      >
-        {problem === null ? formatCents(cents) : problemMessage(problem)}
-      </p>
+      {problem === null ? null : (
+        <p id={messageId} className="text-[13px] text-red-600">
+          {problemMessage(problem)}
+        </p>
+      )}
     </div>
   );
 }

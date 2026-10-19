@@ -60,6 +60,7 @@ const RUG: FurnitureProduct = {
   productUrl: "",
   priceCents: 34900,
   purchaseStatus: "considering",
+  category: "other",
   footprint: {
     widthMeters: metersFromInches(96),
     depthMeters: metersFromInches(60),

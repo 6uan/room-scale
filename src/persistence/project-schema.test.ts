@@ -62,6 +62,7 @@ describe("readStoredProject", () => {
           productUrl: "",
           priceCents: 34900,
           purchaseStatus: "considering" as const,
+          category: "other" as const,
           footprint: { widthMeters: 2.4, depthMeters: 1.5 },
           heightMeters: 0.01,
         },
@@ -632,6 +633,30 @@ describe("readStoredProject", () => {
     });
 
     expect(result.ok && result.project.name).toBe("Project 1");
+  });
+
+  it("files a version 15 product under other, which is what unsorted is", () => {
+    const result = readStoredProject({
+      ...STORED,
+      version: 15,
+      project: {
+        ...STORED.project,
+        products: [
+          {
+            id: "p1",
+            name: "Sofa",
+            retailer: "",
+            productUrl: "",
+            priceCents: 0,
+            purchaseStatus: "considering",
+            footprint: { widthMeters: 2, depthMeters: 1 },
+            heightMeters: 0.8,
+          },
+        ],
+      },
+    });
+
+    expect(result.ok && result.project.products[0]?.category).toBe("other");
   });
 
   it("refuses a part whose rotation is missing at the current version", () => {

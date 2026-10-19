@@ -35,6 +35,7 @@ function product(id: string, widthMeters: number, depthMeters: number) {
     productUrl: "",
     priceCents: 0,
     purchaseStatus: "considering",
+    category: "other",
     footprint: { widthMeters, depthMeters },
     heightMeters: 0.5,
   };
