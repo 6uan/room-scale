@@ -75,7 +75,7 @@ describe("dimensions with labelled axes", () => {
   it("reads feet", () => {
     const found = extractDimensions("Length: 8 ft");
 
-    expect(found.widthMeters?.value).toBeCloseTo(2.4384, 10);
+    expect(found.depthMeters?.value).toBeCloseTo(2.4384, 10);
   });
 
   it("treats a bare number as inches, which is what US retail prints", () => {

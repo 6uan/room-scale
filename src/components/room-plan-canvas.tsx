@@ -1905,7 +1905,7 @@ function describeRoom(room: Room, unit: DisplayUnit): string {
   const size =
     room.parts.length === 1
       ? `${formatLength(bounds.widthMeters, unit)} wide by ` +
-        `${formatLength(bounds.depthMeters, unit)} deep`
+        `${formatLength(bounds.depthMeters, unit)} long`
       : `${formatLength(bounds.widthMeters, unit)} across by ` +
         `${formatLength(bounds.depthMeters, unit)} down, built from ${room.parts.length} rectangles`;
   const at =
@@ -2150,7 +2150,7 @@ function drawRoomPreview(
   context.restore();
 }
 
-/** The width and depth of the room being drawn, pinned to its far corner. */
+/** The width and length of the room being drawn, pinned to its far corner. */
 function DrawnSize({
   part,
   projection,
@@ -2177,7 +2177,7 @@ function DrawnSize({
         <span>{formatLength(part.widthMeters, unit)}</span>
       </span>
       <span className="flex justify-between gap-3">
-        <span className="opacity-60">Depth</span>
+        <span className="opacity-60">Length</span>
         <span>{formatLength(part.depthMeters, unit)}</span>
       </span>
     </p>

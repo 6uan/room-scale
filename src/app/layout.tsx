@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "RoomScale — will it actually fit?",
+  title: "RoomScale",
   description:
     "Work out what furniture will fit in the apartment you are moving into, before you buy any of it. Measure once, bring products in from their listing pages, and see what does not fit and by how much. It runs in your browser: no account, nothing uploaded.",
 };

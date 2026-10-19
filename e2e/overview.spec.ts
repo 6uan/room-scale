@@ -28,7 +28,7 @@ async function furnish(page: Page) {
     await contents(page).getByRole("button", { name: "New product" }).click();
     await details(page).getByLabel("Name").fill(piece.name);
     await details(page).getByLabel("Width").fill(piece.width);
-    await details(page).getByLabel("Depth").fill(piece.depth);
+    await details(page).getByLabel("Length").fill(piece.depth);
     await details(page).getByLabel("Price").fill(piece.price);
     await details(page).getByRole("button", { name: "Add product" }).click();
   }

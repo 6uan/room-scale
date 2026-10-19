@@ -39,7 +39,7 @@ function rows(csv: string) {
 describe("checklistCsv", () => {
   it("starts with a header a spreadsheet can read", () => {
     expect(rows(csvFor([], []))[0]).toBe(
-      "Item,Retailer,Quantity,Price each,Line total,Status,Width (m),Depth (m),Link",
+      "Item,Retailer,Quantity,Price each,Line total,Status,Width (m),Length (m),Link",
     );
   });
 
