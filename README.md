@@ -1,92 +1,44 @@
 # RoomScale
 
-**You get one visit with a tape measure. Then you have to furnish the place.**
+**Will the furniture fit? Measure once, then find out before you buy.**
 
-RoomScale works out what furniture will fit in the apartment you are moving
-into — before you buy any of it, and without going back to measure again.
+RoomScale is a floor planner for one job: you have signed for an apartment,
+you have the listing's plan and one visit with a tape measure, and you have to
+decide what to buy. Draw the rooms at the sizes you measured, bring furniture
+in at the dimensions the retailer printed, and the plan tells you what does
+not fit and by how much. What you are left with is a shopping list whose total
+you can trust.
 
-It runs in your browser. No account, nothing uploaded, and the project stays on
-your own machine.
+It runs entirely in your browser. No account, no server, nothing uploaded.
 
-Measure the rooms once. Bring furniture in from the listing pages you already
-have open, at the dimensions the retailer printed. Arrange it in a plan drawn to
-scale, and RoomScale tells you what does not fit and by how much: a sectional
-overlapping the coffee table, a console pushed through a wall, or a chair
-standing outside every room. What you are left with is a shopping list whose
-total you can trust, because every price on it belongs to something that has a
-place in the room.
+![A bedroom in RoomScale: the plan in the middle, the apartment on the left, the selected bed on the right](docs/screenshot.png)
 
-Eventually you will be able to see it, rather than read it. A 3D view of the
-same data is the last step rather than the first, because a render that looks
-right and measures wrong is the exact mistake this tool exists to prevent. When
-it arrives, the dimensions still win.
+## What it does
 
-## Who it is for
+- **Rooms the way a tape reads them.** Type `11' 6"` or `138`, drag a wall and
+  watch the size, build an L from two sections, clip a corner, mark a side
+  open. Doors, windows, and passages sit on named walls at a distance from a
+  corner.
+- **Furniture at true size.** Paste a product page and the name, price, and
+  dimensions are read out of it, shown with the text they came from, and
+  confirmed before they are stored. Or type them. Drag a piece onto the plan,
+  turn it, snap it to a wall or another piece, or type its gap to each wall.
+- **Answers in inches, not colours.** Overlaps, a piece through a wall, a piece
+  in a door's swing, a piece in no room: each is a sentence with the amount.
+- **Several layouts of one apartment**, each priced, so arrangements can be
+  weighed against each other. Hide a piece to take it off the plan and off the
+  bill without losing its place.
+- **A shopping list** with quantities, prices, links, and what you have already
+  bought, as a page you can print or a spreadsheet you can open.
+- **Your data stays yours.** Everything is saved in the browser, and the whole
+  project exports as one file you can keep or reopen elsewhere.
 
-Somebody who has just signed for an apartment. You have the listing floor plan,
-a few photos of empty rooms, and — if you are lucky — one visit with a tape
-measure. Every sofa you like is fifteen minutes of arithmetic and a guess, and
-the wrong guess is a restocking fee or a living room you cannot walk through.
+## Principles
 
-RoomScale is the place to do that arithmetic once, keep it, and change your mind
-about the furniture instead of the measurements.
-
-## How it works
-
-1. **Measure the rooms once** — each room's width, depth, and ceiling, where it
-   sits in the apartment, and where the doors, windows, and open passages are. Type inches or centimeters; it stores meters
-   either way.
-2. **Bring the furniture in from its page** — paste a product page and RoomScale
-   reads the name, price, and dimensions out of it. Every value it extracts is
-   shown with the text it came from and confirmed before it is stored, and
-   typing one in by hand stays a first-class path.
-3. **Put it in the room** — pieces are drawn at their true footprint, and moved
-   and turned by dragging, by typing numbers, or with the arrow keys.
-4. **Find out what does not fit** — overlaps, wall crossings, and furniture
-   outside every room, reported in words with the amount, in your unit. Not a
-   color on a canvas you have to interpret.
-5. **Keep the list** — every product with its quantity, price, link, and whether
-   you have bought it yet, and a total that comes from what is actually in the
-   room.
-
-## Where it is now
-
-**The core loop and workspace through step 17a are done; step 17b is next.**
-What works today:
-
-- One workspace: what is in the apartment on the left, the plan in the middle,
-  and whatever you select on the right. The plan pans and zooms — scroll to pan,
-  ⌘ or Ctrl with scroll to zoom, `0` to fit.
-- An apartment built out of rectangular rooms, each with a name, a size, a place
-  on the floor, and its own doors, windows, and open passages.
-- A catalogue at `/furniture` — exact dimensions, price in integer cents,
-  retailer, link, purchase status — filled in from a pasted product page.
-- Furniture placed in the room at its true footprint, moved and turned by
-  dragging, by typing a position, or with the arrow keys.
-- Overlaps, wall crossings, and pieces outside the room, reported in words with
-  the amount they are out by.
-- Named arrangements of the same apartment, switched from the top bar, each
-  priced so they can be weighed against each other.
-- A printable overview at `/overview` — quantity, price, link, and purchase
-  status per item, with what the room costs and what is still to buy.
-- Everything saved in your browser, and nothing sent anywhere — and a way out:
-  the whole project as a file to keep or reopen, and the list as a spreadsheet.
-
-Still to come, in this order: placing openings on the plan, rooms made from
-multiple rectangular parts, blocked-door checks, the perspective view, and
-photorealism.
-
-[ROADMAP.md](ROADMAP.md) is a strict sequence, not a backlog. Steps 4 to 10 are
-the tool's whole reason for existing: what fits, and what it costs. Everything
-after them makes the answer nicer to look at.
-
-## Not in scope
-
-Floor-plan recognition from photos, multiplayer, bulk retailer scraping, AR,
-multi-story buildings, and checkout.
-
-Photorealistic rendering is wanted but deliberately last, after the tool
-answers the question it exists for.
+A render that looks right and measures wrong is the mistake this tool exists
+to prevent, so the measurements come first and the picture comes after. Every
+value is a number you can type. Lengths are stored in meters and money in
+integer cents. The geometry is pure, framework-free, and tested.
 
 ## Getting started
 
@@ -94,74 +46,48 @@ Requires Node 20.11+ and pnpm.
 
 ```bash
 pnpm install
-pnpm dev            # http://localhost:3000
+pnpm dev        # http://localhost:3000
 ```
 
-If you reach the dev server on any hostname other than `localhost` — through a
-tunnel, a reverse proxy, or from another machine — copy `.env.example` to
-`.env.local` and list those hostnames in `DEV_ORIGINS`, or Next will reject the
-requests.
+Before a pull request:
 
-## Scripts
+```bash
+pnpm verify     # format, lint, types, unit tests
+pnpm e2e        # Playwright, for anything user-facing (pnpm e2e:install once)
+```
 
-| Command              | What it does                                  |
-| -------------------- | --------------------------------------------- |
-| `pnpm dev`           | Development server                            |
-| `pnpm build`         | Production build                              |
-| `pnpm start`         | Serve the production build                    |
-| `pnpm lint`          | ESLint                                        |
-| `pnpm format`        | Rewrite files with Prettier                   |
-| `pnpm format:check`  | Fail if anything is unformatted               |
-| `pnpm typecheck`     | `tsc --noEmit`, strict mode                   |
-| `pnpm test`          | Vitest unit tests, once                       |
-| `pnpm test:watch`    | Vitest in watch mode                          |
-| `pnpm test:coverage` | Unit tests with a V8 coverage report          |
-| `pnpm e2e`           | Playwright end-to-end tests (builds first)    |
-| `pnpm e2e:install`   | Install the Chromium browser Playwright needs |
-| `pnpm verify`        | format:check + lint + typecheck + unit tests  |
-
-Run `pnpm verify` before opening a pull request; run `pnpm e2e` too if you
-touched anything user-facing.
-
-## Repository layout
+## Layout
 
 ```
 src/
-  app/            Pages: the workspace at /, the overview at /overview
-  components/     The workspace panels, the plan canvas, and the forms
-  domain/         Pure logic — no React, no Three.js, no browser APIs
-    units/        Meter, area, and integer-cent conversions (implemented)
-    room/         The room, its walls, and its openings (implemented)
-    furniture/    Products: dimensions, price, retailer (implemented)
-    project/      The saved document, and the checklist derived from it
-    import/       Reading a product out of a pasted page (implemented)
-    geometry/     Plan projection, oriented rectangles, SAT (implemented)
-    validation/   Fit rules that explain what does not fit (implemented)
-  persistence/    Dexie/IndexedDB schema and migrations (implemented)
-  state/          Zustand store holding the active project (implemented)
-  scene/          React Three Fiber rendering (planned)
-e2e/              Playwright specs
-docs/adr/         Architecture decision records
+  app/           Pages
+  components/    The workspace, the plan canvas, the panels
+  domain/        Pure logic: units, rooms, furniture, geometry, validation
+  persistence/   IndexedDB schema and migrations
+  state/         The project store
+e2e/             Playwright specs
+docs/adr/        Architecture decision records
 ```
 
-`src/domain` is the heart of the project and is deliberately framework-free —
-ESLint blocks React, Three.js, Zustand, Dexie, and Next imports there.
+`src/domain` has no React, Three.js, Zustand, Dexie, or browser APIs in it,
+and ESLint keeps it that way.
 
-## Key decisions
+## Where it is going
 
-- [ADR 0001 — Use meters internally](docs/adr/0001-use-meters-internally.md)
-- [ADR 0002 — Local-first persistence](docs/adr/0002-local-first-persistence.md)
-- [ADR 0003 — Separate furniture products from scene instances](docs/adr/0003-separate-products-from-instances.md)
-- [ADR 0004 — Draw the plan view on a 2D canvas](docs/adr/0004-draw-the-plan-view-on-a-2d-canvas.md)
-- [ADR 0005 — Assisted product import](docs/adr/0005-assisted-product-import.md)
+[ROADMAP.md](ROADMAP.md) is the build order, and the
+[issues](https://github.com/6uan/room-scale/issues) are what is left in it. A
+perspective view comes next, and photorealism last, because neither changes a
+measurement.
+
+Not planned: floor-plan recognition, multiplayer, bulk scraping, AR, more than
+one floor, checkout.
 
 ## Contributing
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) and
-[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Agent-authored contributions must
-follow [AGENTS.md](AGENTS.md). Security reports go through
+See [CONTRIBUTING.md](CONTRIBUTING.md). Decisions that constrain the code are
+recorded in [docs/adr](docs/adr). Security reports go through
 [SECURITY.md](SECURITY.md).
 
 ## License
 
-[MIT](LICENSE).
+[MIT](LICENSE)

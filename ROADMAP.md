@@ -14,10 +14,10 @@ Two rules keep the order honest:
   Steps 4 to 10 are that question end to end. Everything after them makes the
   answer nicer to look at.
 
-Status: **step 18 is done, and the listing can be traced.** Blocked openings
-(step 19) are set aside — the apartment on the screen matters more than that
-check — so the next work is entering the real apartment over its own plan,
-then step 20.
+Status: **steps 1 to 19 are done.** The real apartment is being entered and
+furnished through the tool, and what that turns up is tracked as
+[issues](https://github.com/6uan/room-scale/issues). Step 20, the perspective
+view, is next.
 
 ## Near-term pull requests
 
@@ -35,7 +35,7 @@ calendar time.
 | Done — Step 18b      | Rotate room parts for diagonal walls                                                                                             | Medium      | High        | Required for the real plan, but only after the higher-leverage rectangular-part model is proven.                |
 | Done — Step 18 final | Mark edges open, and give the apartment one wall thickness rooms may override                                                    | Medium      | High        | Completes balconies and open living areas; the shell/partition split it shipped with was reversed for evenness. |
 | Done — Trace listing | Put the listing's floor plan under the canvas, size it against the drawing, and trace the rooms over it                          | **High**    | **Highest** | Entering the apartment was the thing stopping people — the recorded trigger for promoting this from deferred.   |
-| Deferred — 19        | Report furniture that blocks a door or passage                                                                                   | Medium      | Medium      | Set aside: a useful check, but the apartment on the screen and the furnishing answer matter more right now.     |
+| Done — 19            | Report furniture that blocks a door                                                                                              | Medium      | Medium      | A door's swing is checked; passages and windows wait on a clearance number (#69).                               |
 | Deferred import      | Try a pasted product URL, with the existing paste-text flow as the permanent fallback                                            | Medium      | Medium      | It can remove typing on cooperative sites, but retailer rendering and anti-bot behavior cap its reliability.    |
 | Step 20              | Add the dimensionally correct perspective view                                                                                   | Medium      | Medium      | It increases confidence and comprehension, but does not unlock a measurement the plan cannot already answer.    |
 | Optional import      | Try a local model when deterministic product parsing fails                                                                       | Low         | Low         | Setup cost and limited audience make this a fallback, not a near-term product dependency.                       |
