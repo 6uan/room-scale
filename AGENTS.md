@@ -224,10 +224,12 @@ all, so a project can always be understood without it.
 
 ## Scope management
 
-`ROADMAP.md` holds the build order as a numbered sequence. Work through it one
-step at a time, in order. Do not begin a step until the previous step is
+`docs/build-log.md` holds the build order as a numbered sequence, with the
+reasoning behind each step; what is still to build is in the GitHub issues.
+Work one step at a time. Do not begin a step until the previous step is
 finished and its checks pass, and do not implement a later step early because
-it seems convenient.
+it seems convenient. When a step leaves something undone, open an issue for it
+and say so in the log.
 
 Before implementing a feature:
 

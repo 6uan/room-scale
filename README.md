@@ -72,12 +72,11 @@ docs/adr/        Architecture decision records
 `src/domain` has no React, Three.js, Zustand, Dexie, or browser APIs in it,
 and ESLint keeps it that way.
 
-## Where it is going
+## Status
 
-[ROADMAP.md](ROADMAP.md) is the build order, and the
-[issues](https://github.com/6uan/room-scale/issues) are what is left in it. A
-perspective view comes next, and photorealism last, because neither changes a
-measurement.
+It works end to end for one apartment, and is being used to furnish one. What
+is left is in the [issues](https://github.com/6uan/room-scale/issues). The
+reasoning behind what has been built is in [docs/build-log.md](docs/build-log.md).
 
 Not planned: floor-plan recognition, multiplayer, bulk scraping, AR, more than
 one floor, checkout.

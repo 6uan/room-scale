@@ -1,6 +1,7 @@
-# Roadmap
+# Build log
 
-This is the build order for RoomScale. It is a **sequence, not a backlog**:
+This is the build order RoomScale was made in, and the reasoning behind each
+step. It is a **sequence, not a backlog**:
 steps are done one at a time, in this order, and a step is not started until
 the one before it is finished and its checks pass.
 
@@ -19,29 +20,8 @@ furnished through the tool, and what that turns up is tracked as
 [issues](https://github.com/6uan/room-scale/issues). Step 20, the perspective
 view, is next.
 
-## Near-term pull requests
-
-**Impact** is how much of the real apartment or furnishing decision a change
-unlocks. **ROI** weighs that impact against implementation cost and risk. These
-ratings compare the remaining work with itself; they are not promises about
-calendar time.
-
-| Order                | Pull request boundary                                                                                                            | ROI         | Impact      | Why it is here                                                                                                  |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------- | ----------- | --------------------------------------------------------------------------------------------------------------- |
-| Done — #24           | Draw rooms directly; rename them in place; edit and scrub X/Y and W/H/D; remove the retired planning feature and its stored data | **Highest** | **High**    | It turns room entry into one coherent, pointer-first workflow and removes scope that distracts from furnishing. |
-| Done — #25           | Snap canvas resizing and scrubbed W/D changes to neighbouring room faces through one shared rule                                 | **Highest** | Medium      | Small, contained work that closes the last inconsistent transform path before more geometry is added.           |
-| Done — #26           | Place, select, move, and resize doors, windows, and passages on the plan while keeping every value typeable                      | **Highest** | **Highest** | Fourteen openings are the largest remaining source of repetitive arithmetic in entering the real apartment.     |
-| Done — Step 18a      | Build an L-shaped or notched room from multiple axis-aligned rectangular parts, including persistence and validation             | **High**    | **Highest** | This expresses most currently impossible rooms without taking on rotation at the same time.                     |
-| Done — Step 18b      | Rotate room parts for diagonal walls                                                                                             | Medium      | High        | Required for the real plan, but only after the higher-leverage rectangular-part model is proven.                |
-| Done — Step 18 final | Mark edges open, and give the apartment one wall thickness rooms may override                                                    | Medium      | High        | Completes balconies and open living areas; the shell/partition split it shipped with was reversed for evenness. |
-| Done — Trace listing | Put the listing's floor plan under the canvas, size it against the drawing, and trace the rooms over it                          | **High**    | **Highest** | Entering the apartment was the thing stopping people — the recorded trigger for promoting this from deferred.   |
-| Done — 19            | Report furniture that blocks a door                                                                                              | Medium      | Medium      | A door's swing is checked; passages and windows wait on a clearance number (#69).                               |
-| Deferred import      | Try a pasted product URL, with the existing paste-text flow as the permanent fallback                                            | Medium      | Medium      | It can remove typing on cooperative sites, but retailer rendering and anti-bot behavior cap its reliability.    |
-| Step 20              | Add the dimensionally correct perspective view                                                                                   | Medium      | Medium      | It increases confidence and comprehension, but does not unlock a measurement the plan cannot already answer.    |
-| Optional import      | Try a local model when deterministic product parsing fails                                                                       | Low         | Low         | Setup cost and limited audience make this a fallback, not a near-term product dependency.                       |
-| Step 21              | Add materials, lighting, finishes, and eventually product geometry in separate stages                                            | Low now     | Medium      | Valuable presentation work, deliberately last because it cannot improve dimensional correctness.                |
-
----
+What is still to build lives in the issues, not here. This file is the record
+of what was built and why, kept for anyone changing it.
 
 ## Done
 
@@ -65,7 +45,7 @@ center and width. Editable through numeric inputs in either unit, and drawn to
 scale in a top-down plan view at `/plan`.
 
 The plan view is a 2D canvas, recorded in
-[ADR 0004](docs/adr/0004-draw-the-plan-view-on-a-2d-canvas.md).
+[ADR 0004](adr/0004-draw-the-plan-view-on-a-2d-canvas.md).
 
 Not carried out of this step: opening heights — a window's sill and head, a
 door's head — which the plan view does not use. They arrive with the 3D view.
@@ -98,7 +78,7 @@ budget is step 10.
 ### 5. Save the project, so nothing is typed twice ✅
 
 Done. Dexie over IndexedDB, per
-[ADR 0002](docs/adr/0002-local-first-persistence.md). One versioned project
+[ADR 0002](adr/0002-local-first-persistence.md). One versioned project
 document holding the room, the products, and the display-unit preference, Zod
 validated on read.
 
@@ -120,7 +100,7 @@ recognize, which is the part that has to exist before there is a version 2.
 Typing a dozen products by hand is the thing most likely to stop this tool being
 used. This step removes most of that typing without ever letting a guessed
 number reach the catalogue unseen, per
-[ADR 0005](docs/adr/0005-assisted-product-import.md).
+[ADR 0005](adr/0005-assisted-product-import.md).
 
 Three stages, each shipping on its own and in this order:
 
@@ -164,7 +144,7 @@ dimensions, and a page the parser cannot read says so instead of guessing.
 
 Done. `FurnitureInstance` — a product reference plus a position and a rotation
 about the vertical axis, as decided in
-[ADR 0003](docs/adr/0003-separate-products-from-instances.md). Instances are
+[ADR 0003](adr/0003-separate-products-from-instances.md). Instances are
 drawn in the plan at their true footprint, rotated about their own center.
 
 A product can be placed more than once: two of the same pillow are one product

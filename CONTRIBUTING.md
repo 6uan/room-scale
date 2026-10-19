@@ -6,9 +6,10 @@ guidelines below exist so that contributions stay easy to review.
 ## Before you start
 
 - For anything beyond a typo, open an issue first and describe the change.
-- Check [ROADMAP.md](ROADMAP.md). Work that belongs to a later milestone is
-  usually declined for now, not because it is bad but because the foundations
-  it needs are not there.
+- Check the [issues](https://github.com/6uan/room-scale/issues) for what is
+  planned, and [docs/build-log.md](docs/build-log.md) for why things are the
+  way they are. Work that needs foundations not yet built is usually declined
+  for now, not because it is bad but because it would have to be redone.
 - Check the [ADRs](docs/adr). If your change contradicts one, that is a
   legitimate proposal — say so, and expect to write a superseding ADR.
 - Do not add dependencies or features that the change does not require.
