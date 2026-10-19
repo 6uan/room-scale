@@ -30,6 +30,7 @@ import {
   createProduct,
   footprintRect,
   placedNames,
+  withInstanceHidden,
   type FurnitureInstance,
   type FurnitureProduct,
   type PlacedFurniture,
@@ -393,12 +394,30 @@ function InstanceInspector({
       title={name}
       sectioned
       action={
-        <IconButton
-          label={`Take ${name} out of the room`}
-          icon={PackageOpen}
-          tone="danger"
-          onClick={() => onInstanceRemove(placed.instance)}
-        />
+        <div className="flex items-center gap-1">
+          {/* Set aside rather than removed: off the plan and the bill, but
+              its place is kept for when it comes back. */}
+          <IconButton
+            label={
+              placed.instance.hidden === true ? `Show ${name}` : `Hide ${name}`
+            }
+            icon={placed.instance.hidden === true ? EyeOff : Eye}
+            onClick={() =>
+              onInstanceChange(
+                withInstanceHidden(
+                  placed.instance,
+                  placed.instance.hidden !== true,
+                ),
+              )
+            }
+          />
+          <IconButton
+            label={`Take ${name} out of the room`}
+            icon={PackageOpen}
+            tone="danger"
+            onClick={() => onInstanceRemove(placed.instance)}
+          />
+        </div>
       }
     >
       <PanelSection title="Placement" first>

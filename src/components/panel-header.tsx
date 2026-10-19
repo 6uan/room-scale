@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { IconButton } from "@/components/icon-button";
 
 /**
@@ -16,12 +16,17 @@ export function PanelHeader({
   action,
   active = false,
   onAction,
+  collapsed,
+  onToggleCollapsed,
 }: {
   title: string;
   /** The accessible name of the add button, unchanged by the mode it turns on. */
   action: string;
   active?: boolean;
   onAction: () => void;
+  /** Whether the panel's body is folded away, for a panel that can be. */
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }) {
   return (
     <div className="flex items-center justify-between gap-2">
@@ -35,13 +40,23 @@ export function PanelHeader({
       <h2 className="min-w-0 truncate text-[15px] font-semibold tracking-tight">
         {title}
       </h2>
-      <IconButton
-        label={action}
-        icon={Plus}
-        pressed={active}
-        size="small"
-        onClick={onAction}
-      />
+      <div className="flex shrink-0 items-center gap-1">
+        {collapsed === undefined ? null : (
+          <IconButton
+            label={collapsed ? `Expand ${title}` : `Collapse ${title}`}
+            icon={collapsed ? ChevronRight : ChevronDown}
+            size="small"
+            onClick={() => onToggleCollapsed?.()}
+          />
+        )}
+        <IconButton
+          label={action}
+          icon={Plus}
+          pressed={active}
+          size="small"
+          onClick={onAction}
+        />
+      </div>
     </div>
   );
 }

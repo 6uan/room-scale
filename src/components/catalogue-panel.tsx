@@ -1,8 +1,9 @@
 "use client";
 
-import { GripVertical } from "lucide-react";
+import { useState } from "react";
 import { PRODUCT_CATEGORY_LABELS } from "@/components/product-form";
 import { PanelHeader } from "@/components/panel-header";
+import { useScrollFade } from "@/components/scroll-fade";
 import {
   countPlaced,
   type FurnitureInstance,
@@ -21,6 +22,11 @@ export type CataloguePanelProps = {
   selection: Selection;
   onSelect: (selection: Selection) => void;
   onPlace: (product: FurnitureProduct) => void;
+  /** Folded away, when the workspace is keeping track; otherwise its own. */
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
+  /** Free to take the sidebar, when the apartment list has folded away. */
+  unbounded?: boolean;
 };
 
 /**
@@ -38,68 +44,114 @@ export function CataloguePanel({
   selection,
   onSelect,
   onPlace,
+  collapsed: collapsedProp,
+  onToggleCollapsed,
+  unbounded = false,
 }: CataloguePanelProps) {
+  const scroll = useScrollFade();
+  // Folded away when the apartment list needs the room. A fact about this
+  // sitting, not the project, so it is not saved.
+  const [ownCollapsed, setOwnCollapsed] = useState(false);
+  const collapsed = collapsedProp ?? ownCollapsed;
+  const toggleCollapsed =
+    onToggleCollapsed ?? (() => setOwnCollapsed((was) => !was));
+
   return (
-    <div className="flex max-h-[70vh] min-h-0 flex-col gap-4 overflow-y-auto border-t border-black/10 p-5 dark:border-white/15">
+    <div
+      className={`flex min-h-0 min-w-0 flex-col border-t border-black/10 px-4 pt-3 pb-4 dark:border-white/15 ${
+        unbounded ? "" : "max-h-[42vh]"
+      }`}
+    >
       <PanelHeader
         title="Furniture"
         action="New product"
         onAction={() => onSelect({ kind: "new-product" })}
+        collapsed={collapsed}
+        onToggleCollapsed={toggleCollapsed}
       />
-
-      {products.length === 0 ? (
-        <p className="px-1 text-[13px] leading-relaxed opacity-60">
-          Nothing yet. Add the first thing you are thinking of buying, or paste
-          the page you found it on.
-        </p>
-      ) : (
-        <ul className="flex flex-col gap-1">
-          {products.map((product) => {
-            const placed = countPlaced(instances, product.id);
-            return (
-              <li
-                key={product.id}
-                draggable
-                onDragStart={(event) => {
-                  event.dataTransfer.setData(PRODUCT_DRAG_TYPE, product.id);
-                  event.dataTransfer.effectAllowed = "copy";
-                }}
-                className={`group flex min-w-0 cursor-grab items-center gap-1 rounded-lg py-2 pr-1 pl-1.5 text-sm transition-colors active:cursor-grabbing ${
-                  isSelected(selection, "product", product.id)
-                    ? "bg-black/10 dark:bg-white/15"
-                    : "hover:bg-black/5 dark:hover:bg-white/10"
-                }`}
-              >
-                {/* The handle is the only sign a row can be dragged at all,
-                    which the word "Place" beside it never was. */}
-                <GripVertical
-                  aria-hidden="true"
-                  className="size-3.5 shrink-0 opacity-25 group-hover:opacity-50"
-                />
-                <button
-                  type="button"
-                  aria-label={`Place ${product.name} in the room`}
-                  onClick={() => onPlace(product)}
-                  className="min-w-0 flex-1 text-left"
-                >
-                  <span className="block truncate">{product.name}</span>
-                  <span className="block truncate text-[13px] opacity-55">
-                    {product.category === "other"
-                      ? ""
-                      : `${PRODUCT_CATEGORY_LABELS[product.category]} · `}
-                    {formatLength(product.footprint.widthMeters, unit)} ×{" "}
-                    {formatLength(product.footprint.depthMeters, unit)}
-                    {product.priceCents === 0
-                      ? ""
-                      : ` · ${formatCents(product.priceCents)}`}
-                    {placed === 0 ? "" : ` · ${placed} placed`}
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+      {/* A rule under the header, edge to edge, so where the list scrolls is
+          seen. Outside the folding part, which clips what bleeds past it. */}
+      {collapsed ? null : (
+        <div className="-mx-4 mt-3 border-t border-black/10 dark:border-white/15" />
       )}
+
+      {/*
+        Folded by animating a grid row from one share to none, which is the
+        one way CSS will animate a height it has not been told. The list
+        stays mounted while it folds, inert, so it has something to animate
+        and comes back where it was scrolled to.
+      */}
+      <div
+        className="grid min-h-0 transition-[grid-template-rows,opacity] duration-200 ease-out"
+        style={{
+          // minmax(0, 1fr) rather than 1fr: a plain fr track will not go
+          // below its content, which is the whole list, and then nothing
+          // inside it ever scrolls.
+          gridTemplateRows: collapsed ? "0fr" : "minmax(0, 1fr)",
+          opacity: collapsed ? 0 : 1,
+        }}
+        inert={collapsed}
+        aria-hidden={collapsed}
+      >
+        {/* The gap under the header lives in here, so it folds with the list. */}
+        <div className="flex min-h-0 flex-col overflow-hidden">
+          {products.length === 0 ? (
+            <p className="px-1 text-[13px] leading-relaxed opacity-60">
+              Nothing yet. Add the first thing you are thinking of buying, or
+              paste the page you found it on.
+            </p>
+          ) : (
+            <div
+              {...scroll}
+              className={`-mx-4 min-h-0 overflow-y-auto px-4 pt-3 ${scroll.className}`}
+            >
+              <ul className="flex flex-col gap-1">
+                {products.map((product) => {
+                  const placed = countPlaced(instances, product.id);
+                  return (
+                    <li
+                      key={product.id}
+                      draggable
+                      onDragStart={(event) => {
+                        event.dataTransfer.setData(
+                          PRODUCT_DRAG_TYPE,
+                          product.id,
+                        );
+                        event.dataTransfer.effectAllowed = "copy";
+                      }}
+                      className={`group flex min-w-0 cursor-grab items-center gap-1 rounded-lg py-2 pr-1 pl-1.5 text-sm transition-colors active:cursor-grabbing ${
+                        isSelected(selection, "product", product.id)
+                          ? "bg-black/10 dark:bg-white/15"
+                          : "hover:bg-black/5 dark:hover:bg-white/10"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        aria-label={`Place ${product.name} in the room`}
+                        onClick={() => onPlace(product)}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        <span className="block truncate">{product.name}</span>
+                        <span className="block truncate text-[13px] opacity-55">
+                          {product.category === "other"
+                            ? ""
+                            : `${PRODUCT_CATEGORY_LABELS[product.category]} · `}
+                          {formatLength(product.footprint.widthMeters, unit)} ×{" "}
+                          {formatLength(product.footprint.depthMeters, unit)}
+                          {product.priceCents === 0
+                            ? ""
+                            : ` · ${formatCents(product.priceCents)}`}
+                          {placed === 0 ? "" : ` · ${placed} placed`}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

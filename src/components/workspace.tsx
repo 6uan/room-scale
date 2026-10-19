@@ -33,6 +33,8 @@ import {
   placedNames,
   placementFor,
   withInstance,
+  withInstanceHidden,
+  shownFurniture,
   type FurnitureInstance,
   type FurnitureProduct,
 } from "@/domain/furniture";
@@ -134,13 +136,18 @@ export function Workspace() {
     readonly roomId: string;
     readonly kind: OpeningKind;
   } | null>(null);
+  /** Which side panels are folded away. A fact about this sitting. */
+  const [folded, setFolded] = useState({ apartment: false, furniture: false });
   /** The product armed from the list, waiting for a click on the plan. */
   const [placingProduct, setPlacingProduct] = useState<FurnitureProduct | null>(
     null,
   );
 
   const furniture = placedFurniture(instances, products);
-  const problems = checkLayout(floor, furniture);
+  // What is set aside stays in the list, but is off the plan, out of the
+  // checks, and off the bill.
+  const shown = shownFurniture(furniture);
+  const problems = checkLayout(floor, shown);
   const troubledIds = troubledInstanceIds(problems);
   const roomNames = new Map(
     floor.rooms.map((room) => [
@@ -604,7 +611,15 @@ export function Workspace() {
             below. */}
         <aside
           aria-label="Contents"
-          className="grid min-w-0 grid-rows-[minmax(0,1fr)_auto] overflow-hidden border-r border-black/10 dark:border-white/15"
+          className="grid min-w-0 overflow-hidden border-r border-black/10 dark:border-white/15"
+          style={{
+            // The apartment list takes the rest and the furniture list is
+            // capped — unless the apartment list has folded away, when the
+            // furniture list may have the room instead.
+            gridTemplateRows: folded.apartment
+              ? "auto minmax(0, 1fr)"
+              : "minmax(0, 1fr) auto",
+          }}
         >
           <ApartmentLayers
             floor={floor}
@@ -619,6 +634,34 @@ export function Workspace() {
               setDrawingRoom((on) => !on);
             }}
             drawingRoom={drawingRoom}
+            collapsed={folded.apartment}
+            onToggleCollapsed={() =>
+              setFolded((was) => ({ ...was, apartment: !was.apartment }))
+            }
+            onToggleHidden={(id) => {
+              const instance = instances.find((one) => one.id === id);
+              if (instance !== undefined) {
+                setInstances(
+                  withInstance(
+                    instances,
+                    withInstanceHidden(instance, instance.hidden !== true),
+                  ),
+                );
+              }
+            }}
+            onReorder={(id, beforeId) => {
+              const moving = instances.find((one) => one.id === id);
+              if (moving === undefined) {
+                return;
+              }
+              const rest = instances.filter((one) => one.id !== id);
+              const at = rest.findIndex((one) => one.id === beforeId);
+              setInstances(
+                at === -1
+                  ? [...rest, moving]
+                  : [...rest.slice(0, at), moving, ...rest.slice(at)],
+              );
+            }}
           />
           <CataloguePanel
             products={products}
@@ -626,6 +669,11 @@ export function Workspace() {
             unit={unit}
             selection={selection}
             onSelect={setSelection}
+            collapsed={folded.furniture}
+            onToggleCollapsed={() =>
+              setFolded((was) => ({ ...was, furniture: !was.furniture }))
+            }
+            unbounded={folded.apartment}
             onPlace={(product) => {
               setDrawingRoom(false);
               setDrawingSectionOf(null);
@@ -639,7 +687,7 @@ export function Workspace() {
           <div className="absolute inset-0">
             <RoomPlanCanvas
               floor={floor}
-              furniture={furniture}
+              furniture={shown}
               unit={unit}
               selectedIds={selectedInstanceIds(selection)}
               troubledIds={troubledIds}

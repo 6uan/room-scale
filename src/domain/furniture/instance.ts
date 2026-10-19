@@ -27,6 +27,11 @@ export type FurnitureInstance = {
   readonly position: FloorPoint;
   /** Radians about the vertical axis. Zero means the product's own width runs along X. */
   readonly rotationRadians: number;
+  /**
+   * Set aside for now: off the plan, out of the checks, and off the bill,
+   * but kept with its place so it can come back. Absent means shown.
+   */
+  readonly hidden?: boolean | undefined;
 };
 
 /** An instance joined to the product it references. */
@@ -69,6 +74,27 @@ export function createInstance(
   position: FloorPoint,
 ): FurnitureInstance {
   return { id, productId, position, rotationRadians: 0 };
+}
+
+/** The piece set aside, or brought back. */
+export function withInstanceHidden(
+  instance: FurnitureInstance,
+  hidden: boolean,
+): FurnitureInstance {
+  const { hidden: was, ...rest } = instance;
+  void was;
+  return hidden ? { ...rest, hidden: true } : rest;
+}
+
+export function isShown(instance: FurnitureInstance): boolean {
+  return instance.hidden !== true;
+}
+
+/** Only what is on the plan: what is drawn, checked, and paid for. */
+export function shownFurniture(
+  furniture: readonly PlacedFurniture[],
+): readonly PlacedFurniture[] {
+  return furniture.filter(({ instance }) => isShown(instance));
 }
 
 /**

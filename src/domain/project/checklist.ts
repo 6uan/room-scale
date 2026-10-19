@@ -14,6 +14,7 @@
 
 import {
   countPlaced,
+  isShown,
   type FurnitureInstance,
   type FurnitureProduct,
 } from "@/domain/furniture";
@@ -55,10 +56,12 @@ export function buildChecklist(
   products: readonly FurnitureProduct[],
   instances: readonly FurnitureInstance[],
 ): Checklist {
+  // A piece set aside is not being bought: hidden means off the bill.
+  const shown = instances.filter(isShown);
   const unique = dedupeById(products);
   const counted = unique.map((product) => ({
     product,
-    quantity: countPlaced(instances, product.id),
+    quantity: countPlaced(shown, product.id),
   }));
 
   const lines: readonly ChecklistLine[] = counted

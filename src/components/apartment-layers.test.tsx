@@ -2,6 +2,9 @@ import { useState } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
+import { fireEvent } from "@testing-library/react";
+import { vi } from "vitest";
+import { createInstance, type PlacedFurniture } from "@/domain/furniture";
 import { withParts, withRoom, type Floor, type Room } from "@/domain/room";
 import type { Selection } from "@/components/selection";
 import { ApartmentLayers } from "./apartment-layers";
@@ -123,5 +126,87 @@ describe("ApartmentLayers room names", () => {
       "aria-pressed",
       "false",
     );
+  });
+});
+
+describe("ApartmentLayers pieces", () => {
+  const rug: PlacedFurniture = {
+    instance: createInstance("i1", "rug", { xMeters: 0, zMeters: 0 }),
+    product: {
+      id: "rug",
+      name: "Rug",
+      retailer: "",
+      productUrl: "",
+      priceCents: 0,
+      purchaseStatus: "considering",
+      category: "rug",
+      footprint: { widthMeters: 2, depthMeters: 1 },
+      heightMeters: 0.01,
+    },
+  };
+  const lamp: PlacedFurniture = {
+    instance: createInstance("i2", "lamp", { xMeters: 1, zMeters: 0.5 }),
+    product: { ...rug.product, id: "lamp", name: "Lamp" },
+  };
+
+  function renderPieces(
+    furniture: readonly PlacedFurniture[],
+    handlers: {
+      onToggleHidden?: (id: string) => void;
+      onReorder?: (id: string, beforeId: string) => void;
+    },
+  ) {
+    return render(
+      <ApartmentLayers
+        floor={projectWithLivingRoom().floor}
+        furniture={furniture}
+        selection={null}
+        troubledIds={new Set()}
+        onSelect={() => undefined}
+        onRoomChange={() => undefined}
+        onAddRoom={() => undefined}
+        {...handlers}
+      />,
+    );
+  }
+
+  it("offers to hide a piece, and to show one that is hidden", async () => {
+    const user = userEvent.setup();
+    const onToggleHidden = vi.fn();
+    renderPieces(
+      [rug, { ...lamp, instance: { ...lamp.instance, hidden: true } }],
+      { onToggleHidden },
+    );
+
+    await user.click(screen.getByRole("button", { name: "Hide Rug" }));
+    expect(onToggleHidden).toHaveBeenLastCalledWith("i1");
+    await user.click(screen.getByRole("button", { name: "Show Lamp" }));
+    expect(onToggleHidden).toHaveBeenLastCalledWith("i2");
+  });
+
+  it("reorders by dragging one row onto another", () => {
+    const onReorder = vi.fn();
+    renderPieces([rug, lamp], { onReorder });
+    // Each piece's own row: the room's row above them holds their text too.
+    const lampRow = screen.getByRole("button", { name: "Lamp" }).closest("li");
+    const rugRow = screen.getByRole("button", { name: "Rug" }).closest("li");
+    if (lampRow === null || rugRow === null) {
+      throw new Error("each piece has a row");
+    }
+
+    const data = new Map<string, string>();
+    const dataTransfer = {
+      setData: (type: string, value: string) => data.set(type, value),
+      getData: (type: string) => data.get(type) ?? "",
+      get types() {
+        return [...data.keys()];
+      },
+      effectAllowed: "move",
+    };
+    fireEvent.dragStart(lampRow, { dataTransfer });
+    fireEvent.dragOver(rugRow, { dataTransfer });
+    fireEvent.drop(rugRow, { dataTransfer });
+
+    expect(onReorder).toHaveBeenCalledWith("i2", "i1");
   });
 });
