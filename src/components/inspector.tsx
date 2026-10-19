@@ -149,7 +149,10 @@ function Panel({
   return (
     <section
       aria-label={title}
-      className={cn("flex flex-col p-4", sectioned ? "gap-0" : "gap-5 p-5")}
+      className={cn(
+        "flex min-h-full flex-col p-4",
+        sectioned ? "gap-0" : "gap-5 p-5",
+      )}
     >
       {/*
         Top-aligned only when there are two lines to align to. With a name and
