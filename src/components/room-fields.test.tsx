@@ -82,12 +82,12 @@ describe("RoomFields", () => {
 
     const position = screen.getByRole("group", { name: "Position" });
     expect(
-      within(position).getByRole("spinbutton", {
+      within(position).getByRole("textbox", {
         name: "Living room X position",
       }),
     ).toBeInTheDocument();
     expect(
-      within(position).getByRole("spinbutton", {
+      within(position).getByRole("textbox", {
         name: "Living room Y position",
       }),
     ).toBeInTheDocument();
@@ -97,10 +97,10 @@ describe("RoomFields", () => {
     // while width and depth are the section's, but a room is quoted as
     // W by D by H and reading it anywhere else is reading it twice.
     const size = screen.getByRole("group", { name: "Size" });
-    expect(within(size).getAllByRole("spinbutton")).toEqual([
-      within(size).getByRole("spinbutton", { name: "Living room width" }),
-      within(size).getByRole("spinbutton", { name: "Living room length" }),
-      within(size).getByRole("spinbutton", { name: "Living room height" }),
+    expect(within(size).getAllByRole("textbox")).toEqual([
+      within(size).getByRole("textbox", { name: "Living room width" }),
+      within(size).getByRole("textbox", { name: "Living room length" }),
+      within(size).getByRole("textbox", { name: "Living room height" }),
     ]);
     expect(within(size).getAllByRole("slider")).toHaveLength(3);
     expect(
@@ -138,7 +138,7 @@ describe("RoomFields", () => {
     renderFields(floor, room, onChange);
 
     fireEvent.change(
-      screen.getByRole("spinbutton", { name: "Living room width" }),
+      screen.getByRole("textbox", { name: "Living room width" }),
       { target: { value: "395" } },
     );
 
@@ -518,10 +518,10 @@ describe("RoomFields", () => {
     // The selected section's measurements, and only those. Every section on
     // screen at once is what made a three-part room a panel nobody could read.
     expect(
-      screen.getByRole("spinbutton", { name: "Living room section 2 width" }),
+      screen.getByRole("textbox", { name: "Living room section 2 width" }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("spinbutton", { name: "Living room section 1 width" }),
+      screen.queryByRole("textbox", { name: "Living room section 1 width" }),
     ).not.toBeInTheDocument();
 
     // The row of numbers is what says there is more than one rectangle. No
@@ -567,7 +567,7 @@ describe("RoomFields", () => {
     // No section selected is not an empty footprint: clicking a room should
     // still put a rectangle's measurements in front of you.
     expect(
-      screen.getByRole("spinbutton", { name: "Living room section 1 width" }),
+      screen.getByRole("textbox", { name: "Living room section 1 width" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Select Living room section 1" }),
@@ -607,7 +607,9 @@ describe("a room's own wall thickness", () => {
     await userEvent.click(walls());
 
     expect(walls()).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByLabelText("Living room wall thickness")).toHaveValue(10);
+    expect(screen.getByLabelText("Living room wall thickness")).toHaveValue(
+      "10",
+    );
   });
 
   it("makes the number this room's as soon as it is typed over", async () => {
@@ -713,7 +715,7 @@ describe("RoomFields: cut corners", () => {
     renderFields(floor, clipped, onChange);
 
     fireEvent.change(
-      screen.getByRole("spinbutton", {
+      screen.getByRole("textbox", {
         name: "Living room south-east corner width",
       }),
       // Centimeters: the panel is rendered in metric here.

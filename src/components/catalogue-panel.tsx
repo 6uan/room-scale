@@ -1,8 +1,7 @@
 "use client";
 
-import { CornerDownLeft, GripVertical } from "lucide-react";
+import { GripVertical } from "lucide-react";
 import { PRODUCT_CATEGORY_LABELS } from "@/components/product-form";
-import { IconButton } from "@/components/icon-button";
 import { PanelHeader } from "@/components/panel-header";
 import {
   countPlaced,
@@ -79,7 +78,8 @@ export function CataloguePanel({
                 />
                 <button
                   type="button"
-                  onClick={() => onSelect({ kind: "product", id: product.id })}
+                  aria-label={`Place ${product.name} in the room`}
+                  onClick={() => onPlace(product)}
                   className="min-w-0 flex-1 text-left"
                 >
                   <span className="block truncate">{product.name}</span>
@@ -95,12 +95,6 @@ export function CataloguePanel({
                     {placed === 0 ? "" : ` · ${placed} placed`}
                   </span>
                 </button>
-                <IconButton
-                  label={`Place ${product.name} in the room`}
-                  icon={CornerDownLeft}
-                  size="small"
-                  onClick={() => onPlace(product)}
-                />
               </li>
             );
           })}

@@ -21,7 +21,8 @@ export type AngleFieldProps = {
   radians: number;
   onRadiansChange: (radians: number) => void;
   /** Offer the handful of angles walls are actually built at. */
-  presets?: boolean;
+  /** Quick angles beside the field: the usual five, or your own list. */
+  presets?: boolean | readonly number[];
 };
 
 /**
@@ -131,9 +132,9 @@ export function AngleField({
             °
           </span>
         </div>
-        {presets ? (
+        {presets === false ? null : (
           <div className="flex min-w-0 flex-1 gap-1">
-            {PRESET_DEGREES.map((degrees) => {
+            {(presets === true ? PRESET_DEGREES : presets).map((degrees) => {
               const current =
                 Math.abs(currentDegrees(radians) - degrees) < 0.05;
               return (
@@ -159,7 +160,7 @@ export function AngleField({
               );
             })}
           </div>
-        ) : null}
+        )}
       </div>
       {/*
         Only when something is wrong. This used to read the applied angle back

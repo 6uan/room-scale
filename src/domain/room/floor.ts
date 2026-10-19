@@ -382,6 +382,26 @@ export function snapRoomEdge(
  * one spatial rule. Typed dimensions deliberately keep using `withRoomLength`:
  * a number somebody entered is exact rather than an approximate pointer intent.
  */
+/**
+ * Where a dragged edge should go so the *length* lands on a round number.
+ *
+ * Rounding the edge's own coordinate is not enough: the room's other wall may
+ * stand on a fraction — put there by a neighbour's wall thickness — and then a
+ * wall dragged to a whole inch leaves a width of 131.94. What the tape reads
+ * is the distance between the two walls, so that is what is rounded, and the
+ * edge goes wherever makes it so.
+ */
+export function roundedResizeTarget(
+  fixedEdgeMeters: number,
+  pointMeters: number,
+  round: (meters: number) => number,
+): number {
+  const length = round(Math.abs(pointMeters - fixedEdgeMeters));
+  return pointMeters >= fixedEdgeMeters
+    ? fixedEdgeMeters + length
+    : fixedEdgeMeters - length;
+}
+
 export function snapRoomResize(
   floor: Floor,
   room: Room,

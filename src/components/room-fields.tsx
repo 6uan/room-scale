@@ -48,6 +48,7 @@ import {
   displayUnitSuffix,
   displayValueFromMeters,
   formatArea,
+  formatLength,
   type DisplayUnit,
 } from "@/domain/units";
 
@@ -570,6 +571,14 @@ function RoomPartFields({
           onGestureEnd={onGestureEnd}
         />
       </PanelRow>
+      {/* The same three, the way a tape reads them. The fields take inches
+          because that is what retail and a tape's small marks give, but a
+          room is thought of in feet, and that is the number to check. */}
+      <p className="pl-16 text-[12px] tabular-nums opacity-55">
+        {formatLength(part.widthMeters, unit)} ×{" "}
+        {formatLength(part.depthMeters, unit)} ·{" "}
+        {formatLength(room.heightMeters, unit)} high
+      </p>
       <AngleField
         label={`${label} angle`}
         compactLabel="∠"

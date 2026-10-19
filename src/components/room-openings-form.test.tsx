@@ -79,7 +79,7 @@ describe("OpeningFields", () => {
       />,
     );
 
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Center" }), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Center" }), {
       target: { value: "40" },
     });
 

@@ -7,6 +7,7 @@ import {
   displayValueFromMeters,
   formatLength,
   metersFromDisplayValue,
+  parseLength,
   type DisplayUnit,
   type LengthLimits,
   type LengthProblem,
@@ -223,9 +224,11 @@ export function NumberField({
         ) : null}
         <input
           id={inputId}
-          type="number"
+          // Text, not number: a number input will not take the foot and
+          // inch marks a tape measure reads in, and 11'6 is the kind of thing
+          // somebody types here.
+          type="text"
           inputMode="decimal"
-          step="any"
           value={draft}
           aria-invalid={problem !== null}
           aria-describedby={
@@ -278,14 +281,9 @@ function textFromMeters(meters: number, unit: DisplayUnit): string {
   return text.includes(".") ? text.replace(/\.?0+$/, "") : text;
 }
 
-/** Parses a field's text into meters, or null when it is not yet a number. */
+/** Parses a field's text into meters, or null when it is not yet a length. */
 function metersFromDraft(text: string, unit: DisplayUnit): number | null {
-  const trimmed = text.trim();
-  if (trimmed === "") {
-    return null;
-  }
-  const value = Number(trimmed);
-  return Number.isNaN(value) ? null : metersFromDisplayValue(value, unit);
+  return parseLength(text, unit);
 }
 
 function draftProblem(
@@ -304,7 +302,9 @@ function problemMessage(
 ): string {
   switch (problem) {
     case "not-a-number":
-      return "Enter a number.";
+      return unit === "imperial"
+        ? `Enter inches, or feet and inches like 11' 6".`
+        : "Enter a number.";
     case "too-small":
       return `At least ${formatLength(limits.minMeters, unit)}.`;
     case "too-large":

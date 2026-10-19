@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ExternalLink,
   Eye,
   EyeOff,
   ImagePlus,
@@ -11,7 +12,7 @@ import {
 import {
   IconButton,
   IconFileButton,
-  LabelledButton,
+  LabelledLink,
 } from "@/components/icon-button";
 import { cn } from "@/components/cn";
 import { Disclosure } from "@/components/disclosure";
@@ -20,6 +21,7 @@ import { openingName } from "@/components/opening-name";
 import { OpeningFields } from "@/components/room-openings-form";
 import { ProductForm } from "@/components/product-form";
 import { RoomFields } from "@/components/room-fields";
+import { PanelSection } from "@/components/panel/section";
 import { PlacementFields } from "@/components/placement-fields";
 import type { Selection } from "@/components/selection";
 import {
@@ -377,49 +379,71 @@ function InstanceInspector({
   const name = placedNames(furniture)[index] ?? placed.product.name;
 
   return (
-    <Panel title={name} subtitle={placed.product.retailer || "Furniture"}>
-      <PlacementFields
-        floor={floor}
-        instance={placed.instance}
-        name={name}
-        unit={unit}
-        onInstanceChange={onInstanceChange}
-      />
-      {/*
-        A placement and the thing placed are different objects, and the panel
-        was only ever showing one of them. Its size and its price are the
-        product's — so this is the way back to them, without hunting through
-        the catalogue for the row this piece came from.
-      */}
-      <div className="flex flex-col gap-2 border-t border-black/10 pt-4 dark:border-white/15">
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-          <Fact
-            label="Size"
-            value={`${formatLength(placed.product.footprint.widthMeters, unit)} × ${formatLength(placed.product.footprint.depthMeters, unit)}`}
-          />
-          <Fact label="Price" value={formatCents(placed.product.priceCents)} />
-        </dl>
-        <div className="self-start">
-          <LabelledButton
-            label={`Edit ${placed.product.name}`}
-            icon={Pencil}
-            onClick={() => onSelect({ kind: "product", id: placed.product.id })}
-          />
-        </div>
-        <p className="text-xs leading-relaxed opacity-50">
-          Its size and price belong to the product, and changing them changes
-          every copy of it.
-        </p>
-      </div>
-
-      <div className="self-start">
-        <LabelledButton
+    <Panel
+      title={name}
+      sectioned
+      action={
+        <IconButton
           label={`Take ${name} out of the room`}
           icon={PackageOpen}
           tone="danger"
           onClick={() => onInstanceRemove(placed.instance)}
         />
-      </div>
+      }
+    >
+      <PanelSection title="Placement" first>
+        <PlacementFields
+          floor={floor}
+          instance={placed.instance}
+          product={placed.product}
+          unit={unit}
+          onInstanceChange={onInstanceChange}
+        />
+      </PanelSection>
+      {/*
+        A placement and the thing placed are different objects, and the panel
+        was only ever showing one of them. Its size and its price are the
+        product's — so this is the way back to them, without hunting through
+        the list for the row this piece came from. Changing them there
+        changes every copy, which the button's title says for anyone who
+        wonders.
+      */}
+      <PanelSection
+        title={placed.product.retailer || "Product"}
+        action={
+          <IconButton
+            label={`Edit ${placed.product.name}`}
+            icon={Pencil}
+            size="small"
+            onClick={() => onSelect({ kind: "product", id: placed.product.id })}
+          />
+        }
+      >
+        {/* The size is the fact this tool exists for, so it is the big
+            number here; the price is read second and set smaller. */}
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="text-[19px] font-semibold tracking-tight tabular-nums">
+            {formatLength(placed.product.footprint.widthMeters, unit)} ×{" "}
+            {formatLength(placed.product.footprint.depthMeters, unit)}
+          </p>
+          <p className="text-sm tabular-nums opacity-60">
+            {formatCents(placed.product.priceCents)}
+          </p>
+        </div>
+        <p className="-mt-2 text-[12px] opacity-50">
+          {formatLength(placed.product.heightMeters, unit)} high
+        </p>
+        {placed.product.productUrl === "" ? null : (
+          <div className="self-start">
+            <LabelledLink
+              label="Open the product page"
+              icon={ExternalLink}
+              href={placed.product.productUrl}
+              target="_blank"
+            />
+          </div>
+        )}
+      </PanelSection>
     </Panel>
   );
 }

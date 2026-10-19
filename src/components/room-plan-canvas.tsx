@@ -31,9 +31,12 @@ import {
   clampToFloor,
   furnitureAt,
   moveInstance,
+  nearestGaps,
   snapInstancePosition,
+  type WallGap,
   placedNames,
   type FurnitureInstance,
+  type FurnitureProduct,
   type PlacedFurniture,
 } from "@/domain/furniture";
 import { instanceFromKeyPress } from "@/components/placement-keys";
@@ -57,6 +60,8 @@ import {
   openingAtPoint,
   openingEndpoints,
   openingWallThicknessMeters,
+  openingRangeMeters,
+  wallLengthMeters,
   pointAlongWall,
   pointInRoom,
   pointOnFloor,
@@ -77,6 +82,7 @@ import {
   snapRoomOrigin,
   snapRoomPartOrigin,
   snapRoomPartResize,
+  roundedResizeTarget,
   snapRoomResize,
   wallPlacementAt,
   wallOutwardNormalOnFloor,
@@ -247,6 +253,14 @@ export type RoomPlanCanvasProps = {
   /** A product dragged in from the catalogue, dropped where it was let go. */
   onDropProduct?: (productId: string, at: FloorPoint) => void;
   /**
+   * A product armed from the list, waiting for a click to say where it goes.
+   * Its footprint follows the pointer until then, so what is about to be put
+   * down is seen at true size before it is.
+   */
+  placingProduct?: FurnitureProduct | null;
+  onPlaceProduct?: (product: FurnitureProduct, at: FloorPoint) => void;
+  onPlaceProductEnd?: () => void;
+  /**
    * Whether a drag on the plan draws a new room instead of panning it.
    *
    * A mode rather than a modifier, and rather than taking over the plain drag
@@ -411,6 +425,9 @@ export function RoomPlanCanvas({
   onDrawRoom,
   onDrawEnd,
   placingOpening = null,
+  placingProduct = null,
+  onPlaceProduct,
+  onPlaceProductEnd,
   onPlaceOpening,
   onPlaceOpeningEnd,
   underlay = null,
@@ -478,6 +495,54 @@ export function RoomPlanCanvas({
 
   /** What the pointer is over, kept in state because it is only a cursor. */
   const [cursor, setCursor] = useState<Cursor>("none");
+  /**
+   * The piece being dragged, for the gaps drawn from it to the walls while it
+   * moves. State rather than read from the drag ref, because the lines have
+   * to repaint with every move and go the moment the piece is let go.
+   */
+  const [movingId, setMovingId] = useState<string | null>(null);
+  /** Where the armed product would land, under the pointer, snapped. */
+  const [ghostAt, setGhostAt] = useState<FloorPoint | null>(null);
+  const ghost: PlacedFurniture | null =
+    placingProduct === null || ghostAt === null
+      ? null
+      : {
+          instance: {
+            id: "ghost",
+            productId: placingProduct.id,
+            position: ghostAt,
+            rotationRadians: 0,
+          },
+          product: placingProduct,
+        };
+
+  /** Where an armed product lands if put down here: on the floor, snapped. */
+  function landingPoint(product: FurnitureProduct, point: FloorPoint) {
+    const placed: PlacedFurniture = {
+      instance: {
+        id: "ghost",
+        productId: product.id,
+        position: point,
+        rotationRadians: 0,
+      },
+      product,
+    };
+    return snapInstancePosition(
+      floor,
+      furniture,
+      placed,
+      clampToFloor(floor, point),
+    );
+  }
+  /**
+   * The room, or the section of one, being resized by a wall or corner, for
+   * the size printed beside it while it changes — the same readout a room
+   * gets while it is first dragged out.
+   */
+  const [resizing, setResizing] = useState<{
+    readonly roomId: string;
+    readonly partId: string | null;
+  } | null>(null);
 
   /**
    * The two corners of a room being drawn, or null when none is.
@@ -497,6 +562,32 @@ export function RoomPlanCanvas({
    * snapped to its neighbours. The outline and the size printed beside it
    * both come from this, so the number you watch is the number you get.
    */
+  /** The rectangle being resized, as the readout wants it. */
+  const resizedPart = useMemo((): DrawnPart | null => {
+    if (resizing === null) {
+      return null;
+    }
+    const room = floor.rooms.find((one) => one.id === resizing.roomId);
+    if (room === undefined) {
+      return null;
+    }
+    const part =
+      resizing.partId === null ? undefined : roomPart(room, resizing.partId);
+    if (part !== undefined) {
+      return {
+        origin: part.origin,
+        widthMeters: part.widthMeters,
+        depthMeters: part.depthMeters,
+      };
+    }
+    const bounds = roomBounds(room);
+    return {
+      origin: bounds.origin,
+      widthMeters: bounds.widthMeters,
+      depthMeters: bounds.depthMeters,
+    };
+  }, [floor, resizing]);
+
   const drawnPart = useMemo(() => {
     if (drawn === null) {
       return null;
@@ -576,11 +667,16 @@ export function RoomPlanCanvas({
       fontFamily: style.fontFamily,
       drawnPart,
       underlayHandles: resizableUnderlay,
+      measuredId: movingId,
+      ghost,
+      unit,
     });
   }, [
     floor,
     furniture,
     unit,
+    movingId,
+    ghost,
     selectedId,
     selectedRoomId,
     selectedRoomPartId,
@@ -703,6 +799,17 @@ export function RoomPlanCanvas({
       setCursor("move");
       canvas.focus();
       canvas.setPointerCapture?.(event.pointerId);
+      return;
+    }
+
+    // Product placement is one click: the ghost has been showing where it
+    // would land, and this is the yes. One piece per press, then out of the
+    // mode, for the reason drawing a room is.
+    if (placingProduct !== null) {
+      onPlaceProduct?.(placingProduct, landingPoint(placingProduct, point));
+      onPlaceProductEnd?.();
+      setGhostAt(null);
+      canvas.focus();
       return;
     }
 
@@ -840,6 +947,7 @@ export function RoomPlanCanvas({
           partId: grabbed.partId,
           edges: grabbed.edges,
         };
+        setResizing({ roomId: grabbed.roomId, partId: grabbed.partId });
         setCursor(cursorForEdges(grabbed.edges));
       }
       canvas.focus();
@@ -925,6 +1033,7 @@ export function RoomPlanCanvas({
       },
     };
     setCursor("move");
+    setMovingId(hit.instance.id);
     // Focus follows the grab, so a piece can be dragged roughly into place and
     // then nudged the last centimeter without reaching for the mouse again.
     canvas.focus();
@@ -1015,6 +1124,12 @@ export function RoomPlanCanvas({
   function handlePointerMove(event: PointerEvent<HTMLCanvasElement>): void {
     const drag = dragRef.current;
     const canvas = canvasRef.current;
+
+    if (canvas && placingProduct !== null) {
+      const point = floorPointAt(canvas, event, projectionRef.current);
+      setGhostAt(point === null ? null : landingPoint(placingProduct, point));
+      return;
+    }
 
     if (canvas && drag === null) {
       setCursor(hoverCursor(canvas, event));
@@ -1134,36 +1249,27 @@ export function RoomPlanCanvas({
         );
         return;
       }
-      // Rounded to the unit on screen, so a dragged wall lands on the same
-      // kind of number a typed one does.
-      const next = drag.edges.reduce(
-        (room, edge) =>
+      // The length between the walls lands on the unit on screen, so a
+      // dragged wall leaves the same kind of number a typed one does — and
+      // the opposite wall, wherever it stands, is what it is measured from.
+      const next = drag.edges.reduce((room, edge) => {
+        const horizontal = edge === "west" || edge === "east";
+        const pointer = horizontal ? point.xMeters : point.zMeters;
+        const sized =
           drag.partId === null
-            ? snapRoomResize(
-                floor,
-                room,
-                edge,
-                roundToDisplayUnit(
-                  edge === "west" || edge === "east"
-                    ? point.xMeters
-                    : point.zMeters,
-                  unit,
-                ),
-              )
-            : snapRoomPartResize(
-                floor,
-                room,
-                drag.partId,
-                edge,
-                roundToDisplayUnit(
-                  edge === "west" || edge === "east"
-                    ? point.xMeters
-                    : point.zMeters,
-                  unit,
-                ),
-              ),
-        sizing,
-      );
+            ? undefined
+            : sizing.parts.find((one) => one.id === drag.partId);
+        const fixed =
+          sized === undefined
+            ? roomEdgePosition(room, OPPOSITE_EDGE[edge])
+            : partEdgePosition(sized, OPPOSITE_EDGE[edge]);
+        const target = roundedResizeTarget(fixed, pointer, (m) =>
+          roundToDisplayUnit(m, unit),
+        );
+        return drag.partId === null
+          ? snapRoomResize(floor, room, edge, target)
+          : snapRoomPartResize(floor, room, drag.partId, edge, target);
+      }, sizing);
       onRoomChange?.(
         next,
         drag.partId === null
@@ -1279,6 +1385,7 @@ export function RoomPlanCanvas({
       event.button !== 0 ||
       drawing ||
       placingOpening !== null ||
+      placingProduct !== null ||
       panningRef.current
     ) {
       return;
@@ -1361,21 +1468,26 @@ export function RoomPlanCanvas({
 
     dragRef.current = null;
     setCursor("none");
+    setMovingId(null);
+    setResizing(null);
     canvasRef.current?.releasePointerCapture?.(event.pointerId);
     onGestureEnd?.();
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLCanvasElement>): void {
     if (pressIs("deselect", event)) {
-      if (drawing || placingOpening !== null) {
+      if (drawing || placingOpening !== null || placingProduct !== null) {
         // Called off rather than deselecting: in this mode Escape is the way
         // out of the mode, which is the nearer of the two things it could mean.
         dragRef.current = null;
         setDrawn(null);
+        setGhostAt(null);
         if (drawing) {
           onDrawEnd?.();
-        } else {
+        } else if (placingOpening !== null) {
           onPlaceOpeningEnd?.();
+        } else {
+          onPlaceProductEnd?.();
         }
         return;
       }
@@ -1446,6 +1558,7 @@ export function RoomPlanCanvas({
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
         onDoubleClick={handleDoubleClick}
+        onPointerLeave={() => setGhostAt(null)}
         onKeyDown={handleKeyDown}
         onKeyUp={handleKeyUp}
         onDragOver={(event) => {
@@ -1464,7 +1577,7 @@ export function RoomPlanCanvas({
           onGestureEnd?.();
         }}
         className={`block h-full w-full touch-none outline-none ${
-          drawing || placingOpening !== null
+          drawing || placingOpening !== null || placingProduct !== null
             ? "cursor-crosshair"
             : CURSORS[cursor]
         }`}
@@ -1515,10 +1628,19 @@ export function RoomPlanCanvas({
       {drawnPart === null ? null : (
         <DrawnSize part={drawnPart} projection={projection} unit={unit} />
       )}
+      {resizedPart === null ? null : (
+        <DrawnSize part={resizedPart} projection={projection} unit={unit} />
+      )}
 
       {placingOpening === null ? null : (
         <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-[13px] text-white dark:bg-white/15">
           Click the wall for the {placingOpening.kind}. Esc to stop.
+        </p>
+      )}
+
+      {placingProduct === null ? null : (
+        <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-[13px] text-white dark:bg-white/15">
+          Click where {placingProduct.name} goes. Esc to stop.
         </p>
       )}
 
@@ -1528,6 +1650,7 @@ export function RoomPlanCanvas({
       {active ||
       drawing ||
       placingOpening !== null ||
+      placingProduct !== null ||
       floor.rooms.length === 0 ? null : (
         <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-[13px] text-white dark:bg-white/15">
           {selectedRoomPartId !== null
@@ -1978,6 +2101,11 @@ type DrawOptions = {
   drawnPart?: DrawnPart | null;
   /** The underlay whose corners can be dragged, or null when none can. */
   underlayHandles?: PlanUnderlay | null;
+  /** The piece whose gaps to the walls are drawn and printed, if any. */
+  measuredId?: string | null;
+  /** A product about to be placed, drawn where it would land. */
+  ghost?: PlacedFurniture | null;
+  unit: DisplayUnit;
 };
 
 /** Everything the drawing helpers need to place a floor coordinate in pixels. */
@@ -2004,6 +2132,9 @@ function drawPlan(
     fontFamily,
     drawnPart = null,
     underlayHandles = null,
+    measuredId = null,
+    ghost = null,
+    unit,
   }: DrawOptions,
 ): void {
   context.clearRect(0, 0, viewport.width, viewport.height);
@@ -2062,6 +2193,14 @@ function drawPlan(
       selectedOpening.room,
       selectedOpening.opening,
     );
+    drawOpeningRuns(
+      context,
+      inRoom(frame, selectedOpening.room),
+      selectedOpening.room,
+      selectedOpening.opening,
+      unit,
+      fontFamily,
+    );
   }
 
   for (const room of floor.rooms) {
@@ -2076,6 +2215,33 @@ function drawPlan(
       selected: placed.instance.id === selectedId,
       troubled: troubledIds.has(placed.instance.id),
     });
+  }
+  if (ghost !== null) {
+    drawFurniture(context, frame, ghost, {
+      selected: false,
+      troubled: false,
+      ghost: true,
+    });
+    drawWallGaps(
+      context,
+      frame,
+      nearestGaps(floor, furniture, ghost),
+      unit,
+      fontFamily,
+    );
+  }
+
+  // The gaps from the piece being dragged to the walls around it, over the
+  // furniture so the numbers are never under a neighbour.
+  const measured = furniture.find(({ instance }) => instance.id === measuredId);
+  if (measured !== undefined) {
+    drawWallGaps(
+      context,
+      frame,
+      nearestGaps(floor, furniture, measured),
+      unit,
+      fontFamily,
+    );
   }
 
   // Last, over everything: it is the thing being made right now.
@@ -2864,6 +3030,111 @@ function markSelectedOpening(
   context.restore();
 }
 
+/** How far the run dimension sits in from its wall, in pixels. */
+const RUN_INSET_PIXELS = 14;
+
+/**
+ * How much wall is left either side of the selected opening.
+ *
+ * An opening is placed by its center, but the numbers a person checks are
+ * the two runs it leaves: whether a dresser still fits beside the door.
+ * Each run is drawn just inside its wall, from the corner to the jamb, with
+ * its length printed on it. A run of nothing — an opening flush with a
+ * corner — is left out.
+ */
+function drawOpeningRuns(
+  context: CanvasRenderingContext2D,
+  frame: PlanFrame,
+  room: Room,
+  opening: Opening,
+  unit: DisplayUnit,
+  fontFamily: string,
+): void {
+  const length = wallLengthMeters(room, opening.wall, opening.partId);
+  const { startMeters, endMeters } = openingRangeMeters(opening);
+  const along = (meters: number) =>
+    frame.toPixels(pointAlongWall(room, opening.wall, meters, opening.partId));
+  // Inward is toward the part's own middle, which is where the floor is —
+  // found through the same walk along the walls the runs use, so the two
+  // agree on where things are.
+  const sides = ["north", "east", "south", "west"] as const;
+  const midpoints = sides.map((side) =>
+    frame.toPixels(
+      pointAlongWall(
+        room,
+        side,
+        wallLengthMeters(room, side, opening.partId) / 2,
+        opening.partId,
+      ),
+    ),
+  );
+  const middle = {
+    x: midpoints.reduce((sum, point) => sum + point.x, 0) / midpoints.length,
+    y: midpoints.reduce((sum, point) => sum + point.y, 0) / midpoints.length,
+  };
+
+  context.save();
+  context.strokeStyle = frame.color;
+  context.fillStyle = frame.color;
+  context.lineWidth = 1;
+  context.font = `${LABEL_PIXELS}px ${fontFamily}`;
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+
+  for (const [fromMeters, toMeters] of [
+    [0, startMeters],
+    [endMeters, length],
+  ] as const) {
+    if (toMeters - fromMeters < FLUSH_METERS) {
+      continue;
+    }
+    const a = along(fromMeters);
+    const b = along(toMeters);
+    const run = Math.hypot(b.x - a.x, b.y - a.y);
+    if (run === 0) {
+      continue;
+    }
+    // Unit normal to the wall, turned to point at the floor.
+    let nx = -(b.y - a.y) / run;
+    let ny = (b.x - a.x) / run;
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    if ((middle.x - mid.x) * nx + (middle.y - mid.y) * ny < 0) {
+      nx = -nx;
+      ny = -ny;
+    }
+    const inset = (point: PixelPoint) => ({
+      x: point.x + nx * RUN_INSET_PIXELS,
+      y: point.y + ny * RUN_INSET_PIXELS,
+    });
+    const from = inset(a);
+    const to = inset(b);
+
+    context.globalAlpha = 0.8;
+    context.beginPath();
+    context.moveTo(from.x, from.y);
+    context.lineTo(to.x, to.y);
+    for (const end of [from, to]) {
+      context.moveTo(
+        end.x - nx * GAP_TICK_PIXELS,
+        end.y - ny * GAP_TICK_PIXELS,
+      );
+      context.lineTo(
+        end.x + nx * GAP_TICK_PIXELS,
+        end.y + ny * GAP_TICK_PIXELS,
+      );
+    }
+    context.stroke();
+
+    context.globalAlpha = 1;
+    context.fillText(
+      formatLength(toMeters - fromMeters, unit),
+      (from.x + to.x) / 2 + nx * 10,
+      (from.y + to.y) / 2 + ny * 10,
+    );
+  }
+  context.restore();
+}
+
 /** A length in meters, in pixels, read off the frame itself. */
 function spanPixels(frame: PlanFrame, meters: number): number {
   const from = frame.toPixels({ xMeters: 0, zMeters: 0 });
@@ -2890,7 +3161,11 @@ function drawFurniture(
   context: CanvasRenderingContext2D,
   frame: PlanFrame,
   { instance, product }: PlacedFurniture,
-  { selected, troubled }: { selected: boolean; troubled: boolean },
+  {
+    selected,
+    troubled,
+    ghost = false,
+  }: { selected: boolean; troubled: boolean; ghost?: boolean },
 ): void {
   const center = frame.toPixels(instance.position);
   const origin = frame.toPixels({ xMeters: 0, zMeters: 0 });
@@ -2919,6 +3194,11 @@ function drawFurniture(
   context.globalAlpha = troubled ? 1 : FURNITURE_EDGE_ALPHA;
   context.strokeStyle = edge;
   context.lineWidth = selected ? 2.5 : 1.5;
+  // Dashed, because it is not placed yet — the same mark a room gets while
+  // it is being drawn.
+  if (ghost) {
+    context.setLineDash([6, 4]);
+  }
   context.strokeRect(left, top, widthPixels, depthPixels);
 
   if (selected) {
@@ -2937,6 +3217,100 @@ function drawFurniture(
     }
   }
 
+  context.restore();
+}
+
+const OPPOSITE_EDGE: Record<RoomEdge, RoomEdge> = {
+  west: "east",
+  east: "west",
+  north: "south",
+  south: "north",
+};
+
+/** Where one edge of a square part stands on its axis. */
+function partEdgePosition(part: RoomPart, edge: RoomEdge): number {
+  switch (edge) {
+    case "west":
+      return part.origin.xMeters;
+    case "east":
+      return part.origin.xMeters + part.widthMeters;
+    case "north":
+      return part.origin.zMeters;
+    case "south":
+      return part.origin.zMeters + part.depthMeters;
+  }
+}
+
+/** How far a gap's end ticks reach either side of the line, in pixels. */
+const GAP_TICK_PIXELS = 4;
+
+/** A gap this small is flush, and flush needs no line. */
+const FLUSH_METERS = 0.0005;
+
+/**
+ * The gaps from a piece to whatever is nearest on each side — the wall, or a
+ * piece in the way — drawn as a line with a tick at either end and the
+ * length printed beside it, the way a plan is dimensioned. A gap of nothing
+ * is left out: a zero on the plan is noise, and the piece touching the wall
+ * already shows it. A negative gap is a piece through the wall, which the
+ * problem list already shouts about, so that line is left out too.
+ */
+function drawWallGaps(
+  context: CanvasRenderingContext2D,
+  frame: PlanFrame,
+  gaps: readonly WallGap[],
+  unit: DisplayUnit,
+  fontFamily: string,
+): void {
+  context.save();
+  context.strokeStyle = frame.color;
+  context.fillStyle = frame.color;
+  context.lineWidth = 1;
+  context.font = `${LABEL_PIXELS}px ${fontFamily}`;
+  context.textBaseline = "middle";
+
+  for (const gap of gaps) {
+    if (gap.gapMeters < FLUSH_METERS) {
+      continue;
+    }
+    const horizontal = gap.side === "west" || gap.side === "east";
+    const from = frame.toPixels(
+      horizontal
+        ? { xMeters: gap.edgeMeters, zMeters: gap.alongMeters }
+        : { xMeters: gap.alongMeters, zMeters: gap.edgeMeters },
+    );
+    const to = frame.toPixels(
+      horizontal
+        ? { xMeters: gap.faceMeters, zMeters: gap.alongMeters }
+        : { xMeters: gap.alongMeters, zMeters: gap.faceMeters },
+    );
+
+    context.globalAlpha = 0.8;
+    context.beginPath();
+    context.moveTo(from.x, from.y);
+    context.lineTo(to.x, to.y);
+    for (const end of [from, to]) {
+      if (horizontal) {
+        context.moveTo(end.x, end.y - GAP_TICK_PIXELS);
+        context.lineTo(end.x, end.y + GAP_TICK_PIXELS);
+      } else {
+        context.moveTo(end.x - GAP_TICK_PIXELS, end.y);
+        context.lineTo(end.x + GAP_TICK_PIXELS, end.y);
+      }
+    }
+    context.stroke();
+
+    // Beside the line rather than on it, so a short gap stays legible: above
+    // a horizontal one, to the right of a vertical one.
+    const middle = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+    context.globalAlpha = 1;
+    context.textAlign = horizontal ? "center" : "left";
+    context.fillText(
+      formatLength(gap.gapMeters, unit),
+      horizontal ? middle.x : middle.x + 6,
+      horizontal ? middle.y - 9 : middle.y,
+    );
+  }
   context.restore();
 }
 

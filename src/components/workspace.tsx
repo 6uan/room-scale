@@ -128,6 +128,10 @@ export function Workspace() {
     readonly roomId: string;
     readonly kind: OpeningKind;
   } | null>(null);
+  /** The product armed from the list, waiting for a click on the plan. */
+  const [placingProduct, setPlacingProduct] = useState<FurnitureProduct | null>(
+    null,
+  );
 
   const furniture = placedFurniture(instances, products);
   const problems = checkLayout(floor, furniture);
@@ -462,12 +466,16 @@ export function Workspace() {
       // wherever they are. The plan handles it too, but pressing "Add room"
       // leaves focus on the button rather than on the plan.
       if (
-        (drawingRoom || drawingSectionOf !== null || placingOpening !== null) &&
+        (drawingRoom ||
+          drawingSectionOf !== null ||
+          placingOpening !== null ||
+          placingProduct !== null) &&
         pressIs("deselect", event)
       ) {
         event.preventDefault();
         setDrawingRoom(false);
         setDrawingSectionOf(null);
+        setPlacingProduct(null);
         setPlacingOpening(null);
       } else if (pressIs("undo", event)) {
         event.preventDefault();
@@ -594,7 +602,12 @@ export function Workspace() {
             unit={unit}
             selection={selection}
             onSelect={setSelection}
-            onPlace={place}
+            onPlace={(product) => {
+              setDrawingRoom(false);
+              setDrawingSectionOf(null);
+              setPlacingOpening(null);
+              setPlacingProduct(product);
+            }}
           />
         </aside>
 
@@ -645,6 +658,9 @@ export function Workspace() {
               placingOpening={placingOpening}
               onPlaceOpening={placeOpening}
               onPlaceOpeningEnd={() => setPlacingOpening(null)}
+              placingProduct={placingProduct}
+              onPlaceProduct={place}
+              onPlaceProductEnd={() => setPlacingProduct(null)}
               underlay={underlay}
               onUnderlayChange={setUnderlay}
               onDropProduct={(productId, at) => {
