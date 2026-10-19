@@ -15,8 +15,7 @@ Two rules keep the order honest:
   Steps 4 to 10 are that question end to end. Everything after them makes the
   answer nicer to look at.
 
-Status: **steps 1 to 19 are done.** The real apartment is being entered and
-furnished through the tool, and what that turns up is tracked as
+Status: **steps 1 to 19 are done.** What is still to build is tracked as
 [issues](https://github.com/6uan/room-scale/issues). Step 20, the perspective
 view, is next.
 
@@ -764,23 +763,19 @@ win, and validation keeps using the footprint.
 
 ---
 
-## The apartment being planned
+## The reference apartment
 
-The first real project is not a fixture built at the end — it is whatever is
-being planned right now, entered through the same interface anyone else would
-use.
+The tool is measured against one whole apartment entered through its own
+interface, not against fixtures built afterwards: two bedrooms, two bathrooms,
+a living room open to a kitchen and a dining area, a balcony, and the closets
+and halls between them. Getting it onto the screen at its true dimensions is
+what steps 17 and 18 are for, and it is the measure of whether they worked.
 
-That is now the whole apartment rather than one room of it: two bedrooms, two
-bathrooms, a living room open to a kitchen and a dining area, a balcony, and
-the closets and halls between them. Getting it onto the screen at its real
-dimensions is what steps 17 and 18 are for, and it is the measure of whether
-they worked.
+The living room is the room furnished first: an L-shaped sectional, a round
+coffee table, a television console, a wall-mounted television, a rug, an arc
+lamp, a tree, and accent pillows and a throw.
 
-The living room is still the room being furnished first: an L-shaped sectional,
-a round coffee table, a television console, a 65-inch Hisense CanvasTV, a rug,
-an arc lamp, an artificial olive tree, and olive accent pillows and a throw.
-
-If planning it needs a special case in the engine, the engine is not finished.
+If entering it needs a special case in the engine, the engine is not finished.
 
 ## Explicitly out of scope
 
@@ -792,7 +787,7 @@ architecture, direct checkout.
 Non-rectangular furniture footprints, and an accessibility audit against WCAG
 2.2 AA.
 
-Non-rectangular **rooms** left this list at step 18: the apartment being planned
+Non-rectangular **rooms** left this list at step 18: the reference apartment
 has them, so the engine has to.
 
 **Tracing the listing's plan was considered here, deferred, and then built.**

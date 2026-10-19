@@ -37,7 +37,7 @@ describe("product names", () => {
   });
 
   it("accepts an ordinary name", () => {
-    expect(checkProductName("65-inch Hisense CanvasTV")).toBeNull();
+    expect(checkProductName("65-inch television")).toBeNull();
   });
 
   it("measures length after trimming", () => {

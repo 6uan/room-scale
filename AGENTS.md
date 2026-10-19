@@ -51,7 +51,7 @@ The MVP supports:
 - IndexedDB persistence,
 - JSON and CSV export.
 
-**One floor only.** The apartment being planned has one, and a second storey
+**One floor only.** The reference apartment has one, and a second storey
 would buy nothing but a coordinate nobody needs. This is not a limitation to
 work around; it is the shape of the problem.
 
@@ -242,21 +242,21 @@ Before implementing a feature:
 
 Do not add unrelated dependencies or features.
 
-## The apartment being planned
+## The reference apartment
 
-This is not a fixture to build at the end. It is the project being planned right
-now, entered through the same interface anyone else would use — so a gap in the
-tool shows up as a thing that cannot be entered, not as a test that fails later.
+The tool is measured against one whole apartment entered through its own
+interface, not against fixtures built afterwards — so a gap in the tool shows
+up as a thing that cannot be entered, not as a test that fails later.
 
 It is a two-bedroom apartment on one floor: a living room open to a kitchen and
 a dining area, two bedrooms, two bathrooms, and the halls between them. The
-living room is the room being furnished first, and it contains:
+living room is the room furnished first, and it contains:
 
 - an L-shaped sectional,
 - a round coffee table,
 - a television console,
-- a 65-inch Hisense CanvasTV,
+- a wall-mounted television,
 - a rug,
 - an arc lamp,
-- an artificial olive tree,
-- olive accent pillows and a throw.
+- a tree,
+- accent pillows and a throw.
