@@ -258,6 +258,19 @@ function DoorFields({
           onChange({ ...door, swing: swing as Door["swing"] })
         }
       />
+      <SelectField
+        label={`${name} style`}
+        visibleLabel="Style"
+        value={door.style}
+        options={[
+          { value: "swing", label: "Hinged" },
+          { value: "bifold", label: "Bifold" },
+          { value: "sliding", label: "Sliding" },
+        ]}
+        onChange={(style) =>
+          onChange({ ...door, style: style as Door["style"] })
+        }
+      />
     </div>
   );
 }

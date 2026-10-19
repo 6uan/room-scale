@@ -48,6 +48,7 @@ import type { Gesture } from "@/state/project-store";
 import { PRODUCT_DRAG_TYPE } from "@/components/catalogue-panel";
 import {
   WALL_SIDES,
+  BIFOLD_REACH,
   checkOpening,
   drawnRoom,
   isWallDividing,
@@ -3920,6 +3921,47 @@ function drawDoorSwing(
   // positive scale, so the wall's outward normal is already a canvas direction.
   // It points out of the room, so an inward swing is the other way.
   const reach = opening.swing === "inward" ? -widthPixels : widthPixels;
+
+  if (opening.style === "sliding") {
+    // Two panels, one past the other along the wall: a slider reaches
+    // nothing into the room, so there is nothing to sweep.
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    const shift = (point: PixelPoint, by: number) => ({
+      x: point.x + normal.dx * by,
+      y: point.y + normal.dz * by,
+    });
+    context.globalAlpha = SYMBOL_ALPHA;
+    context.lineWidth = 2;
+    strokeSegments(context, [
+      [shift(a, 2), shift(mid, 2)],
+      [shift(mid, -2), shift(b, -2)],
+    ]);
+    return;
+  }
+
+  if (opening.style === "bifold") {
+    // Each half folds back toward its jamb: two panels of a quarter width,
+    // standing off the wall in a V. The pair meets in the middle, open.
+    const along = {
+      x: (farJamb.x - hinge.x) / widthPixels,
+      y: (farJamb.y - hinge.y) / widthPixels,
+    };
+    const depth = widthPixels * BIFOLD_REACH * (reach < 0 ? -1 : 1);
+    const at = (fraction: number, out: number) => ({
+      x: hinge.x + along.x * widthPixels * fraction + normal.dx * depth * out,
+      y: hinge.y + along.y * widthPixels * fraction + normal.dz * depth * out,
+    });
+    context.globalAlpha = SYMBOL_ALPHA;
+    context.lineWidth = 2;
+    strokeSegments(context, [
+      [at(0, 0), at(0.125, 1)],
+      [at(0.125, 1), at(0.25, 0)],
+      [at(1, 0), at(0.875, 1)],
+      [at(0.875, 1), at(0.75, 0)],
+    ]);
+    return;
+  }
+
   const tip = {
     x: hinge.x + normal.dx * reach,
     y: hinge.y + normal.dz * reach,

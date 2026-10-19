@@ -79,6 +79,20 @@ export type DoorHinge = "start" | "end";
 
 export type DoorSwing = "inward" | "outward";
 
+/**
+ * How the door moves, which is what decides the floor it needs.
+ *
+ * A hinged door sweeps a quarter circle one door-width deep. A bifold folds
+ * its panels back against the jambs and reaches a quarter of its width.
+ * A slider runs along the wall and reaches nothing. Closets are the usual
+ * home of the last two.
+ */
+export type DoorStyle = "swing" | "bifold" | "sliding";
+export const DOOR_STYLES: readonly DoorStyle[] = ["swing", "bifold", "sliding"];
+
+/** How far a bifold's folded panels stand off the wall, as a share of width. */
+export const BIFOLD_REACH = 0.25;
+
 type OpeningPlacement = {
   readonly id: string;
   /** The rectangular part whose wall carries this opening. */
@@ -92,6 +106,7 @@ export type Door = OpeningPlacement & {
   readonly kind: "door";
   readonly hinge: DoorHinge;
   readonly swing: DoorSwing;
+  readonly style: DoorStyle;
 };
 
 /** Named to stay out of the way of the DOM's `Window`. */
@@ -514,7 +529,13 @@ export function createOpening(
 
   switch (kind) {
     case "door":
-      return { ...placement, kind, hinge: "start", swing: "inward" };
+      return {
+        ...placement,
+        kind,
+        hinge: "start",
+        swing: "inward",
+        style: "swing",
+      };
     case "window":
       return { ...placement, kind };
     case "passage":
@@ -689,12 +710,24 @@ export function doorSwingPolygon(
     farJamb.xMeters - hinge.xMeters,
     farJamb.zMeters - hinge.zMeters,
   );
-  if (width <= 0) {
+  if (width <= 0 || door.style === "sliding") {
     return [];
   }
 
   const outward = wallOutwardNormalOnFloor(part, door.wall);
   const reach = door.swing === "inward" ? -1 : 1;
+
+  // A bifold stands off the wall by a quarter of its width, across the whole
+  // opening: a strip, not a sector.
+  if (door.style === "bifold") {
+    const depth = width * BIFOLD_REACH;
+    const off = (point: FloorPoint): FloorPoint => ({
+      xMeters: point.xMeters + outward.dx * reach * depth,
+      zMeters: point.zMeters + outward.dz * reach * depth,
+    });
+    return [hinge, farJamb, off(farJamb), off(hinge)];
+  }
+
   const tipAngle = Math.atan2(outward.dz * reach, outward.dx * reach);
   const jambAngle = Math.atan2(
     farJamb.zMeters - hinge.zMeters,

@@ -43,8 +43,10 @@ import { FIRST_PROJECT_NAME, type Project } from "@/domain/project";
  *     project is the first.
  * 16. A product has a category. Existing products are "other", which is
  *     what not having said is.
+ * 17. A door has a style: hinged, bifold, or sliding. Every existing door
+ *     was drawn hinged, so that is what it is.
  */
-export const SCHEMA_VERSION = 16;
+export const SCHEMA_VERSION = 17;
 
 /** Meters, cents, and the rest are all plain finite numbers on the way in. */
 const finiteNumber = z
@@ -89,6 +91,7 @@ const openingSchema = z.discriminatedUnion("kind", [
     kind: z.literal("door"),
     hinge: z.enum(["start", "end"]),
     swing: z.enum(["inward", "outward"]),
+    style: z.enum(["swing", "bifold", "sliding"]),
   }),
   z.object({ ...openingFields, kind: z.literal("window") }),
   z.object({ ...openingFields, kind: z.literal("passage") }),
@@ -526,6 +529,35 @@ const MIGRATIONS: Record<number, (document: object) => object> = {
           ...objectOf(value),
           category: "other",
         })),
+      },
+    };
+  },
+  // Version 17 gave doors a style. Every door so far was hinged.
+  16: (document) => {
+    const project = projectOf(document) as Record<string, unknown>;
+    const floor = objectOf(project.floor);
+    const rooms = Array.isArray(floor.rooms) ? floor.rooms : [];
+    return {
+      ...document,
+      version: 17,
+      project: {
+        ...project,
+        floor: {
+          ...floor,
+          rooms: rooms.map((value) => {
+            const room = objectOf(value);
+            const openings = Array.isArray(room.openings) ? room.openings : [];
+            return {
+              ...room,
+              openings: openings.map((one) => {
+                const opening = objectOf(one);
+                return opening.kind === "door"
+                  ? { ...opening, style: "swing" }
+                  : opening;
+              }),
+            };
+          }),
+        },
       },
     };
   },

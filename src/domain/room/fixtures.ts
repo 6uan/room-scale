@@ -43,6 +43,7 @@ export const LIVING_ROOM: Room = withOpenings(
       widthMeters: metersFromInches(32),
       hinge: "start",
       swing: "inward",
+      style: "swing",
     },
     {
       id: "window-1",
