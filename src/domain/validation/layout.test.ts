@@ -637,6 +637,32 @@ describe("checkLayout: a section that adds no floor", () => {
     });
   });
 
+  it("accepts a walled section inside the room as a closet", () => {
+    const floor: Floor = {
+      ...FLOOR,
+      rooms: [
+        {
+          ...ROOM,
+          parts: [
+            BASE_PART,
+            {
+              ...BASE_PART,
+              id: "room-1-part-2",
+              origin: { xMeters: 1, zMeters: 2 },
+              widthMeters: 1,
+              depthMeters: 0.8,
+              dividingWalls: ["north", "east"],
+            },
+          ],
+        },
+      ],
+    };
+
+    expect(
+      checkLayout(floor, []).filter((one) => one.kind === "section-inside"),
+    ).toEqual([]);
+  });
+
   it("says nothing about a section that reaches past the first", () => {
     const floor: Floor = {
       ...FLOOR,

@@ -67,7 +67,7 @@ export type LayoutProblem =
     }
   /** A piece that is not in the room at all. */
   | { readonly kind: "outside-room"; readonly instanceId: string }
-  /** A section lying wholly inside its room's other floor: it adds nothing. */
+  /** A section inside its room's other floor with no walls of its own. */
   | {
       readonly kind: "section-inside";
       readonly roomId: string;
@@ -474,13 +474,13 @@ function roomProblems(floor: Floor): readonly LayoutProblem[] {
 }
 
 /**
- * A section drawn entirely on floor the room already has.
+ * A section drawn entirely on floor the room already has, with no walls.
  *
  * A section is how a room gets a corner the first rectangle could not give
- * it. Drawn inside the room, it gives it nothing, and what the person
- * usually wanted was a closet — which is a room of its own, with a wall and
- * a door. Said as a problem, because a section that does nothing is the kind
- * of mistake that is otherwise invisible.
+ * it, or — walled off — a closet in its corner. Drawn inside the room with
+ * none of its sides kept as a wall, it is neither: it gives the room nothing
+ * and draws nothing. Said as a problem, because a section that does nothing
+ * is the kind of mistake that is otherwise invisible.
  */
 function sectionProblems(floor: Floor): readonly LayoutProblem[] {
   const problems: LayoutProblem[] = [];
@@ -489,6 +489,9 @@ function sectionProblems(floor: Floor): readonly LayoutProblem[] {
       continue;
     }
     room.parts.forEach((part, index) => {
+      if ((part.dividingWalls?.length ?? 0) > 0) {
+        return;
+      }
       const rest = { ...room, parts: room.parts.filter((one) => one !== part) };
       const rect = roomPartPivotRect(part);
       const own = rect.widthMeters * rect.depthMeters;

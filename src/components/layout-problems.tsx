@@ -97,8 +97,8 @@ function problemMessage(
     case "section-inside":
       return (
         `Section ${problem.partNumber} of ${theRoom(problem.roomId)} lies ` +
-        `inside the room's floor already, so it adds nothing. A closet is a ` +
-        `room of its own, with a wall and a door.`
+        `inside the room's floor and has no walls of its own, so it adds ` +
+        `nothing. Give it walls to make it a closet, or remove it.`
       );
     case "blocks-door":
       return (
