@@ -58,7 +58,7 @@ export function CataloguePanel({
 
   return (
     <div
-      className={`flex min-h-0 min-w-0 flex-col border-t border-black/10 px-4 pt-3 pb-4 dark:border-white/15 ${
+      className={`flex min-h-0 min-w-0 flex-col border-t border-black/10 px-3 pt-3 pb-3 dark:border-white/15 ${
         unbounded ? "" : "max-h-[42vh]"
       }`}
     >
@@ -72,7 +72,7 @@ export function CataloguePanel({
       {/* A rule under the header, edge to edge, so where the list scrolls is
           seen. Outside the folding part, which clips what bleeds past it. */}
       {collapsed ? null : (
-        <div className="-mx-4 mt-3 border-t border-black/10 dark:border-white/15" />
+        <div className="-mx-3 mt-3 border-t border-black/10 dark:border-white/15" />
       )}
 
       {/*
@@ -103,7 +103,7 @@ export function CataloguePanel({
           ) : (
             <div
               {...scroll}
-              className={`-mx-4 min-h-0 overflow-y-auto px-2 pt-3 ${scroll.className}`}
+              className={`-mx-3 min-h-0 overflow-y-auto px-3 pt-3 ${scroll.className}`}
             >
               <ul className="flex flex-col gap-1">
                 {products.map((product) => {
