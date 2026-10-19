@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { metersFromInches } from "@/domain/units";
 import { LIVING_ROOM } from "./fixtures";
 import {
+  BIFOLD_REACH,
   MIN_OPENING_METERS,
+  doorSwingPolygon,
   checkOpening,
   createOpening,
   metersAlongOpeningWall,
@@ -352,5 +354,43 @@ describe("pointer editing", () => {
 
     const pastEnd = resizeOpeningJamb(ROOM, opening, "end", 9);
     expect(openingRangeMeters(pastEnd).endMeters).toBe(4);
+  });
+});
+
+describe("doorSwingPolygon", () => {
+  const made = createOpening("door", "d1", ROOM, "north", 1);
+  if (made.kind !== "door") {
+    throw new Error("a door was asked for");
+  }
+  const door = made;
+
+  it("sweeps a quarter circle for a hinged door", () => {
+    const polygon = doorSwingPolygon(ROOM, door);
+    const hinge = polygon[0];
+    const tip = polygon[1];
+    if (hinge === undefined || tip === undefined) {
+      throw new Error("a hinged door sweeps something");
+    }
+
+    // The hinge, then the arc from the open leaf round to the far jamb.
+    expect(polygon.length).toBeGreaterThan(4);
+    expect(
+      Math.hypot(tip.xMeters - hinge.xMeters, tip.zMeters - hinge.zMeters),
+    ).toBeCloseTo(door.widthMeters, 10);
+  });
+
+  it("stands a bifold a quarter of its width off the wall", () => {
+    const polygon = doorSwingPolygon(ROOM, { ...door, style: "bifold" });
+
+    expect(polygon).toHaveLength(4);
+    const depths = polygon.map((point) => point.zMeters);
+    expect(Math.max(...depths) - Math.min(...depths)).toBeCloseTo(
+      door.widthMeters * BIFOLD_REACH,
+      10,
+    );
+  });
+
+  it("gives a slider no floor at all", () => {
+    expect(doorSwingPolygon(ROOM, { ...door, style: "sliding" })).toEqual([]);
   });
 });

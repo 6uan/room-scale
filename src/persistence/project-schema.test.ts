@@ -560,6 +560,7 @@ describe("readStoredProject", () => {
                   widthMeters: 0.8128,
                   hinge: "start",
                   swing: "inward",
+                  style: "swing",
                 },
               ],
             },
@@ -633,6 +634,34 @@ describe("readStoredProject", () => {
     });
 
     expect(result.ok && result.project.name).toBe("Project 1");
+  });
+
+  it("hangs a version 16 door as a hinged one, which it always was", () => {
+    const [room] = STORED.project.floor.rooms;
+    if (room === undefined) {
+      throw new Error("the fixture has a room");
+    }
+    const door = room.openings.find((one) => one.kind === "door");
+    if (door === undefined) {
+      throw new Error("the fixture has a door");
+    }
+    const { style, ...unstyled } = door;
+    void style;
+    const result = readStoredProject({
+      ...STORED,
+      version: 16,
+      project: {
+        ...STORED.project,
+        floor: {
+          ...STORED.project.floor,
+          rooms: [{ ...room, openings: [unstyled] }],
+        },
+      },
+    });
+
+    expect(
+      result.ok && result.project.floor.rooms[0]?.openings[0],
+    ).toMatchObject({ kind: "door", style: "swing" });
   });
 
   it("files a version 15 product under other, which is what unsorted is", () => {

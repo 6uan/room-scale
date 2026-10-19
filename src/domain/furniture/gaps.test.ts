@@ -130,6 +130,37 @@ describe("wallGaps", () => {
   });
 });
 
+describe("wallGaps with a closet section", () => {
+  it("stops at a section's dividing wall rather than the room's far wall", () => {
+    // A closet in the south-east corner: a section whose north and west
+    // sides are kept as walls. A sofa north of it measures to the closet's
+    // north wall, not to the room's south wall behind it.
+    const closet = {
+      ...FLOOR,
+      rooms: FLOOR.rooms.map((room) => ({
+        ...room,
+        parts: [
+          ...room.parts,
+          {
+            id: "room-1-part-2",
+            origin: { xMeters: 2.5, zMeters: 2.2 },
+            widthMeters: 1.5,
+            depthMeters: 0.8,
+            rotationRadians: 0,
+            openWalls: [],
+            dividingWalls: ["north" as const, "west" as const],
+          },
+        ],
+      })),
+    };
+    const placed = sofaAt(3, 1);
+
+    const gaps = gapsBySide(closet, placed);
+    expect(gaps.south).toBeCloseTo(0.7, 10);
+    expect(gaps.east).toBeCloseTo(0, 10);
+  });
+});
+
 describe("nearestGaps", () => {
   it("stops at a piece standing in the way before the wall", () => {
     // Another sofa against the west wall, across from this one.

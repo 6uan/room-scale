@@ -211,9 +211,11 @@ const BEYOND_METERS = 0.001;
 
 /**
  * The nearest face on one side: the closest edge of an axis-aligned part,
- * across from the piece's middle, with none of the room's floor beyond it.
- * Faces the piece has already crossed count too, so a piece through a wall
- * reads as a negative gap rather than measuring to the far side of the room.
+ * across from the piece's middle, that has a wall on it — either because
+ * none of the room's floor lies beyond it, or because the side was kept as
+ * a dividing wall, which is how a closet stands inside a bedroom. Faces the
+ * piece has already crossed count too, so a piece through a wall reads as a
+ * negative gap rather than measuring to the far side of the room.
  */
 function nearestFace(
   room: Room,
@@ -241,15 +243,6 @@ function nearestFace(
 
     const start = horizontal ? part.origin.xMeters : part.origin.zMeters;
     const length = horizontal ? part.widthMeters : part.depthMeters;
-    const face = outward < 0 ? start : start + length;
-
-    const beyond: FloorPoint = horizontal
-      ? { xMeters: face + outward * BEYOND_METERS, zMeters: center.zMeters }
-      : { xMeters: center.xMeters, zMeters: face + outward * BEYOND_METERS };
-    if (roomContains(room, beyond)) {
-      continue;
-    }
-
     const edge = horizontal
       ? outward < 0
         ? box.minX
@@ -257,9 +250,40 @@ function nearestFace(
       : outward < 0
         ? box.minZ
         : box.maxZ;
-    const distance = (face - edge) * outward;
-    if (best === null || distance < (best - edge) * outward) {
-      best = face;
+
+    // Both edges of the part on this axis, each named for the side it is.
+    const edges: readonly { face: number; wall: GapSide }[] = horizontal
+      ? [
+          { face: start, wall: "west" },
+          { face: start + length, wall: "east" },
+        ]
+      : [
+          { face: start, wall: "north" },
+          { face: start + length, wall: "south" },
+        ];
+    for (const { face, wall } of edges) {
+      const dividing = part.dividingWalls?.includes(wall) === true;
+      // The outward edge counts when the room's floor stops there; either
+      // edge counts when it was kept as a wall regardless.
+      const outwardEdge = wall === side;
+      if (!dividing) {
+        if (!outwardEdge) {
+          continue;
+        }
+        const beyond: FloorPoint = horizontal
+          ? { xMeters: face + outward * BEYOND_METERS, zMeters: center.zMeters }
+          : {
+              xMeters: center.xMeters,
+              zMeters: face + outward * BEYOND_METERS,
+            };
+        if (roomContains(room, beyond)) {
+          continue;
+        }
+      }
+      const distance = (face - edge) * outward;
+      if (best === null || distance < (best - edge) * outward) {
+        best = face;
+      }
     }
   }
   return best;
