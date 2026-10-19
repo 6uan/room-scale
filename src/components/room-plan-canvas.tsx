@@ -36,6 +36,7 @@ import {
   type WallGap,
   placedNames,
   type FurnitureInstance,
+  type FurnitureProduct,
   type PlacedFurniture,
 } from "@/domain/furniture";
 import { instanceFromKeyPress } from "@/components/placement-keys";
@@ -252,6 +253,14 @@ export type RoomPlanCanvasProps = {
   /** A product dragged in from the catalogue, dropped where it was let go. */
   onDropProduct?: (productId: string, at: FloorPoint) => void;
   /**
+   * A product armed from the list, waiting for a click to say where it goes.
+   * Its footprint follows the pointer until then, so what is about to be put
+   * down is seen at true size before it is.
+   */
+  placingProduct?: FurnitureProduct | null;
+  onPlaceProduct?: (product: FurnitureProduct, at: FloorPoint) => void;
+  onPlaceProductEnd?: () => void;
+  /**
    * Whether a drag on the plan draws a new room instead of panning it.
    *
    * A mode rather than a modifier, and rather than taking over the plain drag
@@ -416,6 +425,9 @@ export function RoomPlanCanvas({
   onDrawRoom,
   onDrawEnd,
   placingOpening = null,
+  placingProduct = null,
+  onPlaceProduct,
+  onPlaceProductEnd,
   onPlaceOpening,
   onPlaceOpeningEnd,
   underlay = null,
@@ -489,6 +501,39 @@ export function RoomPlanCanvas({
    * to repaint with every move and go the moment the piece is let go.
    */
   const [movingId, setMovingId] = useState<string | null>(null);
+  /** Where the armed product would land, under the pointer, snapped. */
+  const [ghostAt, setGhostAt] = useState<FloorPoint | null>(null);
+  const ghost: PlacedFurniture | null =
+    placingProduct === null || ghostAt === null
+      ? null
+      : {
+          instance: {
+            id: "ghost",
+            productId: placingProduct.id,
+            position: ghostAt,
+            rotationRadians: 0,
+          },
+          product: placingProduct,
+        };
+
+  /** Where an armed product lands if put down here: on the floor, snapped. */
+  function landingPoint(product: FurnitureProduct, point: FloorPoint) {
+    const placed: PlacedFurniture = {
+      instance: {
+        id: "ghost",
+        productId: product.id,
+        position: point,
+        rotationRadians: 0,
+      },
+      product,
+    };
+    return snapInstancePosition(
+      floor,
+      furniture,
+      placed,
+      clampToFloor(floor, point),
+    );
+  }
   /**
    * The room, or the section of one, being resized by a wall or corner, for
    * the size printed beside it while it changes — the same readout a room
@@ -623,6 +668,7 @@ export function RoomPlanCanvas({
       drawnPart,
       underlayHandles: resizableUnderlay,
       measuredId: movingId,
+      ghost,
       unit,
     });
   }, [
@@ -630,6 +676,7 @@ export function RoomPlanCanvas({
     furniture,
     unit,
     movingId,
+    ghost,
     selectedId,
     selectedRoomId,
     selectedRoomPartId,
@@ -752,6 +799,17 @@ export function RoomPlanCanvas({
       setCursor("move");
       canvas.focus();
       canvas.setPointerCapture?.(event.pointerId);
+      return;
+    }
+
+    // Product placement is one click: the ghost has been showing where it
+    // would land, and this is the yes. One piece per press, then out of the
+    // mode, for the reason drawing a room is.
+    if (placingProduct !== null) {
+      onPlaceProduct?.(placingProduct, landingPoint(placingProduct, point));
+      onPlaceProductEnd?.();
+      setGhostAt(null);
+      canvas.focus();
       return;
     }
 
@@ -1067,6 +1125,12 @@ export function RoomPlanCanvas({
     const drag = dragRef.current;
     const canvas = canvasRef.current;
 
+    if (canvas && placingProduct !== null) {
+      const point = floorPointAt(canvas, event, projectionRef.current);
+      setGhostAt(point === null ? null : landingPoint(placingProduct, point));
+      return;
+    }
+
     if (canvas && drag === null) {
       setCursor(hoverCursor(canvas, event));
     }
@@ -1321,6 +1385,7 @@ export function RoomPlanCanvas({
       event.button !== 0 ||
       drawing ||
       placingOpening !== null ||
+      placingProduct !== null ||
       panningRef.current
     ) {
       return;
@@ -1411,15 +1476,18 @@ export function RoomPlanCanvas({
 
   function handleKeyDown(event: KeyboardEvent<HTMLCanvasElement>): void {
     if (pressIs("deselect", event)) {
-      if (drawing || placingOpening !== null) {
+      if (drawing || placingOpening !== null || placingProduct !== null) {
         // Called off rather than deselecting: in this mode Escape is the way
         // out of the mode, which is the nearer of the two things it could mean.
         dragRef.current = null;
         setDrawn(null);
+        setGhostAt(null);
         if (drawing) {
           onDrawEnd?.();
-        } else {
+        } else if (placingOpening !== null) {
           onPlaceOpeningEnd?.();
+        } else {
+          onPlaceProductEnd?.();
         }
         return;
       }
@@ -1490,6 +1558,7 @@ export function RoomPlanCanvas({
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
         onDoubleClick={handleDoubleClick}
+        onPointerLeave={() => setGhostAt(null)}
         onKeyDown={handleKeyDown}
         onKeyUp={handleKeyUp}
         onDragOver={(event) => {
@@ -1508,7 +1577,7 @@ export function RoomPlanCanvas({
           onGestureEnd?.();
         }}
         className={`block h-full w-full touch-none outline-none ${
-          drawing || placingOpening !== null
+          drawing || placingOpening !== null || placingProduct !== null
             ? "cursor-crosshair"
             : CURSORS[cursor]
         }`}
@@ -1569,12 +1638,19 @@ export function RoomPlanCanvas({
         </p>
       )}
 
+      {placingProduct === null ? null : (
+        <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-[13px] text-white dark:bg-white/15">
+          Click where {placingProduct.name} goes. Esc to stop.
+        </p>
+      )}
+
       {/* Said once, where it is needed, and gone as soon as it is not — and
           never on an empty floor, where the invitation in the middle of the
           canvas is already saying something more useful. */}
       {active ||
       drawing ||
       placingOpening !== null ||
+      placingProduct !== null ||
       floor.rooms.length === 0 ? null : (
         <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-[13px] text-white dark:bg-white/15">
           {selectedRoomPartId !== null
@@ -2027,6 +2103,8 @@ type DrawOptions = {
   underlayHandles?: PlanUnderlay | null;
   /** The piece whose gaps to the walls are drawn and printed, if any. */
   measuredId?: string | null;
+  /** A product about to be placed, drawn where it would land. */
+  ghost?: PlacedFurniture | null;
   unit: DisplayUnit;
 };
 
@@ -2055,6 +2133,7 @@ function drawPlan(
     drawnPart = null,
     underlayHandles = null,
     measuredId = null,
+    ghost = null,
     unit,
   }: DrawOptions,
 ): void {
@@ -2136,6 +2215,20 @@ function drawPlan(
       selected: placed.instance.id === selectedId,
       troubled: troubledIds.has(placed.instance.id),
     });
+  }
+  if (ghost !== null) {
+    drawFurniture(context, frame, ghost, {
+      selected: false,
+      troubled: false,
+      ghost: true,
+    });
+    drawWallGaps(
+      context,
+      frame,
+      nearestGaps(floor, furniture, ghost),
+      unit,
+      fontFamily,
+    );
   }
 
   // The gaps from the piece being dragged to the walls around it, over the
@@ -3068,7 +3161,11 @@ function drawFurniture(
   context: CanvasRenderingContext2D,
   frame: PlanFrame,
   { instance, product }: PlacedFurniture,
-  { selected, troubled }: { selected: boolean; troubled: boolean },
+  {
+    selected,
+    troubled,
+    ghost = false,
+  }: { selected: boolean; troubled: boolean; ghost?: boolean },
 ): void {
   const center = frame.toPixels(instance.position);
   const origin = frame.toPixels({ xMeters: 0, zMeters: 0 });
@@ -3097,6 +3194,11 @@ function drawFurniture(
   context.globalAlpha = troubled ? 1 : FURNITURE_EDGE_ALPHA;
   context.strokeStyle = edge;
   context.lineWidth = selected ? 2.5 : 1.5;
+  // Dashed, because it is not placed yet — the same mark a room gets while
+  // it is being drawn.
+  if (ghost) {
+    context.setLineDash([6, 4]);
+  }
   context.strokeRect(left, top, widthPixels, depthPixels);
 
   if (selected) {

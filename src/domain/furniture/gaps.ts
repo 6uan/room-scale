@@ -103,18 +103,17 @@ export function wallGaps(
  * standing in the way before it.
  *
  * This is the clearance — the fish tank to the bed, not the fish tank to the
- * wall behind the bed. A piece counts as in the way when it lies across from
- * this one on that side: beyond the edge, and overlapping it on the other
- * axis, so a nightstand beside the bed is not "in the way" of the bed going
- * north. The wall gaps for the panel are `wallGaps`; this one is for reading.
+ * wall behind the bed. Every gap runs from the middle of the piece's side,
+ * and a piece counts as in the way only when it crosses that middle: a
+ * nightstand touching the bed's corner is beside it, not in front of it, and
+ * the line past it reaches the wall. The wall gaps for the panel are
+ * `wallGaps`; this one is for reading.
  */
 export function nearestGaps(
   floor: Floor,
   furniture: readonly PlacedFurniture[],
   placed: PlacedFurniture,
 ): readonly WallGap[] {
-  const rect = footprintRect(placed);
-  const box = boundingBox(rect);
   const gaps = wallGaps(floor, placed);
 
   return gaps.map((gap) => {
@@ -127,10 +126,10 @@ export function nearestGaps(
         continue;
       }
       const theirs = boundingBox(footprintRect(other));
-      const acrossOverlap = horizontal
-        ? theirs.minZ < box.maxZ && theirs.maxZ > box.minZ
-        : theirs.minX < box.maxX && theirs.maxX > box.minX;
-      if (!acrossOverlap) {
+      const acrossMiddle = horizontal
+        ? theirs.minZ <= gap.alongMeters && theirs.maxZ >= gap.alongMeters
+        : theirs.minX <= gap.alongMeters && theirs.maxX >= gap.alongMeters;
+      if (!acrossMiddle) {
         continue;
       }
       // Their edge facing this piece.
@@ -145,22 +144,7 @@ export function nearestGaps(
       if (distance < 0 || distance >= best.gapMeters) {
         continue;
       }
-      // Drawn where the two actually overlap, not at this piece's middle: a
-      // line to a nightstand that only reaches under half the bed has to
-      // land on the nightstand, not beside it in the air.
-      const overlapStart = horizontal
-        ? Math.max(theirs.minZ, box.minZ)
-        : Math.max(theirs.minX, box.minX);
-      const overlapEnd = horizontal
-        ? Math.min(theirs.maxZ, box.maxZ)
-        : Math.min(theirs.maxX, box.maxX);
-      best = {
-        ...gap,
-        to: "piece",
-        gapMeters: distance,
-        faceMeters: face,
-        alongMeters: (overlapStart + overlapEnd) / 2,
-      };
+      best = { ...gap, to: "piece", gapMeters: distance, faceMeters: face };
     }
     return best;
   });

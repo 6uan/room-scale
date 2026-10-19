@@ -60,6 +60,25 @@ async function openArrangements(page: Page) {
   return page.getByRole("dialog", { name: "Layouts" });
 }
 
+/**
+ * Places a product from the list: pressing its row arms it, and the click on
+ * the plan says where. `offset` moves the click off the middle so two pieces
+ * placed in a row do not land on top of each other.
+ */
+async function placeFromList(page: Page, name: string, offset = 0) {
+  await contents(page)
+    .getByRole("button", { name: `Place ${name} in the room` })
+    .click();
+  const box = await planImage(page).boundingBox();
+  if (box === null) {
+    throw new Error("the plan has no box to point at");
+  }
+  await page.mouse.click(
+    box.x + box.width / 2 + offset,
+    box.y + box.height / 2 + offset,
+  );
+}
+
 /** Enters a product through the inspector, the way the workspace does it. */
 async function addProduct(
   page: Page,
@@ -74,8 +93,6 @@ async function addProduct(
     await form.getByLabel("Price").fill(fields.price);
   }
   await form.getByRole("button", { name: "Add product" }).click();
-  // The Place button, specifically: the row also carries a button that opens
-  // the product for editing, and both are named after it.
   await expect(
     contents(page).getByRole("button", {
       name: `Place ${fields.name} in the room`,
@@ -215,9 +232,7 @@ test.describe("the workspace", () => {
     await openWithLivingRoom(page);
     await addProduct(page, { name: "Rug", width: "96", depth: "60" });
 
-    await contents(page)
-      .getByRole("button", { name: "Place Rug in the room" })
-      .click();
+    await placeFromList(page, "Rug");
 
     await expect(planImage(page)).toHaveAccessibleName(/1 piece placed: Rug/);
     // Placed means selected, and the inspector is now that piece.
@@ -231,9 +246,7 @@ test.describe("the workspace", () => {
   }) => {
     await openWithLivingRoom(page);
     await addProduct(page, { name: "Rug", width: "96", depth: "60" });
-    await contents(page)
-      .getByRole("button", { name: "Place Rug in the room" })
-      .click();
+    await placeFromList(page, "Rug");
 
     await details(page).getByLabel("From west").fill("24");
 
@@ -245,9 +258,7 @@ test.describe("the workspace", () => {
   test("reports what does not fit, under the plan", async ({ page }) => {
     await openWithLivingRoom(page);
     await addProduct(page, { name: "Sectional", width: "94.5", depth: "63" });
-    await contents(page)
-      .getByRole("button", { name: "Place Sectional in the room" })
-      .click();
+    await placeFromList(page, "Sectional");
 
     // The room runs from -84 to 84 inches, so a 94.5 inch sofa centred at -60
     // reaches -107 and goes through the west wall.
@@ -268,9 +279,7 @@ test.describe("the workspace", () => {
       depth: "24",
       price: "129.00",
     });
-    await contents(page)
-      .getByRole("button", { name: "Place Olive tree in the room" })
-      .click();
+    await placeFromList(page, "Olive tree");
     await page.waitForTimeout(500);
 
     await page.reload();
@@ -295,9 +304,7 @@ test.describe("editing the product behind a piece", () => {
       depth: "60",
       price: "349.00",
     });
-    await contents(page)
-      .getByRole("button", { name: "Place Rug in the room" })
-      .click();
+    await placeFromList(page, "Rug");
 
     // The piece is selected; its size and price belong to the product.
     await expect(details(page).getByText("$349.00")).toBeVisible();
@@ -323,9 +330,7 @@ test.describe("the plan as a canvas", () => {
   async function placeRug(page: Page) {
     await openWithLivingRoom(page);
     await addProduct(page, { name: "Rug", width: "96", depth: "60" });
-    await contents(page)
-      .getByRole("button", { name: "Place Rug in the room" })
-      .click();
+    await placeFromList(page, "Rug");
     await expect(
       details(page).getByRole("region", { name: "Rug" }),
     ).toBeVisible();
@@ -437,6 +442,10 @@ test.describe("the plan as a canvas", () => {
   test("ignores the wheel until the plan is clicked into", async ({ page }) => {
     await placeRug(page);
     const centre = await planCentre(page);
+    // Placing was a click on the plan, which focused it; leave again by
+    // way of the list, the way a hand that has gone elsewhere would.
+    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await expect(planImage(page)).not.toBeFocused();
 
     // Hovering is not entering: a stray swipe over the plan leaves it alone.
     await page.mouse.move(centre.x, centre.y);
@@ -510,9 +519,7 @@ test.describe("comparing layouts", () => {
       depth: "38",
       price: "899.00",
     });
-    await contents(page)
-      .getByRole("button", { name: "Place Sectional in the room" })
-      .click();
+    await placeFromList(page, "Sectional");
   }
 
   test("duplicates an arrangement and keeps both", async ({ page }) => {
@@ -563,9 +570,7 @@ test.describe("comparing layouts", () => {
     await details(page)
       .getByRole("button", { name: "Take Sectional out of the room" })
       .click();
-    await contents(page)
-      .getByRole("button", { name: "Place Loveseat in the room" })
-      .click();
+    await placeFromList(page, "Loveseat");
     await expect(planImage(page)).toHaveAccessibleName(
       /1 piece placed: Loveseat/,
     );
@@ -650,9 +655,7 @@ test.describe("comparing layouts", () => {
     await details(page)
       .getByRole("button", { name: "Take Sectional out of the room" })
       .click();
-    await contents(page)
-      .getByRole("button", { name: "Place Loveseat in the room" })
-      .click();
+    await placeFromList(page, "Loveseat");
     await page.waitForTimeout(500);
 
     await page.goto("/overview");

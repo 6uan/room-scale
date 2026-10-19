@@ -17,6 +17,20 @@ function totalFor(scope: Page | Locator, label: string) {
   return scope.getByRole("term").filter({ hasText: label }).locator("+ dd");
 }
 
+/** Pressing a row arms the product; a click on the plan says where it goes. */
+async function placeFromList(page: Page, name: string, offset = 0) {
+  await contents(page)
+    .getByRole("button", { name: `Place ${name} in the room` })
+    .click();
+  const box = await page.getByRole("img", { name: /^Plan view/ }).boundingBox();
+  if (box === null) {
+    throw new Error("the plan has no box to point at");
+  }
+  // Off the middle: on an empty floor the invitation card sits there, and
+  // a click on it is a click on the card.
+  await page.mouse.click(box.x + 80 + offset, box.y + 80 + offset);
+}
+
 /** A sectional and two pillows, entered and placed in the workspace. */
 async function furnish(page: Page) {
   await page.goto("/");
@@ -33,15 +47,10 @@ async function furnish(page: Page) {
     await details(page).getByRole("button", { name: "Add product" }).click();
   }
 
-  await contents(page)
-    .getByRole("button", { name: "Place Sectional in the room" })
-    .click();
+  await placeFromList(page, "Sectional");
   // Two of them: one product, two placements.
-  const pillow = contents(page).getByRole("button", {
-    name: "Place Olive pillow in the room",
-  });
-  await pillow.click();
-  await pillow.click();
+  await placeFromList(page, "Olive pillow", 40);
+  await placeFromList(page, "Olive pillow", 80);
   await page.waitForTimeout(500);
 }
 

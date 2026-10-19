@@ -1,8 +1,7 @@
 "use client";
 
-import { GripVertical, Pencil } from "lucide-react";
+import { GripVertical } from "lucide-react";
 import { PRODUCT_CATEGORY_LABELS } from "@/components/product-form";
-import { IconButton } from "@/components/icon-button";
 import { PanelHeader } from "@/components/panel-header";
 import {
   countPlaced,
@@ -96,18 +95,6 @@ export function CataloguePanel({
                     {placed === 0 ? "" : ` · ${placed} placed`}
                   </span>
                 </button>
-                {/* Only on hover: the row is for placing, and a pencil on
-                    every line said "edit" louder than "place". */}
-                <span className="opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-                  <IconButton
-                    label={`Edit ${product.name}`}
-                    icon={Pencil}
-                    size="small"
-                    onClick={() =>
-                      onSelect({ kind: "product", id: product.id })
-                    }
-                  />
-                </span>
               </li>
             );
           })}

@@ -34,6 +34,13 @@ async function furnish(page: Page) {
   await contents(page)
     .getByRole("button", { name: "Place Rug, the big one in the room" })
     .click();
+  // Armed; the click on the plan is where it goes.
+  const box = await page.getByRole("img", { name: /^Plan view/ }).boundingBox();
+  if (box === null) {
+    throw new Error("the plan has no box to point at");
+  }
+  // Off the middle, where the empty floor's invitation card sits.
+  await page.mouse.click(box.x + 80, box.y + 80);
   await page.waitForTimeout(500);
 }
 
