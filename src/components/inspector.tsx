@@ -8,11 +8,7 @@ import {
   Pencil,
   Trash2,
 } from "lucide-react";
-import {
-  IconButton,
-  IconFileButton,
-  LabelledButton,
-} from "@/components/icon-button";
+import { IconButton, IconFileButton } from "@/components/icon-button";
 import { cn } from "@/components/cn";
 import { Disclosure } from "@/components/disclosure";
 import { NumberField } from "@/components/number-field";
@@ -20,6 +16,7 @@ import { openingName } from "@/components/opening-name";
 import { OpeningFields } from "@/components/room-openings-form";
 import { ProductForm } from "@/components/product-form";
 import { RoomFields } from "@/components/room-fields";
+import { PanelSection } from "@/components/panel/section";
 import { PlacementFields } from "@/components/placement-fields";
 import type { Selection } from "@/components/selection";
 import {
@@ -377,22 +374,46 @@ function InstanceInspector({
   const name = placedNames(furniture)[index] ?? placed.product.name;
 
   return (
-    <Panel title={name} subtitle={placed.product.retailer || "Furniture"}>
-      <PlacementFields
-        floor={floor}
-        instance={placed.instance}
-        product={placed.product}
-        name={name}
-        unit={unit}
-        onInstanceChange={onInstanceChange}
-      />
+    <Panel
+      title={name}
+      sectioned
+      action={
+        <IconButton
+          label={`Take ${name} out of the room`}
+          icon={PackageOpen}
+          tone="danger"
+          onClick={() => onInstanceRemove(placed.instance)}
+        />
+      }
+    >
+      <PanelSection title="Placement" first>
+        <PlacementFields
+          floor={floor}
+          instance={placed.instance}
+          product={placed.product}
+          unit={unit}
+          onInstanceChange={onInstanceChange}
+        />
+      </PanelSection>
       {/*
         A placement and the thing placed are different objects, and the panel
         was only ever showing one of them. Its size and its price are the
         product's — so this is the way back to them, without hunting through
-        the catalogue for the row this piece came from.
+        the list for the row this piece came from. Changing them there
+        changes every copy, which the button's title says for anyone who
+        wonders.
       */}
-      <div className="flex flex-col gap-2 border-t border-black/10 pt-4 dark:border-white/15">
+      <PanelSection
+        title={placed.product.retailer || "Product"}
+        action={
+          <IconButton
+            label={`Edit ${placed.product.name}`}
+            icon={Pencil}
+            size="small"
+            onClick={() => onSelect({ kind: "product", id: placed.product.id })}
+          />
+        }
+      >
         <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
           <Fact
             label="Size"
@@ -400,27 +421,7 @@ function InstanceInspector({
           />
           <Fact label="Price" value={formatCents(placed.product.priceCents)} />
         </dl>
-        <div className="self-start">
-          <LabelledButton
-            label={`Edit ${placed.product.name}`}
-            icon={Pencil}
-            onClick={() => onSelect({ kind: "product", id: placed.product.id })}
-          />
-        </div>
-        <p className="text-xs leading-relaxed opacity-50">
-          Its size and price belong to the product, and changing them changes
-          every copy of it.
-        </p>
-      </div>
-
-      <div className="self-start">
-        <LabelledButton
-          label={`Take ${name} out of the room`}
-          icon={PackageOpen}
-          tone="danger"
-          onClick={() => onInstanceRemove(placed.instance)}
-        />
-      </div>
+      </PanelSection>
     </Panel>
   );
 }
