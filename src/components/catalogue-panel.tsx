@@ -1,6 +1,5 @@
 "use client";
 
-import { GripVertical } from "lucide-react";
 import { useState } from "react";
 import { PRODUCT_CATEGORY_LABELS } from "@/components/product-form";
 import { PanelHeader } from "@/components/panel-header";
@@ -120,7 +119,7 @@ export function CataloguePanel({
                         );
                         event.dataTransfer.effectAllowed = "copy";
                       }}
-                      className={`group relative flex min-w-0 cursor-grab items-center gap-1 rounded-lg py-2 pr-1 pl-1.5 text-sm transition-colors active:cursor-grabbing ${
+                      className={`group flex min-w-0 cursor-grab items-center gap-1 rounded-lg py-2 pr-1 pl-1.5 text-sm transition-colors active:cursor-grabbing ${
                         isSelected(selection, "product", product.id)
                           ? "bg-black/10 dark:bg-white/15"
                           : "hover:bg-black/5 dark:hover:bg-white/10"
@@ -130,7 +129,9 @@ export function CataloguePanel({
                         type="button"
                         aria-label={`Place ${product.name} in the room`}
                         onClick={() => onPlace(product)}
-                        className="min-w-0 flex-1 text-left"
+                        // The hand: a button's own cursor is the arrow, which
+                        // hid the row's say that it can be dragged.
+                        className="min-w-0 flex-1 cursor-grab text-left active:cursor-grabbing"
                       >
                         <span className="block truncate">{product.name}</span>
                         <span className="block truncate text-[13px] opacity-55">
@@ -145,13 +146,6 @@ export function CataloguePanel({
                           {placed === 0 ? "" : ` · ${placed} placed`}
                         </span>
                       </button>
-                      {/* The grip shows only under the pointer: a sign the
-                          row can be dragged, in the moment it could be, and
-                          no room taken from the name the rest of the time. */}
-                      <GripVertical
-                        aria-hidden="true"
-                        className="pointer-events-none absolute top-1/2 right-2 size-3.5 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-50"
-                      />
                     </li>
                   );
                 })}
