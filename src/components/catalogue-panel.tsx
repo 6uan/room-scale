@@ -129,7 +129,9 @@ export function CataloguePanel({
                         type="button"
                         aria-label={`Place ${product.name} in the room`}
                         onClick={() => onPlace(product)}
-                        className="min-w-0 flex-1 text-left"
+                        // The hand: a button's own cursor is the arrow, which
+                        // hid the row's say that it can be dragged.
+                        className="min-w-0 flex-1 cursor-grab text-left active:cursor-grabbing"
                       >
                         <span className="block truncate">{product.name}</span>
                         <span className="block truncate text-[13px] opacity-55">
