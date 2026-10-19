@@ -63,7 +63,7 @@ export function CataloguePanel({
       ) : (
         <div
           {...scroll}
-          className={`-mx-2 min-h-0 overflow-y-auto px-2 ${scroll.className}`}
+          className={`-mx-5 min-h-0 overflow-y-auto px-5 ${scroll.className}`}
         >
           <ul className="flex flex-col gap-1">
             {products.map((product) => {
