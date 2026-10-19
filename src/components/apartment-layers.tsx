@@ -178,7 +178,7 @@ export function ApartmentLayers({
         <div className="flex min-h-0 flex-col overflow-hidden">
           <div
             {...scroll}
-            className={`-mx-4 flex min-h-0 flex-col gap-5 overflow-y-auto px-4 pt-3 ${scroll.className}`}
+            className={`-mx-4 flex min-h-0 flex-col gap-5 overflow-y-auto px-2 pt-3 ${scroll.className}`}
           >
             <ul className="flex flex-col gap-1">
               {floor.rooms.map((room) => (

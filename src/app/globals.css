@@ -51,8 +51,8 @@ body {
   mask-image: linear-gradient(
     to bottom,
     transparent,
-    black 36px,
-    black calc(100% - 36px),
+    black var(--fade-top, 0px),
+    black calc(100% - var(--fade-bottom, 0px)),
     transparent
   );
 }
