@@ -1443,14 +1443,10 @@ test.describe("laying the apartment out", () => {
     await openWithLivingRoom(page);
     await contents(page).getByRole("button", { name: "Living room" }).click();
 
-    // Pick the side, then say what it is. Both kinds are on screen the
-    // whole time; the side's own name carries which it is now.
+    // Each side is its own switch; its name carries which it is now.
     const room = details(page).getByRole("region", { name: "Living room" });
     await room
       .getByRole("button", { name: "Living room north wall, walled" })
-      .click();
-    await room
-      .getByRole("button", { name: "Make the north wall open" })
       .click();
     await expect(
       room.getByRole("button", { name: "Living room north wall, open" }),
@@ -1475,9 +1471,6 @@ test.describe("laying the apartment out", () => {
     // And back to a wall.
     await reopened
       .getByRole("button", { name: "Living room north wall, open" })
-      .click();
-    await reopened
-      .getByRole("button", { name: "Make the north wall walled" })
       .click();
     await expect(
       reopened.getByRole("button", {

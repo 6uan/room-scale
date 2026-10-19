@@ -217,15 +217,9 @@ describe("RoomFields", () => {
     const onChange = vi.fn();
     renderFields(floor, room, onChange);
 
-    // Picking a side is a selection, not an edit. The three kinds are all on
-    // screen either way; what a side does not have is a hidden fourth press.
+    // Each side is its own switch: one press takes the wall away.
     fireEvent.click(
       screen.getByRole("button", { name: "Living room north wall, walled" }),
-    );
-    expect(onChange).not.toHaveBeenCalled();
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Make the north wall open" }),
     );
 
     const opened = onChange.mock.lastCall?.[0] as Room | undefined;
@@ -233,19 +227,6 @@ describe("RoomFields", () => {
       throw new Error("the kind reported no change");
     }
     expect(primaryRoomPart(opened).openWalls).toEqual(["north"]);
-  });
-
-  it("offers no kind until a side has been picked", () => {
-    const floor = projectWithLivingRoom().floor;
-    const room = floor.rooms[0];
-    if (room === undefined) {
-      throw new Error("a new project starts with a room");
-    }
-    renderFields(floor, room, vi.fn());
-
-    expect(
-      screen.getByRole("button", { name: "Make the selected wall open" }),
-    ).toBeDisabled();
   });
 
   it("turns an open wall back into a wall, then open again", () => {
@@ -267,9 +248,6 @@ describe("RoomFields", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Living room north wall, open" }),
     );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Make the north wall walled" }),
-    );
 
     // An outside wall: walled is the plain state, with nothing to divide.
     const dividing = onChange.mock.lastCall?.[0] as Room;
@@ -278,18 +256,10 @@ describe("RoomFields", () => {
 
     const onChangeAgain = vi.fn();
     renderFields({ ...floor, rooms: [dividing] }, dividing, onChangeAgain);
-    fireEvent.click(
-      screen.getAllByRole("button", {
-        name: "Living room north wall, walled",
-      })[0]!,
-    );
-    // The last one: both panels are still mounted, and both have picked their
-    // north wall, so both offer this button.
+    // The last one: both panels are still mounted.
     fireEvent.click(
       screen
-        .getAllByRole("button", {
-          name: "Make the north wall open",
-        })
+        .getAllByRole("button", { name: "Living room north wall, walled" })
         .at(-1)!,
     );
 
@@ -334,14 +304,11 @@ describe("RoomFields", () => {
       />,
     );
 
-    // Reads as open, because no wall is drawn there.
+    // Reads as open, because no wall is drawn there; one press walls it.
     fireEvent.click(
       screen.getByRole("button", {
         name: "Living room section 2 north wall, open",
       }),
-    );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Make the north wall walled" }),
     );
 
     const walled = onChange.mock.lastCall?.[0] as Room;
