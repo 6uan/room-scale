@@ -175,10 +175,13 @@ export function ApartmentLayers({
         inert={collapsed}
         aria-hidden={collapsed}
       >
-        <div className="flex min-h-0 flex-col overflow-hidden">
+        <div
+          {...scroll.area}
+          className={`${scroll.area.className} -mx-3 overflow-hidden`}
+        >
           <div
-            {...scroll}
-            className={`-mx-3 flex min-h-0 flex-col gap-5 overflow-y-auto px-3 pt-3 ${scroll.className}`}
+            {...scroll.scroller}
+            className={`flex min-h-0 flex-col gap-5 overflow-y-auto px-3 pt-3 ${scroll.scroller.className}`}
           >
             <ul className="flex flex-col gap-1">
               {floor.rooms.map((room) => (
@@ -261,6 +264,7 @@ export function ApartmentLayers({
               </div>
             )}
           </div>
+          <div {...scroll.thumb} />
         </div>
       </div>
     </div>

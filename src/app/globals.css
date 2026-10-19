@@ -39,13 +39,37 @@ body {
   -webkit-appearance: none;
 }
 
-/* A list's scrollbar is there while it is being used and gone when it is
-   not: thin, and transparent until the pointer is over the list or it has
-   just scrolled. The data attribute is set by `useScrollFade`. */
+/* A list scrolls under its own thin bar, drawn by `useScrollFade` over the
+   right edge rather than the browser's, which reserves its track even while
+   transparent. The thumb is there while the list is being used and gone when
+   it is not. */
+.scroll-area {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+}
+.scroll-thumb {
+  position: absolute;
+  right: 3px;
+  width: 4px;
+  border-radius: 2px;
+  background: rgb(0 0 0 / 0.3);
+  opacity: 0;
+  transition: opacity 200ms;
+  pointer-events: none;
+}
+.scroll-area:hover .scroll-thumb,
+.scroll-area[data-scrolling="true"] .scroll-thumb {
+  opacity: 1;
+}
+@media (prefers-color-scheme: dark) {
+  .scroll-thumb {
+    background: rgb(255 255 255 / 0.3);
+  }
+}
 .scroll-fade {
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
-  transition: scrollbar-color 200ms;
+  scrollbar-width: none;
   /* Rows fade out at the top and bottom edge rather than being cut off:
      a soft edge says there is more, where a hard one looks like a mistake. */
   mask-image: linear-gradient(
@@ -56,13 +80,6 @@ body {
     transparent
   );
 }
-.scroll-fade:hover,
-.scroll-fade[data-scrolling="true"] {
-  scrollbar-color: rgb(0 0 0 / 0.28) transparent;
-}
-@media (prefers-color-scheme: dark) {
-  .scroll-fade:hover,
-  .scroll-fade[data-scrolling="true"] {
-    scrollbar-color: rgb(255 255 255 / 0.28) transparent;
-  }
+.scroll-fade::-webkit-scrollbar {
+  display: none;
 }
