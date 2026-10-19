@@ -19,6 +19,7 @@ function product(
     productUrl: "",
     priceCents,
     purchaseStatus: "considering",
+    category: "other",
     footprint: { widthMeters: 1, depthMeters: 1 },
     heightMeters: 0.5,
   };

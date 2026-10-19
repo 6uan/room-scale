@@ -1,6 +1,7 @@
 "use client";
 
 import { CornerDownLeft, GripVertical } from "lucide-react";
+import { PRODUCT_CATEGORY_LABELS } from "@/components/product-form";
 import { IconButton } from "@/components/icon-button";
 import { PanelHeader } from "@/components/panel-header";
 import {
@@ -42,7 +43,7 @@ export function CataloguePanel({
   return (
     <div className="flex max-h-[70vh] min-h-0 flex-col gap-4 overflow-y-auto border-t border-black/10 p-5 dark:border-white/15">
       <PanelHeader
-        title="Catalogue"
+        title="Furniture"
         action="New product"
         onAction={() => onSelect({ kind: "new-product" })}
       />
@@ -83,6 +84,9 @@ export function CataloguePanel({
                 >
                   <span className="block truncate">{product.name}</span>
                   <span className="block truncate text-[13px] opacity-55">
+                    {product.category === "other"
+                      ? ""
+                      : `${PRODUCT_CATEGORY_LABELS[product.category]} · `}
                     {formatLength(product.footprint.widthMeters, unit)} ×{" "}
                     {formatLength(product.footprint.depthMeters, unit)}
                     {product.priceCents === 0

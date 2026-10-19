@@ -22,6 +22,7 @@ const SECTIONAL: FurnitureProduct = {
   productUrl: "https://www.article.com/product/1234/sectional",
   priceCents: 199900,
   purchaseStatus: "considering",
+  category: "seating",
   footprint: {
     widthMeters: metersFromInches(112),
     depthMeters: metersFromInches(65),

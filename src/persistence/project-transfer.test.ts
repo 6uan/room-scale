@@ -17,6 +17,7 @@ function furnished() {
         productUrl: "https://example.com/rug",
         priceCents: 34900,
         purchaseStatus: "ordered",
+        category: "other",
         footprint: { widthMeters: 2.4384, depthMeters: 1.524 },
         heightMeters: 0.01,
       },
