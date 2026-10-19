@@ -17,7 +17,11 @@ import { LayoutProblems } from "@/components/layout-problems";
 import { LayoutSwitcher } from "@/components/layout-switcher";
 import { ProjectSwitcher } from "@/components/project-switcher";
 import { RoomPlanCanvas } from "@/components/room-plan-canvas";
-import { selectedInstanceId, type Selection } from "@/components/selection";
+import {
+  instanceSelection,
+  selectedInstanceIds,
+  type Selection,
+} from "@/components/selection";
 import { ShortcutsGuide } from "@/components/shortcuts-guide";
 import { pressIs } from "@/components/shortcuts";
 import {
@@ -411,6 +415,13 @@ export function Workspace() {
         setSelection(null);
         return;
       }
+      case "instances": {
+        setInstances(
+          instances.filter((one) => !selection.ids.includes(one.id)),
+        );
+        setSelection(null);
+        return;
+      }
       case "product": {
         const product = products.find((one) => one.id === selection.id);
         if (product !== undefined) {
@@ -617,13 +628,20 @@ export function Workspace() {
               floor={floor}
               furniture={furniture}
               unit={unit}
-              selectedId={selectedInstanceId(selection)}
+              selectedIds={selectedInstanceIds(selection)}
               troubledIds={troubledIds}
-              onSelect={(id) =>
-                setSelection(id === null ? null : { kind: "instance", id })
-              }
+              onSelect={(ids) => setSelection(instanceSelection(ids))}
               onInstanceChange={(instance, gesture) =>
                 setInstances(withInstance(instances, instance), gesture)
+              }
+              onInstancesChange={(moved, gesture) =>
+                setInstances(
+                  moved.reduce(
+                    (all, instance) => withInstance(all, instance),
+                    instances,
+                  ),
+                  gesture,
+                )
               }
               selectedRoomId={
                 selection?.kind === "room"
@@ -747,6 +765,10 @@ export function Workspace() {
             }
             onInstanceRemove={(instance: FurnitureInstance) => {
               setInstances(instances.filter((one) => one.id !== instance.id));
+              setSelection(null);
+            }}
+            onInstancesRemove={(ids) => {
+              setInstances(instances.filter((one) => !ids.includes(one.id)));
               setSelection(null);
             }}
             onProductSave={saveProduct}

@@ -419,6 +419,56 @@ test.describe("the plan as a canvas", () => {
     );
   });
 
+  test("selects two pieces with a rectangle and moves them as one", async ({
+    page,
+  }) => {
+    await placeRug(page);
+    const rugBefore = Number(
+      await details(page).getByLabel("From west").inputValue(),
+    );
+    await addProduct(page, { name: "Lamp", width: "12", depth: "12" });
+    await placeFromList(page, "Lamp", 90);
+    const lampBefore = Number(
+      await details(page).getByLabel("From west").inputValue(),
+    );
+    const centre = await planCentre(page);
+    const box = await planImage(page).boundingBox();
+    if (box === null) {
+      throw new Error("the plan has no box to point at");
+    }
+
+    // From open floor outside the room, across both pieces.
+    await page.mouse.move(box.x + 8, box.y + 8);
+    await page.mouse.down();
+    await page.mouse.move(centre.x + 130, centre.y + 130, { steps: 8 });
+    await page.mouse.up();
+    await expect(
+      details(page).getByRole("heading", { name: "2 pieces" }),
+    ).toBeVisible();
+
+    // Dragging one drags both, by the same amount.
+    await page.mouse.move(centre.x, centre.y);
+    await page.mouse.down();
+    await page.mouse.move(centre.x - 60, centre.y, { steps: 10 });
+    await page.mouse.up();
+    await expect(
+      details(page).getByRole("heading", { name: "2 pieces" }),
+    ).toBeVisible();
+
+    await page.mouse.click(centre.x - 60, centre.y);
+    const rugWest = Number(
+      await details(page).getByLabel("From west").inputValue(),
+    );
+    await page.mouse.click(centre.x + 30, centre.y + 90);
+    const lampWest = Number(
+      await details(page).getByLabel("From west").inputValue(),
+    );
+    // Both went west, and by the same amount.
+    expect(rugWest).toBeLessThan(rugBefore);
+    expect(lampWest).toBeLessThan(lampBefore);
+    expect(rugBefore - rugWest).toBeCloseTo(lampBefore - lampWest, 0);
+  });
+
   test("zooms toward the pointer without moving the furniture", async ({
     page,
   }) => {

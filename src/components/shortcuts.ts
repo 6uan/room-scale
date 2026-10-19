@@ -119,6 +119,19 @@ export const SHORTCUTS: readonly Shortcut[] = [
     matches: (press) => isNudge(press) && press.shiftKey,
   },
   {
+    id: "select-many",
+    group: SELECTION_GROUP,
+    keys: ["Drag"],
+    describe: () =>
+      "On open floor, draws a rectangle and selects every piece it touches. Shift makes a drag do that anywhere.",
+  },
+  {
+    id: "select-toggle",
+    group: SELECTION_GROUP,
+    keys: ["Shift", "Click"],
+    describe: () => "Adds a piece to the selection, or takes it out.",
+  },
+  {
     id: "drag-free",
     group: SELECTION_GROUP,
     keys: ["Alt", "Drag"],
