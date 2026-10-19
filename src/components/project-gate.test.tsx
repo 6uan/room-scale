@@ -90,6 +90,39 @@ describe("ProjectGate", () => {
     });
   });
 
+  it("gives way to a project another tab wrote, rather than erasing it", async () => {
+    await saveProject(createProject(), "current", 1000);
+    render(
+      <ProjectGate>
+        <p>The editor</p>
+      </ProjectGate>,
+    );
+    await waitFor(() =>
+      expect(useProjectStore.getState().status).toBe("ready"),
+    );
+
+    // The other tab writes something newer: a metric project, at a later time.
+    await saveProject(
+      withDisplayUnit(createProject(), "metric"),
+      "current",
+      2000,
+    );
+
+    // This tab, still holding the imperial one, makes an unrelated change.
+    useProjectStore
+      .getState()
+      .setLayouts([...useProjectStore.getState().project.layouts]);
+
+    // Storage keeps the other tab's project, and this tab takes it on.
+    await waitFor(async () => {
+      const stored = await loadProject();
+      expect(stored.status === "loaded" && stored.project.displayUnit).toBe(
+        "metric",
+      );
+      expect(useProjectStore.getState().project.displayUnit).toBe("metric");
+    });
+  });
+
   it("does not write the default project over stored data before loading", async () => {
     const stored = withDisplayUnit(createProject(), "metric");
     await saveProject(stored);

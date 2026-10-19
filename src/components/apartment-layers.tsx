@@ -148,7 +148,7 @@ export function ApartmentLayers({
   const homeless = inRoom(null);
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-col px-4 pt-3 pb-4">
+    <div className="flex min-h-0 min-w-0 flex-col px-3 pt-3 pb-3">
       {/* Lit while the plan is waiting for a rectangle, so the mode it turns
           on is visible in the one place that turned it on. */}
       <PanelHeader
@@ -162,7 +162,7 @@ export function ApartmentLayers({
       {/* A rule under the header, edge to edge, so where the list scrolls is
           seen. Outside the folding part, which clips what bleeds past it. */}
       {collapsed ? null : (
-        <div className="-mx-4 mt-3 border-t border-black/10 dark:border-white/15" />
+        <div className="-mx-3 mt-3 border-t border-black/10 dark:border-white/15" />
       )}
       {/* Folded the way the furniture panel is: a grid row from one share
           to none, the list kept mounted and inert while it is away. */}
@@ -175,10 +175,10 @@ export function ApartmentLayers({
         inert={collapsed}
         aria-hidden={collapsed}
       >
-        <div className="flex min-h-0 flex-col overflow-hidden">
+        <div className="-mx-3 flex min-h-0 flex-col overflow-hidden">
           <div
             {...scroll}
-            className={`-mx-4 flex min-h-0 flex-col gap-5 overflow-y-auto px-4 pt-3 ${scroll.className}`}
+            className={`flex min-h-0 flex-col gap-5 overflow-y-auto px-3 pt-3 ${scroll.className}`}
           >
             <ul className="flex flex-col gap-1">
               {floor.rooms.map((room) => (

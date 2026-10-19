@@ -14,6 +14,7 @@ import {
   loadProject,
   openProjectId,
   saveProject,
+  saveProjectUnlessNewer,
   setOpenProjectId,
 } from "./project-repository";
 import { projectWithLivingRoom } from "@/domain/project/fixtures";
@@ -52,6 +53,7 @@ describe("loadProject", () => {
       status: "loaded",
       id: CURRENT_PROJECT_ID,
       project,
+      updatedAt: 1_700_000_000_000,
     });
   });
 
@@ -154,6 +156,7 @@ describe("several projects", () => {
       status: "loaded",
       id: "project-2",
       project: second,
+      updatedAt: 2,
     });
   });
 
@@ -185,6 +188,50 @@ describe("several projects", () => {
     await deleteProject("project-2", database);
 
     await expect(listProjects(database)).resolves.toHaveLength(1);
+  });
+});
+
+describe("saveProjectUnlessNewer", () => {
+  it("writes when nothing newer has been stored since the read", async () => {
+    await saveProject(projectWithLivingRoom(), CURRENT_PROJECT_ID, 1, database);
+
+    const outcome = await saveProjectUnlessNewer(
+      withDisplayUnit(projectWithLivingRoom(), "metric"),
+      CURRENT_PROJECT_ID,
+      1,
+      2,
+      database,
+    );
+
+    expect(outcome).toEqual({ saved: true, updatedAt: 2 });
+    const stored = await loadProject(database);
+    expect(stored.status === "loaded" && stored.project.displayUnit).toBe(
+      "metric",
+    );
+  });
+
+  it("refuses to write over a row another tab wrote after the read", async () => {
+    // Read at 1; another tab wrote at 5; this tab's save is based on 1.
+    await saveProject(
+      withDisplayUnit(projectWithLivingRoom(), "metric"),
+      CURRENT_PROJECT_ID,
+      5,
+      database,
+    );
+
+    const outcome = await saveProjectUnlessNewer(
+      projectWithLivingRoom(),
+      CURRENT_PROJECT_ID,
+      1,
+      6,
+      database,
+    );
+
+    expect(outcome).toEqual({ saved: false, updatedAt: 5 });
+    const stored = await loadProject(database);
+    expect(stored.status === "loaded" && stored.project.displayUnit).toBe(
+      "metric",
+    );
   });
 });
 

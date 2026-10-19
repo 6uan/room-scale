@@ -30,6 +30,8 @@ export type LoadResult =
       readonly status: "loaded";
       readonly id: string;
       readonly project: Project;
+      /** When the row was written, to tell a later write from another tab. */
+      readonly updatedAt: number;
     }
   /** Something is there but could not be read. It has been kept, not deleted. */
   | {
@@ -74,7 +76,12 @@ export async function loadProject(
 
   const result = readStoredProject(row);
   if (result.ok) {
-    return { status: "loaded", id: projectId, project: result.project };
+    return {
+      status: "loaded",
+      id: projectId,
+      project: result.project,
+      updatedAt: row.updatedAt,
+    };
   }
 
   // Copy it aside before anything the person does can overwrite it. A project
@@ -91,6 +98,36 @@ export async function saveProject(
   database: RoomScaleDatabase = sharedDatabase(),
 ): Promise<void> {
   await database.projects.put(toStoredProject(id, project, updatedAt));
+}
+
+export type SaveOutcome =
+  | { readonly saved: true; readonly updatedAt: number }
+  /** Somebody else — another tab — wrote this project after we read it. */
+  | { readonly saved: false; readonly updatedAt: number };
+
+/**
+ * Saves, unless the row has been written since `basedOnUpdatedAt`.
+ *
+ * Two tabs on one project each hold their own copy, and the one that saves
+ * last would silently win — a tab opened before a room was drawn, nudged
+ * once, erased the room. Checked and written in one transaction, so the
+ * check cannot go stale between the two.
+ */
+export async function saveProjectUnlessNewer(
+  project: Project,
+  id: string,
+  basedOnUpdatedAt: number,
+  updatedAt: number = Date.now(),
+  database: RoomScaleDatabase = sharedDatabase(),
+): Promise<SaveOutcome> {
+  return database.transaction("rw", database.projects, async () => {
+    const row = await database.projects.get(id);
+    if (row !== undefined && row.updatedAt > basedOnUpdatedAt) {
+      return { saved: false, updatedAt: row.updatedAt };
+    }
+    await database.projects.put(toStoredProject(id, project, updatedAt));
+    return { saved: true, updatedAt };
+  });
 }
 
 /**

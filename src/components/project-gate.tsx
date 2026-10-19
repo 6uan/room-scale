@@ -3,7 +3,7 @@
 import { X } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createProject, type Project } from "@/domain/project";
-import { loadProject, saveProject } from "@/persistence";
+import { loadProject, saveProjectUnlessNewer } from "@/persistence";
 import { useProjectStore } from "@/state/project-store";
 
 /**
@@ -16,6 +16,15 @@ import { useProjectStore } from "@/state/project-store";
  * one write plus a trailing one.
  */
 const MINIMUM_SAVE_GAP_MS = 400;
+
+/** How tabs on the same machine tell each other a project was written. */
+const CHANNEL_NAME = "roomscale-project";
+
+function openChannel(): BroadcastChannel | null {
+  return typeof BroadcastChannel === "undefined"
+    ? null
+    : new BroadcastChannel(CHANNEL_NAME);
+}
 
 /**
  * Connects the project store to IndexedDB, and holds the interface back until
@@ -32,6 +41,13 @@ export function ProjectGate({ children }: { children: ReactNode }) {
   const setStatus = useProjectStore((state) => state.setStatus);
   // Effects run twice in development's strict mode; the load must not.
   const loadStarted = useRef(false);
+  /**
+   * When the project on screen was written to storage, by anybody. A save
+   * is refused if the row is newer than this: another tab got there first.
+   */
+  const loadedAt = useRef(0);
+  /** Set while a project from storage is being adopted, so it is not re-saved. */
+  const syncing = useRef(false);
 
   useEffect(() => {
     if (loadStarted.current) {
@@ -43,6 +59,7 @@ export function ProjectGate({ children }: { children: ReactNode }) {
       try {
         const result = await loadProject();
         if (result.status === "loaded") {
+          loadedAt.current = result.updatedAt;
           adopt(result.project, { id: result.id });
         } else {
           adopt(createProject(), { id: result.id });
@@ -65,6 +82,23 @@ export function ProjectGate({ children }: { children: ReactNode }) {
     let pending: { id: string; project: Project } | null = null;
     let lastSavedAt = 0;
 
+    const channel = openChannel();
+
+    /** Takes the project another tab wrote, in place of what is here. */
+    const takeFromStorage = async (id: string) => {
+      const result = await loadProject(undefined, id);
+      if (result.status !== "loaded") {
+        return;
+      }
+      loadedAt.current = result.updatedAt;
+      syncing.current = true;
+      try {
+        useProjectStore.getState().adopt(result.project, { id });
+      } finally {
+        syncing.current = false;
+      }
+    };
+
     const flush = () => {
       if (timer !== null) {
         clearTimeout(timer);
@@ -76,11 +110,42 @@ export function ProjectGate({ children }: { children: ReactNode }) {
       const { id, project } = pending;
       pending = null;
       lastSavedAt = Date.now();
-      void saveProject(project, id).catch(() => {
-        // A failed write should not take the editor down with it. The next
-        // change tries again.
-      });
+      void saveProjectUnlessNewer(project, id, loadedAt.current)
+        .then((outcome) => {
+          if (outcome.saved) {
+            loadedAt.current = outcome.updatedAt;
+            channel?.postMessage({ id, updatedAt: outcome.updatedAt });
+            return;
+          }
+          // Another tab wrote this project after we read it. Its version is
+          // the one on disk, so it is the one on screen from here; this
+          // tab's last change gives way rather than erasing the other's.
+          return takeFromStorage(id);
+        })
+        .catch(() => {
+          // A failed write should not take the editor down with it. The next
+          // change tries again.
+        });
     };
+
+    // Another tab saved. If nothing here is waiting to be written, follow
+    // it; if something is, the next save finds the row newer and follows
+    // it then.
+    const onMessage = (
+      event: MessageEvent<{ id: string; updatedAt: number }>,
+    ) => {
+      const { id, updatedAt } = event.data;
+      const state = useProjectStore.getState();
+      if (
+        id !== state.projectId ||
+        updatedAt <= loadedAt.current ||
+        pending !== null
+      ) {
+        return;
+      }
+      void takeFromStorage(id);
+    };
+    channel?.addEventListener("message", onMessage);
 
     const flushIfHidden = () => {
       if (document.visibilityState === "hidden") {
@@ -89,13 +154,18 @@ export function ProjectGate({ children }: { children: ReactNode }) {
     };
 
     const unsubscribe = useProjectStore.subscribe((state, previous) => {
-      if (state.project === previous.project) {
+      if (state.project === previous.project || syncing.current) {
         return;
       }
       // A change still waiting belongs to the project that was open. It goes
       // out now rather than being replaced by the one just switched to.
       if (pending !== null && pending.id !== state.projectId) {
         flush();
+      }
+      // Switched to another project: what is on screen was just read, and a
+      // save of it must not be refused for being based on the old one.
+      if (state.projectId !== previous.projectId) {
+        loadedAt.current = Date.now();
       }
       pending = { id: state.projectId, project: state.project };
 
@@ -118,6 +188,8 @@ export function ProjectGate({ children }: { children: ReactNode }) {
       document.removeEventListener("visibilitychange", flushIfHidden);
       flush();
       unsubscribe();
+      channel?.removeEventListener("message", onMessage);
+      channel?.close();
     };
   }, [status]);
 

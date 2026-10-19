@@ -58,7 +58,7 @@ export function CataloguePanel({
 
   return (
     <div
-      className={`flex min-h-0 min-w-0 flex-col border-t border-black/10 px-4 pt-3 pb-4 dark:border-white/15 ${
+      className={`flex min-h-0 min-w-0 flex-col border-t border-black/10 px-3 pt-3 pb-3 dark:border-white/15 ${
         unbounded ? "" : "max-h-[42vh]"
       }`}
     >
@@ -72,7 +72,7 @@ export function CataloguePanel({
       {/* A rule under the header, edge to edge, so where the list scrolls is
           seen. Outside the folding part, which clips what bleeds past it. */}
       {collapsed ? null : (
-        <div className="-mx-4 mt-3 border-t border-black/10 dark:border-white/15" />
+        <div className="-mx-3 mt-3 border-t border-black/10 dark:border-white/15" />
       )}
 
       {/*
@@ -94,7 +94,7 @@ export function CataloguePanel({
         aria-hidden={collapsed}
       >
         {/* The gap under the header lives in here, so it folds with the list. */}
-        <div className="flex min-h-0 flex-col overflow-hidden">
+        <div className="-mx-3 flex min-h-0 flex-col overflow-hidden">
           {products.length === 0 ? (
             <p className="px-1 text-[13px] leading-relaxed opacity-60">
               Nothing yet. Add the first thing you are thinking of buying, or
@@ -103,7 +103,7 @@ export function CataloguePanel({
           ) : (
             <div
               {...scroll}
-              className={`-mx-4 min-h-0 overflow-y-auto px-4 pt-3 ${scroll.className}`}
+              className={`min-h-0 overflow-y-auto px-3 pt-3 ${scroll.className}`}
             >
               <ul className="flex flex-col gap-1">
                 {products.map((product) => {
@@ -119,7 +119,7 @@ export function CataloguePanel({
                         );
                         event.dataTransfer.effectAllowed = "copy";
                       }}
-                      className={`group flex min-w-0 cursor-grab items-center gap-1 rounded-lg py-2 pr-1 pl-1.5 text-sm transition-colors active:cursor-grabbing ${
+                      className={`group flex min-w-0 cursor-grab items-center gap-1 rounded-lg px-2.5 py-2 text-sm transition-colors active:cursor-grabbing ${
                         isSelected(selection, "product", product.id)
                           ? "bg-black/10 dark:bg-white/15"
                           : "hover:bg-black/5 dark:hover:bg-white/10"
