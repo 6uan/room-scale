@@ -94,10 +94,7 @@ export function CataloguePanel({
         aria-hidden={collapsed}
       >
         {/* The gap under the header lives in here, so it folds with the list. */}
-        <div
-          {...scroll.area}
-          className={`${scroll.area.className} -mx-3 overflow-hidden`}
-        >
+        <div className="-mx-3 flex min-h-0 flex-col overflow-hidden">
           {products.length === 0 ? (
             <p className="px-1 text-[13px] leading-relaxed opacity-60">
               Nothing yet. Add the first thing you are thinking of buying, or
@@ -105,8 +102,8 @@ export function CataloguePanel({
             </p>
           ) : (
             <div
-              {...scroll.scroller}
-              className={`min-h-0 overflow-y-auto px-3 pt-3 ${scroll.scroller.className}`}
+              {...scroll}
+              className={`min-h-0 overflow-y-auto px-3 pt-3 ${scroll.className}`}
             >
               <ul className="flex flex-col gap-1">
                 {products.map((product) => {
@@ -155,7 +152,6 @@ export function CataloguePanel({
               </ul>
             </div>
           )}
-          <div {...scroll.thumb} />
         </div>
       </div>
     </div>
