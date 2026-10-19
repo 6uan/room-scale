@@ -136,6 +136,8 @@ export function Workspace() {
     readonly roomId: string;
     readonly kind: OpeningKind;
   } | null>(null);
+  /** Which side panels are folded away. A fact about this sitting. */
+  const [folded, setFolded] = useState({ apartment: false, furniture: false });
   /** The product armed from the list, waiting for a click on the plan. */
   const [placingProduct, setPlacingProduct] = useState<FurnitureProduct | null>(
     null,
@@ -609,7 +611,15 @@ export function Workspace() {
             below. */}
         <aside
           aria-label="Contents"
-          className="grid min-w-0 grid-rows-[minmax(0,1fr)_auto] overflow-hidden border-r border-black/10 dark:border-white/15"
+          className="grid min-w-0 overflow-hidden border-r border-black/10 dark:border-white/15"
+          style={{
+            // The apartment list takes the rest and the furniture list is
+            // capped — unless the apartment list has folded away, when the
+            // furniture list may have the room instead.
+            gridTemplateRows: folded.apartment
+              ? "auto minmax(0, 1fr)"
+              : "minmax(0, 1fr) auto",
+          }}
         >
           <ApartmentLayers
             floor={floor}
@@ -624,6 +634,10 @@ export function Workspace() {
               setDrawingRoom((on) => !on);
             }}
             drawingRoom={drawingRoom}
+            collapsed={folded.apartment}
+            onToggleCollapsed={() =>
+              setFolded((was) => ({ ...was, apartment: !was.apartment }))
+            }
             onToggleHidden={(id) => {
               const instance = instances.find((one) => one.id === id);
               if (instance !== undefined) {
@@ -655,6 +669,11 @@ export function Workspace() {
             unit={unit}
             selection={selection}
             onSelect={setSelection}
+            collapsed={folded.furniture}
+            onToggleCollapsed={() =>
+              setFolded((was) => ({ ...was, furniture: !was.furniture }))
+            }
+            unbounded={folded.apartment}
             onPlace={(product) => {
               setDrawingRoom(false);
               setDrawingSectionOf(null);

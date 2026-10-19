@@ -22,6 +22,11 @@ export type CataloguePanelProps = {
   selection: Selection;
   onSelect: (selection: Selection) => void;
   onPlace: (product: FurnitureProduct) => void;
+  /** Folded away, when the workspace is keeping track; otherwise its own. */
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
+  /** Free to take the sidebar, when the apartment list has folded away. */
+  unbounded?: boolean;
 };
 
 /**
@@ -39,21 +44,36 @@ export function CataloguePanel({
   selection,
   onSelect,
   onPlace,
+  collapsed: collapsedProp,
+  onToggleCollapsed,
+  unbounded = false,
 }: CataloguePanelProps) {
   const scroll = useScrollFade();
   // Folded away when the apartment list needs the room. A fact about this
   // sitting, not the project, so it is not saved.
-  const [collapsed, setCollapsed] = useState(false);
+  const [ownCollapsed, setOwnCollapsed] = useState(false);
+  const collapsed = collapsedProp ?? ownCollapsed;
+  const toggleCollapsed =
+    onToggleCollapsed ?? (() => setOwnCollapsed((was) => !was));
 
   return (
-    <div className="flex max-h-[42vh] min-h-0 min-w-0 flex-col border-t border-black/10 p-5 dark:border-white/15">
+    <div
+      className={`flex min-h-0 min-w-0 flex-col border-t border-black/10 px-4 pt-3 pb-4 dark:border-white/15 ${
+        unbounded ? "" : "max-h-[42vh]"
+      }`}
+    >
       <PanelHeader
         title="Furniture"
         action="New product"
         onAction={() => onSelect({ kind: "new-product" })}
         collapsed={collapsed}
-        onToggleCollapsed={() => setCollapsed((was) => !was)}
+        onToggleCollapsed={toggleCollapsed}
       />
+      {/* A rule under the header, edge to edge, so where the list scrolls is
+          seen. Outside the folding part, which clips what bleeds past it. */}
+      {collapsed ? null : (
+        <div className="-mx-4 mt-3 border-t border-black/10 dark:border-white/15" />
+      )}
 
       {/*
         Folded by animating a grid row from one share to none, which is the
@@ -64,14 +84,17 @@ export function CataloguePanel({
       <div
         className="grid min-h-0 transition-[grid-template-rows,opacity] duration-200 ease-out"
         style={{
-          gridTemplateRows: collapsed ? "0fr" : "1fr",
+          // minmax(0, 1fr) rather than 1fr: a plain fr track will not go
+          // below its content, which is the whole list, and then nothing
+          // inside it ever scrolls.
+          gridTemplateRows: collapsed ? "0fr" : "minmax(0, 1fr)",
           opacity: collapsed ? 0 : 1,
         }}
         inert={collapsed}
         aria-hidden={collapsed}
       >
         {/* The gap under the header lives in here, so it folds with the list. */}
-        <div className="flex min-h-0 flex-col overflow-hidden pt-4">
+        <div className="flex min-h-0 flex-col overflow-hidden">
           {products.length === 0 ? (
             <p className="px-1 text-[13px] leading-relaxed opacity-60">
               Nothing yet. Add the first thing you are thinking of buying, or
@@ -80,7 +103,7 @@ export function CataloguePanel({
           ) : (
             <div
               {...scroll}
-              className={`-mx-5 min-h-0 overflow-y-auto px-5 ${scroll.className}`}
+              className={`-mx-4 min-h-0 overflow-y-auto px-4 pt-3 ${scroll.className}`}
             >
               <ul className="flex flex-col gap-1">
                 {products.map((product) => {

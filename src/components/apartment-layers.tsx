@@ -34,6 +34,9 @@ export type ApartmentLayersProps = {
   onToggleHidden?: (instanceId: string) => void;
   /** Puts one piece where another is in the order, by a drag in the list. */
   onReorder?: (instanceId: string, beforeInstanceId: string) => void;
+  /** Folded away, when the workspace is keeping track; otherwise its own. */
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 };
 
 /** The drag type a list row carries, so a product drag is not mistaken for it. */
@@ -59,9 +62,15 @@ export function ApartmentLayers({
   drawingRoom = false,
   onToggleHidden,
   onReorder,
+  collapsed: collapsedProp,
+  onToggleCollapsed,
 }: ApartmentLayersProps) {
   const names = placedNames(furniture);
   const scroll = useScrollFade();
+  const [ownCollapsed, setOwnCollapsed] = useState(false);
+  const collapsed = collapsedProp ?? ownCollapsed;
+  const toggleCollapsed =
+    onToggleCollapsed ?? (() => setOwnCollapsed((was) => !was));
   /** The row a dragged piece is held over, which is where it would land. */
   const [over, setOver] = useState<string | null>(null);
 
@@ -139,10 +148,7 @@ export function ApartmentLayers({
   const homeless = inRoom(null);
 
   return (
-    <div
-      {...scroll}
-      className={`flex min-h-0 min-w-0 flex-col gap-5 overflow-y-auto p-5 ${scroll.className}`}
-    >
+    <div className="flex min-h-0 min-w-0 flex-col px-4 pt-3 pb-4">
       {/* Lit while the plan is waiting for a rectangle, so the mode it turns
           on is visible in the one place that turned it on. */}
       <PanelHeader
@@ -150,72 +156,113 @@ export function ApartmentLayers({
         action="Add room"
         active={drawingRoom}
         onAction={onAddRoom}
+        collapsed={collapsed}
+        onToggleCollapsed={toggleCollapsed}
       />
-
-      <ul className="flex flex-col gap-1">
-        {floor.rooms.map((room) => (
-          <li key={room.id} className="flex flex-col">
-            <RoomRow
-              room={room}
-              selected={isSelected(selection, "room", room.id)}
-              onSelect={() => onSelect({ kind: "room", id: room.id })}
-              onChange={onRoomChange}
-            />
-            <ul className="flex flex-col">
-              {/* The first rectangle is the room, already on the row above;
-                  only what was added to it gets a row of its own. */}
-              {room.parts.length === 1
-                ? null
-                : room.parts.slice(1).map((part, offset) => (
-                    <li key={part.id}>
-                      <Row
-                        label={`Section ${offset + 2}`}
-                        icon={SquareDashed}
-                        depth
-                        selected={isSelected(selection, "room-part", part.id)}
-                        onSelect={() =>
-                          onSelect({
-                            kind: "room-part",
-                            roomId: room.id,
-                            id: part.id,
-                          })
-                        }
-                      />
-                    </li>
-                  ))}
-              {room.openings.map((opening) => (
-                <li key={opening.id}>
-                  <Row
-                    label={openingListName(room, opening)}
-                    icon={OPENING_ICONS[opening.kind]}
-                    depth
-                    selected={isSelected(selection, "opening", opening.id)}
-                    onSelect={() =>
-                      onSelect({
-                        kind: "opening",
-                        roomId: room.id,
-                        id: opening.id,
-                      })
-                    }
+      {/* A rule under the header, edge to edge, so where the list scrolls is
+          seen. Outside the folding part, which clips what bleeds past it. */}
+      {collapsed ? null : (
+        <div className="-mx-4 mt-3 border-t border-black/10 dark:border-white/15" />
+      )}
+      {/* Folded the way the furniture panel is: a grid row from one share
+          to none, the list kept mounted and inert while it is away. */}
+      <div
+        className="grid min-h-0 transition-[grid-template-rows,opacity] duration-200 ease-out"
+        style={{
+          gridTemplateRows: collapsed ? "0fr" : "minmax(0, 1fr)",
+          opacity: collapsed ? 0 : 1,
+        }}
+        inert={collapsed}
+        aria-hidden={collapsed}
+      >
+        <div className="flex min-h-0 flex-col overflow-hidden">
+          <div
+            {...scroll}
+            className={`-mx-4 flex min-h-0 flex-col gap-5 overflow-y-auto px-4 pt-3 ${scroll.className}`}
+          >
+            <ul className="flex flex-col gap-1">
+              {floor.rooms.map((room) => (
+                <li key={room.id} className="flex flex-col">
+                  <RoomRow
+                    room={room}
+                    selected={isSelected(selection, "room", room.id)}
+                    onSelect={() => onSelect({ kind: "room", id: room.id })}
+                    onChange={onRoomChange}
                   />
+                  <ul className="flex flex-col">
+                    {/* The first rectangle is the room, already on the row above;
+                  only what was added to it gets a row of its own. */}
+                    {room.parts.length === 1
+                      ? null
+                      : room.parts.slice(1).map((part, offset) => (
+                          <li key={part.id}>
+                            <Row
+                              label={`Section ${offset + 2}`}
+                              icon={SquareDashed}
+                              depth
+                              selected={isSelected(
+                                selection,
+                                "room-part",
+                                part.id,
+                              )}
+                              onSelect={() =>
+                                onSelect({
+                                  kind: "room-part",
+                                  roomId: room.id,
+                                  id: part.id,
+                                })
+                              }
+                            />
+                          </li>
+                        ))}
+                    {room.openings.map((opening) => (
+                      <li key={opening.id}>
+                        <Row
+                          label={openingListName(room, opening)}
+                          icon={OPENING_ICONS[opening.kind]}
+                          depth
+                          selected={isSelected(
+                            selection,
+                            "opening",
+                            opening.id,
+                          )}
+                          onSelect={() =>
+                            onSelect({
+                              kind: "opening",
+                              roomId: room.id,
+                              id: opening.id,
+                            })
+                          }
+                        />
+                      </li>
+                    ))}
+                    {inRoom(room.id).map(({ placed, name }) =>
+                      pieceRow(
+                        placed,
+                        name,
+                        troubledIds.has(placed.instance.id),
+                      ),
+                    )}
+                  </ul>
                 </li>
               ))}
-              {inRoom(room.id).map(({ placed, name }) =>
-                pieceRow(placed, name, troubledIds.has(placed.instance.id)),
-              )}
             </ul>
-          </li>
-        ))}
-      </ul>
 
-      {homeless.length === 0 ? null : (
-        <div className="flex flex-col gap-1">
-          <h3 className="text-[13px] font-medium text-red-600">In no room</h3>
-          <ul className="flex flex-col">
-            {homeless.map(({ placed, name }) => pieceRow(placed, name, true))}
-          </ul>
+            {homeless.length === 0 ? null : (
+              <div className="flex flex-col gap-1">
+                <h3 className="text-[13px] font-medium text-red-600">
+                  In no room
+                </h3>
+                <ul className="flex flex-col">
+                  {homeless.map(({ placed, name }) =>
+                    pieceRow(placed, name, true),
+                  )}
+                </ul>
+              </div>
+            )}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
