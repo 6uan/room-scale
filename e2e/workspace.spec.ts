@@ -1519,7 +1519,7 @@ test.describe("laying the apartment out", () => {
     const readout = page.getByLabel("Room being drawn");
     await expect(readout).toBeVisible();
     const text = (await readout.textContent()) ?? "";
-    const match = /^(\d+)' ([\d.]+)" × (\d+)' ([\d.]+)"$/.exec(text);
+    const match = /^Width(\d+)' ([\d.]+)"Height(\d+)' ([\d.]+)"$/.exec(text);
     expect(match, text).not.toBeNull();
     const [, wf, wi, df, di] = match ?? [];
     const width = Number(wf) * 12 + Number(wi);

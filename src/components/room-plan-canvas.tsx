@@ -2169,11 +2169,17 @@ function DrawnSize({
       aria-label="Room being drawn"
       // Inside the far corner rather than beyond it, so it stays on screen
       // when the drag reaches the edge of the plan — which a big room does.
-      className="pointer-events-none absolute -translate-x-full -translate-y-full rounded-lg bg-black/70 px-2.5 py-1 font-mono text-[13px] tabular-nums whitespace-nowrap text-white/90 dark:bg-white/10"
+      className="pointer-events-none absolute flex -translate-x-full -translate-y-full flex-col rounded-lg bg-black/70 px-2.5 py-1 font-mono text-[13px] tabular-nums whitespace-nowrap text-white/90 dark:bg-white/10"
       style={{ left: corner.x - 8, top: corner.y - 8 }}
     >
-      {formatLength(part.widthMeters, unit)} ×{" "}
-      {formatLength(part.depthMeters, unit)}
+      <span className="flex justify-between gap-3">
+        <span className="opacity-60">Width</span>
+        <span>{formatLength(part.widthMeters, unit)}</span>
+      </span>
+      <span className="flex justify-between gap-3">
+        <span className="opacity-60">Height</span>
+        <span>{formatLength(part.depthMeters, unit)}</span>
+      </span>
     </p>
   );
 }
