@@ -2177,7 +2177,7 @@ function DrawnSize({
         <span>{formatLength(part.widthMeters, unit)}</span>
       </span>
       <span className="flex justify-between gap-3">
-        <span className="opacity-60">Height</span>
+        <span className="opacity-60">Depth</span>
         <span>{formatLength(part.depthMeters, unit)}</span>
       </span>
     </p>
