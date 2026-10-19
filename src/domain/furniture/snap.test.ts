@@ -34,6 +34,7 @@ const SOFA: FurnitureProduct = {
   productUrl: "",
   priceCents: 0,
   purchaseStatus: "considering",
+  category: "seating",
   footprint: { widthMeters: 2, depthMeters: 1 },
   heightMeters: 0.8,
 };
