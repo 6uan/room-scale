@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ExternalLink,
   Eye,
   EyeOff,
   ImagePlus,
@@ -8,7 +9,11 @@ import {
   Pencil,
   Trash2,
 } from "lucide-react";
-import { IconButton, IconFileButton } from "@/components/icon-button";
+import {
+  IconButton,
+  IconFileButton,
+  LabelledLink,
+} from "@/components/icon-button";
 import { cn } from "@/components/cn";
 import { Disclosure } from "@/components/disclosure";
 import { NumberField } from "@/components/number-field";
@@ -414,13 +419,30 @@ function InstanceInspector({
           />
         }
       >
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-          <Fact
-            label="Size"
-            value={`${formatLength(placed.product.footprint.widthMeters, unit)} × ${formatLength(placed.product.footprint.depthMeters, unit)}`}
-          />
-          <Fact label="Price" value={formatCents(placed.product.priceCents)} />
-        </dl>
+        {/* The size is the fact this tool exists for, so it is the big
+            number here; the price is read second and set smaller. */}
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="text-[19px] font-semibold tracking-tight tabular-nums">
+            {formatLength(placed.product.footprint.widthMeters, unit)} ×{" "}
+            {formatLength(placed.product.footprint.depthMeters, unit)}
+          </p>
+          <p className="text-sm tabular-nums opacity-60">
+            {formatCents(placed.product.priceCents)}
+          </p>
+        </div>
+        <p className="-mt-2 text-[12px] opacity-50">
+          {formatLength(placed.product.heightMeters, unit)} high
+        </p>
+        {placed.product.productUrl === "" ? null : (
+          <div className="self-start">
+            <LabelledLink
+              label="Open the product page"
+              icon={ExternalLink}
+              href={placed.product.productUrl}
+              target="_blank"
+            />
+          </div>
+        )}
       </PanelSection>
     </Panel>
   );
