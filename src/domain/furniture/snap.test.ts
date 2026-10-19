@@ -38,9 +38,14 @@ const SOFA: FurnitureProduct = {
   heightMeters: 0.8,
 };
 
-function sofaAt(xMeters: number, zMeters: number, rotationRadians = 0) {
+function sofaAt(
+  xMeters: number,
+  zMeters: number,
+  rotationRadians = 0,
+  id = "i1",
+) {
   const instance = turnInstance(
-    createInstance("i1", SOFA.id, { xMeters, zMeters }),
+    createInstance(id, SOFA.id, { xMeters, zMeters }),
     rotationRadians,
   );
   return { instance, product: SOFA };
@@ -52,7 +57,7 @@ describe("snapInstancePosition", () => {
     const placed = sofaAt(2, 0.53);
 
     expect(
-      snapInstancePosition(FLOOR, placed, placed.instance.position),
+      snapInstancePosition(FLOOR, [placed], placed, placed.instance.position),
     ).toEqual({ xMeters: 2, zMeters: 0.5 });
   });
 
@@ -60,7 +65,7 @@ describe("snapInstancePosition", () => {
     const placed = sofaAt(1.03, 2.48);
 
     expect(
-      snapInstancePosition(FLOOR, placed, placed.instance.position),
+      snapInstancePosition(FLOOR, [placed], placed, placed.instance.position),
     ).toEqual({ xMeters: 1, zMeters: 2.5 });
   });
 
@@ -68,7 +73,7 @@ describe("snapInstancePosition", () => {
     const placed = sofaAt(2, 1.5);
 
     expect(
-      snapInstancePosition(FLOOR, placed, placed.instance.position),
+      snapInstancePosition(FLOOR, [placed], placed, placed.instance.position),
     ).toEqual({ xMeters: 2, zMeters: 1.5 });
   });
 
@@ -76,7 +81,8 @@ describe("snapInstancePosition", () => {
     const placed = sofaAt(2, 0.5 + SNAP_METERS);
 
     expect(
-      snapInstancePosition(FLOOR, placed, placed.instance.position).zMeters,
+      snapInstancePosition(FLOOR, [placed], placed, placed.instance.position)
+        .zMeters,
     ).toBe(0.5 + SNAP_METERS);
   });
 
@@ -87,6 +93,7 @@ describe("snapInstancePosition", () => {
 
     const snapped = snapInstancePosition(
       FLOOR,
+      [placed],
       placed,
       placed.instance.position,
     );
@@ -105,7 +112,49 @@ describe("snapInstancePosition", () => {
     const placed = sofaAt(2, 0.53);
 
     expect(
-      snapInstancePosition(turned, placed, placed.instance.position),
+      snapInstancePosition(turned, [placed], placed, placed.instance.position),
     ).toEqual({ xMeters: 2, zMeters: 0.53 });
+  });
+
+  it("lands a piece against another piece it is let go beside", () => {
+    // A sofa standing with its east edge at x = 2.5; the dragged one let go
+    // 3 cm short of touching it.
+    const standing = sofaAt(1.5, 1.5, 0, "i2");
+    const placed = sofaAt(3.53, 1.5);
+
+    expect(
+      snapInstancePosition(
+        FLOOR,
+        [standing, placed],
+        placed,
+        placed.instance.position,
+      ),
+    ).toEqual({ xMeters: 3.5, zMeters: 1.5 });
+  });
+
+  it("lines a piece up with another piece's edge", () => {
+    // Below the standing sofa, 2 cm off having the same west edge.
+    const standing = sofaAt(1.5, 0.5, 0, "i2");
+    const placed = sofaAt(1.52, 2);
+
+    expect(
+      snapInstancePosition(
+        FLOOR,
+        [standing, placed],
+        placed,
+        placed.instance.position,
+      ),
+    ).toEqual({ xMeters: 1.5, zMeters: 2 });
+  });
+
+  it("never snaps a piece to itself", () => {
+    const placed = sofaAt(2, 1.5);
+
+    expect(
+      snapInstancePosition(FLOOR, [placed], placed, {
+        xMeters: 2.02,
+        zMeters: 1.5,
+      }),
+    ).toEqual({ xMeters: 2.02, zMeters: 1.5 });
   });
 });

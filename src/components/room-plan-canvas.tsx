@@ -1257,11 +1257,11 @@ export function RoomPlanCanvas({
       xMeters: point.xMeters - drag.grabOffset.xMeters,
       zMeters: point.zMeters - drag.grabOffset.zMeters,
     };
-    // Against the nearest wall if one is close, unless Alt is held, which is
-    // the way to put a piece exactly where the pointer says and nowhere else.
+    // Against the nearest wall or piece if one is close, unless Alt is held,
+    // which is the way to put a piece exactly where the pointer says.
     const landed = event.altKey
       ? dropped
-      : snapInstancePosition(floor, placed, dropped);
+      : snapInstancePosition(floor, furniture, placed, dropped);
     onInstanceChange(
       moveInstance(placed.instance, clampToFloor(floor, landed)),
       `piece-move:${drag.instanceId}`,

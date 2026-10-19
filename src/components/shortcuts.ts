@@ -123,7 +123,7 @@ export const SHORTCUTS: readonly Shortcut[] = [
     group: SELECTION_GROUP,
     keys: ["Alt", "Drag"],
     describe: () =>
-      "Moves a piece exactly where the pointer says. Without it, a piece dragged near a wall lands against it.",
+      "Moves a piece exactly where the pointer says. Without it, a piece dragged near a wall or another piece lands against it.",
   },
   {
     id: "turn",
