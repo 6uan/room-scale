@@ -283,9 +283,11 @@ export function RoomFields({
           only ever describes one.
         */}
         {compound ? (
-          <PanelRow name="Sections" label="Section">
+          <PanelRow name="Sections" label="Editing">
             {/* The row is the group; a second one inside it would announce the
-                same set twice and break every query that names it. */}
+                same set twice and break every query that names it. The first
+                rectangle is the room itself, as the list on the left has it;
+                only the ones added to it are called sections. */}
             <div className="flex min-w-0 flex-1 gap-1">
               {room.parts.map((part, index) => (
                 <Chip
@@ -294,7 +296,7 @@ export function RoomFields({
                   pressed={part.id === shown.id}
                   onClick={() => onSelectPart?.(part.id)}
                 >
-                  {index + 1}
+                  {index === 0 ? "Room" : `Section ${index + 1}`}
                 </Chip>
               ))}
             </div>
