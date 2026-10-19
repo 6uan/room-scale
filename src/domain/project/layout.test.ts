@@ -22,15 +22,15 @@ const RUG = createInstance("i2", "rug", { xMeters: 2, zMeters: 2 });
 
 describe("a layout", () => {
   it("starts empty and named", () => {
-    expect(createLayout("l1", "First try")).toEqual({
+    expect(createLayout("l1", "Layout 1")).toEqual({
       id: "l1",
-      name: "First try",
+      name: "Layout 1",
       instances: [],
     });
   });
 
   it("takes a new name without touching what is placed", () => {
-    const layout = withLayoutInstances(createLayout("l1", "First try"), [SOFA]);
+    const layout = withLayoutInstances(createLayout("l1", "Layout 1"), [SOFA]);
 
     expect(renameLayout(layout, "Sofa by the window")).toEqual({
       id: "l1",
@@ -41,21 +41,21 @@ describe("a layout", () => {
 });
 
 describe("duplicateLayout", () => {
-  const first = withLayoutInstances(createLayout("l1", "First try"), [
+  const first = withLayoutInstances(createLayout("l1", "Layout 1"), [
     SOFA,
     RUG,
   ]);
 
   it("copies the furniture, in the places it was left", () => {
-    const copy = duplicateLayout(first, "l2", "Second try");
+    const copy = duplicateLayout(first, "l2", "Layout 2");
 
     expect(copy.id).toBe("l2");
-    expect(copy.name).toBe("Second try");
+    expect(copy.name).toBe("Layout 2");
     expect(copy.instances).toEqual([SOFA, RUG]);
   });
 
   it("is a copy, not a view: moving one leaves the other alone", () => {
-    const copy = duplicateLayout(first, "l2", "Second try");
+    const copy = duplicateLayout(first, "l2", "Layout 2");
     const moved = withLayoutInstances(copy, [RUG]);
 
     expect(first.instances).toHaveLength(2);
@@ -64,16 +64,16 @@ describe("duplicateLayout", () => {
 });
 
 describe("nextLayoutName", () => {
-  it("counts in words while it can", () => {
-    const first = createLayout("l1", "First try");
-    expect(nextLayoutName([first])).toBe("Second try");
-    expect(nextLayoutName([first, createLayout("l2", "Second try")])).toBe(
-      "Third try",
+  it("counts on from how many there are", () => {
+    const first = createLayout("l1", "Layout 1");
+    expect(nextLayoutName([first])).toBe("Layout 2");
+    expect(nextLayoutName([first, createLayout("l2", "Layout 2")])).toBe(
+      "Layout 3",
     );
   });
 
   it("never repeats a name already taken", () => {
-    const taken = ["First try", "Second try", "Third try", "Fourth try"].map(
+    const taken = ["Layout 1", "Layout 3", "Layout 2", "Layout 4"].map(
       (name, index) => createLayout(`l${index}`, name),
     );
 
@@ -82,16 +82,12 @@ describe("nextLayoutName", () => {
     );
   });
 
-  it("falls back to numbers when the words run out", () => {
-    const many = [
-      "First try",
-      "Second try",
-      "Third try",
-      "Fourth try",
-      "Fifth try",
-    ].map((name, index) => createLayout(`l${index}`, name));
+  it("counts past names somebody typed", () => {
+    const many = ["Layout 1", "Layout 2", "Sofa by the window"].map(
+      (name, index) => createLayout(`l${index}`, name),
+    );
 
-    expect(nextLayoutName(many)).toMatch(/^Layout \d+$/);
+    expect(nextLayoutName(many)).toBe("Layout 4");
   });
 });
 
@@ -115,7 +111,7 @@ describe("a project's layouts", () => {
     const one = withInstances(createProject(), [SOFA, RUG]);
     const two = withLayouts(one, [
       ...one.layouts,
-      duplicateLayout(activeLayout(one), "l2", "Second try"),
+      duplicateLayout(activeLayout(one), "l2", "Layout 2"),
     ]);
 
     const moved = withInstances(withActiveLayout(two, "l2"), [SOFA]);
@@ -132,8 +128,8 @@ describe("a project's layouts", () => {
 
   it("replaces one layout by id, leaving the order alone", () => {
     const project = withLayouts(createProject(), [
-      createLayout("l1", "First try"),
-      createLayout("l2", "Second try"),
+      createLayout("l1", "Layout 1"),
+      createLayout("l2", "Layout 2"),
     ]);
 
     const renamed = withLayout(
@@ -142,7 +138,7 @@ describe("a project's layouts", () => {
     );
 
     expect(renamed.layouts.map((one) => one.name)).toEqual([
-      "First try",
+      "Layout 1",
       "Sofa by the window",
     ]);
   });

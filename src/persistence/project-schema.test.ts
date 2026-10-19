@@ -622,6 +622,18 @@ describe("readStoredProject", () => {
     expect(result.ok && result.project.underlay).toEqual(project.underlay);
   });
 
+  it("names a version 14 project, which was the only one there was", () => {
+    const { name, ...unnamed } = STORED.project;
+    void name;
+    const result = readStoredProject({
+      ...STORED,
+      version: 14,
+      project: unnamed,
+    });
+
+    expect(result.ok && result.project.name).toBe("Project 1");
+  });
+
   it("refuses a part whose rotation is missing at the current version", () => {
     const project = projectWithLivingRoom();
     const room = project.floor.rooms[0];

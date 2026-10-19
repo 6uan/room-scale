@@ -35,7 +35,7 @@ export type Layout = {
  */
 export const EMPTY_LAYOUT: Layout = {
   id: "layout-1",
-  name: "First try",
+  name: "Layout 1",
   instances: [],
 };
 
@@ -72,19 +72,12 @@ export function withLayoutInstances(
 /**
  * A name for a new layout that is not already taken.
  *
- * "Second try", then "Third try", then numbers — a list of arrangements called
+ * "Layout 2", then "Layout 3": counted from how many there are, and moved
+ * along past any number somebody already typed. A list of layouts called
  * "Copy of copy of" is a list nobody can read.
  */
 export function nextLayoutName(existing: readonly Layout[]): string {
   const taken = new Set(existing.map((layout) => layout.name));
-  const ordinals = ["Second try", "Third try", "Fourth try", "Fifth try"];
-
-  for (const name of ordinals) {
-    if (!taken.has(name)) {
-      return name;
-    }
-  }
-
   let counter = existing.length + 1;
   while (taken.has(`Layout ${counter}`)) {
     counter += 1;

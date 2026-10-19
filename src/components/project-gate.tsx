@@ -2,7 +2,7 @@
 
 import { X } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import type { Project } from "@/domain/project";
+import { createProject, type Project } from "@/domain/project";
 import { loadProject, saveProject } from "@/persistence";
 import { useProjectStore } from "@/state/project-store";
 
@@ -43,7 +43,9 @@ export function ProjectGate({ children }: { children: ReactNode }) {
       try {
         const result = await loadProject();
         if (result.status === "loaded") {
-          adopt(result.project);
+          adopt(result.project, { id: result.id });
+        } else {
+          adopt(createProject(), { id: result.id });
         }
         setStatus(result.status === "unreadable" ? "unreadable" : "ready");
       } catch {
@@ -60,7 +62,7 @@ export function ProjectGate({ children }: { children: ReactNode }) {
     }
 
     let timer: ReturnType<typeof setTimeout> | null = null;
-    let pending: Project | null = null;
+    let pending: { id: string; project: Project } | null = null;
     let lastSavedAt = 0;
 
     const flush = () => {
@@ -71,10 +73,10 @@ export function ProjectGate({ children }: { children: ReactNode }) {
       if (pending === null) {
         return;
       }
-      const project = pending;
+      const { id, project } = pending;
       pending = null;
       lastSavedAt = Date.now();
-      void saveProject(project).catch(() => {
+      void saveProject(project, id).catch(() => {
         // A failed write should not take the editor down with it. The next
         // change tries again.
       });
@@ -90,7 +92,12 @@ export function ProjectGate({ children }: { children: ReactNode }) {
       if (state.project === previous.project) {
         return;
       }
-      pending = state.project;
+      // A change still waiting belongs to the project that was open. It goes
+      // out now rather than being replaced by the one just switched to.
+      if (pending !== null && pending.id !== state.projectId) {
+        flush();
+      }
+      pending = { id: state.projectId, project: state.project };
 
       const sinceLastSave = Date.now() - lastSavedAt;
       if (sinceLastSave >= MINIMUM_SAVE_GAP_MS) {

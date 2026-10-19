@@ -226,11 +226,11 @@ function Comparison({
 
   return (
     <div className="flex flex-col gap-3">
-      <h3 className="text-sm font-medium">Against the other arrangements</h3>
+      <h3 className="text-sm font-medium">Against the other layouts</h3>
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b border-black/10 text-left dark:border-white/15">
-            <Th>Arrangement</Th>
+            <Th>Layout</Th>
             <Th>Pieces</Th>
             <Th>Total</Th>
             <Th>Still to buy</Th>
