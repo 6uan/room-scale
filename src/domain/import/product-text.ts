@@ -249,14 +249,14 @@ function axisOf(token: string): Axis | null {
     case "w":
     case "width":
       return "width";
+    // "Length" is what the form calls this side, so a pasted length lands in
+    // the same field a typed one would. Retail is not consistent about which
+    // side is long; turning the piece on the plan is the fix either way.
     case "d":
     case "depth":
-    // A sofa's "length" is the side a plan view calls its depth only when it
-    // is also called depth. On its own, length is how far it runs along the
-    // wall, which is the width.
     case "l":
     case "length":
-      return token.toLowerCase().startsWith("l") ? "width" : "depth";
+      return "depth";
     case "h":
     case "height":
       return "height";

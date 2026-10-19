@@ -3,6 +3,7 @@
 import {
   useEffect,
   useRef,
+  useMemo,
   useState,
   type DragEvent,
   type KeyboardEvent,
@@ -478,13 +479,42 @@ export function RoomPlanCanvas({
   const [cursor, setCursor] = useState<Cursor>("none");
 
   /**
-   * The far corner of a room being drawn, or null when none is.
+   * The two corners of a room being drawn, or null when none is.
    *
    * State rather than a ref, unlike the drag itself: this one has to repaint
    * on every move, because the rectangle following the pointer *is* the
    * feedback. There is nothing else on screen saying how big the room will be.
    */
-  const [drawnTo, setDrawnTo] = useState<FloorPoint | null>(null);
+  const [drawn, setDrawn] = useState<{
+    readonly from: FloorPoint;
+    readonly to: FloorPoint;
+  } | null>(null);
+
+  /**
+   * The rectangle the drag would leave behind, worked out the way the
+   * workspace will work it out: landed on whole inches or centimeters and
+   * snapped to its neighbours. The outline and the size printed beside it
+   * both come from this, so the number you watch is the number you get.
+   */
+  const drawnPart = useMemo(() => {
+    if (drawn === null) {
+      return null;
+    }
+    const room = drawnRoom(
+      floor,
+      "preview",
+      "",
+      drawn.from,
+      drawn.to,
+      (meters) => roundToDisplayUnit(meters, unit),
+    );
+    const part = primaryRoomPart(room);
+    return {
+      origin: part.origin,
+      widthMeters: part.widthMeters,
+      depthMeters: part.depthMeters,
+    };
+  }, [floor, drawn, unit]);
 
   /**
    * The underlay whose corners can be taken hold of, or null.
@@ -543,10 +573,7 @@ export function RoomPlanCanvas({
       viewport: size,
       color: style.color,
       fontFamily: style.fontFamily,
-      drawnRect:
-        drawnTo === null || dragRef.current?.kind !== "draw"
-          ? null
-          : { from: dragRef.current.from, to: drawnTo },
+      drawnPart,
       underlayHandles: resizableUnderlay,
     });
   }, [
@@ -560,7 +587,7 @@ export function RoomPlanCanvas({
     troubledIds,
     size,
     projection,
-    drawnTo,
+    drawnPart,
     resizableUnderlay,
   ]);
 
@@ -1191,7 +1218,8 @@ export function RoomPlanCanvas({
     }
 
     if (drag.kind === "draw") {
-      setDrawnTo(floorPointAt(canvas, event, projectionRef.current));
+      const to = floorPointAt(canvas, event, projectionRef.current);
+      setDrawn(to === null ? null : { from: drag.from, to });
       return;
     }
 
@@ -1316,7 +1344,7 @@ export function RoomPlanCanvas({
       // a hand moved — and at low zoom a firm drag is a few centimeters.
       onDrawRoom?.(drag.from, travelled >= DRAW_THRESHOLD_PIXELS ? to : null);
       dragRef.current = null;
-      setDrawnTo(null);
+      setDrawn(null);
       setCursor("none");
       canvas?.releasePointerCapture?.(event.pointerId);
       // One room, then out of the mode. Staying armed reads like a saving —
@@ -1339,7 +1367,7 @@ export function RoomPlanCanvas({
         // Called off rather than deselecting: in this mode Escape is the way
         // out of the mode, which is the nearer of the two things it could mean.
         dragRef.current = null;
-        setDrawnTo(null);
+        setDrawn(null);
         if (drawing) {
           onDrawEnd?.();
         } else {
@@ -1476,6 +1504,13 @@ export function RoomPlanCanvas({
           Drag out a room, or click to drop one. Esc to stop.
         </p>
       ) : null}
+
+      {/* How big the room will be, beside the corner being dragged. Said as
+          the drag goes rather than after it lands, because the tape says
+          11' by 14' and the hand has nothing else to go by. */}
+      {drawnPart === null ? null : (
+        <DrawnSize part={drawnPart} projection={projection} unit={unit} />
+      )}
 
       {placingOpening === null ? null : (
         <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-[13px] text-white dark:bg-white/15">
@@ -1870,7 +1905,7 @@ function describeRoom(room: Room, unit: DisplayUnit): string {
   const size =
     room.parts.length === 1
       ? `${formatLength(bounds.widthMeters, unit)} wide by ` +
-        `${formatLength(bounds.depthMeters, unit)} deep`
+        `${formatLength(bounds.depthMeters, unit)} long`
       : `${formatLength(bounds.widthMeters, unit)} across by ` +
         `${formatLength(bounds.depthMeters, unit)} down, built from ${room.parts.length} rectangles`;
   const at =
@@ -1936,7 +1971,7 @@ type DrawOptions = {
   color: string;
   fontFamily: string;
   /** A room being dragged out right now, drawn as an outline over everything. */
-  drawnRect?: { readonly from: FloorPoint; readonly to: FloorPoint } | null;
+  drawnPart?: DrawnPart | null;
   /** The underlay whose corners can be dragged, or null when none can. */
   underlayHandles?: PlanUnderlay | null;
 };
@@ -1963,7 +1998,7 @@ function drawPlan(
     viewport,
     color,
     fontFamily,
-    drawnRect = null,
+    drawnPart = null,
     underlayHandles = null,
   }: DrawOptions,
 ): void {
@@ -2040,8 +2075,8 @@ function drawPlan(
   }
 
   // Last, over everything: it is the thing being made right now.
-  if (drawnRect !== null) {
-    drawRoomPreview(context, frame, floor, drawnRect);
+  if (drawnPart !== null) {
+    drawRoomPreview(context, frame, drawnPart);
   }
   if (underlayHandles !== null) {
     drawUnderlayHandles(context, frame, underlayHandles);
@@ -2085,14 +2120,18 @@ function drawUnderlayHandles(
  * to the smallest a room may be. A preview that shows one rectangle and
  * produces another is worse than no preview.
  */
+/** The rectangle a drag would leave: where it starts and how far it runs. */
+type DrawnPart = {
+  readonly origin: FloorPoint;
+  readonly widthMeters: number;
+  readonly depthMeters: number;
+};
+
 function drawRoomPreview(
   context: CanvasRenderingContext2D,
   frame: PlanFrame,
-  floor: Floor,
-  corners: { readonly from: FloorPoint; readonly to: FloorPoint },
+  part: DrawnPart,
 ): void {
-  const room = drawnRoom(floor, "preview", "", corners.from, corners.to);
-  const part = primaryRoomPart(room);
   const inside = frame.toPixels(part.origin);
   const width = spanPixels(frame, part.widthMeters);
   const depth = spanPixels(frame, part.depthMeters);
@@ -2109,6 +2148,40 @@ function drawRoomPreview(
   context.setLineDash([6, 4]);
   context.strokeRect(inside.x, inside.y, width, depth);
   context.restore();
+}
+
+/** The width and length of the room being drawn, pinned to its far corner. */
+function DrawnSize({
+  part,
+  projection,
+  unit,
+}: {
+  part: DrawnPart;
+  projection: PlanProjection;
+  unit: DisplayUnit;
+}) {
+  const corner = projectPoint(projection, {
+    xMeters: part.origin.xMeters + part.widthMeters,
+    zMeters: part.origin.zMeters + part.depthMeters,
+  });
+  return (
+    <p
+      aria-label="Room being drawn"
+      // Inside the far corner rather than beyond it, so it stays on screen
+      // when the drag reaches the edge of the plan — which a big room does.
+      className="pointer-events-none absolute flex -translate-x-full -translate-y-full flex-col rounded-lg bg-black/70 px-2.5 py-1 font-mono text-[13px] tabular-nums whitespace-nowrap text-white/90 dark:bg-white/10"
+      style={{ left: corner.x - 8, top: corner.y - 8 }}
+    >
+      <span className="flex justify-between gap-3">
+        <span className="opacity-60">Width</span>
+        <span>{formatLength(part.widthMeters, unit)}</span>
+      </span>
+      <span className="flex justify-between gap-3">
+        <span className="opacity-60">Length</span>
+        <span>{formatLength(part.depthMeters, unit)}</span>
+      </span>
+    </p>
+  );
 }
 
 /** A frame that takes points in one room's own coordinates. */

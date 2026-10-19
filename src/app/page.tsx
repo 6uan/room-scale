@@ -3,7 +3,7 @@ import { ProjectGate } from "@/components/project-gate";
 import { Workspace } from "@/components/workspace";
 
 export const metadata: Metadata = {
-  title: "RoomScale — will it actually fit?",
+  title: "RoomScale",
   description:
     "Work out what furniture will fit in the apartment you are moving into, before you buy any of it.",
 };

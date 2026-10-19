@@ -83,7 +83,9 @@ function ExtractionReport({
     describe("Name", report.name, (value) => value),
     describe("Price", report.priceCents, (value) => formatCents(value)),
     describe("Width", report.widthMeters, (value) => formatLength(value, unit)),
-    describe("Depth", report.depthMeters, (value) => formatLength(value, unit)),
+    describe("Length", report.depthMeters, (value) =>
+      formatLength(value, unit),
+    ),
     describe("Height", report.heightMeters, (value) =>
       formatLength(value, unit),
     ),
@@ -118,7 +120,7 @@ function ExtractionReport({
       {report.dimensionOrderIsAssumed ? (
         <p className="text-xs text-amber-700 dark:text-amber-500">
           The page listed three sizes without saying which was which. They have
-          been read as width, depth, then height — check that against the
+          been read as width, length, then height — check that against the
           picture before saving.
         </p>
       ) : null}

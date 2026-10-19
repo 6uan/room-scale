@@ -99,7 +99,7 @@ describe("RoomFields", () => {
     const size = screen.getByRole("group", { name: "Size" });
     expect(within(size).getAllByRole("spinbutton")).toEqual([
       within(size).getByRole("spinbutton", { name: "Living room width" }),
-      within(size).getByRole("spinbutton", { name: "Living room depth" }),
+      within(size).getByRole("spinbutton", { name: "Living room length" }),
       within(size).getByRole("spinbutton", { name: "Living room height" }),
     ]);
     expect(within(size).getAllByRole("slider")).toHaveLength(3);

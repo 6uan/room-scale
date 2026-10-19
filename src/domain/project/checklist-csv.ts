@@ -22,7 +22,7 @@ const COLUMNS = [
   "Line total",
   "Status",
   "Width (m)",
-  "Depth (m)",
+  "Length (m)",
   "Link",
 ] as const;
 

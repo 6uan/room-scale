@@ -69,7 +69,7 @@ async function addProduct(
   const form = details(page);
   await form.getByLabel("Name").fill(fields.name);
   await form.getByLabel("Width").fill(fields.width);
-  await form.getByLabel("Depth").fill(fields.depth);
+  await form.getByLabel("Length").fill(fields.depth);
   if (fields.price !== undefined) {
     await form.getByLabel("Price").fill(fields.price);
   }
@@ -1500,6 +1500,44 @@ test.describe("laying the apartment out", () => {
     await expect(room.getByLabel("Living room X position")).toHaveValue("-84");
   });
 
+  test("says how big the room will be while it is being dragged out", async ({
+    page,
+  }) => {
+    await openWithLivingRoom(page);
+    const box = await planImage(page).boundingBox();
+    if (box === null) {
+      throw new Error("the plan has no box to point at");
+    }
+
+    await contents(page).getByRole("button", { name: "Add room" }).click();
+    const from = { x: box.x + 40, y: box.y + box.height - 130 };
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(from.x + 160, from.y + 90, { steps: 8 });
+
+    // Mid-drag: a width and a depth in feet and inches, wider than deep.
+    const readout = page.getByLabel("Room being drawn");
+    await expect(readout).toBeVisible();
+    const text = (await readout.textContent()) ?? "";
+    const match = /^Width(\d+)' ([\d.]+)"Length(\d+)' ([\d.]+)"$/.exec(text);
+    expect(match, text).not.toBeNull();
+    const [, wf, wi, df, di] = match ?? [];
+    const width = Number(wf) * 12 + Number(wi);
+    const depth = Number(df) * 12 + Number(di);
+    expect(width).toBeGreaterThan(depth);
+
+    await page.mouse.up();
+    await expect(readout).toHaveCount(0);
+    // And the room that landed is the one that was read out, to the inch.
+    const room = details(page).getByRole("region", { name: "Room 2" });
+    expect(
+      Number(await room.getByLabel("Room 2 width").inputValue()),
+    ).toBeCloseTo(width, 1);
+    expect(
+      Number(await room.getByLabel("Room 2 length").inputValue()),
+    ).toBeCloseTo(depth, 1);
+  });
+
   test("draws a room by dragging a rectangle on the plan", async ({ page }) => {
     await openWithLivingRoom(page);
     const box = await planImage(page).boundingBox();
@@ -1530,7 +1568,7 @@ test.describe("laying the apartment out", () => {
     // It took its size from the drag rather than from a default: a room
     // dropped without drawing is a square, and this one is wider than deep.
     const width = Number(await room.getByLabel("Room 2 width").inputValue());
-    const depth = Number(await room.getByLabel("Room 2 depth").inputValue());
+    const depth = Number(await room.getByLabel("Room 2 length").inputValue());
     expect(width).toBeGreaterThan(depth);
   });
 
@@ -1609,7 +1647,7 @@ test.describe("laying the apartment out", () => {
     const room = details(page).getByRole("region", { name: "Room 2" });
     // Ten feet square, which is what createRoom gives, rather than a drag.
     await expect(room.getByLabel("Room 2 width")).toHaveValue("120");
-    await expect(room.getByLabel("Room 2 depth")).toHaveValue("120");
+    await expect(room.getByLabel("Room 2 length")).toHaveValue("120");
     // West and north of the living room's own corner, which is where it was
     // clicked — the old behaviour put every new room east of everything.
     expect(
@@ -1786,7 +1824,7 @@ test.describe("laying the apartment out", () => {
     const room = details(page).getByRole("region", { name: "Living room" });
     // Fourteen by twelve feet, eight foot ceiling — not 165.35 by 141.73.
     await expect(room.getByLabel("Living room width")).toHaveValue("168");
-    await expect(room.getByLabel("Living room depth")).toHaveValue("144");
+    await expect(room.getByLabel("Living room length")).toHaveValue("144");
     await expect(room.getByLabel("Living room height")).toHaveValue("96");
   });
 });

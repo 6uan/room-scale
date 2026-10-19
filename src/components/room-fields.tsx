@@ -482,9 +482,9 @@ function RoomPartFields({
         />
       </PanelRow>
       {/*
-        Width, depth and height together, because a room is quoted as all
+        Width, length and height together, because a room is quoted as all
         three at once. Height sat alone in a group of its own labelled "Room",
-        which is what was left after width and depth moved down to the section
+        which is what was left after width and length moved down to the section
         — an orphan of the refactor rather than anything a reader wanted.
 
         It is still the *room's* height while W and D are this section's: one
@@ -526,8 +526,8 @@ function RoomPartFields({
           onGestureEnd={onGestureEnd}
         />
         <NumberField
-          label={`${label} depth`}
-          compactLabel="D"
+          label={`${label} length`}
+          compactLabel="L"
           scrubGesture={
             room.parts.length === 1
               ? `room-field:${room.id}:depth`
@@ -608,7 +608,7 @@ function RoomPartFields({
 /** The two legs of a clipped corner, named the way the fields read. */
 const CUT_LEGS: readonly { leg: CutLeg; compact: string; noun: string }[] = [
   { leg: "widthMeters", compact: "W", noun: "width" },
-  { leg: "depthMeters", compact: "D", noun: "depth" },
+  { leg: "depthMeters", compact: "L", noun: "length" },
 ];
 
 /**

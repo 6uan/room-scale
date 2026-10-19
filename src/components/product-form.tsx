@@ -118,7 +118,7 @@ export function ProductForm({
           }
         />
         <NumberField
-          label="Depth"
+          label="Length"
           unit={unit}
           meters={draft.footprint.depthMeters}
           limits={PRODUCT_LENGTH_LIMITS}
