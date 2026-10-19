@@ -46,7 +46,7 @@ export function CataloguePanel({
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <div className="flex max-h-[42vh] min-h-0 min-w-0 flex-col gap-4 border-t border-black/10 p-5 dark:border-white/15">
+    <div className="flex max-h-[42vh] min-h-0 min-w-0 flex-col border-t border-black/10 p-5 dark:border-white/15">
       <PanelHeader
         title="Furniture"
         action="New product"
@@ -70,7 +70,8 @@ export function CataloguePanel({
         inert={collapsed}
         aria-hidden={collapsed}
       >
-        <div className="flex min-h-0 flex-col overflow-hidden">
+        {/* The gap under the header lives in here, so it folds with the list. */}
+        <div className="flex min-h-0 flex-col overflow-hidden pt-4">
           {products.length === 0 ? (
             <p className="px-1 text-[13px] leading-relaxed opacity-60">
               Nothing yet. Add the first thing you are thinking of buying, or
