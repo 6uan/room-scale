@@ -55,58 +55,79 @@ export function CataloguePanel({
         onToggleCollapsed={() => setCollapsed((was) => !was)}
       />
 
-      {collapsed ? null : products.length === 0 ? (
-        <p className="px-1 text-[13px] leading-relaxed opacity-60">
-          Nothing yet. Add the first thing you are thinking of buying, or paste
-          the page you found it on.
-        </p>
-      ) : (
-        <div
-          {...scroll}
-          className={`-mx-5 min-h-0 overflow-y-auto px-5 ${scroll.className}`}
-        >
-          <ul className="flex flex-col gap-1">
-            {products.map((product) => {
-              const placed = countPlaced(instances, product.id);
-              return (
-                <li
-                  key={product.id}
-                  draggable
-                  onDragStart={(event) => {
-                    event.dataTransfer.setData(PRODUCT_DRAG_TYPE, product.id);
-                    event.dataTransfer.effectAllowed = "copy";
-                  }}
-                  className={`group flex min-w-0 cursor-grab items-center gap-1 rounded-lg py-2 pr-1 pl-1.5 text-sm transition-colors active:cursor-grabbing ${
-                    isSelected(selection, "product", product.id)
-                      ? "bg-black/10 dark:bg-white/15"
-                      : "hover:bg-black/5 dark:hover:bg-white/10"
-                  }`}
-                >
-                  <button
-                    type="button"
-                    aria-label={`Place ${product.name} in the room`}
-                    onClick={() => onPlace(product)}
-                    className="min-w-0 flex-1 text-left"
-                  >
-                    <span className="block truncate">{product.name}</span>
-                    <span className="block truncate text-[13px] opacity-55">
-                      {product.category === "other"
-                        ? ""
-                        : `${PRODUCT_CATEGORY_LABELS[product.category]} · `}
-                      {formatLength(product.footprint.widthMeters, unit)} ×{" "}
-                      {formatLength(product.footprint.depthMeters, unit)}
-                      {product.priceCents === 0
-                        ? ""
-                        : ` · ${formatCents(product.priceCents)}`}
-                      {placed === 0 ? "" : ` · ${placed} placed`}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+      {/*
+        Folded by animating a grid row from one share to none, which is the
+        one way CSS will animate a height it has not been told. The list
+        stays mounted while it folds, inert, so it has something to animate
+        and comes back where it was scrolled to.
+      */}
+      <div
+        className="grid min-h-0 transition-[grid-template-rows,opacity] duration-200 ease-out"
+        style={{
+          gridTemplateRows: collapsed ? "0fr" : "1fr",
+          opacity: collapsed ? 0 : 1,
+        }}
+        inert={collapsed}
+        aria-hidden={collapsed}
+      >
+        <div className="flex min-h-0 flex-col overflow-hidden">
+          {products.length === 0 ? (
+            <p className="px-1 text-[13px] leading-relaxed opacity-60">
+              Nothing yet. Add the first thing you are thinking of buying, or
+              paste the page you found it on.
+            </p>
+          ) : (
+            <div
+              {...scroll}
+              className={`-mx-5 min-h-0 overflow-y-auto px-5 ${scroll.className}`}
+            >
+              <ul className="flex flex-col gap-1">
+                {products.map((product) => {
+                  const placed = countPlaced(instances, product.id);
+                  return (
+                    <li
+                      key={product.id}
+                      draggable
+                      onDragStart={(event) => {
+                        event.dataTransfer.setData(
+                          PRODUCT_DRAG_TYPE,
+                          product.id,
+                        );
+                        event.dataTransfer.effectAllowed = "copy";
+                      }}
+                      className={`group flex min-w-0 cursor-grab items-center gap-1 rounded-lg py-2 pr-1 pl-1.5 text-sm transition-colors active:cursor-grabbing ${
+                        isSelected(selection, "product", product.id)
+                          ? "bg-black/10 dark:bg-white/15"
+                          : "hover:bg-black/5 dark:hover:bg-white/10"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        aria-label={`Place ${product.name} in the room`}
+                        onClick={() => onPlace(product)}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        <span className="block truncate">{product.name}</span>
+                        <span className="block truncate text-[13px] opacity-55">
+                          {product.category === "other"
+                            ? ""
+                            : `${PRODUCT_CATEGORY_LABELS[product.category]} · `}
+                          {formatLength(product.footprint.widthMeters, unit)} ×{" "}
+                          {formatLength(product.footprint.depthMeters, unit)}
+                          {product.priceCents === 0
+                            ? ""
+                            : ` · ${formatCents(product.priceCents)}`}
+                          {placed === 0 ? "" : ` · ${placed} placed`}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
