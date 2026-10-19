@@ -488,6 +488,15 @@ export function RoomPlanCanvas({
    * to repaint with every move and go the moment the piece is let go.
    */
   const [movingId, setMovingId] = useState<string | null>(null);
+  /**
+   * The room, or the section of one, being resized by a wall or corner, for
+   * the size printed beside it while it changes — the same readout a room
+   * gets while it is first dragged out.
+   */
+  const [resizing, setResizing] = useState<{
+    readonly roomId: string;
+    readonly partId: string | null;
+  } | null>(null);
 
   /**
    * The two corners of a room being drawn, or null when none is.
@@ -507,6 +516,32 @@ export function RoomPlanCanvas({
    * snapped to its neighbours. The outline and the size printed beside it
    * both come from this, so the number you watch is the number you get.
    */
+  /** The rectangle being resized, as the readout wants it. */
+  const resizedPart = useMemo((): DrawnPart | null => {
+    if (resizing === null) {
+      return null;
+    }
+    const room = floor.rooms.find((one) => one.id === resizing.roomId);
+    if (room === undefined) {
+      return null;
+    }
+    const part =
+      resizing.partId === null ? undefined : roomPart(room, resizing.partId);
+    if (part !== undefined) {
+      return {
+        origin: part.origin,
+        widthMeters: part.widthMeters,
+        depthMeters: part.depthMeters,
+      };
+    }
+    const bounds = roomBounds(room);
+    return {
+      origin: bounds.origin,
+      widthMeters: bounds.widthMeters,
+      depthMeters: bounds.depthMeters,
+    };
+  }, [floor, resizing]);
+
   const drawnPart = useMemo(() => {
     if (drawn === null) {
       return null;
@@ -853,6 +888,7 @@ export function RoomPlanCanvas({
           partId: grabbed.partId,
           edges: grabbed.edges,
         };
+        setResizing({ roomId: grabbed.roomId, partId: grabbed.partId });
         setCursor(cursorForEdges(grabbed.edges));
       }
       canvas.focus();
@@ -1376,6 +1412,7 @@ export function RoomPlanCanvas({
     dragRef.current = null;
     setCursor("none");
     setMovingId(null);
+    setResizing(null);
     canvasRef.current?.releasePointerCapture?.(event.pointerId);
     onGestureEnd?.();
   }
@@ -1529,6 +1566,9 @@ export function RoomPlanCanvas({
           11' by 14' and the hand has nothing else to go by. */}
       {drawnPart === null ? null : (
         <DrawnSize part={drawnPart} projection={projection} unit={unit} />
+      )}
+      {resizedPart === null ? null : (
+        <DrawnSize part={resizedPart} projection={projection} unit={unit} />
       )}
 
       {placingOpening === null ? null : (

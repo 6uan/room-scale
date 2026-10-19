@@ -1550,7 +1550,10 @@ test.describe("laying the apartment out", () => {
     await page.mouse.move(handle.x, handle.y);
     await page.mouse.down();
     await page.mouse.move(handle.x + 60, handle.y, { steps: 8 });
+    // Said while the wall moves, the way a room being drawn is.
+    await expect(page.getByLabel("Room being drawn")).toContainText("Width");
     await page.mouse.up();
+    await expect(page.getByLabel("Room being drawn")).toHaveCount(0);
 
     const width = Number(
       await room.getByLabel("Living room width").inputValue(),
