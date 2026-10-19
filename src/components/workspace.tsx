@@ -14,6 +14,7 @@ import { Inspector } from "@/components/inspector";
 import { ListDrawer } from "@/components/list-drawer";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { LayoutProblems } from "@/components/layout-problems";
+import { openingName } from "@/components/opening-name";
 import { LayoutSwitcher } from "@/components/layout-switcher";
 import { ProjectSwitcher } from "@/components/project-switcher";
 import { RoomPlanCanvas } from "@/components/room-plan-canvas";
@@ -146,6 +147,11 @@ export function Workspace() {
       room.id,
       room.name === "" ? "an unnamed room" : room.name,
     ]),
+  );
+  const openingNames = new Map(
+    floor.rooms.flatMap((room) =>
+      room.openings.map((opening) => [opening.id, openingName(room, opening)]),
+    ),
   );
   const namesById = new Map(
     placedNames(furniture).map((name, index) => [
@@ -744,6 +750,7 @@ export function Workspace() {
                 problems={problems}
                 names={namesById}
                 roomNames={roomNames}
+                openingNames={openingNames}
                 unit={unit}
               />
             </div>

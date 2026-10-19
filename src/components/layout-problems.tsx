@@ -7,6 +7,8 @@ export type LayoutProblemsProps = {
   problems: readonly LayoutProblem[];
   /** Room id to the name it goes by, for the walls a piece goes through. */
   roomNames: ReadonlyMap<string, string>;
+  /** What each opening is called, by id, for a door that cannot open. */
+  openingNames: ReadonlyMap<string, string>;
   /** Instance id to the name that piece is called in the list beside it. */
   names: ReadonlyMap<string, string>;
   unit: DisplayUnit;
@@ -39,6 +41,7 @@ export function LayoutProblems({
   problems,
   names,
   roomNames,
+  openingNames,
   unit,
 }: LayoutProblemsProps) {
   return (
@@ -50,7 +53,7 @@ export function LayoutProblems({
               key={problemKey(problem)}
               className="text-sm leading-relaxed text-red-600"
             >
-              {problemMessage(problem, names, roomNames, unit)}
+              {problemMessage(problem, names, roomNames, openingNames, unit)}
             </li>
           ))}
         </ul>
@@ -63,10 +66,12 @@ function problemMessage(
   problem: LayoutProblem,
   names: ReadonlyMap<string, string>,
   roomNames: ReadonlyMap<string, string>,
+  openingNames: ReadonlyMap<string, string>,
   unit: DisplayUnit,
 ): string {
   const name = (id: string) => names.get(id) ?? "A piece of furniture";
   const roomName = (id: string) => roomNames.get(id) ?? "a room";
+  const openingName = (id: string) => openingNames.get(id) ?? "a door";
 
   switch (problem.kind) {
     case "overlap":
@@ -83,6 +88,12 @@ function problemMessage(
       );
     case "outside-room":
       return `${name(problem.instanceId)} is not in any room.`;
+    case "blocks-door":
+      return (
+        `${name(problem.instanceId)} is in the swing of ` +
+        `${openingName(problem.openingId)}, so the door cannot open: ` +
+        `move it ${formatLength(problem.depthMeters, unit)}.`
+      );
     case "rooms-overlap":
       return (
         `${roomName(problem.roomIds[0])} and ${roomName(problem.roomIds[1])} ` +
@@ -101,6 +112,8 @@ function problemKey(problem: LayoutProblem): string {
       return `wall:${problem.instanceId}:${problem.wall}`;
     case "outside-room":
       return `outside:${problem.instanceId}`;
+    case "blocks-door":
+      return `door:${problem.instanceId}:${problem.openingId}`;
     case "rooms-overlap":
       return `rooms:${problem.roomIds.join(":")}`;
   }

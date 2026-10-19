@@ -523,6 +523,25 @@ test.describe("the plan as a canvas", () => {
     );
   });
 
+  test("says when a piece stops the door from opening", async ({ page }) => {
+    // The living room's door is on the south wall, 36" from the west corner,
+    // 32" wide, hinged at the west jamb and swinging in. Its swing is the
+    // quarter circle north-east of the hinge at 20" from the corner.
+    await openWithLivingRoom(page);
+    await addProduct(page, { name: "Stool", width: "16", depth: "16" });
+    await placeFromList(page, "Stool");
+    await details(page).getByLabel("From west").fill("-40");
+    await details(page).getByLabel("From north").fill("52");
+
+    await expect(
+      page.getByText(/Stool is in the swing of Living room door 1/),
+    ).toBeVisible();
+
+    // Out of the arc, and the door is free again.
+    await details(page).getByLabel("From north").fill("0");
+    await expect(page.getByText(/is in the swing of/)).toHaveCount(0);
+  });
+
   test("zooms toward the pointer without moving the furniture", async ({
     page,
   }) => {

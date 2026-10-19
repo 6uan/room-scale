@@ -19,6 +19,7 @@ function renderProblems(problems: readonly LayoutProblem[]) {
       problems={problems}
       names={NAMES}
       roomNames={ROOMS}
+      openingNames={new Map()}
       unit="imperial"
     />,
   );
