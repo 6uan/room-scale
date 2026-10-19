@@ -779,16 +779,12 @@ export function RoomPlanCanvas({
     };
     const current = projectionRef.current;
 
-    if (event.ctrlKey || event.metaKey || event.shiftKey) {
+    if (event.ctrlKey || event.metaKey) {
       // A wheel notch is about 100 units and a trackpad pinch arrives in ones,
       // so the rate alone cannot serve both: one notch used to be a third of
       // the way in. Capped per event, a notch is a step you can follow and a
       // pinch is untouched, being far below the cap already.
-      //
-      // With Shift the browser hands the notch over as a sideways scroll, so
-      // whichever axis carries it is the one read.
-      const notch = event.deltaY || event.deltaX || 0;
-      const factor = clampZoomStep(Math.exp(-notch / 250));
+      const factor = clampZoomStep(Math.exp(-(event.deltaY ?? 0) / 250));
       setView(
         held(
           zoomAt(
@@ -803,7 +799,13 @@ export function RoomPlanCanvas({
       return;
     }
 
-    setView(held(panBy(current, -(event.deltaX ?? 0), -(event.deltaY ?? 0))));
+    // A scroll pans down the plan; with Shift it pans across it. Most
+    // browsers already hand a Shift notch over as sideways, and the ones
+    // that do not get it turned here, so the two agree.
+    const dx = event.deltaX ?? 0;
+    const dy = event.deltaY ?? 0;
+    const [acrossBy, downBy] = event.shiftKey && dx === 0 ? [dy, 0] : [dx, dy];
+    setView(held(panBy(current, -acrossBy, -downBy)));
   }
 
   // Held in a ref so the listener below never goes stale without being
