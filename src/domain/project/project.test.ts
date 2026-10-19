@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createProject,
   nextId,
+  nextProjectName,
   withDisplayUnit,
   withProducts,
   withFloor,
@@ -56,5 +57,17 @@ describe("nextId", () => {
 
   it("ignores ids belonging to another prefix", () => {
     expect(nextId("product", ["opening-1", "opening-2"])).toBe("product-3");
+  });
+});
+
+describe("nextProjectName", () => {
+  it("counts on from how many there are", () => {
+    expect(nextProjectName(["Project 1"])).toBe("Project 2");
+  });
+
+  it("never repeats a name already taken", () => {
+    expect(nextProjectName(["Project 1", "Project 3", "Project 2"])).toBe(
+      "Project 4",
+    );
   });
 });

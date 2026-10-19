@@ -27,6 +27,7 @@ import { create } from "zustand";
 import type { FurnitureInstance, FurnitureProduct } from "@/domain/furniture";
 import {
   createProject,
+  renameProject,
   withActiveLayout,
   withDisplayUnit,
   withFloor,
@@ -40,6 +41,7 @@ import {
 } from "@/domain/project";
 import type { Floor } from "@/domain/room";
 import type { DisplayUnit } from "@/domain/units";
+import { CURRENT_PROJECT_ID } from "@/persistence/project-database";
 import {
   canRedo,
   canUndo,
@@ -69,6 +71,8 @@ export type Gesture = string | null;
 
 export type ProjectState = {
   project: Project;
+  /** Which stored project this is, so a save goes back where it came from. */
+  projectId: string;
   status: ProjectStatus;
   /** Past projects, oldest first, and the ones an undo has set aside. */
   past: readonly Project[];
@@ -82,8 +86,15 @@ export type ProjectState = {
    * Loading from storage forgets the history, because the project it belonged
    * to is gone. Opening a file keeps it, so a replace that turns out to be the
    * wrong file is one press away from being taken back.
+   *
+   * Switching to another stored project passes its id; everything else keeps
+   * the one that is open.
    */
-  adopt: (project: Project, options?: { readonly undoable?: boolean }) => void;
+  adopt: (
+    project: Project,
+    options?: { readonly undoable?: boolean; readonly id?: string },
+  ) => void;
+  setName: (name: string) => void;
   setStatus: (status: ProjectStatus) => void;
   setFloor: (floor: Floor, gesture?: Gesture) => void;
   setUnderlay: (underlay: PlanUnderlay | null, gesture?: Gesture) => void;
@@ -171,15 +182,18 @@ export const useProjectStore = create<ProjectState>((set) => {
 
   return {
     ...stateOf(startHistory(createProject())),
+    projectId: CURRENT_PROJECT_ID,
     status: "loading",
 
     adopt: (project, options) =>
-      set((state) =>
-        options?.undoable === true
+      set((state) => ({
+        ...(options?.undoable === true
           ? stateOf(record(historyOf(state), project))
-          : stateOf(startHistory(project)),
-      ),
+          : stateOf(startHistory(project))),
+        projectId: options?.id ?? state.projectId,
+      })),
     setStatus: (status) => set({ status }),
+    setName: (name) => edit((state) => renameProject(state.project, name))(),
 
     setFloor: (floor, gesture) =>
       edit((state) => withFloor(state.project, floor))(gesture),
@@ -209,6 +223,7 @@ export const useProjectStore = create<ProjectState>((set) => {
 export function resetProjectStore(): void {
   useProjectStore.setState({
     ...stateOf(startHistory(createProject())),
+    projectId: CURRENT_PROJECT_ID,
     status: "loading",
   });
 }

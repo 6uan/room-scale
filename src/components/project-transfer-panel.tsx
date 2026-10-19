@@ -128,7 +128,7 @@ export function ProjectTransferPanel({
 
       <p className="text-xs leading-relaxed opacity-60">
         The project file holds everything: the apartment, the catalogue, and
-        every arrangement. Opening one replaces what is here.
+        every layout. Opening one replaces what is here.
       </p>
 
       {problem === null ? null : (

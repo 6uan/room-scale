@@ -78,7 +78,7 @@ const DOCUMENT = {
     },
     underlay: null,
     products: [],
-    layouts: [{ id: "layout-1", name: "First try", instances: [] }],
+    layouts: [{ id: "layout-1", name: "Layout 1", instances: [] }],
     activeLayoutId: "layout-1",
     displayUnit: "imperial",
   },

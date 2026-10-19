@@ -14,7 +14,7 @@
  */
 
 import { z } from "zod";
-import type { Project } from "@/domain/project";
+import { FIRST_PROJECT_NAME, type Project } from "@/domain/project";
 
 /**
  * Bumped whenever the stored document shape changes.
@@ -39,8 +39,10 @@ import type { Project } from "@/domain/project";
  * 14. A part side may be marked dividing, keeping its wall where the room's
  *     own floor carries on. Existing parts have none, which is what absent
  *     says.
+ * 15. A project has a name, because there can be more than one. An existing
+ *     project is the first.
  */
-export const SCHEMA_VERSION = 14;
+export const SCHEMA_VERSION = 15;
 
 /** Meters, cents, and the rest are all plain finite numbers on the way in. */
 const finiteNumber = z
@@ -171,6 +173,7 @@ const underlaySchema = z.object({
 });
 
 const projectSchema = z.object({
+  name: z.string(),
   floor: floorSchema,
   underlay: underlaySchema.nullable(),
   products: z.array(productSchema),
@@ -293,7 +296,7 @@ const MIGRATIONS: Record<number, (document: object) => object> = {
         layouts: [
           {
             id: "layout-1",
-            name: "First try",
+            name: "Layout 1",
             instances: Array.isArray(project.instances)
               ? project.instances
               : [],
@@ -492,6 +495,12 @@ const MIGRATIONS: Record<number, (document: object) => object> = {
   // Version 14 let a side keep its wall where the room's own floor carries on.
   // No stored part had one, and absent is what that says.
   13: (document) => ({ ...document, version: 14 }),
+  // Version 15 named projects. The one that was there is the first.
+  14: (document) => ({
+    ...document,
+    version: 15,
+    project: { ...projectOf(document), name: FIRST_PROJECT_NAME },
+  }),
 };
 
 /**

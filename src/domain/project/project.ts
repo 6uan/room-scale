@@ -23,6 +23,8 @@ import {
 import type { PlanUnderlay } from "./underlay";
 
 export type Project = {
+  /** What this apartment is called in the list of projects. */
+  readonly name: string;
   readonly floor: Floor;
   /** The listing's plan under the canvas, or null once measured for real. */
   readonly underlay: PlanUnderlay | null;
@@ -35,10 +37,14 @@ export type Project = {
   readonly displayUnit: DisplayUnit;
 };
 
+/** What the first project is called before anyone names it. */
+export const FIRST_PROJECT_NAME = "Project 1";
+
 /** What a new project starts as, before anything has been measured. */
-export function createProject(): Project {
+export function createProject(name: string = FIRST_PROJECT_NAME): Project {
   const first = createLayout(EMPTY_LAYOUT.id, EMPTY_LAYOUT.name);
   return {
+    name,
     floor: DEFAULT_FLOOR,
     underlay: null,
     products: [],
@@ -46,6 +52,25 @@ export function createProject(): Project {
     activeLayoutId: first.id,
     displayUnit: "imperial",
   };
+}
+
+export function renameProject(project: Project, name: string): Project {
+  return { ...project, name };
+}
+
+/**
+ * A name for a new project that is not already taken.
+ *
+ * "Project 2", then "Project 3": counted from how many there are, and moved
+ * along past any number somebody already typed.
+ */
+export function nextProjectName(existing: readonly string[]): string {
+  const taken = new Set(existing);
+  let counter = existing.length + 1;
+  while (taken.has(`Project ${counter}`)) {
+    counter += 1;
+  }
+  return `Project ${counter}`;
 }
 
 export function withUnderlay(

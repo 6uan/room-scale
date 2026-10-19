@@ -381,9 +381,26 @@ Two decisions the step's own text did not settle:
 The stored document goes to version 5, migrating a version 4 project into a
 single arrangement called "First try" — which is what it always was.
 
-Not carried out of this step: a layout cannot be started from an empty floor,
-only duplicated from one that exists. Comparing two plans visually, if it is
-ever wanted, is a different feature from comparing two prices.
+Comparing two plans visually, if it is ever wanted, is a different feature
+from comparing two prices.
+
+An arrangement could at first only be duplicated, never started empty. That
+was a theory — a variation starts from what you have — and in practice the
+second idea often shares nothing with the first, so a "New arrangement" row
+now sits at the bottom of the table and starts with nothing placed.
+
+**More than one project, added after step 13 rather than as a step.** An
+arrangement is a second answer for the same apartment; a second apartment
+needs a second project, and until now there was only ever one row in storage.
+Projects now sit side by side, each with a name, and which one is open is
+remembered. The switcher sits beside the arrangement switcher and is the same
+control, with one difference: a project starts from nothing, from a "New
+project" row at the bottom, where an arrangement is only ever copied. The
+stored document goes to version 15 to carry the name; the project that was
+there becomes "Project 1".
+
+Not carried out of this: the list is read from storage when the menu opens
+rather than kept live, and deleting a project is not undoable — it asks first.
 
 ### 14. Take the data elsewhere ✅
 

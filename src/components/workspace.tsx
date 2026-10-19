@@ -15,6 +15,7 @@ import { ListDrawer } from "@/components/list-drawer";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { LayoutProblems } from "@/components/layout-problems";
 import { LayoutSwitcher } from "@/components/layout-switcher";
+import { ProjectSwitcher } from "@/components/project-switcher";
 import { RoomPlanCanvas } from "@/components/room-plan-canvas";
 import { selectedInstanceId, type Selection } from "@/components/selection";
 import { ShortcutsGuide } from "@/components/shortcuts-guide";
@@ -33,6 +34,7 @@ import type { FloorPoint } from "@/domain/geometry";
 import {
   activeInstances,
   buildChecklist,
+  createLayout,
   createUnderlay,
   duplicateLayout,
   nextId,
@@ -162,6 +164,17 @@ export function Workspace() {
       duplicateLayout(current, id, nextLayoutName(layouts)),
     ]);
     // Switched to, because a copy you are not looking at is not a comparison.
+    setActiveLayout(id);
+    setSelection(null);
+  }
+
+  /** A fresh arrangement of the same apartment, with nothing placed yet. */
+  function createEmptyLayout(): void {
+    const id = nextId(
+      "layout",
+      layouts.map((one) => one.id),
+    );
+    setLayouts([...layouts, createLayout(id, nextLayoutName(layouts))]);
     setActiveLayout(id);
     setSelection(null);
   }
@@ -482,6 +495,10 @@ export function Workspace() {
           <h1 className="shrink-0 text-[15px] font-semibold tracking-tight">
             RoomScale
           </h1>
+          <ProjectSwitcher />
+          <span aria-hidden="true" className="opacity-30">
+            /
+          </span>
           <LayoutSwitcher
             layouts={layouts}
             activeId={activeLayoutId}
@@ -499,6 +516,7 @@ export function Workspace() {
             }
             onDuplicate={duplicate}
             onRemove={removeLayout}
+            onCreate={createEmptyLayout}
           />
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
