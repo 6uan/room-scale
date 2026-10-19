@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { IconButton } from "@/components/icon-button";
 
 /**
@@ -16,15 +16,35 @@ export function PanelHeader({
   action,
   active = false,
   onAction,
+  collapsed,
+  onToggleCollapsed,
 }: {
   title: string;
   /** The accessible name of the add button, unchanged by the mode it turns on. */
   action: string;
   active?: boolean;
   onAction: () => void;
+  /** Whether the panel's body is folded away, for a panel that can be. */
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }) {
   return (
     <div className="flex items-center justify-between gap-2">
+      {collapsed === undefined ? null : (
+        <button
+          type="button"
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? `Expand ${title}` : `Collapse ${title}`}
+          onClick={onToggleCollapsed}
+          className="-ml-1 flex size-6 shrink-0 items-center justify-center rounded-md opacity-50 transition-opacity hover:opacity-100"
+        >
+          {collapsed ? (
+            <ChevronRight aria-hidden="true" className="size-4" />
+          ) : (
+            <ChevronDown aria-hidden="true" className="size-4" />
+          )}
+        </button>
+      )}
       {/*
         Named the way it would be said aloud, at a size it can be read at.
         This was eleven-pixel letter-spaced capitals at half opacity, which is

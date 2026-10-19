@@ -332,7 +332,7 @@ function Row({
 }) {
   return (
     <div
-      className={`group flex min-w-0 items-center rounded-lg pr-1 transition-colors ${
+      className={`group flex min-w-0 items-center rounded-lg pr-1 transition-colors focus-within:outline-2 focus-within:outline-offset-[-2px] focus-within:outline-blue-500 ${
         selected
           ? "bg-black/10 dark:bg-white/15"
           : "hover:bg-black/5 dark:hover:bg-white/10"
@@ -344,7 +344,7 @@ function Row({
         onClick={onSelect}
         onDoubleClick={onDoubleClick}
         title={title}
-        className={`flex min-w-0 flex-1 items-center gap-2 px-2.5 py-1.5 text-left text-sm ${
+        className={`flex min-w-0 flex-1 items-center gap-2 px-2.5 py-1.5 text-left text-sm outline-none ${
           depth ? "pl-6" : ""
         } ${selected ? "font-medium" : ""} ${troubled ? "text-red-600" : ""} ${
           dimmed ? "opacity-45" : ""
