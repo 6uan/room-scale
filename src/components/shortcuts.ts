@@ -77,8 +77,9 @@ export const SHORTCUTS: readonly Shortcut[] = [
   {
     id: "zoom-scroll",
     group: PLAN_GROUP,
-    keys: ["⌘", "Scroll"],
-    describe: () => "Zooms toward the pointer. A plain scroll never zooms.",
+    keys: ["Shift", "Scroll"],
+    describe: () =>
+      "Zooms toward the pointer, as does ⌘ with a scroll. A plain scroll never zooms.",
   },
   {
     id: "pan-space",

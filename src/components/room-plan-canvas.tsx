@@ -779,12 +779,16 @@ export function RoomPlanCanvas({
     };
     const current = projectionRef.current;
 
-    if (event.ctrlKey || event.metaKey) {
+    if (event.ctrlKey || event.metaKey || event.shiftKey) {
       // A wheel notch is about 100 units and a trackpad pinch arrives in ones,
       // so the rate alone cannot serve both: one notch used to be a third of
       // the way in. Capped per event, a notch is a step you can follow and a
       // pinch is untouched, being far below the cap already.
-      const factor = clampZoomStep(Math.exp(-(event.deltaY ?? 0) / 250));
+      //
+      // With Shift the browser hands the notch over as a sideways scroll, so
+      // whichever axis carries it is the one read.
+      const notch = event.deltaY || event.deltaX || 0;
+      const factor = clampZoomStep(Math.exp(-notch / 250));
       setView(
         held(
           zoomAt(
