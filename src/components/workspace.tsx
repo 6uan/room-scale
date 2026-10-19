@@ -738,7 +738,7 @@ export function Workspace() {
               itself only exists when there is something in it — an empty chip
               sitting over the corner of the drawing is the same nuisance as
               the all-clear it used to hold. */}
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 p-4">
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 p-4 pr-52">
             <div
               className={
                 problems.length === 0
