@@ -30,40 +30,33 @@ export function PanelHeader({
 }) {
   return (
     <div className="flex items-center justify-between gap-2">
-      <div className="flex min-w-0 items-center gap-1">
-        {collapsed === undefined ? null : (
-          <button
-            type="button"
-            aria-expanded={!collapsed}
-            aria-label={collapsed ? `Expand ${title}` : `Collapse ${title}`}
-            onClick={onToggleCollapsed}
-            className="-ml-1 flex size-6 shrink-0 items-center justify-center rounded-md opacity-50 transition-opacity hover:opacity-100"
-          >
-            {collapsed ? (
-              <ChevronRight aria-hidden="true" className="size-4" />
-            ) : (
-              <ChevronDown aria-hidden="true" className="size-4" />
-            )}
-          </button>
-        )}
-        {/*
+      {/*
         Named the way it would be said aloud, at a size it can be read at.
         This was eleven-pixel letter-spaced capitals at half opacity, which is
         a label style that signals "technical" by being hard to read — the
         wrong first impression for a tool somebody opens once, to work out
         whether a sofa fits.
       */}
-        <h2 className="min-w-0 truncate text-[15px] font-semibold tracking-tight">
-          {title}
-        </h2>
+      <h2 className="min-w-0 truncate text-[15px] font-semibold tracking-tight">
+        {title}
+      </h2>
+      <div className="flex shrink-0 items-center gap-1">
+        {collapsed === undefined ? null : (
+          <IconButton
+            label={collapsed ? `Expand ${title}` : `Collapse ${title}`}
+            icon={collapsed ? ChevronRight : ChevronDown}
+            size="small"
+            onClick={() => onToggleCollapsed?.()}
+          />
+        )}
+        <IconButton
+          label={action}
+          icon={Plus}
+          pressed={active}
+          size="small"
+          onClick={onAction}
+        />
       </div>
-      <IconButton
-        label={action}
-        icon={Plus}
-        pressed={active}
-        size="small"
-        onClick={onAction}
-      />
     </div>
   );
 }
