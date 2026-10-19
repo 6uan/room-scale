@@ -144,6 +144,26 @@ describe("nearestGaps", () => {
     expect(west?.faceMeters).toBeCloseTo(2, 10);
   });
 
+  it("draws the line where the two pieces overlap, not in the air", () => {
+    // A narrow piece south of the sofa, under its east half only.
+    const under = {
+      instance: createInstance("i2", "stand", { xMeters: 2.25, zMeters: 2 }),
+      product: {
+        ...SOFA,
+        id: "stand",
+        footprint: { widthMeters: 0.5, depthMeters: 0.5 },
+      },
+    };
+    const placed = sofaAt(1.5, 0.8);
+
+    const south = nearestGaps(FLOOR, [under, placed], placed).find(
+      (gap) => gap.side === "south",
+    );
+    expect(south?.to).toBe("piece");
+    // The overlap runs from x = 2 to x = 2.5; the line sits in its middle.
+    expect(south?.alongMeters).toBeCloseTo(2.25, 10);
+  });
+
   it("ignores a piece that is not across from this one", () => {
     // The same sofa, but down in the south half: nothing between this one
     // and the west wall at its own height.

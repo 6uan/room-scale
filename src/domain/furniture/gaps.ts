@@ -145,7 +145,22 @@ export function nearestGaps(
       if (distance < 0 || distance >= best.gapMeters) {
         continue;
       }
-      best = { ...gap, to: "piece", gapMeters: distance, faceMeters: face };
+      // Drawn where the two actually overlap, not at this piece's middle: a
+      // line to a nightstand that only reaches under half the bed has to
+      // land on the nightstand, not beside it in the air.
+      const overlapStart = horizontal
+        ? Math.max(theirs.minZ, box.minZ)
+        : Math.max(theirs.minX, box.minX);
+      const overlapEnd = horizontal
+        ? Math.min(theirs.maxZ, box.maxZ)
+        : Math.min(theirs.maxX, box.maxX);
+      best = {
+        ...gap,
+        to: "piece",
+        gapMeters: distance,
+        faceMeters: face,
+        alongMeters: (overlapStart + overlapEnd) / 2,
+      };
     }
     return best;
   });
