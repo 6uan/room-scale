@@ -248,7 +248,7 @@ describe("RoomFields", () => {
     ).toBeDisabled();
   });
 
-  it("turns an open wall into a dividing one, then back to plain", () => {
+  it("turns an open wall back into a wall, then open again", () => {
     const floor = projectWithLivingRoom().floor;
     const base = floor.rooms[0];
     if (base === undefined) {
@@ -268,19 +268,19 @@ describe("RoomFields", () => {
       screen.getByRole("button", { name: "Living room north wall, open" }),
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "Make the north wall dividing" }),
+      screen.getByRole("button", { name: "Make the north wall walled" }),
     );
 
+    // An outside wall: walled is the plain state, with nothing to divide.
     const dividing = onChange.mock.lastCall?.[0] as Room;
-    // Never both at once: a side cannot be missing its wall and keeping it.
     expect(primaryRoomPart(dividing).openWalls).toEqual([]);
-    expect(primaryRoomPart(dividing).dividingWalls).toEqual(["north"]);
+    expect(primaryRoomPart(dividing).dividingWalls ?? []).toEqual([]);
 
     const onChangeAgain = vi.fn();
     renderFields({ ...floor, rooms: [dividing] }, dividing, onChangeAgain);
     fireEvent.click(
       screen.getAllByRole("button", {
-        name: "Living room north wall, dividing",
+        name: "Living room north wall, walled",
       })[0]!,
     );
     // The last one: both panels are still mounted, and both have picked their
@@ -288,14 +288,66 @@ describe("RoomFields", () => {
     fireEvent.click(
       screen
         .getAllByRole("button", {
-          name: "Make the north wall walled",
+          name: "Make the north wall open",
         })
         .at(-1)!,
     );
 
-    const plain = onChangeAgain.mock.lastCall?.[0] as Room;
-    expect(primaryRoomPart(plain).openWalls).toEqual([]);
-    expect(primaryRoomPart(plain).dividingWalls).toEqual([]);
+    const reopened = onChangeAgain.mock.lastCall?.[0] as Room;
+    expect(primaryRoomPart(reopened).openWalls).toEqual(["north"]);
+  });
+
+  it("keeps a wall on a seam when asked for one, as a dividing wall", () => {
+    // A second section hanging off the first: its north side runs along the
+    // room's own floor, so by default there is no wall there.
+    const floor = projectWithLivingRoom().floor;
+    const base = floor.rooms[0];
+    if (base === undefined) {
+      throw new Error("a new project starts with a room");
+    }
+    const room = withParts(base, [
+      ...base.parts,
+      {
+        id: "room-1-part-2",
+        // Its north edge runs through the first rectangle's floor; its south
+        // half hangs out below it.
+        origin: {
+          xMeters: base.parts[0]!.origin.xMeters + 1,
+          zMeters: base.parts[0]!.origin.zMeters + 2,
+        },
+        widthMeters: 2,
+        depthMeters: 3,
+        rotationRadians: 0,
+        openWalls: [],
+      },
+    ]);
+    const onChange = vi.fn();
+    render(
+      <RoomFields
+        floor={{ ...floor, rooms: [room] }}
+        room={room}
+        unit="metric"
+        selectedPartId="room-1-part-2"
+        onChange={onChange}
+        onGestureEnd={vi.fn()}
+        onAddOpening={vi.fn()}
+      />,
+    );
+
+    // Reads as open, because no wall is drawn there.
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Living room section 2 north wall, open",
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Make the north wall walled" }),
+    );
+
+    const walled = onChange.mock.lastCall?.[0] as Room;
+    const part = walled.parts.find((one) => one.id === "room-1-part-2");
+    expect(part?.dividingWalls).toEqual(["north"]);
+    expect(part?.openWalls).toEqual([]);
   });
 
   it("adds an editable rectangular section to the room", () => {

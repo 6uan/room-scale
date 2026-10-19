@@ -88,6 +88,12 @@ function problemMessage(
       );
     case "outside-room":
       return `${name(problem.instanceId)} is not in any room.`;
+    case "section-inside":
+      return (
+        `Section ${problem.partNumber} of the ${roomName(problem.roomId)} lies ` +
+        `inside the room's floor already, so it adds nothing. A closet is a ` +
+        `room of its own, with a wall and a door.`
+      );
     case "blocks-door":
       return (
         `${name(problem.instanceId)} is in the swing of ` +
@@ -114,6 +120,8 @@ function problemKey(problem: LayoutProblem): string {
       return `outside:${problem.instanceId}`;
     case "blocks-door":
       return `door:${problem.instanceId}:${problem.openingId}`;
+    case "section-inside":
+      return `section:${problem.roomId}:${problem.partId}`;
     case "rooms-overlap":
       return `rooms:${problem.roomIds.join(":")}`;
   }

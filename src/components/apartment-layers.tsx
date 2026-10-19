@@ -79,12 +79,14 @@ export function ApartmentLayers({
               onChange={onRoomChange}
             />
             <ul className="flex flex-col">
+              {/* The first rectangle is the room, already on the row above;
+                  only what was added to it gets a row of its own. */}
               {room.parts.length === 1
                 ? null
-                : room.parts.map((part, index) => (
+                : room.parts.slice(1).map((part, offset) => (
                     <li key={part.id}>
                       <Row
-                        label={`Section ${index + 1}`}
+                        label={`Section ${offset + 2}`}
                         icon={SquareDashed}
                         depth
                         selected={isSelected(selection, "room-part", part.id)}

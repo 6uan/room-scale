@@ -1095,8 +1095,15 @@ test.describe("laying the apartment out", () => {
       /built from 2 rectangles/,
     );
 
-    // Sections toggle independently without turning into separate rooms.
-    await contents(page).getByRole("button", { name: "Section 1" }).click();
+    // The first rectangle is the room's own row; only the added section has
+    // a row of its own, and the panel's own chips reach the first.
+    await expect(
+      contents(page).getByRole("button", { name: "Section 1" }),
+    ).toHaveCount(0);
+    await contents(page).getByRole("button", { name: "Section 2" }).click();
+    await room
+      .getByRole("button", { name: "Select Living room section 1" })
+      .click();
     await expect(
       room.getByRole("button", { name: "Select Living room section 1" }),
     ).toHaveAttribute("aria-pressed", "true");
@@ -1436,7 +1443,7 @@ test.describe("laying the apartment out", () => {
     await openWithLivingRoom(page);
     await contents(page).getByRole("button", { name: "Living room" }).click();
 
-    // Pick the side, then say what it is. All three kinds are on screen the
+    // Pick the side, then say what it is. Both kinds are on screen the
     // whole time; the side's own name carries which it is now.
     const room = details(page).getByRole("region", { name: "Living room" });
     await room
@@ -1465,16 +1472,16 @@ test.describe("laying the apartment out", () => {
       reopened.getByRole("button", { name: "Living room north wall, open" }),
     ).toBeVisible();
 
-    // The third kind: a wall kept even where the room's own floor carries on.
+    // And back to a wall.
     await reopened
       .getByRole("button", { name: "Living room north wall, open" })
       .click();
     await reopened
-      .getByRole("button", { name: "Make the north wall dividing" })
+      .getByRole("button", { name: "Make the north wall walled" })
       .click();
     await expect(
       reopened.getByRole("button", {
-        name: "Living room north wall, dividing",
+        name: "Living room north wall, walled",
       }),
     ).toBeVisible();
     await page.reload();
@@ -1482,7 +1489,7 @@ test.describe("laying the apartment out", () => {
     await expect(
       details(page)
         .getByRole("region", { name: "Living room" })
-        .getByRole("button", { name: "Living room north wall, dividing" }),
+        .getByRole("button", { name: "Living room north wall, walled" }),
     ).toBeVisible();
   });
 

@@ -30,6 +30,7 @@ import {
   withRoomPartCut,
   withRoomPartLength,
   roomPartWallState,
+  wallStretches,
   withRoomPartOrigin,
   withRoomPartRotation,
   withRoomPartWallState,
@@ -64,20 +65,29 @@ const WALL_TITLES: Record<WallSide, string> = {
 };
 
 /** The three, in the order the buttons offer them. */
-const WALL_STATES: readonly WallState[] = ["auto", "open", "dividing"];
+/**
+ * What a side can be, as the buttons offer it: a wall, or nothing.
+ *
+ * The model has three states — walled where the floor ends, open, and
+ * dividing (a wall where the room's own floor carries on) — because a seam
+ * between two sections of one room draws no wall by default and has to be
+ * asked for one. That is a fact about the data, not a choice anybody makes:
+ * nobody wants a "dividing" wall, they want a wall, there. So the buttons
+ * say wall or open, and which stored state that means is worked out from
+ * whether the side is a seam.
+ */
+type WallChoice = "wall" | "open";
+const WALL_CHOICES: readonly WallChoice[] = ["wall", "open"];
 
-/** One word for the state, so the accessible name carries it. */
-const WALL_STATE_WORDS: Record<WallState, string> = {
-  auto: "walled",
+/** One word for the choice, so the accessible name carries it. */
+const WALL_CHOICE_WORDS: Record<WallChoice, string> = {
+  wall: "walled",
   open: "open",
-  dividing: "dividing",
 };
 
-/** The same three as the buttons print them. */
-const WALL_STATE_BUTTONS: Record<WallState, string> = {
-  auto: "Wall",
+const WALL_CHOICE_BUTTONS: Record<WallChoice, string> = {
+  wall: "Wall",
   open: "Open",
-  dividing: "Dividing",
 };
 
 /**
@@ -87,12 +97,39 @@ const WALL_STATE_BUTTONS: Record<WallState, string> = {
  * paragraph that used to be printed beside the pad and read by everybody every
  * time, whether or not they had a question.
  */
-const WALL_STATE_HINTS: Record<WallState, string> = {
-  auto: "Walled where this room's floor ends.",
-  open: "A railing rather than a wall, and it takes no doors. The floor still ends here.",
-  dividing:
-    "A wall where this room's own floor carries on — a laundry in the corner of a kitchen. It takes a door like any other.",
+const WALL_CHOICE_HINTS: Record<WallChoice, string> = {
+  wall: "A wall here, whether or not this room's floor carries on past it — a closet in the corner of a bedroom. It takes a door like any other.",
+  open: "No wall: a railing where the floor ends, or nothing at all where this room's floor carries on. It takes no doors.",
 };
+
+/** What a side reads as, to the buttons: open, or a wall. */
+function wallChoiceOf(state: WallState, seamed: boolean): WallChoice {
+  return state === "open" || (state === "auto" && seamed) ? "open" : "wall";
+}
+
+/** The stored state a choice means on this side. */
+function wallStateFor(choice: WallChoice, seamed: boolean): WallState {
+  return choice === "wall"
+    ? seamed
+      ? "dividing"
+      : "auto"
+    : seamed
+      ? "auto"
+      : "open";
+}
+
+/** Whether any of this side runs along the room's own floor. */
+function isSeamed(
+  floor: Floor,
+  room: Room,
+  part: RoomPart,
+  wall: WallSide,
+): boolean {
+  const plain = { ...part, dividingWalls: undefined };
+  return wallStretches(floor, room, plain, wall).some(
+    (stretch) => stretch.kind === "seam",
+  );
+}
 
 /** Two letters for a chamfer, one for a square side. */
 const WALL_INITIALS: Record<WallSide, string> = {
@@ -595,6 +632,7 @@ function RoomPartFields({
         onChange={onChange}
       />
       <WallStateChips
+        floor={floor}
         room={room}
         part={part}
         label={label}
@@ -649,11 +687,13 @@ const CUT_LABELS: Record<PartCorner, string> = {
  * now, and the plan beside it draws the room far better than 96 pixels could.
  */
 function WallStateChips({
+  floor,
   room,
   part,
   label,
   onChange,
 }: {
+  floor: Floor;
   room: Room;
   part: RoomPart;
   label: string;
@@ -670,12 +710,15 @@ function WallStateChips({
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <ChipRow name={`${label} wall`}>
           {sides.map((wall) => {
-            const state = roomPartWallState(part, wall);
+            const choice = wallChoiceOf(
+              roomPartWallState(part, wall),
+              isSeamed(floor, room, part, wall),
+            );
             return (
               <Chip
                 key={wall}
-                label={`${label} ${wall} wall, ${WALL_STATE_WORDS[state]}`}
-                title={`${WALL_TITLES[wall]} wall · ${WALL_STATE_WORDS[state]}`}
+                label={`${label} ${wall} wall, ${WALL_CHOICE_WORDS[choice]}`}
+                title={`${WALL_TITLES[wall]} wall · ${WALL_CHOICE_WORDS[choice]}`}
                 pressed={wall === selected}
                 onClick={() => setPicked(wall === selected ? null : wall)}
               >
@@ -686,38 +729,49 @@ function WallStateChips({
         </ChipRow>
 
         {/*
-          Always all three, drawn rather than described, and dimmed until there
-          is a side for them to be about. A disabled row asks for the side; a
-          row that acted on whichever side was last touched would change a wall
+          Both, drawn rather than described, and dimmed until there is a side
+          for them to be about. A disabled row asks for the side; a row that
+          acted on whichever side was last touched would change a wall
           somebody had stopped looking at.
         */}
         <ChipRow name={`${label} wall kind`}>
-          {WALL_STATES.map((state) => (
-            <Chip
-              key={state}
-              stacked
-              disabled={selected === null}
-              pressed={
-                selected !== null && roomPartWallState(part, selected) === state
-              }
-              label={
-                selected === null
-                  ? `Make the selected wall ${WALL_STATE_WORDS[state]}`
-                  : `Make the ${selected} wall ${WALL_STATE_WORDS[state]}`
-              }
-              title={WALL_STATE_HINTS[state]}
-              onClick={() =>
-                selected === null
-                  ? undefined
-                  : onChange(
-                      withRoomPartWallState(room, part.id, selected, state),
-                    )
-              }
-            >
-              <WallLine state={state} />
-              {WALL_STATE_BUTTONS[state]}
-            </Chip>
-          ))}
+          {WALL_CHOICES.map((choice) => {
+            const seamed =
+              selected === null ? false : isSeamed(floor, room, part, selected);
+            return (
+              <Chip
+                key={choice}
+                stacked
+                disabled={selected === null}
+                pressed={
+                  selected !== null &&
+                  wallChoiceOf(roomPartWallState(part, selected), seamed) ===
+                    choice
+                }
+                label={
+                  selected === null
+                    ? `Make the selected wall ${WALL_CHOICE_WORDS[choice]}`
+                    : `Make the ${selected} wall ${WALL_CHOICE_WORDS[choice]}`
+                }
+                title={WALL_CHOICE_HINTS[choice]}
+                onClick={() =>
+                  selected === null
+                    ? undefined
+                    : onChange(
+                        withRoomPartWallState(
+                          room,
+                          part.id,
+                          selected,
+                          wallStateFor(choice, seamed),
+                        ),
+                      )
+                }
+              >
+                <WallLine state={wallStateFor(choice, seamed)} />
+                {WALL_CHOICE_BUTTONS[choice]}
+              </Chip>
+            );
+          })}
         </ChipRow>
       </div>
     </PanelRow>

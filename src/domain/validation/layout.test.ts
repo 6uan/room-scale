@@ -384,7 +384,9 @@ describe("checkLayout: the order it reports in", () => {
           ? problem.instanceId
           : "instanceIds" in problem
             ? problem.instanceIds.join("+")
-            : problem.roomIds.join("+"),
+            : "roomIds" in problem
+              ? problem.roomIds.join("+")
+              : problem.partId,
       ),
     ).toEqual(["i2", "i1+i3"]);
   });
@@ -602,6 +604,61 @@ describe("checkLayout: a door that cannot open", () => {
       checkLayout(outward, [inside]).filter(
         (one) => one.kind === "blocks-door",
       ),
+    ).toEqual([]);
+  });
+});
+
+describe("checkLayout: a section that adds no floor", () => {
+  it("reports a section drawn wholly inside the room", () => {
+    const floor: Floor = {
+      ...FLOOR,
+      rooms: [
+        {
+          ...ROOM,
+          parts: [
+            BASE_PART,
+            {
+              ...BASE_PART,
+              id: "room-1-part-2",
+              origin: { xMeters: 1, zMeters: 2 },
+              widthMeters: 1,
+              depthMeters: 0.8,
+            },
+          ],
+        },
+      ],
+    };
+
+    expect(checkLayout(floor, [])).toContainEqual({
+      kind: "section-inside",
+      roomId: ROOM.id,
+      partId: "room-1-part-2",
+      partNumber: 2,
+    });
+  });
+
+  it("says nothing about a section that reaches past the first", () => {
+    const floor: Floor = {
+      ...FLOOR,
+      rooms: [
+        {
+          ...ROOM,
+          parts: [
+            BASE_PART,
+            {
+              ...BASE_PART,
+              id: "room-1-part-2",
+              origin: { xMeters: 1, zMeters: 3 },
+              widthMeters: 2,
+              depthMeters: 2,
+            },
+          ],
+        },
+      ],
+    };
+
+    expect(
+      checkLayout(floor, []).filter((one) => one.kind === "section-inside"),
     ).toEqual([]);
   });
 });
