@@ -31,8 +31,8 @@ import {
   clampToFloor,
   furnitureAt,
   moveInstance,
+  nearestGaps,
   snapInstancePosition,
-  wallGaps,
   type WallGap,
   placedNames,
   type FurnitureInstance,
@@ -59,6 +59,8 @@ import {
   openingAtPoint,
   openingEndpoints,
   openingWallThicknessMeters,
+  openingRangeMeters,
+  wallLengthMeters,
   pointAlongWall,
   pointInRoom,
   pointOnFloor,
@@ -2080,6 +2082,14 @@ function drawPlan(
       selectedOpening.room,
       selectedOpening.opening,
     );
+    drawOpeningRuns(
+      context,
+      inRoom(frame, selectedOpening.room),
+      selectedOpening.room,
+      selectedOpening.opening,
+      unit,
+      fontFamily,
+    );
   }
 
   for (const room of floor.rooms) {
@@ -2100,7 +2110,13 @@ function drawPlan(
   // furniture so the numbers are never under a neighbour.
   const measured = furniture.find(({ instance }) => instance.id === measuredId);
   if (measured !== undefined) {
-    drawWallGaps(context, frame, wallGaps(floor, measured), unit, fontFamily);
+    drawWallGaps(
+      context,
+      frame,
+      nearestGaps(floor, furniture, measured),
+      unit,
+      fontFamily,
+    );
   }
 
   // Last, over everything: it is the thing being made right now.
@@ -2889,6 +2905,111 @@ function markSelectedOpening(
   context.restore();
 }
 
+/** How far the run dimension sits in from its wall, in pixels. */
+const RUN_INSET_PIXELS = 14;
+
+/**
+ * How much wall is left either side of the selected opening.
+ *
+ * An opening is placed by its center, but the numbers a person checks are
+ * the two runs it leaves: whether a dresser still fits beside the door.
+ * Each run is drawn just inside its wall, from the corner to the jamb, with
+ * its length printed on it. A run of nothing — an opening flush with a
+ * corner — is left out.
+ */
+function drawOpeningRuns(
+  context: CanvasRenderingContext2D,
+  frame: PlanFrame,
+  room: Room,
+  opening: Opening,
+  unit: DisplayUnit,
+  fontFamily: string,
+): void {
+  const length = wallLengthMeters(room, opening.wall, opening.partId);
+  const { startMeters, endMeters } = openingRangeMeters(opening);
+  const along = (meters: number) =>
+    frame.toPixels(pointAlongWall(room, opening.wall, meters, opening.partId));
+  // Inward is toward the part's own middle, which is where the floor is —
+  // found through the same walk along the walls the runs use, so the two
+  // agree on where things are.
+  const sides = ["north", "east", "south", "west"] as const;
+  const midpoints = sides.map((side) =>
+    frame.toPixels(
+      pointAlongWall(
+        room,
+        side,
+        wallLengthMeters(room, side, opening.partId) / 2,
+        opening.partId,
+      ),
+    ),
+  );
+  const middle = {
+    x: midpoints.reduce((sum, point) => sum + point.x, 0) / midpoints.length,
+    y: midpoints.reduce((sum, point) => sum + point.y, 0) / midpoints.length,
+  };
+
+  context.save();
+  context.strokeStyle = frame.color;
+  context.fillStyle = frame.color;
+  context.lineWidth = 1;
+  context.font = `${LABEL_PIXELS}px ${fontFamily}`;
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+
+  for (const [fromMeters, toMeters] of [
+    [0, startMeters],
+    [endMeters, length],
+  ] as const) {
+    if (toMeters - fromMeters < FLUSH_METERS) {
+      continue;
+    }
+    const a = along(fromMeters);
+    const b = along(toMeters);
+    const run = Math.hypot(b.x - a.x, b.y - a.y);
+    if (run === 0) {
+      continue;
+    }
+    // Unit normal to the wall, turned to point at the floor.
+    let nx = -(b.y - a.y) / run;
+    let ny = (b.x - a.x) / run;
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    if ((middle.x - mid.x) * nx + (middle.y - mid.y) * ny < 0) {
+      nx = -nx;
+      ny = -ny;
+    }
+    const inset = (point: PixelPoint) => ({
+      x: point.x + nx * RUN_INSET_PIXELS,
+      y: point.y + ny * RUN_INSET_PIXELS,
+    });
+    const from = inset(a);
+    const to = inset(b);
+
+    context.globalAlpha = 0.8;
+    context.beginPath();
+    context.moveTo(from.x, from.y);
+    context.lineTo(to.x, to.y);
+    for (const end of [from, to]) {
+      context.moveTo(
+        end.x - nx * GAP_TICK_PIXELS,
+        end.y - ny * GAP_TICK_PIXELS,
+      );
+      context.lineTo(
+        end.x + nx * GAP_TICK_PIXELS,
+        end.y + ny * GAP_TICK_PIXELS,
+      );
+    }
+    context.stroke();
+
+    context.globalAlpha = 1;
+    context.fillText(
+      formatLength(toMeters - fromMeters, unit),
+      (from.x + to.x) / 2 + nx * 10,
+      (from.y + to.y) / 2 + ny * 10,
+    );
+  }
+  context.restore();
+}
+
 /** A length in meters, in pixels, read off the frame itself. */
 function spanPixels(frame: PlanFrame, meters: number): number {
   const from = frame.toPixels({ xMeters: 0, zMeters: 0 });
@@ -2968,12 +3089,16 @@ function drawFurniture(
 /** How far a gap's end ticks reach either side of the line, in pixels. */
 const GAP_TICK_PIXELS = 4;
 
+/** A gap this small is flush, and flush needs no line. */
+const FLUSH_METERS = 0.0005;
+
 /**
- * The gaps from a piece to the walls on each side, drawn as a line with a
- * tick at either end and the length printed beside it — the way a plan is
- * dimensioned. A gap of nothing is still drawn: flush is a fact worth seeing.
- * A negative gap is a piece through the wall, which the problem list already
- * shouts about, so the line is left out rather than drawn backwards.
+ * The gaps from a piece to whatever is nearest on each side — the wall, or a
+ * piece in the way — drawn as a line with a tick at either end and the
+ * length printed beside it, the way a plan is dimensioned. A gap of nothing
+ * is left out: a zero on the plan is noise, and the piece touching the wall
+ * already shows it. A negative gap is a piece through the wall, which the
+ * problem list already shouts about, so that line is left out too.
  */
 function drawWallGaps(
   context: CanvasRenderingContext2D,
@@ -2990,7 +3115,7 @@ function drawWallGaps(
   context.textBaseline = "middle";
 
   for (const gap of gaps) {
-    if (gap.gapMeters < 0) {
+    if (gap.gapMeters < FLUSH_METERS) {
       continue;
     }
     const horizontal = gap.side === "west" || gap.side === "east";

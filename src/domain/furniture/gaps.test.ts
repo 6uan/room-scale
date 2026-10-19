@@ -3,7 +3,7 @@ import { DEFAULT_FLOOR } from "@/domain/room";
 import { LIVING_ROOM } from "@/domain/room/fixtures";
 import { createInstance, turnInstance } from "./instance";
 import type { FurnitureProduct } from "./product";
-import { wallGaps, withWallGap } from "./gaps";
+import { nearestGaps, wallGaps, withWallGap } from "./gaps";
 
 /** A one-room apartment, four by three, north-west corner at the origin. */
 const FLOOR = {
@@ -60,9 +60,14 @@ const SOFA: FurnitureProduct = {
   heightMeters: 0.8,
 };
 
-function sofaAt(xMeters: number, zMeters: number, rotationRadians = 0) {
+function sofaAt(
+  xMeters: number,
+  zMeters: number,
+  rotationRadians = 0,
+  id = "i1",
+) {
   const instance = turnInstance(
-    createInstance("i1", SOFA.id, { xMeters, zMeters }),
+    createInstance(id, SOFA.id, { xMeters, zMeters }),
     rotationRadians,
   );
   return { instance, product: SOFA };
@@ -122,6 +127,34 @@ describe("wallGaps", () => {
     };
 
     expect(wallGaps(turned, sofaAt(2, 1.5))).toEqual([]);
+  });
+});
+
+describe("nearestGaps", () => {
+  it("stops at a piece standing in the way before the wall", () => {
+    // Another sofa against the west wall, across from this one.
+    const against = sofaAt(1, 0.8, 0, "i2");
+    const placed = sofaAt(3, 0.8);
+
+    const west = nearestGaps(FLOOR, [against, placed], placed).find(
+      (gap) => gap.side === "west",
+    );
+    expect(west?.to).toBe("piece");
+    expect(west?.gapMeters).toBeCloseTo(0, 10);
+    expect(west?.faceMeters).toBeCloseTo(2, 10);
+  });
+
+  it("ignores a piece that is not across from this one", () => {
+    // The same sofa, but down in the south half: nothing between this one
+    // and the west wall at its own height.
+    const aside = sofaAt(1, 2.5, 0, "i2");
+    const placed = sofaAt(3, 0.8);
+
+    const west = nearestGaps(FLOOR, [aside, placed], placed).find(
+      (gap) => gap.side === "west",
+    );
+    expect(west?.to).toBe("wall");
+    expect(west?.gapMeters).toBeCloseTo(2, 10);
   });
 });
 

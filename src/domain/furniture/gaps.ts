@@ -34,6 +34,8 @@ export const GAP_SIDES: readonly GapSide[] = ["west", "east", "north", "south"];
 
 export type WallGap = {
   readonly side: GapSide;
+  /** What the gap runs to: the room's wall, or another piece in the way. */
+  readonly to: "wall" | "piece";
   /** From the piece's nearest edge to the wall face. Negative when through it. */
   readonly gapMeters: number;
   /** Where the face is, on the axis the gap runs along. */
@@ -85,6 +87,7 @@ export function wallGaps(
     return [
       {
         side,
+        to: "wall" as const,
         gapMeters: gap,
         faceMeters: face,
         edgeMeters: edge,
@@ -92,6 +95,59 @@ export function wallGaps(
           side === "west" || side === "east" ? center.zMeters : center.xMeters,
       },
     ];
+  });
+}
+
+/**
+ * The gaps to whatever is nearest on each side: the wall, or another piece
+ * standing in the way before it.
+ *
+ * This is the clearance — the fish tank to the bed, not the fish tank to the
+ * wall behind the bed. A piece counts as in the way when it lies across from
+ * this one on that side: beyond the edge, and overlapping it on the other
+ * axis, so a nightstand beside the bed is not "in the way" of the bed going
+ * north. The wall gaps for the panel are `wallGaps`; this one is for reading.
+ */
+export function nearestGaps(
+  floor: Floor,
+  furniture: readonly PlacedFurniture[],
+  placed: PlacedFurniture,
+): readonly WallGap[] {
+  const rect = footprintRect(placed);
+  const box = boundingBox(rect);
+  const gaps = wallGaps(floor, placed);
+
+  return gaps.map((gap) => {
+    const horizontal = gap.side === "west" || gap.side === "east";
+    const outward = gap.side === "west" || gap.side === "north" ? -1 : 1;
+    let best = gap;
+
+    for (const other of furniture) {
+      if (other.instance.id === placed.instance.id) {
+        continue;
+      }
+      const theirs = boundingBox(footprintRect(other));
+      const acrossOverlap = horizontal
+        ? theirs.minZ < box.maxZ && theirs.maxZ > box.minZ
+        : theirs.minX < box.maxX && theirs.maxX > box.minX;
+      if (!acrossOverlap) {
+        continue;
+      }
+      // Their edge facing this piece.
+      const face = horizontal
+        ? outward < 0
+          ? theirs.maxX
+          : theirs.minX
+        : outward < 0
+          ? theirs.maxZ
+          : theirs.minZ;
+      const distance = (face - gap.edgeMeters) * outward;
+      if (distance < 0 || distance >= best.gapMeters) {
+        continue;
+      }
+      best = { ...gap, to: "piece", gapMeters: distance, faceMeters: face };
+    }
+    return best;
   });
 }
 
