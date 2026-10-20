@@ -20,7 +20,7 @@ import { isSelected, type Selection } from "@/components/selection";
  * not bend round the row's own corners.
  */
 const DROP_LINE =
-  "relative before:absolute before:inset-x-0 before:-top-0.5 before:h-0.5 before:bg-current before:content-['']";
+  "relative before:absolute before:inset-x-0 before:-top-px before:h-px before:bg-current before:content-['']";
 
 export const PRODUCT_DRAG_TYPE = "application/x-roomscale-product";
 
