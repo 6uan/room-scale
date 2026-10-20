@@ -456,7 +456,7 @@ function Row({
 }) {
   return (
     <div
-      className={`group flex min-w-0 items-center rounded-lg pr-1 transition-colors focus-within:outline-2 focus-within:outline-offset-[-2px] focus-within:outline-blue-500 ${
+      className={`group flex min-w-0 items-center rounded-lg py-px pr-[3px] transition-colors focus-within:outline-2 focus-within:outline-offset-[-2px] focus-within:outline-blue-500 ${
         selected
           ? "bg-black/10 dark:bg-white/15"
           : "hover:bg-black/5 dark:hover:bg-white/10"
