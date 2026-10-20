@@ -9,6 +9,7 @@ import { withParts, withRoom, type Floor, type Room } from "@/domain/room";
 import type { Selection } from "@/components/selection";
 import { ApartmentLayers } from "./apartment-layers";
 import { projectWithLivingRoom } from "@/domain/project/fixtures";
+import { withGroup, withoutGroup, type PieceGroup } from "@/domain/project";
 
 function LayersHarness({ compound = false }: { compound?: boolean }) {
   const [floor, setFloor] = useState<Floor>(() => {
@@ -270,5 +271,152 @@ describe("ApartmentLayers pieces", () => {
     fireEvent.drop(rugRow, { dataTransfer });
 
     expect(onReorder).toHaveBeenCalledWith("i2", "i1");
+  });
+});
+
+describe("ApartmentLayers groups", () => {
+  const piece = (id: string, name: string): PlacedFurniture => ({
+    instance: createInstance(id, name.toLowerCase(), {
+      xMeters: 0.5,
+      zMeters: 0.5,
+    }),
+    product: {
+      id: name.toLowerCase(),
+      name,
+      retailer: "",
+      productUrl: "",
+      priceCents: 0,
+      purchaseStatus: "wanted",
+      category: "other",
+      footprint: { widthMeters: 0.5, depthMeters: 0.5 },
+      heightMeters: 0.5,
+    },
+  });
+  const furniture = [
+    piece("i1", "Bed"),
+    piece("i2", "Lamp"),
+    piece("i3", "Rug"),
+  ];
+
+  /** The list over a selection and some groups, the way the workspace holds them. */
+  function GroupsHarness({
+    initialGroups = [],
+    onRenameGroup,
+    onUngroup,
+  }: {
+    initialGroups?: readonly PieceGroup[];
+    onRenameGroup?: (id: string, name: string) => void;
+    onUngroup?: (id: string) => void;
+  }) {
+    const [selection, setSelection] = useState<Selection>(null);
+    const [groups, setGroups] = useState(initialGroups);
+    return (
+      <ApartmentLayers
+        floor={projectWithLivingRoom().floor}
+        furniture={furniture}
+        selection={selection}
+        troubledIds={new Set()}
+        onSelect={setSelection}
+        onRoomChange={() => undefined}
+        onAddRoom={() => undefined}
+        groups={groups}
+        onGroup={(ids) =>
+          setGroups((was) => withGroup(was, `g${was.length + 1}`, ids))
+        }
+        onUngroup={
+          onUngroup ?? ((id) => setGroups((was) => withoutGroup(was, id)))
+        }
+        onRenameGroup={onRenameGroup}
+      />
+    );
+  }
+
+  const pressed = (name: string) =>
+    screen.getByRole("button", { name }).getAttribute("aria-pressed");
+
+  it("selects a range with Shift, and adds or removes one with the command key", async () => {
+    const user = userEvent.setup();
+    render(<GroupsHarness />);
+
+    await user.click(screen.getByRole("button", { name: "Bed" }));
+    await user.keyboard("{Shift>}");
+    await user.click(screen.getByRole("button", { name: "Rug" }));
+    await user.keyboard("{/Shift}");
+    expect([pressed("Bed"), pressed("Lamp"), pressed("Rug")]).toEqual([
+      "true",
+      "true",
+      "true",
+    ]);
+
+    await user.keyboard("{Meta>}");
+    await user.click(screen.getByRole("button", { name: "Lamp" }));
+    await user.keyboard("{/Meta}");
+    expect([pressed("Bed"), pressed("Lamp"), pressed("Rug")]).toEqual([
+      "true",
+      "false",
+      "true",
+    ]);
+  });
+
+  it("groups the selection from the menu, and lists the group under its name", async () => {
+    const user = userEvent.setup();
+    render(<GroupsHarness />);
+
+    await user.click(screen.getByRole("button", { name: "Bed" }));
+    await user.keyboard("{Meta>}");
+    await user.click(screen.getByRole("button", { name: "Lamp" }));
+    await user.keyboard("{/Meta}");
+    const row = screen.getByRole("button", { name: "Lamp" }).closest("li");
+    if (row === null) {
+      throw new Error("the lamp has a row");
+    }
+    fireEvent.contextMenu(row, { clientX: 40, clientY: 40 });
+    await user.click(screen.getByRole("menuitem", { name: "Group 2 pieces" }));
+
+    const group = screen.getByRole("button", { name: "Group 1" });
+    expect(group).toHaveAttribute("aria-pressed", "true");
+    // Picking one piece out of it leaves the group row unpressed.
+    await user.click(screen.getByRole("button", { name: "Rug" }));
+    expect(pressed("Group 1")).toBe("false");
+    await user.click(group);
+    expect([pressed("Bed"), pressed("Lamp"), pressed("Rug")]).toEqual([
+      "true",
+      "true",
+      "false",
+    ]);
+  });
+
+  it("folds a group, renames it, and ungroups it", async () => {
+    const user = userEvent.setup();
+    const onRenameGroup = vi.fn();
+    const onUngroup = vi.fn();
+    render(
+      <GroupsHarness
+        initialGroups={[
+          { id: "g1", name: "Group 1", instanceIds: ["i1", "i2"] },
+        ]}
+        onRenameGroup={onRenameGroup}
+        onUngroup={onUngroup}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Collapse Group 1" }));
+    expect(screen.queryByRole("button", { name: "Bed" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Rug" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Expand Group 1" }));
+
+    await user.dblClick(screen.getByRole("button", { name: "Group 1" }));
+    const field = screen.getByLabelText("Rename Group 1");
+    await user.clear(field);
+    await user.type(field, "Bedside{Enter}");
+    expect(onRenameGroup).toHaveBeenCalledWith("g1", "Bedside");
+
+    const row = screen.getByRole("button", { name: "Group 1" }).closest("li");
+    if (row === null) {
+      throw new Error("the group has a row");
+    }
+    fireEvent.contextMenu(row, { clientX: 40, clientY: 40 });
+    await user.click(screen.getByRole("menuitem", { name: "Ungroup" }));
+    expect(onUngroup).toHaveBeenCalledWith("g1");
   });
 });

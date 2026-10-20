@@ -664,6 +664,35 @@ describe("readStoredProject", () => {
     ).toMatchObject({ kind: "door", style: "swing" });
   });
 
+  it("keeps a layout's groups through the round trip", () => {
+    const stored = toStoredProject(
+      "current",
+      {
+        ...projectWithLivingRoom(),
+        layouts: [
+          {
+            id: "layout-1",
+            name: "Layout 1",
+            instances: [],
+            groups: [{ id: "g1", name: "Bed", instanceIds: ["i1"] }],
+          },
+        ],
+      },
+      1,
+    );
+    const result = readStoredProject(stored);
+
+    expect(result.ok && result.project.layouts[0]?.groups).toEqual([
+      { id: "g1", name: "Bed", instanceIds: ["i1"] },
+    ]);
+  });
+
+  it("reads a version 19 layout, which had no groups, as one with none", () => {
+    const result = readStoredProject({ ...STORED, version: 19 });
+
+    expect(result.ok && result.project.layouts[0]?.groups).toBeUndefined();
+  });
+
   it("reads a version 18 product as wanted or owned, and nothing between", () => {
     const stored = (purchaseStatus: string) => ({
       id: purchaseStatus,

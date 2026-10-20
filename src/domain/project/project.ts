@@ -14,9 +14,11 @@
 import type { FurnitureInstance, FurnitureProduct } from "@/domain/furniture";
 import { DEFAULT_FLOOR, type Floor } from "@/domain/room";
 import type { DisplayUnit } from "@/domain/units";
+import type { PieceGroup } from "./groups";
 import {
   EMPTY_LAYOUT,
   createLayout,
+  withLayoutGroups,
   withLayoutInstances,
   type Layout,
 } from "./layout";
@@ -148,6 +150,14 @@ export function withInstances(
     project,
     withLayoutInstances(activeLayout(project), instances),
   );
+}
+
+/** The active layout's groups replaced, the way its instances are. */
+export function withGroups(
+  project: Project,
+  groups: readonly PieceGroup[],
+): Project {
+  return withLayout(project, withLayoutGroups(activeLayout(project), groups));
 }
 
 export function withDisplayUnit(

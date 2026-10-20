@@ -18,13 +18,21 @@
  */
 
 import type { FurnitureInstance } from "@/domain/furniture";
+import { groupsOf, type PieceGroup } from "./groups";
 
 export type Layout = {
   readonly id: string;
   /** What it is called in the switcher: "Sofa facing the window". */
   readonly name: string;
   readonly instances: readonly FurnitureInstance[];
+  /** Pieces picked up together. Absent is none, which is what every layout
+      from before groups existed has. */
+  readonly groups?: readonly PieceGroup[] | undefined;
 };
+
+export function layoutGroups(layout: Layout): readonly PieceGroup[] {
+  return layout.groups ?? [];
+}
 
 /**
  * The layout a project falls back to when its active one has gone.
@@ -55,7 +63,12 @@ export function duplicateLayout(
   id: string,
   name: string,
 ): Layout {
-  return { id, name, instances: [...layout.instances] };
+  return {
+    id,
+    name,
+    instances: [...layout.instances],
+    ...(layout.groups === undefined ? {} : { groups: [...layout.groups] }),
+  };
 }
 
 export function renameLayout(layout: Layout, name: string): Layout {
@@ -66,7 +79,20 @@ export function withLayoutInstances(
   layout: Layout,
   instances: readonly FurnitureInstance[],
 ): Layout {
-  return { ...layout, instances };
+  // A piece taken out of the room leaves its group too.
+  const groups = groupsOf(layoutGroups(layout), instances);
+  return groups.length === 0
+    ? { ...layout, instances, groups: undefined }
+    : { ...layout, instances, groups };
+}
+
+export function withLayoutGroups(
+  layout: Layout,
+  groups: readonly PieceGroup[],
+): Layout {
+  return groups.length === 0
+    ? { ...layout, groups: undefined }
+    : { ...layout, groups };
 }
 
 /**
