@@ -16,7 +16,7 @@ function product(
     retailer: "Article",
     productUrl: "https://example.com/1",
     priceCents,
-    purchaseStatus: "considering",
+    purchaseStatus: "wanted",
     category: "other",
     footprint: { widthMeters: 2, depthMeters: 1 },
     heightMeters: 0.5,
@@ -48,7 +48,7 @@ describe("checklistCsv", () => {
     const csv = csvFor([product("sofa", "Sectional", 199900)], [1]);
 
     expect(rows(csv)[1]).toBe(
-      "Sectional,Article,1,1999.00,1999.00,Considering,2,1,https://example.com/1",
+      "Sectional,Article,1,1999.00,1999.00,To buy,2,1,https://example.com/1",
     );
   });
 
@@ -94,7 +94,7 @@ describe("checklistCsv", () => {
       [1],
     );
 
-    expect(rows(csv)[1]).toContain("Already own it");
+    expect(rows(csv)[1]).toContain("Owned");
   });
 
   it("leaves out what is in the catalogue but not in the room", () => {

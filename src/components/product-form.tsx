@@ -22,9 +22,8 @@ import {
 import type { DisplayUnit } from "@/domain/units";
 
 export const PURCHASE_STATUS_LABELS: Record<PurchaseStatus, string> = {
-  considering: "Considering",
-  ordered: "Ordered",
-  owned: "Already own it",
+  wanted: "To buy",
+  owned: "Owned",
 };
 
 export const PRODUCT_CATEGORY_LABELS: Record<ProductCategory, string> = {
@@ -340,24 +339,61 @@ function SelectField<T extends string>({
       <label htmlFor={selectId} className="text-sm font-medium">
         {label}
       </label>
-      <div className="relative">
-        <select
-          id={selectId}
-          value={value}
-          onChange={(event) => onValueChange(event.target.value as T)}
-          className="h-8 w-full appearance-none rounded-lg border border-black/15 bg-transparent pr-8 pl-2.5 text-sm outline-none focus:border-black/40 dark:border-white/20 dark:focus:border-white/45"
-        >
-          {options.map((option) => (
-            <option key={option} value={option}>
-              {labels[option]}
-            </option>
-          ))}
-        </select>
-        <ChevronDown
-          aria-hidden="true"
-          className="pointer-events-none absolute top-1/2 right-2.5 size-4 -translate-y-1/2 opacity-50"
-        />
-      </div>
+      <SelectBox
+        id={selectId}
+        value={value}
+        options={options}
+        labels={labels}
+        onValueChange={onValueChange}
+      />
+    </div>
+  );
+}
+
+/** The select itself, with the chevron; named by a label or an aria-label. */
+export function SelectBox<T extends string>({
+  id,
+  label,
+  value,
+  options,
+  labels,
+  onValueChange,
+  size = "normal",
+}: {
+  id?: string;
+  label?: string;
+  value: T;
+  options: readonly T[];
+  labels: Record<T, string>;
+  onValueChange: (value: T) => void;
+  size?: "normal" | "small";
+}) {
+  const small = size === "small";
+  return (
+    <div className="relative">
+      <select
+        id={id}
+        aria-label={label}
+        value={value}
+        onChange={(event) => onValueChange(event.target.value as T)}
+        className={`w-full appearance-none border border-black/15 bg-transparent outline-none focus:border-black/40 dark:border-white/20 dark:focus:border-white/45 ${
+          small
+            ? "h-7 rounded-md pr-7 pl-2 text-xs"
+            : "h-8 rounded-lg pr-8 pl-2.5 text-sm"
+        }`}
+      >
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {labels[option]}
+          </option>
+        ))}
+      </select>
+      <ChevronDown
+        aria-hidden="true"
+        className={`pointer-events-none absolute top-1/2 -translate-y-1/2 opacity-50 ${
+          small ? "right-2 size-3.5" : "right-2.5 size-4"
+        }`}
+      />
     </div>
   );
 }

@@ -36,7 +36,7 @@ export type Checklist = {
   readonly lines: readonly ChecklistLine[];
   /** What everything in the room costs. */
   readonly totalCents: Cents;
-  /** What has been ordered or is already owned — money out of the door. */
+  /** What is already owned — money out of the door. */
   readonly committedCents: Cents;
   /** What is still only being considered: the bill if you buy the rest. */
   readonly remainingCents: Cents;
@@ -91,18 +91,9 @@ export function buildChecklist(
   };
 }
 
-/**
- * Whether a line's money has already gone.
- *
- * Ordered counts alongside owned: retailers take payment when the order is
- * placed, so a sofa on a lorry is spent money that simply has not arrived yet.
- * Only what is still being considered is money you could decide not to spend.
- */
+/** Whether a line's money has already gone. */
 function isCommitted(line: ChecklistLine): boolean {
-  return (
-    line.product.purchaseStatus === "ordered" ||
-    line.product.purchaseStatus === "owned"
-  );
+  return line.product.purchaseStatus === "owned";
 }
 
 /** Keeps the first of each id, so catalogue order survives. */

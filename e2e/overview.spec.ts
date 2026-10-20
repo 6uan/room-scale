@@ -132,9 +132,7 @@ test.describe("the overview", () => {
     await expect(totalFor(page, "Still to buy")).toHaveText("$2,089.00");
     await page.getByLabel("Sectional status").selectOption("owned");
 
-    await expect(totalFor(page, "Ordered or already owned")).toHaveText(
-      "$1,999.00",
-    );
+    await expect(totalFor(page, "Owned")).toHaveText("$1,999.00");
     await expect(totalFor(page, "Still to buy")).toHaveText("$90.00");
     // What the room costs is a fact about the room, not about the shopping.
     await expect(totalFor(page, "Total")).toHaveText("$2,089.00");
@@ -170,7 +168,7 @@ test.describe("the overview", () => {
     await expect(
       page
         .getByRole("row", { name: /Sectional/ })
-        .getByText("Considering")
+        .getByText("To buy")
         .filter({ visible: true }),
     ).toBeVisible();
     await expect(

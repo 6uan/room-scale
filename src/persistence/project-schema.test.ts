@@ -61,7 +61,7 @@ describe("readStoredProject", () => {
           retailer: "",
           productUrl: "",
           priceCents: 34900,
-          purchaseStatus: "considering" as const,
+          purchaseStatus: "wanted" as const,
           category: "other" as const,
           footprint: { widthMeters: 2.4, depthMeters: 1.5 },
           heightMeters: 0.01,
@@ -109,7 +109,7 @@ describe("readStoredProject", () => {
             retailer: "",
             productUrl: "",
             priceCents: 34900,
-            purchaseStatus: "considering",
+            purchaseStatus: "wanted",
             footprint: { widthMeters: 2.4, depthMeters: 1.5 },
             heightMeters: 0.01,
           },
@@ -160,7 +160,7 @@ describe("readStoredProject", () => {
             retailer: "",
             productUrl: "",
             priceCents: 34900,
-            purchaseStatus: "considering",
+            purchaseStatus: "wanted",
             footprint: { widthMeters: 2.4, depthMeters: 1.5 },
             heightMeters: 0.01,
           },
@@ -216,7 +216,7 @@ describe("readStoredProject", () => {
             retailer: "",
             productUrl: "",
             priceCents: 34900,
-            purchaseStatus: "considering",
+            purchaseStatus: "wanted",
             footprint: { widthMeters: 2.4, depthMeters: 1.5 },
             heightMeters: 0.01,
           },
@@ -664,6 +664,33 @@ describe("readStoredProject", () => {
     ).toMatchObject({ kind: "door", style: "swing" });
   });
 
+  it("reads a version 18 product as wanted or owned, and nothing between", () => {
+    const stored = (purchaseStatus: string) => ({
+      id: purchaseStatus,
+      name: "Sofa",
+      retailer: "",
+      productUrl: "",
+      priceCents: 0,
+      purchaseStatus,
+      category: "other",
+      footprint: { widthMeters: 2, depthMeters: 1 },
+      heightMeters: 0.8,
+    });
+    const result = readStoredProject({
+      ...STORED,
+      version: 18,
+      project: {
+        ...STORED.project,
+        products: [stored("wanted"), stored("ordered"), stored("owned")],
+      },
+    });
+
+    // An order is paid for: the money has gone whether or not it has arrived.
+    expect(
+      result.ok && result.project.products.map((one) => one.purchaseStatus),
+    ).toEqual(["wanted", "owned", "owned"]);
+  });
+
   it("files a version 15 product under other, which is what unsorted is", () => {
     const result = readStoredProject({
       ...STORED,
@@ -677,7 +704,7 @@ describe("readStoredProject", () => {
             retailer: "",
             productUrl: "",
             priceCents: 0,
-            purchaseStatus: "considering",
+            purchaseStatus: "wanted",
             footprint: { widthMeters: 2, depthMeters: 1 },
             heightMeters: 0.8,
           },
@@ -797,7 +824,7 @@ describe("readStoredProject", () => {
             retailer: "",
             productUrl: "",
             priceCents: 349.5,
-            purchaseStatus: "considering",
+            purchaseStatus: "wanted",
             footprint: { widthMeters: 2.4, depthMeters: 1.5 },
             heightMeters: 0.01,
           },

@@ -47,8 +47,10 @@ import { FIRST_PROJECT_NAME, type Project } from "@/domain/project";
  *     was drawn hinged, so that is what it is.
  * 18. A placed piece may be hidden. Absent is shown, which is what every
  *     existing piece is, so there is nothing to rewrite.
+ * 19. A product is wanted or owned, and nothing in between. "Considering"
+ *     becomes wanted; "ordered" becomes owned, because the money has gone.
  */
-export const SCHEMA_VERSION = 18;
+export const SCHEMA_VERSION = 19;
 
 /** Meters, cents, and the rest are all plain finite numbers on the way in. */
 const finiteNumber = z
@@ -143,7 +145,7 @@ const productSchema = z.object({
   retailer: z.string(),
   productUrl: z.string(),
   priceCents: wholeNumber,
-  purchaseStatus: z.enum(["considering", "ordered", "owned"]),
+  purchaseStatus: z.enum(["wanted", "owned"]),
   category: z.enum([
     "seating",
     "table",
@@ -567,6 +569,29 @@ const MIGRATIONS: Record<number, (document: object) => object> = {
   // Version 18 let a piece be hidden. Nothing stored was, and absent is
   // what shown says.
   17: (document) => ({ ...document, version: 18 }),
+  // Version 19 dropped "wanted" and "ordered" for wanted and owned.
+  18: (document) => {
+    const project = projectOf(document) as Record<string, unknown>;
+    const products = Array.isArray(project.products) ? project.products : [];
+    return {
+      ...document,
+      version: 19,
+      project: {
+        ...project,
+        products: products.map((value) => {
+          const product = objectOf(value);
+          return {
+            ...product,
+            purchaseStatus:
+              product.purchaseStatus === "ordered" ||
+              product.purchaseStatus === "owned"
+                ? "owned"
+                : "wanted",
+          };
+        }),
+      },
+    };
+  },
 };
 
 /**

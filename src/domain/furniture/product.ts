@@ -19,7 +19,12 @@ import {
   type LengthProblem,
 } from "@/domain/units";
 
-export type PurchaseStatus = "considering" | "ordered" | "owned";
+/**
+ * Whether the money has gone. "Wanted" is still on the bill; "owned" is paid
+ * for, which includes a piece ordered and on its way — the retailer took the
+ * money when the order was placed.
+ */
+export type PurchaseStatus = "wanted" | "owned";
 
 /**
  * What kind of thing it is, so a long list reads in groups.
@@ -48,11 +53,7 @@ export const PRODUCT_CATEGORIES: readonly ProductCategory[] = [
   "other",
 ];
 
-export const PURCHASE_STATUSES: readonly PurchaseStatus[] = [
-  "considering",
-  "ordered",
-  "owned",
-];
+export const PURCHASE_STATUSES: readonly PurchaseStatus[] = ["wanted", "owned"];
 
 /** The floor rectangle a product occupies. Height is tracked separately. */
 export type Footprint = {
@@ -180,7 +181,7 @@ export function createProduct(id: string): FurnitureProduct {
     retailer: "",
     productUrl: "",
     priceCents: 0,
-    purchaseStatus: "considering",
+    purchaseStatus: "wanted",
     category: "other",
     footprint: { widthMeters: 0.5, depthMeters: 0.5 },
     heightMeters: 0.5,

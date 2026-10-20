@@ -138,7 +138,7 @@ describe("ApartmentLayers pieces", () => {
       retailer: "",
       productUrl: "",
       priceCents: 0,
-      purchaseStatus: "considering",
+      purchaseStatus: "wanted",
       category: "rug",
       footprint: { widthMeters: 2, depthMeters: 1 },
       heightMeters: 0.01,

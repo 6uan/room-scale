@@ -1,7 +1,7 @@
 "use client";
 
 import { ExternalLink } from "lucide-react";
-import { PURCHASE_STATUS_LABELS } from "@/components/product-form";
+import { PURCHASE_STATUS_LABELS, SelectBox } from "@/components/product-form";
 import {
   PURCHASE_STATUSES,
   type FurnitureProduct,
@@ -84,19 +84,14 @@ export function ProjectChecklist() {
             key={room?.id ?? "outside"}
             aria-label={room?.name ?? "Outside every room"}
           >
-            {/* A receipt's department line: the room and what it comes to. */}
             <tr className="border-t border-black/10 dark:border-white/15">
               <th
                 scope="rowgroup"
-                colSpan={2}
-                className="pt-5 pb-2 pr-2 text-left font-medium"
+                colSpan={4}
+                className="pt-5 pb-2 text-left font-medium"
               >
                 {room?.name ?? "Outside every room"}
               </th>
-              <td className="px-2 pt-5 pb-2 text-right tabular-nums opacity-60">
-                {formatCents(inRoom.totalCents)}
-              </td>
-              <td />
             </tr>
             {inRoom.lines.map(({ product, quantity, lineCents }) => (
               <tr key={product.id} className="align-top">
@@ -134,26 +129,35 @@ export function ProjectChecklist() {
                   {formatCents(lineCents)}
                 </Td>
                 <Td>
-                  <select
-                    aria-label={`${product.name} status`}
-                    value={product.purchaseStatus}
-                    onChange={(event) =>
-                      setStatus(product, event.target.value as PurchaseStatus)
-                    }
-                    className="rounded-md border border-black/15 bg-transparent px-2 py-1 text-xs dark:border-white/20 print:hidden"
-                  >
-                    {PURCHASE_STATUSES.map((status) => (
-                      <option key={status} value={status}>
-                        {PURCHASE_STATUS_LABELS[status]}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="print:hidden">
+                    <SelectBox
+                      label={`${product.name} status`}
+                      value={product.purchaseStatus}
+                      options={PURCHASE_STATUSES}
+                      labels={PURCHASE_STATUS_LABELS}
+                      onValueChange={(status) => setStatus(product, status)}
+                      size="small"
+                    />
+                  </div>
                   <span className="hidden text-xs print:inline">
                     {PURCHASE_STATUS_LABELS[product.purchaseStatus]}
                   </span>
                 </Td>
               </tr>
             ))}
+            {/* A receipt's department subtotal: what this room comes to. */}
+            <tr>
+              <td
+                colSpan={2}
+                className="pt-1 pb-4 text-right text-xs opacity-60"
+              >
+                {room?.name ?? "Outside"} total
+              </td>
+              <td className="px-2 pt-1 pb-4 text-right tabular-nums">
+                {formatCents(inRoom.totalCents)}
+              </td>
+              <td />
+            </tr>
           </tbody>
         ))}
       </table>
@@ -173,10 +177,7 @@ function Totals({ checklist }: { checklist: Checklist }) {
   return (
     <dl className="grid gap-4 border-t border-black/10 pt-5 sm:grid-cols-3 dark:border-white/15">
       <Total label="Total" value={formatCents(checklist.totalCents)} />
-      <Total
-        label="Ordered or already owned"
-        value={formatCents(checklist.committedCents)}
-      />
+      <Total label="Owned" value={formatCents(checklist.committedCents)} />
       <Total
         label="Still to buy"
         value={formatCents(checklist.remainingCents)}

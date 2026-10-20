@@ -11,7 +11,7 @@ import { buildChecklist, checklistByRoom } from "./checklist";
 function product(
   id: string,
   priceCents: number,
-  purchaseStatus: PurchaseStatus = "considering",
+  purchaseStatus: PurchaseStatus = "wanted",
 ): FurnitureProduct {
   return {
     id,
@@ -137,19 +137,9 @@ describe("buildChecklist: what is still owed", () => {
     expect(checklist.totalCents).toBe(234800);
   });
 
-  it("treats an order as money already spent", () => {
+  it("owes nothing once everything is owned", () => {
     const checklist = buildChecklist(
-      [RUG, product("sofa", 199900, "ordered")],
-      instances,
-    );
-
-    expect(checklist.committedCents).toBe(199900);
-    expect(checklist.remainingCents).toBe(34900);
-  });
-
-  it("owes nothing once everything is ordered or owned", () => {
-    const checklist = buildChecklist(
-      [product("rug", 34900, "owned"), product("sofa", 199900, "ordered")],
+      [product("rug", 34900, "owned"), product("sofa", 199900, "owned")],
       instances,
     );
 

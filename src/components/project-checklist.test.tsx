@@ -19,7 +19,7 @@ function product(
     retailer: "Article",
     productUrl: "",
     priceCents,
-    purchaseStatus: "considering",
+    purchaseStatus: "wanted",
     category: "other",
     footprint: { widthMeters: 1, depthMeters: 1 },
     heightMeters: 0.5,
@@ -55,8 +55,11 @@ function seed() {
 
 /** The figure printed under one of the three totals. */
 function amountFor(label: RegExp): string {
-  const term = screen.getByText(label);
-  return term.parentElement?.querySelector("dd")?.textContent ?? "";
+  // The label alone: a status option can carry the same word.
+  const term = screen
+    .getAllByText(label)
+    .find((element) => element.tagName === "DT");
+  return term?.parentElement?.querySelector("dd")?.textContent ?? "";
 }
 
 describe("ProjectChecklist", () => {
@@ -92,7 +95,7 @@ describe("ProjectChecklist", () => {
     render(<ProjectChecklist />);
 
     expect(amountFor(/Still to buy/)).toBe("$2,089.00");
-    expect(amountFor(/Ordered or already owned/)).toBe("$0.00");
+    expect(amountFor(/Owned/)).toBe("$0.00");
   });
 
   it("changes what is still owed when a piece is marked as bought", async () => {
@@ -105,24 +108,10 @@ describe("ProjectChecklist", () => {
       "owned",
     );
 
-    expect(amountFor(/Ordered or already owned/)).toBe("$1,999.00");
+    expect(amountFor(/Owned/)).toBe("$1,999.00");
     expect(amountFor(/Still to buy/)).toBe("$90.00");
     // Buying it does not change what the room costs.
     expect(amountFor(/Total/)).toBe("$2,089.00");
-  });
-
-  it("counts an order as money already spent", async () => {
-    const user = userEvent.setup();
-    seed();
-    render(<ProjectChecklist />);
-
-    await user.selectOptions(
-      screen.getByLabelText("Olive pillow status"),
-      "ordered",
-    );
-
-    expect(amountFor(/Ordered or already owned/)).toBe("$90.00");
-    expect(amountFor(/Still to buy/)).toBe("$1,999.00");
   });
 
   it("keeps the status it is given, so the catalogue agrees with the list", async () => {
