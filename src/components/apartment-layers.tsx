@@ -149,12 +149,15 @@ export function ApartmentLayers({
           onSelect={() => onSelect({ kind: "instance", id })}
           trailing={
             onToggleHidden === undefined ? null : (
+              /* A flex box, not an inline span: inline, it would take the
+                 text line's height and stand the button on its baseline,
+                 three pixels high in the row. */
               <span
-                className={
+                className={`flex shrink-0 ${
                   hidden
                     ? ""
                     : "opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
-                }
+                }`}
               >
                 <IconButton
                   label={hidden ? `Show ${name}` : `Hide ${name}`}
