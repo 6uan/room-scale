@@ -49,6 +49,14 @@ export type ApartmentLayersProps = {
 };
 
 /** The drag type a list row carries, so a product drag is not mistaken for it. */
+/**
+ * Where a dragged row would land: a straight line across the top of the row
+ * it is held over. Drawn by a pseudo-element rather than a border, so it does
+ * not bend round the row's own corners.
+ */
+const DROP_LINE =
+  "relative before:absolute before:inset-x-0 before:-top-0.5 before:h-0.5 before:bg-current before:content-['']";
+
 const LAYER_DRAG_TYPE = "application/x-roomscale-layer";
 
 /**
@@ -126,7 +134,7 @@ export function ApartmentLayers({
             onReorder?.(from, id);
           }
         }}
-        className={over === id ? "border-t-2 border-current" : ""}
+        className={over === id ? DROP_LINE : ""}
       >
         <Row
           label={name}

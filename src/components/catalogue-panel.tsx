@@ -14,6 +14,14 @@ import { formatCents, formatLength, type DisplayUnit } from "@/domain/units";
 import { isSelected, type Selection } from "@/components/selection";
 
 /** What a drag from this panel carries, so the plan knows what was dropped. */
+/**
+ * Where a dragged row would land: a straight line across the top of the row
+ * it is held over. Drawn by a pseudo-element rather than a border, so it does
+ * not bend round the row's own corners.
+ */
+const DROP_LINE =
+  "relative before:absolute before:inset-x-0 before:-top-0.5 before:h-0.5 before:bg-current before:content-['']";
+
 export const PRODUCT_DRAG_TYPE = "application/x-roomscale-product";
 
 export type CataloguePanelProps = {
@@ -166,7 +174,7 @@ export function CataloguePanel({
                         }
                       }}
                       className={`group flex min-w-0 cursor-grab items-center gap-1 rounded-lg px-2.5 py-2 text-sm transition-colors active:cursor-grabbing ${
-                        over === product.id ? "border-t-2 border-current" : ""
+                        over === product.id ? DROP_LINE : ""
                       } ${
                         isSelected(selection, "product", product.id)
                           ? "bg-black/10 dark:bg-white/15"
