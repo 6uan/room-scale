@@ -68,9 +68,7 @@ test.describe("the overview", () => {
     const list = page.getByRole("dialog", { name: "Shopping list" });
     await expect(plan(page)).toBeVisible();
     // One sectional at $1,999.00 and two pillows at $45.00 each.
-    await expect(totalFor(list, "Everything in the room")).toHaveText(
-      "$2,089.00",
-    );
+    await expect(totalFor(list, "Total")).toHaveText("$2,089.00");
     await expect(
       list.getByRole("row", { name: /Olive pillow/ }).getByText("$90.00"),
     ).toBeVisible();
@@ -86,16 +84,14 @@ test.describe("the overview", () => {
 
     // Two pillows only: the sectional is set aside, not bought.
     const list = page.getByRole("dialog", { name: "Shopping list" });
-    await expect(totalFor(list, "Everything in the room")).toHaveText("$90.00");
+    await expect(totalFor(list, "Total")).toHaveText("$90.00");
     await page.keyboard.press("Escape");
 
     await contents(page)
       .getByRole("button", { name: "Show Sectional" })
       .click();
     await page.getByRole("button", { name: "Shopping list" }).click();
-    await expect(totalFor(list, "Everything in the room")).toHaveText(
-      "$2,089.00",
-    );
+    await expect(totalFor(list, "Total")).toHaveText("$2,089.00");
   });
 
   test("closes again, leaving the plan where it was", async ({ page }) => {
@@ -124,9 +120,7 @@ test.describe("the overview", () => {
     await expect(
       page.getByRole("heading", { level: 1, name: "Shopping list" }),
     ).toBeVisible();
-    await expect(totalFor(page, "Everything in the room")).toHaveText(
-      "$2,089.00",
-    );
+    await expect(totalFor(page, "Total")).toHaveText("$2,089.00");
   });
 
   test("changes what is still to buy when something is marked as owned", async ({
@@ -143,9 +137,7 @@ test.describe("the overview", () => {
     );
     await expect(totalFor(page, "Still to buy")).toHaveText("$90.00");
     // What the room costs is a fact about the room, not about the shopping.
-    await expect(totalFor(page, "Everything in the room")).toHaveText(
-      "$2,089.00",
-    );
+    await expect(totalFor(page, "Total")).toHaveText("$2,089.00");
   });
 
   test("follows the room: taking a piece out changes the bill", async ({
@@ -153,9 +145,7 @@ test.describe("the overview", () => {
   }) => {
     await furnish(page);
     await page.goto("/overview");
-    await expect(totalFor(page, "Everything in the room")).toHaveText(
-      "$2,089.00",
-    );
+    await expect(totalFor(page, "Total")).toHaveText("$2,089.00");
 
     await page.getByRole("link", { name: "Back to the plan" }).click();
     await contents(page)
@@ -167,9 +157,7 @@ test.describe("the overview", () => {
     await page.waitForTimeout(500);
 
     await page.goto("/overview");
-    await expect(totalFor(page, "Everything in the room")).toHaveText(
-      "$2,044.00",
-    );
+    await expect(totalFor(page, "Total")).toHaveText("$2,044.00");
   });
 
   test("prints as a list without the controls", async ({ page }) => {

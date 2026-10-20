@@ -1,5 +1,6 @@
 "use client";
 
+import { ExternalLink } from "lucide-react";
 import { PURCHASE_STATUS_LABELS } from "@/components/product-form";
 import {
   PURCHASE_STATUSES,
@@ -10,6 +11,7 @@ import {
   activeInstances,
   activeLayout,
   buildChecklist,
+  checklistByRoom,
   type Checklist,
   type Layout,
 } from "@/domain/project";
@@ -30,12 +32,14 @@ import { useProjectStore } from "@/state/project-store";
 export function ProjectChecklist() {
   const products = useProjectStore((state) => state.project.products);
   const instances = useProjectStore((state) => activeInstances(state.project));
+  const floor = useProjectStore((state) => state.project.floor);
   const unit = useProjectStore((state) => state.project.displayUnit);
   const layouts = useProjectStore((state) => state.project.layouts);
   const current = useProjectStore((state) => activeLayout(state.project));
   const setProducts = useProjectStore((state) => state.setProducts);
 
   const checklist = buildChecklist(products, instances);
+  const rooms = checklistByRoom(products, instances, floor);
 
   function setStatus(product: FurnitureProduct, status: PurchaseStatus): void {
     setProducts(
@@ -62,54 +66,71 @@ export function ProjectChecklist() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-sm">
-          <caption className="sr-only">
-            Everything placed in the room, with quantity, price, and purchase
-            status
-          </caption>
-          <thead>
-            <tr className="border-b border-black/10 text-left dark:border-white/15">
-              <Th>Item</Th>
-              <Th>In the room</Th>
-              <Th>Each</Th>
-              <Th>Line</Th>
-              <Th>Status</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {checklist.lines.map(({ product, quantity, lineCents }) => (
-              <tr
-                key={product.id}
-                className="border-b border-black/5 align-top dark:border-white/10"
+      <table className="w-full border-collapse text-sm">
+        <caption className="sr-only">
+          Everything placed, room by room, with quantity, price, and purchase
+          status
+        </caption>
+        <thead>
+          <tr className="text-left">
+            <Th>Item</Th>
+            <Th align="right">Quantity</Th>
+            <Th align="right">Price</Th>
+            <Th>Status</Th>
+          </tr>
+        </thead>
+        {rooms.map(({ room, checklist: inRoom }) => (
+          <tbody
+            key={room?.id ?? "outside"}
+            aria-label={room?.name ?? "Outside every room"}
+          >
+            {/* A receipt's department line: the room and what it comes to. */}
+            <tr className="border-t border-black/10 dark:border-white/15">
+              <th
+                scope="rowgroup"
+                colSpan={2}
+                className="pt-5 pb-2 pr-2 text-left font-medium"
               >
+                {room?.name ?? "Outside every room"}
+              </th>
+              <td className="px-2 pt-5 pb-2 text-right tabular-nums opacity-60">
+                {formatCents(inRoom.totalCents)}
+              </td>
+              <td />
+            </tr>
+            {inRoom.lines.map(({ product, quantity, lineCents }) => (
+              <tr key={product.id} className="align-top">
                 <Td>
                   <span className="font-medium">{product.name}</span>
-                  <span className="block text-xs opacity-60">
-                    {formatLength(product.footprint.widthMeters, unit)} ×{" "}
-                    {formatLength(product.footprint.depthMeters, unit)}
-                    {product.retailer === "" ? null : ` · ${product.retailer}`}
-                  </span>
                   {product.productUrl === "" ? null : (
                     <a
                       href={product.productUrl}
                       target="_blank"
                       rel="noreferrer noopener"
-                      className="text-xs underline underline-offset-4 opacity-60 hover:opacity-100"
+                      aria-label={`Open ${product.name}`}
+                      title={`Open ${product.name}`}
+                      className="ml-1.5 inline-block align-[-2px] opacity-60 hover:opacity-100 print:hidden"
                     >
-                      {/* Printed, a link that cannot be clicked is worth its address. */}
-                      <span className="print:hidden">Open {product.name}</span>
-                      <span className="hidden print:inline">
-                        {product.productUrl}
-                      </span>
+                      <ExternalLink aria-hidden="true" className="size-3.5" />
                     </a>
                   )}
+                  <span className="block text-xs opacity-60">
+                    {formatLength(product.footprint.widthMeters, unit)} ×{" "}
+                    {formatLength(product.footprint.depthMeters, unit)}
+                    {product.retailer === "" ? null : ` · ${product.retailer}`}
+                    {quantity > 1
+                      ? ` · ${quantity} × ${formatCents(product.priceCents)}`
+                      : null}
+                  </span>
+                  {/* Printed, a link that cannot be clicked is worth its address. */}
+                  {product.productUrl === "" ? null : (
+                    <span className="hidden text-xs opacity-60 print:block">
+                      {product.productUrl}
+                    </span>
+                  )}
                 </Td>
-                <Td className="tabular-nums">{quantity}</Td>
-                <Td className="tabular-nums">
-                  {formatCents(product.priceCents)}
-                </Td>
-                <Td className="tabular-nums font-medium">
+                <Td className="text-right tabular-nums">{quantity}</Td>
+                <Td className="text-right tabular-nums">
                   {formatCents(lineCents)}
                 </Td>
                 <Td>
@@ -134,8 +155,8 @@ export function ProjectChecklist() {
               </tr>
             ))}
           </tbody>
-        </table>
-      </div>
+        ))}
+      </table>
 
       <Totals checklist={checklist} />
       <Comparison layouts={layouts} activeId={current.id} products={products} />
@@ -151,10 +172,7 @@ export function ProjectChecklist() {
 function Totals({ checklist }: { checklist: Checklist }) {
   return (
     <dl className="grid gap-4 border-t border-black/10 pt-5 sm:grid-cols-3 dark:border-white/15">
-      <Total
-        label="Everything in the room"
-        value={formatCents(checklist.totalCents)}
-      />
+      <Total label="Total" value={formatCents(checklist.totalCents)} />
       <Total
         label="Ordered or already owned"
         value={formatCents(checklist.committedCents)}
@@ -289,9 +307,20 @@ function Unplaced({ products }: { products: readonly FurnitureProduct[] }) {
   );
 }
 
-function Th({ children }: { children: React.ReactNode }) {
+function Th({
+  children,
+  align = "left",
+}: {
+  children: React.ReactNode;
+  align?: "left" | "right";
+}) {
   return (
-    <th scope="col" className="py-2 pr-4 text-xs font-medium opacity-60">
+    <th
+      scope="col"
+      className={`px-2 py-2 text-xs font-medium opacity-60 first:pl-0 last:pr-0 ${
+        align === "right" ? "text-right" : "text-left"
+      }`}
+    >
       {children}
     </th>
   );
@@ -304,5 +333,9 @@ function Td({
   children: React.ReactNode;
   className?: string;
 }) {
-  return <td className={`py-3 pr-4 ${className}`}>{children}</td>;
+  return (
+    <td className={`px-2 py-2 first:pl-0 last:pr-0 ${className}`}>
+      {children}
+    </td>
+  );
 }

@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { FurnitureInstance, FurnitureProduct } from "@/domain/furniture";
+import { createRoom, withRooms } from "@/domain/room";
 import { resetProjectStore, useProjectStore } from "@/state/project-store";
 import { ProjectChecklist } from "./project-checklist";
 
@@ -80,7 +81,7 @@ describe("ProjectChecklist", () => {
     render(<ProjectChecklist />);
 
     // 1999.00 + 2 × 45.00. The rug is in the catalogue but not in the room.
-    expect(amountFor(/Everything in the room/)).toBe("$2,089.00");
+    expect(amountFor(/Total/)).toBe("$2,089.00");
     expect(
       screen.getByText(/not placed, so not counted: Rug/),
     ).toBeInTheDocument();
@@ -107,7 +108,7 @@ describe("ProjectChecklist", () => {
     expect(amountFor(/Ordered or already owned/)).toBe("$1,999.00");
     expect(amountFor(/Still to buy/)).toBe("$90.00");
     // Buying it does not change what the room costs.
-    expect(amountFor(/Everything in the room/)).toBe("$2,089.00");
+    expect(amountFor(/Total/)).toBe("$2,089.00");
   });
 
   it("counts an order as money already spent", async () => {
@@ -140,14 +141,52 @@ describe("ProjectChecklist", () => {
     expect(stored?.purchaseStatus).toBe("owned");
   });
 
+  it("deals the list out by room, with each room's own total", () => {
+    seed();
+    const state = useProjectStore.getState();
+    state.setFloor(
+      withRooms(state.project.floor, [
+        createRoom("bedroom", "Bedroom", { xMeters: 0, zMeters: 0 }),
+        createRoom("study", "Study", { xMeters: 4, zMeters: 0 }),
+      ]),
+    );
+    state.setInstances([
+      instance("i1", "sofa"),
+      { ...instance("i2", "pillow"), position: { xMeters: 5, zMeters: 1 } },
+    ]);
+    render(<ProjectChecklist />);
+
+    const bedroom = screen.getByRole("rowgroup", { name: "Bedroom" });
+    // The sectional's line, and the room's total, which is the same number.
+    expect(within(bedroom).getAllByText("$1,999.00")).toHaveLength(2);
+    expect(within(bedroom).queryByText("Olive pillow")).toBeNull();
+    const study = screen.getByRole("rowgroup", { name: "Study" });
+    expect(within(study).getByText("Olive pillow")).toBeInTheDocument();
+  });
+
+  it("opens a product's page from an icon named after it", () => {
+    useProjectStore.getState().setProducts([
+      {
+        ...product("sofa", "Sectional", 199900),
+        productUrl: "https://x.test/sofa",
+      },
+    ]);
+    useProjectStore.getState().setInstances([instance("i1", "sofa")]);
+    render(<ProjectChecklist />);
+
+    const link = screen.getByRole("link", { name: "Open Sectional" });
+    expect(link).toHaveAttribute("href", "https://x.test/sofa");
+    expect(link).toHaveTextContent("");
+  });
+
   it("follows the room: taking a piece out changes the bill", () => {
     seed();
     const { rerender } = render(<ProjectChecklist />);
-    expect(amountFor(/Everything in the room/)).toBe("$2,089.00");
+    expect(amountFor(/Total/)).toBe("$2,089.00");
 
     useProjectStore.getState().setInstances([instance("i1", "sofa")]);
     rerender(<ProjectChecklist />);
 
-    expect(amountFor(/Everything in the room/)).toBe("$1,999.00");
+    expect(amountFor(/Total/)).toBe("$1,999.00");
   });
 });

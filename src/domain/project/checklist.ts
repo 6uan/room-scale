@@ -15,10 +15,13 @@
 import {
   countPlaced,
   isShown,
+  placedFurniture,
   type FurnitureInstance,
   type FurnitureProduct,
 } from "@/domain/furniture";
+import type { Floor, Room } from "@/domain/room";
 import { sumCents, type Cents } from "@/domain/units";
+import { roomOfPiece } from "@/domain/validation";
 
 export type ChecklistLine = {
   readonly product: FurnitureProduct;
@@ -113,5 +116,39 @@ function dedupeById(
     }
     seen.add(product.id);
     return true;
+  });
+}
+
+export type RoomChecklist = {
+  /** Null for pieces standing on no room's floor. */
+  readonly room: Room | null;
+  readonly checklist: Checklist;
+};
+
+/**
+ * The same list, dealt out by room.
+ *
+ * Furniture is bought for a home, but it is carried into a room, and a list
+ * that reads "two aquariums" without saying which room each is for is a list
+ * that has to be checked against the plan. Rooms come in floor order; what
+ * stands outside every room comes last, and a room with nothing in it is left
+ * out. Only rooms are grouped — the totals are still taken over the whole.
+ */
+export function checklistByRoom(
+  products: readonly FurnitureProduct[],
+  instances: readonly FurnitureInstance[],
+  floor: Floor,
+): readonly RoomChecklist[] {
+  const byRoom = new Map<Room | null, FurnitureInstance[]>();
+  for (const placed of placedFurniture(instances.filter(isShown), products)) {
+    const room = roomOfPiece(floor, placed);
+    byRoom.set(room, [...(byRoom.get(room) ?? []), placed.instance]);
+  }
+
+  return [...floor.rooms, null].flatMap((room) => {
+    const inRoom = byRoom.get(room);
+    return inRoom === undefined
+      ? []
+      : [{ room, checklist: buildChecklist(products, inRoom) }];
   });
 }
