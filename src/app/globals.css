@@ -3,6 +3,9 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* Scrollbars, select menus, and form controls drawn by the browser follow
+     the page's scheme rather than arriving light on a dark page. */
+  color-scheme: light;
 }
 
 @theme inline {
@@ -16,6 +19,7 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    color-scheme: dark;
   }
 }
 

@@ -95,7 +95,7 @@ describe("ProjectChecklist", () => {
     render(<ProjectChecklist />);
 
     expect(amountFor(/Still to buy/)).toBe("$2,089.00");
-    expect(amountFor(/Owned/)).toBe("$0.00");
+    expect(amountFor(/Purchased/)).toBe("$0.00");
   });
 
   it("changes what is still owed when a piece is marked as bought", async () => {
@@ -108,7 +108,7 @@ describe("ProjectChecklist", () => {
       "owned",
     );
 
-    expect(amountFor(/Owned/)).toBe("$1,999.00");
+    expect(amountFor(/Purchased/)).toBe("$1,999.00");
     expect(amountFor(/Still to buy/)).toBe("$90.00");
     // Buying it does not change what the room costs.
     expect(amountFor(/Total/)).toBe("$2,089.00");

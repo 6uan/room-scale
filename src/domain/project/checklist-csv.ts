@@ -28,8 +28,8 @@ const COLUMNS = [
 
 /** The purchase statuses, worded as the interface words them. */
 const STATUS_LABELS = {
-  wanted: "To buy",
-  owned: "Owned",
+  wanted: "Wishlist",
+  owned: "Purchased",
 } as const;
 
 export function checklistCsv(checklist: Checklist): string {

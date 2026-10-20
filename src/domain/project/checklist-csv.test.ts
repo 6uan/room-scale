@@ -48,7 +48,7 @@ describe("checklistCsv", () => {
     const csv = csvFor([product("sofa", "Sectional", 199900)], [1]);
 
     expect(rows(csv)[1]).toBe(
-      "Sectional,Article,1,1999.00,1999.00,To buy,2,1,https://example.com/1",
+      "Sectional,Article,1,1999.00,1999.00,Wishlist,2,1,https://example.com/1",
     );
   });
 
@@ -94,7 +94,7 @@ describe("checklistCsv", () => {
       [1],
     );
 
-    expect(rows(csv)[1]).toContain("Owned");
+    expect(rows(csv)[1]).toContain("Purchased");
   });
 
   it("leaves out what is in the catalogue but not in the room", () => {

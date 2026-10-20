@@ -22,8 +22,8 @@ import {
 import type { DisplayUnit } from "@/domain/units";
 
 export const PURCHASE_STATUS_LABELS: Record<PurchaseStatus, string> = {
-  wanted: "To buy",
-  owned: "Owned",
+  wanted: "Wishlist",
+  owned: "Purchased",
 };
 
 export const PRODUCT_CATEGORY_LABELS: Record<ProductCategory, string> = {
@@ -376,10 +376,10 @@ export function SelectBox<T extends string>({
         aria-label={label}
         value={value}
         onChange={(event) => onValueChange(event.target.value as T)}
-        className={`w-full appearance-none border border-black/15 bg-transparent outline-none focus:border-black/40 dark:border-white/20 dark:focus:border-white/45 ${
+        className={`appearance-none border border-black/15 bg-transparent outline-none focus:border-black/40 dark:border-white/20 dark:focus:border-white/45 ${
           small
-            ? "h-7 rounded-md pr-7 pl-2 text-xs"
-            : "h-8 rounded-lg pr-8 pl-2.5 text-sm"
+            ? "h-7 w-auto rounded-md pr-7 pl-2 text-xs"
+            : "h-8 w-full rounded-lg pr-8 pl-2.5 text-sm"
         }`}
       >
         {options.map((option) => (

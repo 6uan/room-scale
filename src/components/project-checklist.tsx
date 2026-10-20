@@ -151,7 +151,7 @@ export function ProjectChecklist() {
                 colSpan={2}
                 className="pt-1 pb-4 text-right text-xs opacity-60"
               >
-                {room?.name ?? "Outside"} total
+                Total
               </td>
               <td className="px-2 pt-1 pb-4 text-right tabular-nums">
                 {formatCents(inRoom.totalCents)}
@@ -177,7 +177,7 @@ function Totals({ checklist }: { checklist: Checklist }) {
   return (
     <dl className="grid gap-4 border-t border-black/10 pt-5 sm:grid-cols-3 dark:border-white/15">
       <Total label="Total" value={formatCents(checklist.totalCents)} />
-      <Total label="Owned" value={formatCents(checklist.committedCents)} />
+      <Total label="Purchased" value={formatCents(checklist.committedCents)} />
       <Total
         label="Still to buy"
         value={formatCents(checklist.remainingCents)}
