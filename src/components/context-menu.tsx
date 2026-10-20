@@ -71,7 +71,7 @@ export function ContextMenu({ at, label, items, onClose }: ContextMenuProps) {
 
   // Kept on screen: a menu opened near the right or bottom edge sits to the
   // left of, or above, the pointer instead of running off it.
-  const width = 224;
+  const width = 288;
   const height = items.length * 36 + 12;
   const left = Math.min(at.x, window.innerWidth - width - 8);
   const top = Math.min(at.y, window.innerHeight - height - 8);
@@ -94,7 +94,7 @@ export function ContextMenu({ at, label, items, onClose }: ContextMenuProps) {
             item.onSelect();
           }}
           className={cn(
-            "flex h-8 w-full items-center rounded-lg px-2.5 text-left text-sm outline-none transition-colors hover:bg-black/[0.06] focus-visible:bg-black/[0.06] dark:hover:bg-white/10 dark:focus-visible:bg-white/10",
+            "flex h-8 w-full items-center rounded-lg px-2.5 text-left text-sm whitespace-nowrap outline-none transition-colors hover:bg-black/[0.06] focus-visible:bg-black/[0.06] dark:hover:bg-white/10 dark:focus-visible:bg-white/10",
             item.danger && "text-red-600",
           )}
         >
