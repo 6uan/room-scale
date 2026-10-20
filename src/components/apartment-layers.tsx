@@ -159,7 +159,7 @@ export function ApartmentLayers({
                 <IconButton
                   label={hidden ? `Show ${name}` : `Hide ${name}`}
                   icon={hidden ? EyeOff : Eye}
-                  size="small"
+                  size="row"
                   onClick={() => onToggleHidden(id)}
                 />
               </span>
@@ -413,7 +413,7 @@ function RoomRow({
         <IconButton
           label={folded ? `Expand ${name}` : `Collapse ${name}`}
           icon={folded ? ChevronRight : ChevronDown}
-          size="small"
+          size="row"
           onClick={onToggleFolded}
         />
       }
@@ -482,13 +482,7 @@ function Row({
         />
         <span className="min-w-0 truncate">{label}</span>
       </button>
-      {/* A 24px button in a 32px row sits 4px in on every side, nested
-          inside the row's 8px corner, so its own corner is 4px: outer radius
-          equals inner radius plus the padding, which is what makes the two
-          curves concentric instead of fighting. */}
-      <span className="contents [&_button]:size-6 [&_button]:rounded-[4px]">
-        {trailing}
-      </span>
+      {trailing}
     </div>
   );
 }
