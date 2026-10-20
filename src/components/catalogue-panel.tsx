@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
+import { ContextMenu } from "@/components/context-menu";
 import { PRODUCT_CATEGORY_LABELS } from "@/components/product-form";
 import { PanelHeader } from "@/components/panel-header";
 import { useScrollFade } from "@/components/scroll-fade";
@@ -13,6 +14,14 @@ import { formatCents, formatLength, type DisplayUnit } from "@/domain/units";
 import { isSelected, type Selection } from "@/components/selection";
 
 /** What a drag from this panel carries, so the plan knows what was dropped. */
+/**
+ * Where a dragged row would land: a straight line across the top of the row
+ * it is held over. Drawn by a pseudo-element rather than a border, so it does
+ * not bend round the row's own corners.
+ */
+const DROP_LINE =
+  "relative before:absolute before:inset-x-0 before:-top-px before:h-px before:bg-current before:content-['']";
+
 export const PRODUCT_DRAG_TYPE = "application/x-roomscale-product";
 
 export type CataloguePanelProps = {
@@ -22,6 +31,10 @@ export type CataloguePanelProps = {
   selection: Selection;
   onSelect: (selection: Selection) => void;
   onPlace: (product: FurnitureProduct) => void;
+  /** Removes the product, and every copy of it standing in any layout. */
+  onDelete?: (product: FurnitureProduct) => void;
+  /** Puts one product where another is in the list, by a drag onto it. */
+  onReorder?: (productId: string, beforeProductId: string) => void;
   /** Folded away, when the workspace is keeping track; otherwise its own. */
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
@@ -44,6 +57,8 @@ export function CataloguePanel({
   selection,
   onSelect,
   onPlace,
+  onDelete,
+  onReorder,
   collapsed: collapsedProp,
   onToggleCollapsed,
   unbounded = false,
@@ -52,6 +67,14 @@ export function CataloguePanel({
   // Folded away when the apartment list needs the room. A fact about this
   // sitting, not the project, so it is not saved.
   const [ownCollapsed, setOwnCollapsed] = useState(false);
+  /** The row a dragged product is held over, which is where it would land. */
+  const [over, setOver] = useState<string | null>(null);
+  /** The row a right-click opened a menu on, and where. */
+  const [menu, setMenu] = useState<{
+    product: FurnitureProduct;
+    x: number;
+    y: number;
+  } | null>(null);
   const collapsed = collapsedProp ?? ownCollapsed;
   const toggleCollapsed =
     onToggleCollapsed ?? (() => setOwnCollapsed((was) => !was));
@@ -119,7 +142,40 @@ export function CataloguePanel({
                         );
                         event.dataTransfer.effectAllowed = "copy";
                       }}
+                      onContextMenu={(event: MouseEvent<HTMLLIElement>) => {
+                        event.preventDefault();
+                        setMenu({
+                          product,
+                          x: event.clientX,
+                          y: event.clientY,
+                        });
+                      }}
+                      // The same drag that places a product on the plan
+                      // reorders it when it lands on another row instead.
+                      onDragOver={(event) => {
+                        if (
+                          onReorder !== undefined &&
+                          event.dataTransfer.types.includes(PRODUCT_DRAG_TYPE)
+                        ) {
+                          event.preventDefault();
+                          setOver(product.id);
+                        }
+                      }}
+                      onDragLeave={() =>
+                        setOver((was) => (was === product.id ? null : was))
+                      }
+                      onDrop={(event) => {
+                        const from =
+                          event.dataTransfer.getData(PRODUCT_DRAG_TYPE);
+                        setOver(null);
+                        if (from !== "" && from !== product.id) {
+                          event.preventDefault();
+                          onReorder?.(from, product.id);
+                        }
+                      }}
                       className={`group flex min-w-0 cursor-grab items-center gap-1 rounded-lg px-2.5 py-2 text-sm transition-colors active:cursor-grabbing ${
+                        over === product.id ? DROP_LINE : ""
+                      } ${
                         isSelected(selection, "product", product.id)
                           ? "bg-black/10 dark:bg-white/15"
                           : "hover:bg-black/5 dark:hover:bg-white/10"
@@ -154,6 +210,38 @@ export function CataloguePanel({
           )}
         </div>
       </div>
+      {menu === null ? null : (
+        <ContextMenu
+          at={menu}
+          label={menu.product.name}
+          onClose={() => setMenu(null)}
+          items={[
+            {
+              label: "Edit",
+              onSelect: () =>
+                onSelect({ kind: "product", id: menu.product.id }),
+            },
+            ...(onDelete === undefined
+              ? []
+              : [
+                  {
+                    label: placedLabel(countPlaced(instances, menu.product.id)),
+                    danger: true,
+                    onSelect: () => onDelete(menu.product),
+                  },
+                ]),
+          ]}
+        />
+      )}
     </div>
   );
+}
+
+/** What deleting does, said before it is done: a placed product goes too. */
+function placedLabel(placed: number): string {
+  return placed === 0
+    ? "Delete"
+    : placed === 1
+      ? "Delete, and take it out of the room"
+      : `Delete, and take ${placed} out of the room`;
 }
