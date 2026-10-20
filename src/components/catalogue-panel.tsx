@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
+import { ContextMenu } from "@/components/context-menu";
 import { PRODUCT_CATEGORY_LABELS } from "@/components/product-form";
 import { PanelHeader } from "@/components/panel-header";
 import { useScrollFade } from "@/components/scroll-fade";
@@ -22,6 +23,8 @@ export type CataloguePanelProps = {
   selection: Selection;
   onSelect: (selection: Selection) => void;
   onPlace: (product: FurnitureProduct) => void;
+  /** Removes the product, and every copy of it standing in any layout. */
+  onDelete?: (product: FurnitureProduct) => void;
   /** Folded away, when the workspace is keeping track; otherwise its own. */
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
@@ -44,6 +47,7 @@ export function CataloguePanel({
   selection,
   onSelect,
   onPlace,
+  onDelete,
   collapsed: collapsedProp,
   onToggleCollapsed,
   unbounded = false,
@@ -52,6 +56,12 @@ export function CataloguePanel({
   // Folded away when the apartment list needs the room. A fact about this
   // sitting, not the project, so it is not saved.
   const [ownCollapsed, setOwnCollapsed] = useState(false);
+  /** The row a right-click opened a menu on, and where. */
+  const [menu, setMenu] = useState<{
+    product: FurnitureProduct;
+    x: number;
+    y: number;
+  } | null>(null);
   const collapsed = collapsedProp ?? ownCollapsed;
   const toggleCollapsed =
     onToggleCollapsed ?? (() => setOwnCollapsed((was) => !was));
@@ -119,6 +129,14 @@ export function CataloguePanel({
                         );
                         event.dataTransfer.effectAllowed = "copy";
                       }}
+                      onContextMenu={(event: MouseEvent<HTMLLIElement>) => {
+                        event.preventDefault();
+                        setMenu({
+                          product,
+                          x: event.clientX,
+                          y: event.clientY,
+                        });
+                      }}
                       className={`group flex min-w-0 cursor-grab items-center gap-1 rounded-lg px-2.5 py-2 text-sm transition-colors active:cursor-grabbing ${
                         isSelected(selection, "product", product.id)
                           ? "bg-black/10 dark:bg-white/15"
@@ -154,6 +172,38 @@ export function CataloguePanel({
           )}
         </div>
       </div>
+      {menu === null ? null : (
+        <ContextMenu
+          at={menu}
+          label={menu.product.name}
+          onClose={() => setMenu(null)}
+          items={[
+            {
+              label: "Edit",
+              onSelect: () =>
+                onSelect({ kind: "product", id: menu.product.id }),
+            },
+            ...(onDelete === undefined
+              ? []
+              : [
+                  {
+                    label: placedLabel(countPlaced(instances, menu.product.id)),
+                    danger: true,
+                    onSelect: () => onDelete(menu.product),
+                  },
+                ]),
+          ]}
+        />
+      )}
     </div>
   );
+}
+
+/** What deleting does, said before it is done: a placed product goes too. */
+function placedLabel(placed: number): string {
+  return placed === 0
+    ? "Delete"
+    : placed === 1
+      ? "Delete, and take it out of the room"
+      : `Delete, and take ${placed} out of the room`;
 }

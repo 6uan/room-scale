@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { fireEvent } from "@testing-library/react";
@@ -182,6 +182,48 @@ describe("ApartmentLayers pieces", () => {
     expect(onToggleHidden).toHaveBeenLastCalledWith("i1");
     await user.click(screen.getByRole("button", { name: "Show Lamp" }));
     expect(onToggleHidden).toHaveBeenLastCalledWith("i2");
+  });
+
+  it("opens a menu on a right-click, with the piece's own actions", async () => {
+    const user = userEvent.setup();
+    const onRemove = vi.fn();
+    const onToggleHidden = vi.fn();
+    renderPieces([rug], { onToggleHidden });
+    // The remove handler goes in through the same props object.
+    cleanup();
+    render(
+      <ApartmentLayers
+        floor={projectWithLivingRoom().floor}
+        furniture={[rug]}
+        selection={null}
+        troubledIds={new Set()}
+        onSelect={() => undefined}
+        onRoomChange={() => undefined}
+        onAddRoom={() => undefined}
+        onToggleHidden={onToggleHidden}
+        onRemove={onRemove}
+      />,
+    );
+
+    const row = screen.getByRole("button", { name: "Rug" }).closest("li");
+    if (row === null) {
+      throw new Error("the rug has a row");
+    }
+    fireEvent.contextMenu(row, { clientX: 40, clientY: 40 });
+
+    const menu = screen.getByRole("menu", { name: "Rug" });
+    expect(
+      within(menu).getByRole("menuitem", { name: "Edit product" }),
+    ).toBeInTheDocument();
+    await user.click(within(menu).getByRole("menuitem", { name: "Hide" }));
+    expect(onToggleHidden).toHaveBeenCalledWith("i1");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+
+    fireEvent.contextMenu(row, { clientX: 40, clientY: 40 });
+    await user.click(
+      screen.getByRole("menuitem", { name: "Take out of the room" }),
+    );
+    expect(onRemove).toHaveBeenCalledWith("i1");
   });
 
   it("reorders by dragging one row onto another", () => {

@@ -542,6 +542,30 @@ test.describe("the plan as a canvas", () => {
     await expect(page.getByText(/is in the swing of/)).toHaveCount(0);
   });
 
+  test("deletes a placed product from its row's menu, pieces and all", async ({
+    page,
+  }) => {
+    await placeRug(page);
+    await expect(planImage(page)).toHaveAccessibleName(/1 piece placed: Rug/);
+
+    await contents(page)
+      .getByRole("button", { name: "Place Rug in the room" })
+      .click({ button: "right" });
+    const menu = page.getByRole("menu", { name: "Rug" });
+    await expect(menu.getByRole("menuitem", { name: "Edit" })).toBeVisible();
+    await menu
+      .getByRole("menuitem", { name: "Delete, and take it out of the room" })
+      .click();
+
+    // Gone from the list and from the plan, in one step.
+    await expect(
+      contents(page).getByRole("button", { name: "Place Rug in the room" }),
+    ).toHaveCount(0);
+    await expect(planImage(page)).not.toHaveAccessibleName(/piece placed/);
+    await page.keyboard.press("Control+z");
+    await expect(planImage(page)).toHaveAccessibleName(/1 piece placed: Rug/);
+  });
+
   test("zooms toward the pointer without moving the furniture", async ({
     page,
   }) => {

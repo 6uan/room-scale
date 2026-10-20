@@ -48,6 +48,9 @@ import {
   nextId,
   nextLayoutName,
   renameLayout,
+  withLayoutInstances,
+  withProducts,
+  withLayouts,
   type Layout,
 } from "@/domain/project";
 import { readPlanImage } from "@/components/underlay-image";
@@ -106,6 +109,8 @@ export function Workspace() {
     (state) => state.project.activeLayoutId,
   );
   const setLayouts = useProjectStore((state) => state.setLayouts);
+  const project = useProjectStore((state) => state.project);
+  const adopt = useProjectStore((state) => state.adopt);
   const setActiveLayout = useProjectStore((state) => state.setActiveLayout);
   const undo = useProjectStore((state) => state.undo);
   const redo = useProjectStore((state) => state.redo);
@@ -463,6 +468,31 @@ export function Workspace() {
     setSelection({ kind: "product", id: product.id });
   }
 
+  /**
+   * Removes a product and every copy of it in every layout, as one step.
+   *
+   * The ordinary remove refuses a placed product (ADR 0003). This is the
+   * explicit version, asked for by name from the row's menu, which says how
+   * many copies it takes with it — and it is one undoable edit, so the
+   * whole thing comes back together.
+   */
+  function deleteProductEverywhere(product: FurnitureProduct): void {
+    const stripped = withLayouts(
+      withProducts(
+        project,
+        products.filter((one) => one.id !== product.id),
+      ),
+      layouts.map((layout) =>
+        withLayoutInstances(
+          layout,
+          layout.instances.filter((one) => one.productId !== product.id),
+        ),
+      ),
+    );
+    adopt(stripped, { undoable: true });
+    setSelection(null);
+  }
+
   function removeProduct(product: FurnitureProduct): void {
     // Refused rather than cascaded: deleting a product out from under the
     // copies standing in the room is the one thing ADR 0003 rules out.
@@ -649,6 +679,10 @@ export function Workspace() {
                 );
               }
             }}
+            onRemove={(id) => {
+              setInstances(instances.filter((one) => one.id !== id));
+              setSelection(null);
+            }}
             onReorder={(id, beforeId) => {
               const moving = instances.find((one) => one.id === id);
               if (moving === undefined) {
@@ -669,6 +703,7 @@ export function Workspace() {
             unit={unit}
             selection={selection}
             onSelect={setSelection}
+            onDelete={deleteProductEverywhere}
             collapsed={folded.furniture}
             onToggleCollapsed={() =>
               setFolded((was) => ({ ...was, furniture: !was.furniture }))

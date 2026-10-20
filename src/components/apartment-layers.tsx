@@ -11,7 +11,14 @@ import {
   SquareDashed,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState, type DragEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+  type MouseEvent,
+} from "react";
+import { ContextMenu } from "@/components/context-menu";
 import { IconButton } from "@/components/icon-button";
 import { useScrollFade } from "@/components/scroll-fade";
 import { openingListName } from "@/components/opening-name";
@@ -34,6 +41,8 @@ export type ApartmentLayersProps = {
   onToggleHidden?: (instanceId: string) => void;
   /** Puts one piece where another is in the order, by a drag in the list. */
   onReorder?: (instanceId: string, beforeInstanceId: string) => void;
+  /** Takes one piece out of the room. */
+  onRemove?: (instanceId: string) => void;
   /** Folded away, when the workspace is keeping track; otherwise its own. */
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
@@ -62,6 +71,7 @@ export function ApartmentLayers({
   drawingRoom = false,
   onToggleHidden,
   onReorder,
+  onRemove,
   collapsed: collapsedProp,
   onToggleCollapsed,
 }: ApartmentLayersProps) {
@@ -73,6 +83,13 @@ export function ApartmentLayers({
     onToggleCollapsed ?? (() => setOwnCollapsed((was) => !was));
   /** The row a dragged piece is held over, which is where it would land. */
   const [over, setOver] = useState<string | null>(null);
+  /** The piece a right-click opened a menu on, and where. */
+  const [menu, setMenu] = useState<{
+    placed: PlacedFurniture;
+    name: string;
+    x: number;
+    y: number;
+  } | null>(null);
 
   /** One placed piece as a row: selectable, hideable, and draggable. */
   const pieceRow = (
@@ -97,6 +114,10 @@ export function ApartmentLayers({
           }
         }}
         onDragLeave={() => setOver((was) => (was === id ? null : was))}
+        onContextMenu={(event: MouseEvent<HTMLLIElement>) => {
+          event.preventDefault();
+          setMenu({ placed, name, x: event.clientX, y: event.clientY });
+        }}
         onDrop={(event: DragEvent<HTMLLIElement>) => {
           const from = event.dataTransfer.getData(LAYER_DRAG_TYPE);
           setOver(null);
@@ -263,6 +284,38 @@ export function ApartmentLayers({
           </div>
         </div>
       </div>
+      {menu === null ? null : (
+        <ContextMenu
+          at={menu}
+          label={menu.name}
+          onClose={() => setMenu(null)}
+          items={[
+            {
+              label: "Edit product",
+              onSelect: () =>
+                onSelect({ kind: "product", id: menu.placed.product.id }),
+            },
+            ...(onToggleHidden === undefined
+              ? []
+              : [
+                  {
+                    label:
+                      menu.placed.instance.hidden === true ? "Show" : "Hide",
+                    onSelect: () => onToggleHidden(menu.placed.instance.id),
+                  },
+                ]),
+            ...(onRemove === undefined
+              ? []
+              : [
+                  {
+                    label: "Take out of the room",
+                    danger: true,
+                    onSelect: () => onRemove(menu.placed.instance.id),
+                  },
+                ]),
+          ]}
+        />
+      )}
     </div>
   );
 }
