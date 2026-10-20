@@ -590,7 +590,9 @@ test.describe("the plan as a canvas", () => {
     ).toBeVisible();
   });
 
-  test("ignores the wheel until the plan is clicked into", async ({ page }) => {
+  test("pans on two fingers over the plan without clicking into it", async ({
+    page,
+  }) => {
     await placeRug(page);
     const centre = await planCentre(page);
     // Placing was a click on the plan, which focused it; leave again by
@@ -598,16 +600,48 @@ test.describe("the plan as a canvas", () => {
     await contents(page).getByRole("button", { name: "Living room" }).click();
     await expect(planImage(page)).not.toBeFocused();
 
-    // Hovering is not entering: a stray swipe over the plan leaves it alone.
+    // Hovering is enough: a trackpad scroll over the plan moves it.
     await page.mouse.move(centre.x, centre.y);
     await page.mouse.wheel(0, 200);
 
+    // The drawing moved up with the scroll, so the rug is 200 pixels higher,
+    // and the plan was not entered by it.
     await expect(planImage(page)).not.toBeFocused();
-    // Still where it was, so the rug is still under the middle.
-    await page.mouse.click(centre.x, centre.y);
+    await page.mouse.click(centre.x, centre.y - 200);
     await expect(
       details(page).getByRole("region", { name: "Rug" }),
     ).toBeVisible();
+  });
+
+  test("zooms on a pinch even before the plan is clicked into", async ({
+    page,
+  }) => {
+    await placeRug(page);
+    const centre = await planCentre(page);
+    // A point still on the rug at the fitted scale.
+    const onRug = { x: centre.x, y: centre.y + 50 };
+    await page.mouse.click(onRug.x, onRug.y);
+    await expect(
+      details(page).getByRole("region", { name: "Rug" }),
+    ).toBeVisible();
+    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await expect(planImage(page)).not.toBeFocused();
+
+    // A trackpad pinch is a wheel with Ctrl held. Out, several times.
+    await page.mouse.move(centre.x, centre.y);
+    await page.keyboard.down("Control");
+    for (let i = 0; i < 6; i += 1) {
+      await page.mouse.wheel(0, 400);
+    }
+    await page.keyboard.up("Control");
+
+    // The plan took the zoom without being entered, and the rug has shrunk
+    // about the pointer, so the same point is now floor.
+    await expect(planImage(page)).not.toBeFocused();
+    await page.mouse.click(onRug.x, onRug.y);
+    await expect(
+      details(page).getByRole("region", { name: "Rug" }),
+    ).toBeHidden();
   });
 
   test("pans on a plain scroll once clicked into, and fits again with 0", async ({
