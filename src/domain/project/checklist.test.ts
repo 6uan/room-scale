@@ -5,12 +5,13 @@ import {
   type FurnitureProduct,
   type PurchaseStatus,
 } from "@/domain/furniture";
-import { buildChecklist } from "./checklist";
+import { DEFAULT_FLOOR, createRoom, type Floor } from "@/domain/room";
+import { buildChecklist, checklistByRoom } from "./checklist";
 
 function product(
   id: string,
   priceCents: number,
-  purchaseStatus: PurchaseStatus = "considering",
+  purchaseStatus: PurchaseStatus = "wanted",
 ): FurnitureProduct {
   return {
     id,
@@ -136,19 +137,9 @@ describe("buildChecklist: what is still owed", () => {
     expect(checklist.totalCents).toBe(234800);
   });
 
-  it("treats an order as money already spent", () => {
+  it("owes nothing once everything is owned", () => {
     const checklist = buildChecklist(
-      [RUG, product("sofa", 199900, "ordered")],
-      instances,
-    );
-
-    expect(checklist.committedCents).toBe(199900);
-    expect(checklist.remainingCents).toBe(34900);
-  });
-
-  it("owes nothing once everything is ordered or owned", () => {
-    const checklist = buildChecklist(
-      [product("rug", 34900, "owned"), product("sofa", 199900, "ordered")],
+      [product("rug", 34900, "owned"), product("sofa", 199900, "owned")],
       instances,
     );
 
@@ -163,5 +154,60 @@ describe("buildChecklist: what is still owed", () => {
     );
 
     expect(checklist.committedCents).toBe(9000);
+  });
+});
+
+describe("checklistByRoom", () => {
+  // Two 10' squares side by side: the bedroom from x=0 and the study from x=4.
+  const floor: Floor = {
+    ...DEFAULT_FLOOR,
+    rooms: [
+      createRoom("bedroom", "Bedroom", { xMeters: 0, zMeters: 0 }),
+      createRoom("study", "Study", { xMeters: 4, zMeters: 0 }),
+    ],
+  };
+  const at = (id: string, productId: string, xMeters: number) =>
+    createInstance(id, productId, { xMeters, zMeters: 1 });
+
+  it("deals the list out by the room each piece stands in", () => {
+    const grouped = checklistByRoom(
+      [RUG, PILLOW],
+      [at("a", "rug", 1), at("b", "pillow", 1), at("c", "pillow", 5)],
+      floor,
+    );
+
+    expect(
+      grouped.map(({ room, checklist }) => [
+        room?.name ?? null,
+        checklist.lines.map((line) => [line.product.id, line.quantity]),
+      ]),
+    ).toEqual([
+      [
+        "Bedroom",
+        [
+          ["rug", 1],
+          ["pillow", 1],
+        ],
+      ],
+      ["Study", [["pillow", 1]]],
+    ]);
+  });
+
+  it("puts what stands on no floor last, and leaves an empty room out", () => {
+    const grouped = checklistByRoom([RUG], [at("a", "rug", 20)], floor);
+
+    expect(grouped.map(({ room }) => room)).toEqual([null]);
+    expect(grouped[0]?.checklist.totalCents).toBe(34900);
+  });
+
+  it("leaves a hidden piece out of its room", () => {
+    const [rug] = placed("rug", 1);
+    const grouped = checklistByRoom(
+      [RUG],
+      rug === undefined ? [] : [{ ...rug, hidden: true }],
+      floor,
+    );
+
+    expect(grouped).toEqual([]);
   });
 });

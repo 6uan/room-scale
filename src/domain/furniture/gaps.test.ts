@@ -54,7 +54,7 @@ const SOFA: FurnitureProduct = {
   retailer: "",
   productUrl: "",
   priceCents: 0,
-  purchaseStatus: "considering",
+  purchaseStatus: "wanted",
   category: "seating",
   footprint: { widthMeters: 2, depthMeters: 1 },
   heightMeters: 0.8,

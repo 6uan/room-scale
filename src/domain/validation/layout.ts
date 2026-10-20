@@ -135,6 +135,31 @@ export function checkLayout(
 }
 
 /**
+ * The room a piece stands in: the one its footprint overlaps most, or null
+ * when it touches no floor at all. The shopping list groups by this and the
+ * fit check measures against it, so the two cannot disagree about where a
+ * piece is.
+ */
+export function roomOfPiece(
+  floor: Floor,
+  placed: PlacedFurniture,
+): Room | null {
+  return mostOverlappedRoom(floor, placed)?.room ?? null;
+}
+
+function mostOverlappedRoom(
+  floor: Floor,
+  placed: PlacedFurniture,
+): { readonly room: Room; readonly area: number } | null {
+  const rect = footprintRect(placed);
+  const overlaps = floor.rooms
+    .map((room) => ({ room, area: roomFootprintOverlapArea(room, rect) }))
+    .sort((a, b) => b.area - a.area);
+  const best = overlaps[0];
+  return best === undefined || best.area <= 0.000001 ? null : best;
+}
+
+/**
  * Where one piece stands, and whether it stands there properly.
  *
  * The room a piece is in is the room its footprint overlaps most. That remains
@@ -150,14 +175,8 @@ function pieceProblems(
 ): readonly LayoutProblem[] {
   const rect = footprintRect(placed);
   const instanceId = placed.instance.id;
-  const overlaps = floor.rooms
-    .map((room) => ({
-      room,
-      area: roomFootprintOverlapArea(room, rect),
-    }))
-    .sort((a, b) => b.area - a.area);
-  const best = overlaps[0];
-  if (best === undefined || best.area <= 0.000001) {
+  const best = mostOverlappedRoom(floor, placed);
+  if (best === null) {
     return [{ kind: "outside-room", instanceId }];
   }
   const room = best.room;

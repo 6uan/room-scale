@@ -16,7 +16,7 @@ function furnished() {
         retailer: "Article",
         productUrl: "https://example.com/rug",
         priceCents: 34900,
-        purchaseStatus: "ordered",
+        purchaseStatus: "owned",
         category: "other",
         footprint: { widthMeters: 2.4384, depthMeters: 1.524 },
         heightMeters: 0.01,

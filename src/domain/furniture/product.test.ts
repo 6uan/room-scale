@@ -21,7 +21,7 @@ const SECTIONAL: FurnitureProduct = {
   retailer: "Article",
   productUrl: "https://www.article.com/product/1234/sectional",
   priceCents: 199900,
-  purchaseStatus: "considering",
+  purchaseStatus: "wanted",
   category: "seating",
   footprint: {
     widthMeters: metersFromInches(112),
@@ -140,7 +140,7 @@ describe("createProduct", () => {
   });
 
   it("starts as something being considered rather than owned", () => {
-    expect(createProduct("p1").purchaseStatus).toBe("considering");
+    expect(createProduct("p1").purchaseStatus).toBe("wanted");
   });
 });
 
