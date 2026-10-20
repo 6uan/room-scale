@@ -314,6 +314,10 @@ test.describe("editing the product behind a piece", () => {
     await details(page).getByLabel("Width").fill("48");
     await details(page).getByRole("button", { name: "Save changes" }).click();
 
+    // The form closes and says so, and the change reaches the plan.
+    await expect(page.getByRole("status", { name: "" })).toContainText(
+      "Saved Rug",
+    );
     await expect(planImage(page)).toHaveAccessibleName(/4' 0\.0" by 5' 0\.0"/);
   });
 });

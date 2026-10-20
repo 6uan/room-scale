@@ -25,6 +25,8 @@ export type CataloguePanelProps = {
   onPlace: (product: FurnitureProduct) => void;
   /** Removes the product, and every copy of it standing in any layout. */
   onDelete?: (product: FurnitureProduct) => void;
+  /** Puts one product where another is in the list, by a drag onto it. */
+  onReorder?: (productId: string, beforeProductId: string) => void;
   /** Folded away, when the workspace is keeping track; otherwise its own. */
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
@@ -48,6 +50,7 @@ export function CataloguePanel({
   onSelect,
   onPlace,
   onDelete,
+  onReorder,
   collapsed: collapsedProp,
   onToggleCollapsed,
   unbounded = false,
@@ -56,6 +59,8 @@ export function CataloguePanel({
   // Folded away when the apartment list needs the room. A fact about this
   // sitting, not the project, so it is not saved.
   const [ownCollapsed, setOwnCollapsed] = useState(false);
+  /** The row a dragged product is held over, which is where it would land. */
+  const [over, setOver] = useState<string | null>(null);
   /** The row a right-click opened a menu on, and where. */
   const [menu, setMenu] = useState<{
     product: FurnitureProduct;
@@ -137,7 +142,32 @@ export function CataloguePanel({
                           y: event.clientY,
                         });
                       }}
+                      // The same drag that places a product on the plan
+                      // reorders it when it lands on another row instead.
+                      onDragOver={(event) => {
+                        if (
+                          onReorder !== undefined &&
+                          event.dataTransfer.types.includes(PRODUCT_DRAG_TYPE)
+                        ) {
+                          event.preventDefault();
+                          setOver(product.id);
+                        }
+                      }}
+                      onDragLeave={() =>
+                        setOver((was) => (was === product.id ? null : was))
+                      }
+                      onDrop={(event) => {
+                        const from =
+                          event.dataTransfer.getData(PRODUCT_DRAG_TYPE);
+                        setOver(null);
+                        if (from !== "" && from !== product.id) {
+                          event.preventDefault();
+                          onReorder?.(from, product.id);
+                        }
+                      }}
                       className={`group flex min-w-0 cursor-grab items-center gap-1 rounded-lg px-2.5 py-2 text-sm transition-colors active:cursor-grabbing ${
+                        over === product.id ? "border-t-2 border-current" : ""
+                      } ${
                         isSelected(selection, "product", product.id)
                           ? "bg-black/10 dark:bg-white/15"
                           : "hover:bg-black/5 dark:hover:bg-white/10"

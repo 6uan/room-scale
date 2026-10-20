@@ -1,7 +1,7 @@
 "use client";
 
 import { Keyboard, ReceiptText, Redo2, Settings, Undo2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ApartmentLayers } from "@/components/apartment-layers";
 import {
   ButtonGroup,
@@ -121,6 +121,9 @@ export function Workspace() {
   // Facts about this session, never about the project.
   const [selection, setSelection] = useState<Selection>(null);
   const [productProblem, setProductProblem] = useState<string | null>(null);
+  /** A passing confirmation, such as that a product was saved. */
+  const [notice, setNotice] = useState<string | null>(null);
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [guideOpen, setGuideOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
@@ -465,7 +468,19 @@ export function Workspace() {
         ? products.map((one) => (one.id === product.id ? product : one))
         : [...products, product],
     );
-    setSelection({ kind: "product", id: product.id });
+    // The form closes and says what it did: a save that left the same form
+    // on screen, unchanged, read as a save that had not happened.
+    setSelection(null);
+    say(known ? `Saved ${product.name}` : `Added ${product.name}`);
+  }
+
+  /** A word over the plan for a moment, for a change nothing else shows. */
+  function say(message: string): void {
+    setNotice(message);
+    if (noticeTimer.current !== null) {
+      clearTimeout(noticeTimer.current);
+    }
+    noticeTimer.current = setTimeout(() => setNotice(null), 2200);
   }
 
   /**
@@ -704,6 +719,19 @@ export function Workspace() {
             selection={selection}
             onSelect={setSelection}
             onDelete={deleteProductEverywhere}
+            onReorder={(id, beforeId) => {
+              const moving = products.find((one) => one.id === id);
+              if (moving === undefined) {
+                return;
+              }
+              const rest = products.filter((one) => one.id !== id);
+              const at = rest.findIndex((one) => one.id === beforeId);
+              setProducts(
+                at === -1
+                  ? [...rest, moving]
+                  : [...rest.slice(0, at), moving, ...rest.slice(at)],
+              );
+            }}
             collapsed={folded.furniture}
             onToggleCollapsed={() =>
               setFolded((was) => ({ ...was, furniture: !was.furniture }))
@@ -821,6 +849,14 @@ export function Workspace() {
               itself only exists when there is something in it — an empty chip
               sitting over the corner of the drawing is the same nuisance as
               the all-clear it used to hold. */}
+          {notice === null ? null : (
+            <p
+              role="status"
+              className="pointer-events-none absolute bottom-16 left-1/2 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-[13px] text-white dark:bg-white/15"
+            >
+              {notice}
+            </p>
+          )}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 p-4 pr-52">
             <div
               className={
