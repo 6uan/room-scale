@@ -686,10 +686,6 @@ export function RoomPlanCanvas({
       : null;
 
   const [active, setActive] = useState(false);
-  const activeRef = useRef(active);
-  useEffect(() => {
-    activeRef.current = active;
-  }, [active]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -763,22 +759,16 @@ export function RoomPlanCanvas({
   /** Wheel: pan, unless a modifier makes it a zoom toward the pointer. */
   function handleWheel(
     event: WheelEventInit & { preventDefault(): void },
-    fromElsewhere = false,
   ): void {
     const canvas = canvasRef.current;
     if (!canvas) {
       return;
     }
-    const zooming = event.ctrlKey === true || event.metaKey === true;
-    if (!activeRef.current && !fromElsewhere && !zooming) {
-      // Not clicked into: a scroll belongs to whatever is behind it, and the
-      // plan stays where it was left. A zoom is different — a trackpad pinch
-      // over the plan is a zoom of the plan, clicked into or not, and left
-      // to the browser it would zoom the page instead.
-      return;
-    }
-    // The page must not scroll out from under a plan being panned, which means
-    // a listener React cannot give us: its own wheel handlers are passive.
+    // Over the plan is enough: two fingers on a trackpad move the drawing
+    // the way they would move a map, without clicking into it first, and a
+    // pinch zooms it. Left to the browser, the one would scroll and the
+    // other would zoom the page instead — hence a listener React cannot
+    // give us, since its own wheel handlers are passive.
     event.preventDefault();
     const box = canvas.getBoundingClientRect();
     const at = {
@@ -843,17 +833,14 @@ export function RoomPlanCanvas({
         return;
       }
       const box = canvas.getBoundingClientRect();
-      wheelRef.current(
-        {
-          ctrlKey: true,
-          deltaY: event.deltaY,
-          deltaX: 0,
-          clientX: box.left + box.width / 2,
-          clientY: box.top + box.height / 2,
-          preventDefault: () => event.preventDefault(),
-        },
-        true,
-      );
+      wheelRef.current({
+        ctrlKey: true,
+        deltaY: event.deltaY,
+        deltaX: 0,
+        clientX: box.left + box.width / 2,
+        clientY: box.top + box.height / 2,
+        preventDefault: () => event.preventDefault(),
+      });
     };
     window.addEventListener("wheel", anywhere, { passive: false });
     // Safari reports a trackpad pinch as its own gesture events as well, and
