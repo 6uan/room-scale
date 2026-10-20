@@ -38,8 +38,6 @@ export type CataloguePanelProps = {
   /** Folded away, when the workspace is keeping track; otherwise its own. */
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
-  /** Free to take the sidebar, when the apartment list has folded away. */
-  unbounded?: boolean;
 };
 
 /**
@@ -61,7 +59,6 @@ export function CataloguePanel({
   onReorder,
   collapsed: collapsedProp,
   onToggleCollapsed,
-  unbounded = false,
 }: CataloguePanelProps) {
   const scroll = useScrollFade();
   // Folded away when the apartment list needs the room. A fact about this
@@ -80,11 +77,7 @@ export function CataloguePanel({
     onToggleCollapsed ?? (() => setOwnCollapsed((was) => !was));
 
   return (
-    <div
-      className={`flex min-h-0 min-w-0 flex-col border-t border-black/10 px-3 pt-3 pb-3 dark:border-white/15 ${
-        unbounded ? "" : "max-h-[42vh]"
-      }`}
-    >
+    <div className="flex max-h-[42vh] min-h-0 min-w-0 flex-col border-t border-black/10 px-3 pt-3 pb-3 dark:border-white/15">
       <PanelHeader
         title="Furniture"
         action="New product"

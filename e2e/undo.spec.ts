@@ -36,7 +36,10 @@ test.describe("taking it back", () => {
   test("brings a deleted room back", async ({ page }) => {
     await openWithLivingRoom(page);
     await addRoom(page);
-    const room = contents(page).getByRole("button", { name: "Room 2" });
+    const room = contents(page).getByRole("button", {
+      name: "Room 2",
+      exact: true,
+    });
     await expect(room).toBeVisible();
 
     // Selected on the plan side rather than in a field, so Delete is the
@@ -45,7 +48,9 @@ test.describe("taking it back", () => {
     await page
       .getByRole("main", { name: "Plan" })
       .click({ position: { x: 5, y: 5 } });
-    await contents(page).getByRole("button", { name: "Room 2" }).click();
+    await contents(page)
+      .getByRole("button", { name: "Room 2", exact: true })
+      .click();
     await page.keyboard.press("Delete");
     await expect(room).toHaveCount(0);
 
@@ -56,7 +61,9 @@ test.describe("taking it back", () => {
 
   test("takes a typed dimension back to what it was", async ({ page }) => {
     await openWithLivingRoom(page);
-    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
     const width = details(page).getByLabel("Living room width");
     const before = await width.inputValue();
 
@@ -72,7 +79,9 @@ test.describe("taking it back", () => {
 
   test("takes a scrubbed dimension back in one step", async ({ page }) => {
     await openWithLivingRoom(page);
-    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
 
     const inspector = details(page);
     const width = inspector.getByLabel("Living room width");
@@ -99,18 +108,18 @@ test.describe("taking it back", () => {
     await openWithLivingRoom(page);
     await addRoom(page);
     await expect(
-      contents(page).getByRole("button", { name: "Room 2" }),
+      contents(page).getByRole("button", { name: "Room 2", exact: true }),
     ).toBeVisible();
 
     await undoButton(page).click();
     await expect(
-      contents(page).getByRole("button", { name: "Room 2" }),
+      contents(page).getByRole("button", { name: "Room 2", exact: true }),
     ).toHaveCount(0);
 
     await page.getByRole("button", { name: "Redo" }).click();
 
     await expect(
-      contents(page).getByRole("button", { name: "Room 2" }),
+      contents(page).getByRole("button", { name: "Room 2", exact: true }),
     ).toBeVisible();
   });
 

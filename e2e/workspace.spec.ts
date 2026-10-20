@@ -107,7 +107,7 @@ test.describe("the workspace", () => {
     await openWithLivingRoom(page);
 
     await expect(
-      contents(page).getByRole("button", { name: "Living room" }),
+      contents(page).getByRole("button", { name: "Living room", exact: true }),
     ).toBeVisible();
     await expect(planImage(page)).toBeVisible();
     // Nothing selected: the panel on the right is the apartment itself.
@@ -151,7 +151,7 @@ test.describe("the workspace", () => {
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
 
     await expect(
-      contents(page).getByRole("button", { name: "Room 1" }),
+      contents(page).getByRole("button", { name: "Room 1", exact: true }),
     ).toBeVisible();
     // Gone without being dismissed: a plan with something on it explains
     // itself.
@@ -163,7 +163,9 @@ test.describe("the workspace", () => {
   }) => {
     await openWithLivingRoom(page);
 
-    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
 
     const inspector = details(page).getByRole("region", {
       name: "Living room",
@@ -182,7 +184,10 @@ test.describe("the workspace", () => {
   test("renames a room directly in the apartment list", async ({ page }) => {
     await openWithLivingRoom(page);
 
-    const room = contents(page).getByRole("button", { name: "Living room" });
+    const room = contents(page).getByRole("button", {
+      name: "Living room",
+      exact: true,
+    });
     await room.click();
     await room.click();
     await expect(contents(page).getByRole("textbox")).toHaveCount(0);
@@ -204,10 +209,10 @@ test.describe("the workspace", () => {
     await name.press("Enter");
 
     await expect(
-      contents(page).getByRole("button", { name: "Great room" }),
+      contents(page).getByRole("button", { name: "Great room", exact: true }),
     ).toBeVisible();
     await expect(
-      details(page).getByRole("region", { name: "Great room" }),
+      details(page).getByRole("region", { name: "Great room", exact: true }),
     ).toBeVisible();
   });
 
@@ -219,12 +224,12 @@ test.describe("the workspace", () => {
     await addRoom(page);
 
     await expect(
-      contents(page).getByRole("button", { name: "Room 2" }),
+      contents(page).getByRole("button", { name: "Room 2", exact: true }),
     ).toBeVisible();
     await expect(planImage(page)).toHaveAccessibleName(/holding 2 rooms/);
     // Added means selected, so it can be sized straight away.
     await expect(
-      details(page).getByRole("region", { name: "Room 2" }),
+      details(page).getByRole("region", { name: "Room 2", exact: true }),
     ).toBeVisible();
   });
 
@@ -508,8 +513,13 @@ test.describe("the plan as a canvas", () => {
       await details(page).getByLabel("From west").inputValue(),
     );
     expect(rugWest).toBeGreaterThan(rugBefore);
-    await contents(page).getByRole("button", { name: "Living room" }).click();
-    const room = details(page).getByRole("region", { name: "Living room" });
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
+    const room = details(page).getByRole("region", {
+      name: "Living room",
+      exact: true,
+    });
     const roomWest = Number(
       await room.getByLabel("Living room X position").inputValue(),
     );
@@ -597,7 +607,9 @@ test.describe("the plan as a canvas", () => {
     const centre = await planCentre(page);
     // Placing was a click on the plan, which focused it; leave again by
     // way of the list, the way a hand that has gone elsewhere would.
-    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
     await expect(planImage(page)).not.toBeFocused();
 
     // Hovering is enough: a trackpad scroll over the plan moves it.
@@ -624,7 +636,9 @@ test.describe("the plan as a canvas", () => {
     await expect(
       details(page).getByRole("region", { name: "Rug" }),
     ).toBeVisible();
-    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
     await expect(planImage(page)).not.toBeFocused();
 
     // A trackpad pinch is a wheel with Ctrl held. Out, several times.
@@ -998,7 +1012,9 @@ test.describe("laying the apartment out", () => {
     page,
   }) => {
     await openWithLivingRoom(page);
-    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
 
     await details(page).getByRole("button", { name: "Add door" }).click();
     await expect(
@@ -1087,7 +1103,10 @@ test.describe("laying the apartment out", () => {
 
     // The living room runs to 84 inches and the wall is 4.5 thick, so sharing
     // it means 88.5. Typing 87 is near enough to mean it.
-    const room = details(page).getByRole("region", { name: "Room 2" });
+    const room = details(page).getByRole("region", {
+      name: "Room 2",
+      exact: true,
+    });
     await room.getByLabel("Room 2 X position").fill("87");
 
     await expect(room.getByLabel("Room 2 X position")).toHaveValue("88.5");
@@ -1097,9 +1116,14 @@ test.describe("laying the apartment out", () => {
     page,
   }) => {
     await openWithLivingRoom(page);
-    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
 
-    const room = details(page).getByRole("region", { name: "Living room" });
+    const room = details(page).getByRole("region", {
+      name: "Living room",
+      exact: true,
+    });
     const box = await planImage(page).boundingBox();
     if (box === null) {
       throw new Error("the plan has no box to point at");
@@ -1173,7 +1197,9 @@ test.describe("laying the apartment out", () => {
 
     // Double-click drills into either rectangle directly from whole-room
     // selection, so editing a compound room does not depend on the layer list.
-    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
     const partOneOnly = pointOnPlan(-50, 0);
     await page.mouse.dblclick(partOneOnly.x, partOneOnly.y);
     await expect(
@@ -1217,9 +1243,14 @@ test.describe("laying the apartment out", () => {
     page,
   }) => {
     await openWithLivingRoom(page);
-    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
 
-    const room = details(page).getByRole("region", { name: "Living room" });
+    const room = details(page).getByRole("region", {
+      name: "Living room",
+      exact: true,
+    });
     await room
       .getByRole("spinbutton", { name: "Living room angle" })
       .fill("45");
@@ -1229,18 +1260,25 @@ test.describe("laying the apartment out", () => {
     await expect(plan(page).getByText("168.0 sq ft")).toBeVisible();
 
     await page.reload();
-    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
     await expect(
       details(page)
-        .getByRole("region", { name: "Living room" })
+        .getByRole("region", { name: "Living room", exact: true })
         .getByRole("spinbutton", { name: "Living room angle" }),
     ).toHaveValue("45");
   });
 
   test("turns one section without turning its neighbour", async ({ page }) => {
     await openWithLivingRoom(page);
-    await contents(page).getByRole("button", { name: "Living room" }).click();
-    const room = details(page).getByRole("region", { name: "Living room" });
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
+    const room = details(page).getByRole("region", {
+      name: "Living room",
+      exact: true,
+    });
     const box = await planImage(page).boundingBox();
     if (box === null) {
       throw new Error("the plan has no box to point at");
@@ -1276,7 +1314,9 @@ test.describe("laying the apartment out", () => {
     page,
   }) => {
     await openWithLivingRoom(page);
-    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
 
     const box = await planImage(page).boundingBox();
     if (box === null) {
@@ -1319,7 +1359,10 @@ test.describe("laying the apartment out", () => {
     await page.mouse.move(target.x, target.y, { steps: 8 });
     await page.mouse.up();
 
-    const room = details(page).getByRole("region", { name: "Living room" });
+    const room = details(page).getByRole("region", {
+      name: "Living room",
+      exact: true,
+    });
     await expect(
       room.getByRole("spinbutton", { name: "Living room angle" }),
     ).toHaveValue("45");
@@ -1332,9 +1375,14 @@ test.describe("laying the apartment out", () => {
     page,
   }) => {
     await openWithLivingRoom(page);
-    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
 
-    const room = details(page).getByRole("region", { name: "Living room" });
+    const room = details(page).getByRole("region", {
+      name: "Living room",
+      exact: true,
+    });
     await expect(planImage(page)).toHaveAccessibleName(/a window/);
 
     await room
@@ -1458,8 +1506,13 @@ test.describe("laying the apartment out", () => {
     page,
   }) => {
     await openWithLivingRoom(page);
-    await contents(page).getByRole("button", { name: "Living room" }).click();
-    const room = details(page).getByRole("region", { name: "Living room" });
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
+    const room = details(page).getByRole("region", {
+      name: "Living room",
+      exact: true,
+    });
 
     // Folded away, saying what this room's walls are and where they came from.
     // "Wall thickness", not "Walls": the footprint above has a row of sides
@@ -1479,17 +1532,24 @@ test.describe("laying the apartment out", () => {
     await expect(walls).not.toContainText("from the apartment");
     // Typed once, it stays this room's: the apartment's own default no longer
     // reaches it, and it survives a reload.
-    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
     await page.reload();
-    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
     await expect(
       details(page)
-        .getByRole("region", { name: "Living room" })
+        .getByRole("region", { name: "Living room", exact: true })
         .getByRole("button", { name: /^Wall thickness/ }),
     ).toContainText("7 in");
 
     // And handed back, it reads the apartment's again.
-    const reopened = details(page).getByRole("region", { name: "Living room" });
+    const reopened = details(page).getByRole("region", {
+      name: "Living room",
+      exact: true,
+    });
     await reopened.getByRole("button", { name: /^Wall thickness/ }).click();
     await reopened
       .getByRole("button", { name: "Use the apartment's wall thickness" })
@@ -1503,10 +1563,15 @@ test.describe("laying the apartment out", () => {
     page,
   }) => {
     await openWithLivingRoom(page);
-    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
 
     // Each side is its own switch; its name carries which it is now.
-    const room = details(page).getByRole("region", { name: "Living room" });
+    const room = details(page).getByRole("region", {
+      name: "Living room",
+      exact: true,
+    });
     await room
       .getByRole("button", { name: "Living room north wall, walled" })
       .click();
@@ -1524,8 +1589,13 @@ test.describe("laying the apartment out", () => {
     ).toBeVisible();
 
     await page.reload();
-    await contents(page).getByRole("button", { name: "Living room" }).click();
-    const reopened = details(page).getByRole("region", { name: "Living room" });
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
+    const reopened = details(page).getByRole("region", {
+      name: "Living room",
+      exact: true,
+    });
     await expect(
       reopened.getByRole("button", { name: "Living room north wall, open" }),
     ).toBeVisible();
@@ -1540,10 +1610,12 @@ test.describe("laying the apartment out", () => {
       }),
     ).toBeVisible();
     await page.reload();
-    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
     await expect(
       details(page)
-        .getByRole("region", { name: "Living room" })
+        .getByRole("region", { name: "Living room", exact: true })
         .getByRole("button", { name: "Living room north wall, walled" }),
     ).toBeVisible();
   });
@@ -1557,7 +1629,9 @@ test.describe("laying the apartment out", () => {
     // Put Room 2 east of the living room. Its west face is at 100", so the
     // living room shares that wall when its east face reaches 95.5".
     await details(page).getByLabel("Room 2 X position").fill("100");
-    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
 
     const inspector = details(page);
     const width = inspector.getByLabel("Living room width");
@@ -1586,7 +1660,9 @@ test.describe("laying the apartment out", () => {
     await openWithLivingRoom(page);
     await addRoom(page);
     await details(page).getByLabel("Room 2 X position").fill("100");
-    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
 
     const box = await planImage(page).boundingBox();
     if (box === null) {
@@ -1626,7 +1702,10 @@ test.describe("laying the apartment out", () => {
     await openWithLivingRoom(page);
     await addRoom(page);
 
-    const room = details(page).getByRole("region", { name: "Room 2" });
+    const room = details(page).getByRole("region", {
+      name: "Room 2",
+      exact: true,
+    });
     await room.getByLabel("Room 2 X position").fill("200");
 
     await expect(room.getByLabel("Room 2 X position")).toHaveValue("200");
@@ -1638,7 +1717,10 @@ test.describe("laying the apartment out", () => {
     await openWithLivingRoom(page);
     await addRoom(page);
 
-    const room = details(page).getByRole("region", { name: "Room 2" });
+    const room = details(page).getByRole("region", {
+      name: "Room 2",
+      exact: true,
+    });
     await room.getByLabel("Room 2 X position").fill("-300");
 
     await expect(room.getByLabel("Room 2 X position")).toHaveValue("-300");
@@ -1658,14 +1740,14 @@ test.describe("laying the apartment out", () => {
     // The living room is the only thing on the plan, and it is in the middle.
     await page.mouse.click(centre.x, centre.y);
     await expect(
-      details(page).getByRole("region", { name: "Living room" }),
+      details(page).getByRole("region", { name: "Living room", exact: true }),
     ).toBeVisible();
 
     // A one-rectangle room has no redundant Section 1 editing level, even when
     // the canvas receives the double-click used to drill into compound rooms.
     await page.mouse.dblclick(centre.x, centre.y);
     await expect(
-      contents(page).getByRole("button", { name: "Living room" }),
+      contents(page).getByRole("button", { name: "Living room", exact: true }),
     ).toHaveAttribute("aria-pressed", "true");
     await expect(
       contents(page).getByRole("button", { name: "Section 1" }),
@@ -1697,7 +1779,9 @@ test.describe("laying the apartment out", () => {
     // Nothing selected, nothing to give coordinates for.
     await expect(plan(page).getByText("x —")).toBeVisible();
 
-    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
 
     // Its north-west corner: the room is centred, so half of 168 by half of 144.
     await expect(plan(page).getByText(`x -7' 0.0"`)).toBeVisible();
@@ -1708,9 +1792,14 @@ test.describe("laying the apartment out", () => {
     page,
   }) => {
     await openWithLivingRoom(page);
-    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
 
-    const room = details(page).getByRole("region", { name: "Living room" });
+    const room = details(page).getByRole("region", {
+      name: "Living room",
+      exact: true,
+    });
     await expect(room.getByLabel("Living room width")).toHaveValue("168");
 
     const box = await planImage(page).boundingBox();
@@ -1788,7 +1877,10 @@ test.describe("laying the apartment out", () => {
     await page.mouse.up();
     await expect(readout).toHaveCount(0);
     // And the room that landed is the one that was read out, to the inch.
-    const room = details(page).getByRole("region", { name: "Room 2" });
+    const room = details(page).getByRole("region", {
+      name: "Room 2",
+      exact: true,
+    });
     expect(
       Number(await room.getByLabel("Room 2 width").inputValue()),
     ).toBeCloseTo(width, 1);
@@ -1817,12 +1909,15 @@ test.describe("laying the apartment out", () => {
     await page.mouse.up();
 
     await expect(
-      contents(page).getByRole("button", { name: "Room 2" }),
+      contents(page).getByRole("button", { name: "Room 2", exact: true }),
     ).toBeVisible();
     await expect(planImage(page)).toHaveAccessibleName(/holding 2 rooms/);
 
     // Drawn means selected, so the numbers are there to be corrected.
-    const room = details(page).getByRole("region", { name: "Room 2" });
+    const room = details(page).getByRole("region", {
+      name: "Room 2",
+      exact: true,
+    });
     await expect(room).toBeVisible();
     // It took its size from the drag rather than from a default: a room
     // dropped without drawing is a square, and this one is wider than deep.
@@ -1854,7 +1949,10 @@ test.describe("laying the apartment out", () => {
       contents(page).getByRole("button", { name: "Add room" }),
     ).toHaveAttribute("aria-pressed", "false");
 
-    const room = details(page).getByRole("region", { name: "Room 2" });
+    const room = details(page).getByRole("region", {
+      name: "Room 2",
+      exact: true,
+    });
     const west = Number(
       await room.getByLabel("Room 2 X position").inputValue(),
     );
@@ -1903,7 +2001,10 @@ test.describe("laying the apartment out", () => {
     // A click, not a drag: the usual size, centred where it was put.
     await page.mouse.click(box.x + 60, box.y + box.height - 60);
 
-    const room = details(page).getByRole("region", { name: "Room 2" });
+    const room = details(page).getByRole("region", {
+      name: "Room 2",
+      exact: true,
+    });
     // Ten feet square, which is what createRoom gives, rather than a drag.
     await expect(room.getByLabel("Room 2 width")).toHaveValue("120");
     await expect(room.getByLabel("Room 2 length")).toHaveValue("120");
@@ -1918,9 +2019,14 @@ test.describe("laying the apartment out", () => {
     page,
   }) => {
     await openWithLivingRoom(page);
-    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
 
-    const room = details(page).getByRole("region", { name: "Living room" });
+    const room = details(page).getByRole("region", {
+      name: "Living room",
+      exact: true,
+    });
     await expect(room.getByLabel("Living room width")).toHaveValue("168");
 
     const box = await planImage(page).boundingBox();
@@ -2008,7 +2114,9 @@ test.describe("laying the apartment out", () => {
 
   test("says with the pointer what it is about to move", async ({ page }) => {
     await openWithLivingRoom(page);
-    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
 
     const box = await planImage(page).boundingBox();
     if (box === null) {
@@ -2084,22 +2192,34 @@ test.describe("laying the apartment out", () => {
 
   test("takes a room size typed the way a tape reads it", async ({ page }) => {
     await openWithLivingRoom(page);
-    await contents(page).getByRole("button", { name: "Living room" }).click();
-    const room = details(page).getByRole("region", { name: "Living room" });
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
+    const room = details(page).getByRole("region", {
+      name: "Living room",
+      exact: true,
+    });
 
     await room.getByLabel("Living room width").fill("11' 6\"");
     // Feet and inches in, inches stored, and the room read back in feet.
     await expect(room.getByText(/^11' 6\.0" ×/)).toBeVisible();
     await planImage(page).press("Escape");
-    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
     await expect(room.getByLabel("Living room width")).toHaveValue("138");
   });
 
   test("opens on numbers somebody could have measured", async ({ page }) => {
     await openWithLivingRoom(page);
-    await contents(page).getByRole("button", { name: "Living room" }).click();
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
 
-    const room = details(page).getByRole("region", { name: "Living room" });
+    const room = details(page).getByRole("region", {
+      name: "Living room",
+      exact: true,
+    });
     // Fourteen by twelve feet, eight foot ceiling — not 165.35 by 141.73.
     await expect(room.getByLabel("Living room width")).toHaveValue("168");
     await expect(room.getByLabel("Living room length")).toHaveValue("144");

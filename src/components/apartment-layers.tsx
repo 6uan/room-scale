@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  ChevronDown,
+  ChevronRight,
   DoorOpen,
   Eye,
   EyeOff,
@@ -43,9 +45,6 @@ export type ApartmentLayersProps = {
   onReorder?: (instanceId: string, beforeInstanceId: string) => void;
   /** Takes one piece out of the room. */
   onRemove?: (instanceId: string) => void;
-  /** Folded away, when the workspace is keeping track; otherwise its own. */
-  collapsed?: boolean;
-  onToggleCollapsed?: () => void;
 };
 
 /** The drag type a list row carries, so a product drag is not mistaken for it. */
@@ -80,15 +79,19 @@ export function ApartmentLayers({
   onToggleHidden,
   onReorder,
   onRemove,
-  collapsed: collapsedProp,
-  onToggleCollapsed,
 }: ApartmentLayersProps) {
   const names = placedNames(furniture);
   const scroll = useScrollFade();
-  const [ownCollapsed, setOwnCollapsed] = useState(false);
-  const collapsed = collapsedProp ?? ownCollapsed;
-  const toggleCollapsed =
-    onToggleCollapsed ?? (() => setOwnCollapsed((was) => !was));
+  /** Rooms folded up to their own row. A fact about this sitting, not saved. */
+  const [folded, setFolded] = useState<ReadonlySet<string>>(new Set());
+  const toggleFolded = (roomId: string) =>
+    setFolded((was) => {
+      const next = new Set(was);
+      if (!next.delete(roomId)) {
+        next.add(roomId);
+      }
+      return next;
+    });
   /** The row a dragged piece is held over, which is where it would land. */
   const [over, setOver] = useState<string | null>(null);
   /** The piece a right-click opened a menu on, and where. */
@@ -185,25 +188,11 @@ export function ApartmentLayers({
         action="Add room"
         active={drawingRoom}
         onAction={onAddRoom}
-        collapsed={collapsed}
-        onToggleCollapsed={toggleCollapsed}
       />
       {/* A rule under the header, edge to edge, so where the list scrolls is
-          seen. Outside the folding part, which clips what bleeds past it. */}
-      {collapsed ? null : (
-        <div className="-mx-3 mt-3 border-t border-black/10 dark:border-white/15" />
-      )}
-      {/* Folded the way the furniture panel is: a grid row from one share
-          to none, the list kept mounted and inert while it is away. */}
-      <div
-        className="grid min-h-0 transition-[grid-template-rows,opacity] duration-200 ease-out"
-        style={{
-          gridTemplateRows: collapsed ? "0fr" : "minmax(0, 1fr)",
-          opacity: collapsed ? 0 : 1,
-        }}
-        inert={collapsed}
-        aria-hidden={collapsed}
-      >
+          seen. */}
+      <div className="-mx-3 mt-3 border-t border-black/10 dark:border-white/15" />
+      <div className="grid min-h-0 grid-rows-[minmax(0,1fr)]">
         <div className="-mx-3 flex min-h-0 flex-col overflow-hidden">
           <div
             {...scroll}
@@ -217,62 +206,76 @@ export function ApartmentLayers({
                     selected={isSelected(selection, "room", room.id)}
                     onSelect={() => onSelect({ kind: "room", id: room.id })}
                     onChange={onRoomChange}
+                    folded={folded.has(room.id)}
+                    onToggleFolded={() => toggleFolded(room.id)}
                   />
-                  <ul className="flex flex-col">
-                    {/* The first rectangle is the room, already on the row above;
+                  {/* Folded the way the furniture panel folds: a grid row from
+                      one share to none, the rows kept mounted and inert. */}
+                  <div
+                    className="grid transition-[grid-template-rows,opacity] duration-200 ease-out"
+                    style={{
+                      gridTemplateRows: folded.has(room.id) ? "0fr" : "1fr",
+                      opacity: folded.has(room.id) ? 0 : 1,
+                    }}
+                    inert={folded.has(room.id)}
+                    aria-hidden={folded.has(room.id)}
+                  >
+                    <ul className="flex flex-col overflow-hidden">
+                      {/* The first rectangle is the room, already on the row above;
                   only what was added to it gets a row of its own. */}
-                    {room.parts.length === 1
-                      ? null
-                      : room.parts.slice(1).map((part, offset) => (
-                          <li key={part.id}>
-                            <Row
-                              label={`Section ${offset + 2}`}
-                              icon={SquareDashed}
-                              depth
-                              selected={isSelected(
-                                selection,
-                                "room-part",
-                                part.id,
-                              )}
-                              onSelect={() =>
-                                onSelect({
-                                  kind: "room-part",
-                                  roomId: room.id,
-                                  id: part.id,
-                                })
-                              }
-                            />
-                          </li>
-                        ))}
-                    {room.openings.map((opening) => (
-                      <li key={opening.id}>
-                        <Row
-                          label={openingListName(room, opening)}
-                          icon={OPENING_ICONS[opening.kind]}
-                          depth
-                          selected={isSelected(
-                            selection,
-                            "opening",
-                            opening.id,
-                          )}
-                          onSelect={() =>
-                            onSelect({
-                              kind: "opening",
-                              roomId: room.id,
-                              id: opening.id,
-                            })
-                          }
-                        />
-                      </li>
-                    ))}
-                    {inRoom(room.id).map(({ placed, name }) =>
-                      pieceRow(
-                        placed,
-                        name,
-                        troubledIds.has(placed.instance.id),
-                      ),
-                    )}
-                  </ul>
+                      {room.parts.length === 1
+                        ? null
+                        : room.parts.slice(1).map((part, offset) => (
+                            <li key={part.id}>
+                              <Row
+                                label={`Section ${offset + 2}`}
+                                icon={SquareDashed}
+                                depth
+                                selected={isSelected(
+                                  selection,
+                                  "room-part",
+                                  part.id,
+                                )}
+                                onSelect={() =>
+                                  onSelect({
+                                    kind: "room-part",
+                                    roomId: room.id,
+                                    id: part.id,
+                                  })
+                                }
+                              />
+                            </li>
+                          ))}
+                      {room.openings.map((opening) => (
+                        <li key={opening.id}>
+                          <Row
+                            label={openingListName(room, opening)}
+                            icon={OPENING_ICONS[opening.kind]}
+                            depth
+                            selected={isSelected(
+                              selection,
+                              "opening",
+                              opening.id,
+                            )}
+                            onSelect={() =>
+                              onSelect({
+                                kind: "opening",
+                                roomId: room.id,
+                                id: opening.id,
+                              })
+                            }
+                          />
+                        </li>
+                      ))}
+                      {inRoom(room.id).map(({ placed, name }) =>
+                        pieceRow(
+                          placed,
+                          name,
+                          troubledIds.has(placed.instance.id),
+                        ),
+                      )}
+                    </ul>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -339,12 +342,17 @@ function RoomRow({
   selected,
   onSelect,
   onChange,
+  folded,
+  onToggleFolded,
 }: {
   room: Room;
   selected: boolean;
   onSelect: () => void;
   onChange: (room: Room) => void;
+  folded: boolean;
+  onToggleFolded: () => void;
 }) {
+  const name = room.name === "" ? "Unnamed room" : room.name;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(room.name);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -395,12 +403,20 @@ function RoomRow({
 
   return (
     <Row
-      label={room.name === "" ? "Unnamed room" : room.name}
+      label={name}
       icon={Square}
       selected={selected}
       onSelect={onSelect}
       onDoubleClick={beginRename}
       title="Double-click to rename"
+      trailing={
+        <IconButton
+          label={folded ? `Expand ${name}` : `Collapse ${name}`}
+          icon={folded ? ChevronRight : ChevronDown}
+          size="small"
+          onClick={onToggleFolded}
+        />
+      }
     />
   );
 }
