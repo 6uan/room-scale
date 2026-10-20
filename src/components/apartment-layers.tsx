@@ -456,7 +456,7 @@ function Row({
 }) {
   return (
     <div
-      className={`group flex min-w-0 items-center rounded-lg py-px pr-[3px] transition-colors focus-within:outline-2 focus-within:outline-offset-[-2px] focus-within:outline-blue-500 ${
+      className={`group flex min-w-0 items-center rounded-lg pr-1 transition-colors focus-within:outline-2 focus-within:outline-offset-[-2px] focus-within:outline-blue-500 ${
         selected
           ? "bg-black/10 dark:bg-white/15"
           : "hover:bg-black/5 dark:hover:bg-white/10"
@@ -482,10 +482,13 @@ function Row({
         />
         <span className="min-w-0 truncate">{label}</span>
       </button>
-      {/* Nested inside the row's 8px corner at a 3px inset, so its own corner
-          is 5px: outer radius equals inner radius plus the padding, which is
-          what makes the two curves concentric instead of fighting. */}
-      <span className="contents [&_button]:rounded-[5px]">{trailing}</span>
+      {/* A 24px button in a 32px row sits 4px in on every side, nested
+          inside the row's 8px corner, so its own corner is 4px: outer radius
+          equals inner radius plus the padding, which is what makes the two
+          curves concentric instead of fighting. */}
+      <span className="contents [&_button]:size-6 [&_button]:rounded-[4px]">
+        {trailing}
+      </span>
     </div>
   );
 }
