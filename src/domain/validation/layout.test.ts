@@ -12,7 +12,7 @@ import {
   type Floor,
 } from "@/domain/room";
 import { LIVING_ROOM } from "@/domain/room/fixtures";
-import { checkLayout, troubledInstanceIds } from "./layout";
+import { checkLayout, troubledInstanceIds, type LayoutProblem } from "./layout";
 
 /** A one-room apartment, four by three. */
 const ROOM = {
@@ -686,5 +686,64 @@ describe("checkLayout: a section that adds no floor", () => {
     expect(
       checkLayout(floor, []).filter((one) => one.kind === "section-inside"),
     ).toEqual([]);
+  });
+});
+
+describe("checkLayout: a closet's walls", () => {
+  // A 1 × 0.8 closet in the bottom-left of the room, walled on its north and
+  // east sides; its other two sides are the room's own walls.
+  const CLOSET = {
+    ...BASE_PART,
+    id: "room-1-part-2",
+    origin: { xMeters: 1, zMeters: 2 },
+    widthMeters: 1,
+    depthMeters: 0.8,
+    dividingWalls: ["north", "east"] as const,
+  };
+  const room = { ...ROOM, parts: [BASE_PART, CLOSET] };
+  const floor: Floor = { ...FLOOR, rooms: [room] };
+  const SMALL = product("small", 0.5, 0.5);
+  const wallCrossings = (problems: readonly LayoutProblem[]) =>
+    problems.filter((one) => one.kind === "crosses-wall");
+
+  it("reports a piece half into the closet, through its wall", () => {
+    // Straddling the closet's north edge at z = 2, so the whole band is
+    // inside the piece.
+    const problems = checkLayout(floor, [place("t", SMALL, 1.5, 2.0)]);
+
+    expect(wallCrossings(problems)).toEqual([
+      {
+        kind: "crosses-wall",
+        instanceId: "t",
+        roomId: ROOM.id,
+        wall: "north",
+        overhangMeters: expect.closeTo(DEFAULT_FLOOR.wallThicknessMeters, 6),
+        partNumber: 2,
+      },
+    ]);
+  });
+
+  it("accepts a piece standing inside the closet", () => {
+    const problems = checkLayout(floor, [place("t", SMALL, 1.5, 2.45)]);
+
+    expect(problems).toEqual([]);
+  });
+
+  it("accepts a piece in the room, clear of the closet's wall", () => {
+    const problems = checkLayout(floor, [place("t", SMALL, 1.5, 1.5)]);
+
+    expect(problems).toEqual([]);
+  });
+
+  it("does not count the closet doorway as wall", () => {
+    const door = createOpening("door", "d1", room, "north", 0.5, CLOSET.id);
+    const withDoor: Floor = {
+      ...floor,
+      rooms: [{ ...room, openings: [door] }],
+    };
+    const narrow = product("narrow", 0.3, 0.3);
+    const problems = checkLayout(withDoor, [place("t", narrow, 1.5, 2.0)]);
+
+    expect(wallCrossings(problems)).toEqual([]);
   });
 });

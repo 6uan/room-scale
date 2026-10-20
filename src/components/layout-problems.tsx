@@ -89,6 +89,9 @@ function problemMessage(
     case "crosses-wall":
       return (
         `${name(problem.instanceId)} crosses the ${problem.wall} wall of ` +
+        (problem.partNumber === undefined
+          ? ""
+          : `section ${problem.partNumber} of `) +
         `${theRoom(problem.roomId)} by ` +
         `${formatLength(problem.overhangMeters, unit)}.`
       );
@@ -121,7 +124,7 @@ function problemKey(problem: LayoutProblem): string {
     case "overlap":
       return `overlap:${problem.instanceIds.join(":")}`;
     case "crosses-wall":
-      return `wall:${problem.instanceId}:${problem.wall}`;
+      return `wall:${problem.instanceId}:${problem.partNumber ?? 0}:${problem.wall}`;
     case "outside-room":
       return `outside:${problem.instanceId}`;
     case "blocks-door":

@@ -24,6 +24,7 @@ import {
   roomFootprintOverlapArea,
   type Floor,
   type Room,
+  wallThicknessMeters,
 } from "@/domain/room";
 import { footprintRect, moveInstance, type PlacedFurniture } from "./instance";
 import type { FurnitureInstance } from "./instance";
@@ -71,7 +72,13 @@ export function wallGaps(
   const center = rect.center;
 
   return GAP_SIDES.flatMap((side) => {
-    const face = nearestFace(room, side, box, center);
+    const face = nearestFace(
+      room,
+      side,
+      box,
+      center,
+      wallThicknessMeters(floor, room),
+    );
     if (face === null) {
       return [];
     }
@@ -222,6 +229,7 @@ function nearestFace(
   side: GapSide,
   box: Box,
   center: FloorPoint,
+  thicknessMeters: number,
 ): number | null {
   const horizontal = side === "west" || side === "east";
   const outward = side === "west" || side === "north" ? -1 : 1;
@@ -261,11 +269,22 @@ function nearestFace(
           { face: start, wall: "north" },
           { face: start + length, wall: "south" },
         ];
-    for (const { face, wall } of edges) {
+    for (const { face: inner, wall } of edges) {
       const dividing = part.dividingWalls?.includes(wall) === true;
       // The outward edge counts when the room's floor stops there; either
       // edge counts when it was kept as a wall regardless.
       const outwardEdge = wall === side;
+      // A dividing wall's band stands outside the section's edge, so a
+      // piece on the room side of it is measured to the band's outer face.
+      // The piece's middle says which side of the edge it is on.
+      const middle = horizontal ? center.xMeters : center.zMeters;
+      const outsidePart =
+        wall === "west" || wall === "north" ? middle < inner : middle > inner;
+      const face =
+        dividing && outsidePart
+          ? inner +
+            (wall === "west" || wall === "north" ? -1 : 1) * thicknessMeters
+          : inner;
       if (!dividing) {
         if (!outwardEdge) {
           continue;

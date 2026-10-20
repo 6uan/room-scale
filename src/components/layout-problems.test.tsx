@@ -70,6 +70,25 @@ describe("LayoutProblems", () => {
     ).toBeInTheDocument();
   });
 
+  it("names the section whose wall a piece crosses, when it is a closet's", () => {
+    renderProblems([
+      {
+        kind: "crosses-wall",
+        instanceId: "i1",
+        roomId: "r1",
+        wall: "north",
+        overhangMeters: metersFromInches(3),
+        partNumber: 2,
+      },
+    ]);
+
+    expect(
+      screen.getByText(
+        `Sectional crosses the north wall of section 2 of the Living room by 0' 3.0".`,
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("says a piece is in no room at all without measuring it", () => {
     renderProblems([{ kind: "outside-room", instanceId: "i2" }]);
 

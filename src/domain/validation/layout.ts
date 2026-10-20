@@ -27,7 +27,13 @@ import {
   WALL_SIDES,
   checkOpening,
   doorSwingPolygon,
+  isWallDividing,
   metersBeyondWall,
+  openingRangeMeters,
+  partWallFrame,
+  partWallSides,
+  pointOnRoomPart,
+  wallStretches,
   pointInRoomPart,
   primaryRoomPart,
   roomContains,
@@ -58,6 +64,11 @@ export type LayoutProblem =
       readonly roomId: string;
       readonly wall: WallSide;
       readonly overhangMeters: number;
+      /**
+       * Set when the wall is a section's dividing wall — a closet's — rather
+       * than one round the outside of the room, so the message can say which.
+       */
+      readonly partNumber?: number;
     }
   /** Two rooms in the same place. Blocks can be dropped on top of each other. */
   | {
@@ -103,6 +114,7 @@ export function checkLayout(
 
   for (const placed of furniture) {
     problems.push(...pieceProblems(floor, placed));
+    problems.push(...dividingWallProblems(floor, placed));
   }
 
   // Doors last among a piece's own problems: a piece through the wall beside
@@ -525,6 +537,104 @@ function sectionProblems(floor: Floor): readonly LayoutProblem[] {
     });
   }
   return problems;
+}
+
+/**
+ * Every dividing wall this piece stands in.
+ *
+ * A closet is a section with its sides kept as walls inside the room's own
+ * floor. The outline check above cannot see those walls — a piece half into
+ * the closet is still wholly inside the room — so each is measured as the
+ * band it is drawn as, the way a door swing is: the strip of wall thickness
+ * standing outside the section's edge, less its openings. A piece in the
+ * closet doorway is the door's business, not the wall's.
+ */
+function dividingWallProblems(
+  floor: Floor,
+  placed: PlacedFurniture,
+): readonly LayoutProblem[] {
+  const corners = orientedRectCorners(footprintRect(placed));
+  const problems: LayoutProblem[] = [];
+  for (const room of floor.rooms) {
+    room.parts.forEach((part, index) => {
+      for (const wall of partWallSides(part)) {
+        if (!isWallDividing(part, wall)) {
+          continue;
+        }
+        const openings = room.openings
+          .filter((one) => one.partId === part.id && one.wall === wall)
+          .map(openingRangeMeters);
+        const frame = partWallFrame(part, wall);
+        /** A floor point `along` the wall and `out` into its band. */
+        const at = (along: number, out: number): FloorPoint =>
+          pointOnRoomPart(part, {
+            xMeters:
+              frame.from.xMeters +
+              frame.direction.dx * along +
+              frame.normal.dx * out,
+            zMeters:
+              frame.from.zMeters +
+              frame.direction.dz * along +
+              frame.normal.dz * out,
+          });
+
+        for (const stretch of wallStretches(floor, room, part, wall)) {
+          if (stretch.thicknessMeters <= 0) {
+            continue;
+          }
+          for (const { start, end } of lessOpenings(stretch, openings)) {
+            const overlap = convexPolygonOverlap(
+              [
+                at(start, 0),
+                at(end, 0),
+                at(end, stretch.thicknessMeters),
+                at(start, stretch.thicknessMeters),
+              ],
+              corners,
+            );
+            if (overlap !== null) {
+              problems.push({
+                kind: "crosses-wall",
+                instanceId: placed.instance.id,
+                roomId: room.id,
+                wall,
+                overhangMeters: overlap.depthMeters,
+                partNumber: index + 1,
+              });
+            }
+          }
+        }
+      }
+    });
+  }
+  return problems;
+}
+
+/** The runs of a stretch with the openings in it taken out, in order. */
+function lessOpenings(
+  stretch: { readonly startMeters: number; readonly endMeters: number },
+  openings: readonly {
+    readonly startMeters: number;
+    readonly endMeters: number;
+  }[],
+): readonly { start: number; end: number }[] {
+  const runs: { start: number; end: number }[] = [];
+  let cursor = stretch.startMeters;
+  for (const opening of [...openings].sort(
+    (a, b) => a.startMeters - b.startMeters,
+  )) {
+    if (opening.startMeters > cursor) {
+      runs.push({
+        start: cursor,
+        end: Math.min(opening.startMeters, stretch.endMeters),
+      });
+    }
+    cursor = Math.max(cursor, opening.endMeters);
+  }
+  if (cursor < stretch.endMeters) {
+    runs.push({ start: cursor, end: stretch.endMeters });
+  }
+  return runs.filter(({ start, end }) => end - start > 0.001);
 }
 
 /**
