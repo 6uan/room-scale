@@ -159,3 +159,60 @@ describe("snapInstancePosition", () => {
     ).toEqual({ xMeters: 2.02, zMeters: 1.5 });
   });
 });
+
+describe("snapInstancePosition against a closet", () => {
+  // A closet across the south of the room: a section 2.5 wide and 1.5 deep
+  // whose north and west sides are kept as walls.
+  const CLOSET = {
+    ...FLOOR,
+    rooms: FLOOR.rooms.map((room) => ({
+      ...room,
+      parts: [
+        ...room.parts,
+        {
+          id: "room-1-part-2",
+          origin: { xMeters: 1.5, zMeters: 1.5 },
+          widthMeters: 2.5,
+          depthMeters: 1.5,
+          rotationRadians: 0,
+          openWalls: [],
+          dividingWalls: ["north" as const, "west" as const],
+        },
+      ],
+    })),
+  };
+  const thickness = DEFAULT_FLOOR.wallThicknessMeters;
+
+  it("lands a piece in the room on the outer face of the closet wall", () => {
+    // Let go 2 cm short of the band.
+    const placed = sofaAt(3, 1.5 - thickness - 0.5 - 0.02);
+
+    expect(
+      snapInstancePosition(CLOSET, [], placed, placed.instance.position),
+    ).toEqual({
+      xMeters: 3,
+      zMeters: expect.closeTo(1.5 - thickness - 0.5, 10),
+    });
+  });
+
+  it("lands a piece in the closet on the section's own edge", () => {
+    const placed = sofaAt(3, 1.5 + 0.5 + 0.02);
+
+    expect(
+      snapInstancePosition(CLOSET, [], placed, placed.instance.position),
+    ).toEqual({ xMeters: 3, zMeters: expect.closeTo(2, 10) });
+  });
+
+  it("never offers the middle of the wall", () => {
+    // Let go with its back edge inside the band: it is pushed out, not in.
+    const placed = sofaAt(3, 1.5 - 0.5 - thickness / 2);
+
+    const landed = snapInstancePosition(
+      CLOSET,
+      [],
+      placed,
+      placed.instance.position,
+    );
+    expect(landed.zMeters).toBeCloseTo(1.5 - thickness - 0.5, 10);
+  });
+});

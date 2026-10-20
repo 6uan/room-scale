@@ -26,7 +26,13 @@ import {
   type FloorPoint,
   type OrientedRect,
 } from "@/domain/geometry";
-import { SNAP_METERS, type Floor } from "@/domain/room";
+import {
+  SNAP_METERS,
+  isWallDividing,
+  wallThicknessMeters,
+  type Floor,
+  type WallSide,
+} from "@/domain/room";
 import type { PlacedFurniture } from "./instance";
 import { footprintRect } from "./instance";
 
@@ -54,15 +60,33 @@ export function snapInstancePosition(
   };
 
   for (const room of floor.rooms) {
+    const thickness = wallThicknessMeters(floor, room);
     for (const part of room.parts) {
       if (part.rotationRadians !== 0) {
         continue;
       }
-      touch(part.origin.xMeters, part.origin.zMeters);
-      touch(
-        part.origin.xMeters + part.widthMeters,
-        part.origin.zMeters + part.depthMeters,
-      );
+      // A dividing wall — a closet's — has a band standing outside the
+      // section's edge. A piece inside the closet lands on the edge; a piece
+      // in the room lands on the band's outer face, and neither is offered
+      // the centre that would put it in the wall.
+      const faces: readonly [WallSide, number, "x" | "z", -1 | 1][] = [
+        ["west", part.origin.xMeters, "x", -1],
+        ["east", part.origin.xMeters + part.widthMeters, "x", 1],
+        ["north", part.origin.zMeters, "z", -1],
+        ["south", part.origin.zMeters + part.depthMeters, "z", 1],
+      ];
+      for (const [wall, face, axis, outward] of faces) {
+        const half = axis === "x" ? halfWidth : halfDepth;
+        const candidates = axis === "x" ? xCandidates : zCandidates;
+        if (isWallDividing(part, wall)) {
+          candidates.push(
+            face - outward * half,
+            face + outward * (thickness + half),
+          );
+        } else {
+          candidates.push(face + half, face - half);
+        }
+      }
     }
   }
 

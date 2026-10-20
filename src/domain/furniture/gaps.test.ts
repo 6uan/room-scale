@@ -155,9 +155,37 @@ describe("wallGaps with a closet section", () => {
     };
     const placed = sofaAt(3, 1);
 
+    // To the band's outer face: the wall stands outside the section's edge.
     const gaps = gapsBySide(closet, placed);
-    expect(gaps.south).toBeCloseTo(0.7, 10);
+    expect(gaps.south).toBeCloseTo(0.7 - DEFAULT_FLOOR.wallThicknessMeters, 10);
     expect(gaps.east).toBeCloseTo(0, 10);
+  });
+
+  it("measures from inside the closet to the section's own edge", () => {
+    const closet = {
+      ...FLOOR,
+      rooms: FLOOR.rooms.map((room) => ({
+        ...room,
+        parts: [
+          ...room.parts,
+          {
+            id: "room-1-part-2",
+            origin: { xMeters: 1.5, zMeters: 1.5 },
+            widthMeters: 2.5,
+            depthMeters: 1.5,
+            rotationRadians: 0,
+            openWalls: [],
+            dividingWalls: ["north" as const, "west" as const],
+          },
+        ],
+      })),
+    };
+    // A sofa standing in the closet, 10 cm off its north wall.
+    const placed = sofaAt(3, 2.1);
+
+    const gaps = gapsBySide(closet, placed);
+    expect(gaps.north).toBeCloseTo(0.1, 10);
+    expect(gaps.west).toBeCloseTo(0.5, 10);
   });
 });
 
