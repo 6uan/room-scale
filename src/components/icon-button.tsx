@@ -24,7 +24,7 @@ export type IconButtonProps = {
   /** Whether the mode this button turns on is currently on. */
   pressed?: boolean;
   tone?: "normal" | "danger";
-  size?: "normal" | "small";
+  size?: "normal" | "small" | "row";
 };
 
 export function IconButton({
@@ -239,12 +239,19 @@ function iconButtonClass({
 }: {
   pressed?: boolean | undefined;
   tone?: "normal" | "danger" | undefined;
-  size?: "normal" | "small" | undefined;
+  size?: "normal" | "small" | "row" | undefined;
 } = {}): string {
   // 28px and 32px rather than 24 and 28. A control you have to aim at is a
   // control that feels fussy, and none of these are so numerous that a few
   // pixels each costs the panel anything it was using.
-  const box = size === "small" ? "size-7 rounded-lg" : "size-8 rounded-lg";
+  // "row" is the one inside a 32px list row: 24px, 4px in on every side, and
+  // a 4px corner inside the row's 8px one so the two curves are concentric.
+  const box =
+    size === "row"
+      ? "size-6 rounded-[4px]"
+      : size === "small"
+        ? "size-7 rounded-lg"
+        : "size-8 rounded-lg";
   const colors = pressed
     ? "bg-black/12 text-current dark:bg-white/20"
     : tone === "danger"
@@ -254,6 +261,6 @@ function iconButtonClass({
   return `inline-flex shrink-0 items-center justify-center transition-colors disabled:cursor-default disabled:opacity-25 disabled:hover:bg-transparent ${box} ${colors}`;
 }
 
-function glyphClass(size: "normal" | "small"): string {
-  return size === "small" ? "size-4" : "size-[18px]";
+function glyphClass(size: "normal" | "small" | "row"): string {
+  return size === "normal" ? "size-[18px]" : "size-4";
 }

@@ -102,6 +102,26 @@ describe("ApartmentLayers room names", () => {
     expect(door).toHaveAttribute("aria-pressed", "false");
   });
 
+  it("folds a room up to its own row, and opens it again", async () => {
+    const user = userEvent.setup();
+    render(<LayersHarness />);
+    const door = screen.getByRole("button", { name: "Door 1" });
+    expect(door).toBeVisible();
+
+    await user.click(
+      screen.getByRole("button", { name: "Collapse Living room" }),
+    );
+
+    // Folded: what was under the room is out of reach, the room itself is not.
+    expect(screen.queryByRole("button", { name: "Door 1" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Living room" })).toBeVisible();
+
+    await user.click(
+      screen.getByRole("button", { name: "Expand Living room" }),
+    );
+    expect(screen.getByRole("button", { name: "Door 1" })).toBeVisible();
+  });
+
   it("does not repeat the only rectangle as Section 1", () => {
     render(<LayersHarness />);
 
