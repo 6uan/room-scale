@@ -766,9 +766,15 @@ export function RoomPlanCanvas({
     fromElsewhere = false,
   ): void {
     const canvas = canvasRef.current;
-    if (!canvas || (!activeRef.current && !fromElsewhere)) {
-      // Not clicked into: the wheel belongs to whatever is behind it, and the
-      // plan stays where it was left.
+    if (!canvas) {
+      return;
+    }
+    const zooming = event.ctrlKey === true || event.metaKey === true;
+    if (!activeRef.current && !fromElsewhere && !zooming) {
+      // Not clicked into: a scroll belongs to whatever is behind it, and the
+      // plan stays where it was left. A zoom is different — a trackpad pinch
+      // over the plan is a zoom of the plan, clicked into or not, and left
+      // to the browser it would zoom the page instead.
       return;
     }
     // The page must not scroll out from under a plan being panned, which means
@@ -850,9 +856,19 @@ export function RoomPlanCanvas({
       );
     };
     window.addEventListener("wheel", anywhere, { passive: false });
+    // Safari reports a trackpad pinch as its own gesture events as well, and
+    // zooms the page on them unless they are cancelled. The wheel event it
+    // also sends, with Ctrl held, is the one that zooms the plan.
+    const swallow = (event: Event) => event.preventDefault();
+    for (const name of ["gesturestart", "gesturechange", "gestureend"]) {
+      window.addEventListener(name, swallow, { passive: false });
+    }
     return () => {
       canvas.removeEventListener("wheel", listener);
       window.removeEventListener("wheel", anywhere);
+      for (const name of ["gesturestart", "gesturechange", "gestureend"]) {
+        window.removeEventListener(name, swallow);
+      }
     };
   }, []);
 
