@@ -482,7 +482,10 @@ function Row({
         />
         <span className="min-w-0 truncate">{label}</span>
       </button>
-      {trailing}
+      {/* Nested inside the row's 8px corner at a 3px inset, so its own corner
+          is 5px: outer radius equals inner radius plus the padding, which is
+          what makes the two curves concentric instead of fighting. */}
+      <span className="contents [&_button]:rounded-[5px]">{trailing}</span>
     </div>
   );
 }
