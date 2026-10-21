@@ -247,6 +247,39 @@ describe("ApartmentLayers pieces", () => {
     expect(onRemove).toHaveBeenCalledWith("i1");
   });
 
+  it("renames a piece in its row, and offers it from the menu", async () => {
+    const user = userEvent.setup();
+    const onRenamePiece = vi.fn();
+    render(
+      <ApartmentLayers
+        floor={projectWithLivingRoom().floor}
+        furniture={[rug, lamp]}
+        selection={null}
+        troubledIds={new Set()}
+        onSelect={() => undefined}
+        onRoomChange={() => undefined}
+        onAddRoom={() => undefined}
+        onRenamePiece={onRenamePiece}
+      />,
+    );
+
+    await user.dblClick(screen.getByRole("button", { name: "Rug" }));
+    const field = screen.getByLabelText("Rename Rug");
+    await user.clear(field);
+    await user.type(field, "Hall rug{Enter}");
+    expect(onRenamePiece).toHaveBeenCalledWith("i1", "Hall rug");
+    // The row is a row again, and nothing else was renamed.
+    expect(screen.getByRole("button", { name: "Rug" })).toBeVisible();
+
+    const row = screen.getByRole("button", { name: "Lamp" }).closest("li");
+    if (row === null) {
+      throw new Error("the lamp has a row");
+    }
+    fireEvent.contextMenu(row, { clientX: 40, clientY: 40 });
+    await user.click(screen.getByRole("menuitem", { name: "Rename" }));
+    expect(screen.getByLabelText("Rename Lamp")).toHaveFocus();
+  });
+
   it("reorders by dragging one row onto another", () => {
     const onReorder = vi.fn();
     renderPieces([rug, lamp], { onReorder });

@@ -687,6 +687,42 @@ describe("readStoredProject", () => {
     ]);
   });
 
+  it("keeps a piece's own name through the round trip", () => {
+    const stored = toStoredProject(
+      "current",
+      {
+        ...projectWithLivingRoom(),
+        layouts: [
+          {
+            id: "layout-1",
+            name: "Layout 1",
+            instances: [
+              {
+                id: "i1",
+                productId: "p1",
+                position: { xMeters: 1, zMeters: 1 },
+                rotationRadians: 0,
+                name: "Left nightstand",
+              },
+            ],
+          },
+        ],
+      },
+      1,
+    );
+    const result = readStoredProject(stored);
+
+    expect(result.ok && result.project.layouts[0]?.instances[0]?.name).toBe(
+      "Left nightstand",
+    );
+  });
+
+  it("reads a version 20 piece, which had no name, as one without", () => {
+    const result = readStoredProject({ ...STORED, version: 20 });
+
+    expect(result.ok).toBe(true);
+  });
+
   it("reads a version 19 layout, which had no groups, as one with none", () => {
     const result = readStoredProject({ ...STORED, version: 19 });
 

@@ -269,7 +269,7 @@ type TextFieldProps = {
   action?: React.ReactNode;
 };
 
-function TextField({
+export function TextField({
   label,
   value,
   problem,

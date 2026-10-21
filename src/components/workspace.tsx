@@ -29,14 +29,15 @@ import { pressIs } from "@/components/shortcuts";
 import {
   countPlaced,
   createInstance,
+  type FurnitureInstance,
+  type FurnitureProduct,
   placedFurniture,
   placedNames,
   placementFor,
+  shownFurniture,
   withInstance,
   withInstanceHidden,
-  shownFurniture,
-  type FurnitureInstance,
-  type FurnitureProduct,
+  withInstanceName,
 } from "@/domain/furniture";
 import type { FloorPoint } from "@/domain/geometry";
 import {
@@ -742,6 +743,14 @@ export function Workspace() {
                 gesture,
               );
               endGesture();
+            }}
+            onRenamePiece={(id, name) => {
+              const instance = instances.find((one) => one.id === id);
+              if (instance !== undefined) {
+                setInstances(
+                  withInstance(instances, withInstanceName(instance, name)),
+                );
+              }
             }}
             onAddToGroup={(groupId, id) =>
               setGroups(withPieceMoved(groups, id, { groupId }))

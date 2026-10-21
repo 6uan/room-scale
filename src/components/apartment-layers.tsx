@@ -59,6 +59,8 @@ export type ApartmentLayersProps = {
   /** Puts a piece into a group, by a drop on the group's row. */
   onAddToGroup?: ((groupId: string, instanceId: string) => void) | undefined;
   onRenameGroup?: ((groupId: string, name: string) => void) | undefined;
+  /** Gives one piece a name of its own; blank hands it back the product's. */
+  onRenamePiece?: ((instanceId: string, name: string) => void) | undefined;
 };
 
 /**
@@ -116,6 +118,7 @@ export function ApartmentLayers({
   onUngroup,
   onAddToGroup,
   onRenameGroup,
+  onRenamePiece,
 }: ApartmentLayersProps) {
   const names = placedNames(furniture);
   const scroll = useScrollFade();
@@ -145,6 +148,8 @@ export function ApartmentLayers({
   >(null);
   /** A group whose name is being typed. */
   const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
+  /** A piece whose name is being typed. */
+  const [renamingPieceId, setRenamingPieceId] = useState<string | null>(null);
   /** The last piece picked on its own: where a Shift range starts from. */
   const anchor = useRef<string | null>(null);
 
@@ -284,6 +289,24 @@ export function ApartmentLayers({
           dimmed={hidden}
           selected={isSelected(selection, "instance", id)}
           onSelect={(event) => choosePiece(id, event)}
+          onDoubleClick={
+            onRenamePiece === undefined
+              ? undefined
+              : () => setRenamingPieceId(id)
+          }
+          title={
+            onRenamePiece === undefined ? undefined : "Double-click to rename"
+          }
+          editor={
+            renamingPieceId === id ? (
+              <RenameField
+                name={name}
+                label={`Rename ${name}`}
+                onApply={(next) => onRenamePiece?.(id, next)}
+                onDone={() => setRenamingPieceId(null)}
+              />
+            ) : undefined
+          }
           trailing={
             onToggleHidden === undefined ? null : (
               /* A flex box, not an inline span: inline, it would take the
@@ -555,6 +578,14 @@ export function ApartmentLayers({
                   ]
                 : [];
             })(),
+            ...(onRenamePiece === undefined
+              ? []
+              : [
+                  {
+                    label: "Rename",
+                    onSelect: () => setRenamingPieceId(menu.placed.instance.id),
+                  },
+                ]),
             {
               label: "Edit product",
               onSelect: () =>
@@ -653,31 +684,7 @@ function EditableRow({
     setOwnEditing(next);
     onEditingChange?.(next);
   };
-  /** What has been typed so far; null until a letter is, so the name shows. */
-  const [typed, setTyped] = useState<string | null>(null);
-  const draft = typed ?? name;
-  const inputRef = useRef<HTMLInputElement>(null);
   const shown = name === "" ? placeholder : name;
-
-  useEffect(() => {
-    if (editing) {
-      const input = inputRef.current;
-      input?.focus();
-      input?.setSelectionRange(input.value.length, input.value.length);
-    }
-  }, [editing]);
-
-  function finish(): void {
-    setTyped(null);
-    setEditing(false);
-  }
-
-  function applyRename(): void {
-    if (draft !== name) {
-      onRename?.(draft);
-    }
-    finish();
-  }
 
   return (
     <Row
@@ -693,25 +700,11 @@ function EditableRow({
       title={onRename === undefined ? undefined : "Double-click to rename"}
       editor={
         editing ? (
-          // The field takes the label's place and nothing else moves: the
-          // icon, the indent, and the chevron stay exactly where they were.
-          <input
-            ref={inputRef}
-            type="text"
-            value={draft}
-            aria-label={`Rename ${name === "" ? placeholder.toLowerCase() : name}`}
-            onChange={(event) => setTyped(event.target.value)}
-            onBlur={applyRename}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                applyRename();
-              } else if (event.key === "Escape") {
-                event.preventDefault();
-                finish();
-              }
-            }}
-            className="min-w-0 flex-1 cursor-text bg-transparent font-medium outline-none caret-current"
+          <RenameField
+            name={name}
+            label={`Rename ${name === "" ? placeholder.toLowerCase() : name}`}
+            onApply={(next) => onRename?.(next)}
+            onDone={() => setEditing(false)}
           />
         ) : undefined
       }
@@ -723,6 +716,62 @@ function EditableRow({
           onClick={onToggleFolded}
         />
       }
+    />
+  );
+}
+
+/**
+ * The field a name is typed into, in the label's place: nothing else in the
+ * row moves. Enter or leaving the field applies the name, if it changed;
+ * Escape leaves it alone. Either way the field is done.
+ */
+function RenameField({
+  name,
+  label,
+  onApply,
+  onDone,
+}: {
+  name: string;
+  label: string;
+  onApply: (name: string) => void;
+  onDone: () => void;
+}) {
+  /** What has been typed so far; null until a letter is, so the name shows. */
+  const [typed, setTyped] = useState<string | null>(null);
+  const draft = typed ?? name;
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const input = inputRef.current;
+    input?.focus();
+    input?.setSelectionRange(input.value.length, input.value.length);
+  }, []);
+
+  function apply(): void {
+    if (draft.trim() !== name) {
+      onApply(draft.trim());
+    }
+    onDone();
+  }
+
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      value={draft}
+      aria-label={label}
+      onChange={(event) => setTyped(event.target.value)}
+      onBlur={apply}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          apply();
+        } else if (event.key === "Escape") {
+          event.preventDefault();
+          onDone();
+        }
+      }}
+      className="min-w-0 flex-1 cursor-text bg-transparent font-medium outline-none caret-current"
     />
   );
 }

@@ -51,8 +51,10 @@ import { FIRST_PROJECT_NAME, type Project } from "@/domain/project";
  *     becomes wanted; "ordered" becomes owned, because the money has gone.
  * 20. A layout may hold groups of pieces. Absent is none, which is what every
  *     existing layout has, so there is nothing to rewrite.
+ * 21. A placed piece may have a name of its own. Absent is the product's,
+ *     which is what every existing piece is called.
  */
-export const SCHEMA_VERSION = 20;
+export const SCHEMA_VERSION = 21;
 
 /** Meters, cents, and the rest are all plain finite numbers on the way in. */
 const finiteNumber = z
@@ -171,6 +173,7 @@ const instanceSchema = z.object({
   position: z.object({ xMeters: finiteNumber, zMeters: finiteNumber }),
   rotationRadians: finiteNumber,
   hidden: z.boolean().optional(),
+  name: z.string().optional(),
 });
 
 const groupSchema = z.object({
@@ -603,6 +606,8 @@ const MIGRATIONS: Record<number, (document: object) => object> = {
   },
   // Version 20 let a layout hold groups. Nothing stored had any.
   19: (document) => ({ ...document, version: 20 }),
+  // Version 21 let a piece carry its own name. Nothing stored had one.
+  20: (document) => ({ ...document, version: 21 }),
 };
 
 /**

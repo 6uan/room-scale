@@ -14,6 +14,7 @@ import {
   placementFor,
   turnInstance,
   withInstance,
+  withInstanceName,
 } from "./instance";
 import type { FurnitureProduct } from "./product";
 
@@ -289,5 +290,27 @@ describe("placedNames", () => {
     ]);
 
     expect(names).toEqual(["Pillow 1", "Rug", "Pillow 2"]);
+  });
+
+  it("calls a piece by its own name, and numbers only the rest", () => {
+    const left = piece("i1", "stand", 'Cielden 21" 1 Drawer Nightstand');
+    const names = placedNames([
+      { ...left, instance: withInstanceName(left.instance, "Left nightstand") },
+      piece("i2", "stand", 'Cielden 21" 1 Drawer Nightstand'),
+    ]);
+
+    expect(names).toEqual([
+      "Left nightstand",
+      'Cielden 21" 1 Drawer Nightstand',
+    ]);
+  });
+
+  it("drops a name that is blank, back to the product's", () => {
+    const named = withInstanceName(
+      createInstance("i1", "rug", { xMeters: 1, zMeters: 1 }),
+      "Hall rug",
+    );
+    expect(named.name).toBe("Hall rug");
+    expect(withInstanceName(named, "   ")).not.toHaveProperty("name");
   });
 });
