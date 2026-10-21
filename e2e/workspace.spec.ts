@@ -988,7 +988,6 @@ test.describe("more than one project", () => {
     )
       .getByRole("button", { name: "New project" })
       .click();
-    page.on("dialog", (dialog) => void dialog.accept());
 
     await (
       await openProjects(page)
@@ -996,14 +995,46 @@ test.describe("more than one project", () => {
       .getByRole("button", { name: "Delete Project 2" })
       .click();
 
+    // No question first: the way back is the Undo on the message instead.
     await expect(page.getByRole("button", { name: "Projects" })).toContainText(
       "Project 1",
     );
     await expect(contents(page).getByText("Living room")).toBeVisible();
+    await expect(page.getByRole("status")).toContainText("Deleted Project 2");
     const table = await openProjects(page);
     await expect(table.getByRole("button", { name: /^Project 2/ })).toHaveCount(
       0,
     );
+    await page.keyboard.press("Escape");
+
+    // Once the message has gone, so has the project: a reload does not
+    // bring it back.
+    await expect(page.getByRole("status")).toBeHidden({ timeout: 8000 });
+    await page.reload();
+    await expect(
+      (await openProjects(page)).getByRole("button", { name: /^Project 2/ }),
+    ).toHaveCount(0);
+  });
+
+  test("brings a deleted project back with Undo", async ({ page }) => {
+    await openWithLivingRoom(page);
+    await (
+      await openProjects(page)
+    )
+      .getByRole("button", { name: "New project" })
+      .click();
+    await (
+      await openProjects(page)
+    )
+      .getByRole("button", { name: "Delete Project 2" })
+      .click();
+
+    await page.getByRole("button", { name: "Undo deleting Project 2" }).click();
+
+    await expect(page.getByRole("status")).toBeHidden();
+    await expect(
+      (await openProjects(page)).getByRole("button", { name: /^Project 2/ }),
+    ).toHaveCount(1);
   });
 });
 

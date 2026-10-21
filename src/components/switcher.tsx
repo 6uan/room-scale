@@ -162,7 +162,10 @@ export function Switcher({
                           setOpen(false);
                         }
                   }
-                  onRemove={() => onRemove(item)}
+                  onRemove={() => {
+                    onRemove(item);
+                    setOpen(false);
+                  }}
                 />
               </li>
             ))}
