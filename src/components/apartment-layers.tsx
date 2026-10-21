@@ -64,6 +64,9 @@ export type ApartmentLayersProps = {
   groups?: readonly PieceGroup[];
   onGroup?: (instanceIds: readonly string[]) => void;
   onUngroup?: ((groupId: string) => void) | undefined;
+  /** Puts a whole group where a piece is in the order, by a drag of its row. */
+  onReorderGroup?:
+    ((groupId: string, beforeInstanceId: string) => void) | undefined;
   /** Puts a piece into a group, by a drop on the group's row. */
   onAddToGroup?: ((groupId: string, instanceId: string) => void) | undefined;
   onRenameGroup?: ((groupId: string, name: string) => void) | undefined;
@@ -81,6 +84,8 @@ const DROP_LINE =
 
 /** The drag type a list row carries, so a product drag is not mistaken for it. */
 const LAYER_DRAG_TYPE = "application/x-roomscale-layer";
+/** The drag type a group row carries: the whole group moves in the order. */
+const GROUP_DRAG_TYPE = "application/x-roomscale-group";
 
 const NO_GROUPS: readonly PieceGroup[] = [];
 
@@ -125,6 +130,7 @@ export function ApartmentLayers({
   onGroup,
   onUngroup,
   onAddToGroup,
+  onReorderGroup,
   onRenameGroup,
   onRenamePiece,
 }: ApartmentLayersProps) {
@@ -264,7 +270,11 @@ export function ApartmentLayers({
           event.dataTransfer.effectAllowed = "move";
         }}
         onDragOver={(event: DragEvent<HTMLLIElement>) => {
-          if (event.dataTransfer.types.includes(LAYER_DRAG_TYPE)) {
+          const types = event.dataTransfer.types;
+          if (
+            types.includes(LAYER_DRAG_TYPE) ||
+            (onReorderGroup !== undefined && types.includes(GROUP_DRAG_TYPE))
+          ) {
             event.preventDefault();
             setOver(id);
           }
@@ -283,8 +293,12 @@ export function ApartmentLayers({
         }}
         onDrop={(event: DragEvent<HTMLLIElement>) => {
           const from = event.dataTransfer.getData(LAYER_DRAG_TYPE);
+          const group = event.dataTransfer.getData(GROUP_DRAG_TYPE);
           setOver(null);
-          if (from !== "" && from !== id) {
+          if (group !== "" && !(groupOf(groups, id)?.id === group)) {
+            event.preventDefault();
+            onReorderGroup?.(group, id);
+          } else if (from !== "" && from !== id) {
             event.preventDefault();
             onReorder?.(from, id);
           }
@@ -363,26 +377,46 @@ export function ApartmentLayers({
             rows under it are drop targets of their own, so this takes only
             what is dropped on the row itself. */}
         <div
+          draggable={onReorderGroup !== undefined}
+          onDragStart={(event: DragEvent<HTMLDivElement>) => {
+            event.dataTransfer.setData(GROUP_DRAG_TYPE, group.id);
+            event.dataTransfer.effectAllowed = "move";
+          }}
           onDragOver={(event: DragEvent<HTMLDivElement>) => {
-            if (
-              onAddToGroup !== undefined &&
-              event.dataTransfer.types.includes(LAYER_DRAG_TYPE)
-            ) {
+            const types = event.dataTransfer.types;
+            if (onAddToGroup !== undefined && types.includes(LAYER_DRAG_TYPE)) {
               event.preventDefault();
               setOver(`group:${group.id}`);
+            } else if (
+              onReorderGroup !== undefined &&
+              types.includes(GROUP_DRAG_TYPE)
+            ) {
+              // Another group held over this one lands above it.
+              event.preventDefault();
+              setOver(`before:${group.id}`);
             }
           }}
           onDragLeave={() =>
-            setOver((was) => (was === `group:${group.id}` ? null : was))
+            setOver((was) =>
+              was === `group:${group.id}` || was === `before:${group.id}`
+                ? null
+                : was,
+            )
           }
           onDrop={(event: DragEvent<HTMLDivElement>) => {
             const from = event.dataTransfer.getData(LAYER_DRAG_TYPE);
+            const other = event.dataTransfer.getData(GROUP_DRAG_TYPE);
+            const [first] = group.instanceIds;
             setOver(null);
-            if (from !== "" && !group.instanceIds.includes(from)) {
+            if (other !== "" && other !== group.id && first !== undefined) {
+              event.preventDefault();
+              onReorderGroup?.(other, first);
+            } else if (from !== "" && !group.instanceIds.includes(from)) {
               event.preventDefault();
               onAddToGroup?.(group.id, from);
             }
           }}
+          className={over === `before:${group.id}` ? DROP_LINE : ""}
         >
           <EditableRow
             name={group.name}

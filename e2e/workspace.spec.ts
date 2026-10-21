@@ -2371,6 +2371,41 @@ test.describe("groups in the list", () => {
     await groupHolds("3");
   });
 
+  test("drags a group above a loose piece", async ({ page }) => {
+    await openWithLivingRoom(page);
+    await addProduct(page, { name: "Lamp", width: "12", depth: "12" });
+    await placeFromList(page, "Lamp");
+    await placeFromList(page, "Lamp", 60);
+    await placeFromList(page, "Lamp", 120);
+    const row = (name: string) =>
+      contents(page).getByRole("button", { name, exact: true });
+    // The second and third lamps, so the group starts under the first.
+    await row("Lamp 2").click();
+    await row("Lamp 3").click({ modifiers: ["Shift"] });
+    await row("Lamp 2").click({ button: "right" });
+    await page.getByRole("menuitem", { name: "Group 2 pieces" }).click();
+    /** The rows in the order they are drawn. */
+    const order = () =>
+      contents(page)
+        .getByRole("button")
+        .evaluateAll((buttons) =>
+          buttons
+            .map((one) => one.textContent ?? "")
+            .filter((text) => text !== ""),
+        );
+    const before = await order();
+    expect(before.indexOf("Lamp 1")).toBeLessThan(before.indexOf("Group 1"));
+
+    // Dropped on the first lamp's row, the whole group lands above it.
+    await row("Group 1").dragTo(row("Lamp 1"));
+    await expect
+      .poll(async () => {
+        const after = await order();
+        return after.indexOf("Group 1") < after.indexOf("Lamp 1");
+      })
+      .toBe(true);
+  });
+
   test("adds to the selection with the command key", async ({ page }) => {
     await openWithLivingRoom(page);
     await addProduct(page, { name: "Lamp", width: "12", depth: "12" });

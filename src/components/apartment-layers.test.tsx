@@ -479,6 +479,45 @@ describe("ApartmentLayers groups", () => {
     );
   });
 
+  it("moves a whole group by dragging its row onto a piece's", () => {
+    const onReorderGroup = vi.fn();
+    render(
+      <ApartmentLayers
+        floor={projectWithLivingRoom().floor}
+        furniture={furniture}
+        selection={null}
+        troubledIds={new Set()}
+        onSelect={() => undefined}
+        onRoomChange={() => undefined}
+        onAddRoom={() => undefined}
+        onReorder={() => undefined}
+        groups={[{ id: "g1", name: "Group 1", instanceIds: ["i1", "i2"] }]}
+        onReorderGroup={onReorderGroup}
+      />,
+    );
+    const groupButton = screen.getByRole("button", { name: "Group 1" });
+    const rugRow = screen.getByRole("button", { name: "Rug" }).closest("li");
+    if (rugRow === null) {
+      throw new Error("the rug has a row");
+    }
+    const data = new Map<string, string>();
+    const dataTransfer = {
+      setData: (type: string, value: string) => data.set(type, value),
+      getData: (type: string) => data.get(type) ?? "",
+      get types() {
+        return [...data.keys()];
+      },
+      effectAllowed: "move",
+    };
+
+    fireEvent.dragStart(groupButton, { dataTransfer });
+    fireEvent.dragOver(rugRow, { dataTransfer });
+    expect(rugRow.className).toContain("before:");
+    fireEvent.drop(rugRow, { dataTransfer });
+
+    expect(onReorderGroup).toHaveBeenCalledWith("g1", "i3");
+  });
+
   it("folds a group, renames it, and ungroups it", async () => {
     const user = userEvent.setup();
     const onRenameGroup = vi.fn();

@@ -752,6 +752,25 @@ export function Workspace() {
                 );
               }
             }}
+            onReorderGroup={(groupId, beforeId) => {
+              const group = groups.find((one) => one.id === groupId);
+              if (group === undefined || group.instanceIds.includes(beforeId)) {
+                return;
+              }
+              const moving = group.instanceIds.flatMap((id) => {
+                const one = instances.find((candidate) => candidate.id === id);
+                return one === undefined ? [] : [one];
+              });
+              const rest = instances.filter(
+                (one) => !group.instanceIds.includes(one.id),
+              );
+              const at = rest.findIndex((one) => one.id === beforeId);
+              setInstances(
+                at === -1
+                  ? [...rest, ...moving]
+                  : [...rest.slice(0, at), ...moving, ...rest.slice(at)],
+              );
+            }}
             onAddToGroup={(groupId, id) =>
               setGroups(withPieceMoved(groups, id, { groupId }))
             }
