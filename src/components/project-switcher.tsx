@@ -122,14 +122,16 @@ export function ProjectSwitcher() {
       {pending === null ? null : (
         <div
           role="status"
-          className="fixed bottom-16 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-full bg-black/70 py-1.5 pr-1.5 pl-4 text-[13px] text-white dark:bg-white/15"
+          // Up by the bar the deletion came from, and red: a thing was just
+          // removed, and the way back is here for a few seconds only.
+          className="fixed top-16 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-full bg-red-600 py-1.5 pr-1.5 pl-4 text-[13px] text-white shadow-lg"
         >
           <span>Deleted {pending.name}</span>
           <button
             type="button"
             aria-label={`Undo deleting ${pending.name}`}
             onClick={undoRemove}
-            className="rounded-full bg-white/15 px-3 py-1 font-medium hover:bg-white/25"
+            className="rounded-full bg-white/20 px-3 py-1 font-medium hover:bg-white/30"
           >
             Undo
           </button>
