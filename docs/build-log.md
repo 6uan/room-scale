@@ -378,8 +378,11 @@ project" row at the bottom, where an arrangement is only ever copied. The
 stored document goes to version 15 to carry the name; the project that was
 there becomes "Project 1".
 
-Not carried out of this: the list is read from storage when the menu opens
-rather than kept live, and deleting a project is not undoable — it asks first.
+Not carried out of this at the time: the list was read from storage when the
+menu opened rather than kept live, and deleting a project was not undoable —
+it asked first. Both came later: the deletion got its undo window (#86), and
+the list became a Dexie live query over the projects table (#61), which
+follows a write from another tab as readily as one from this one.
 
 ### 14. Take the data elsewhere ✅
 

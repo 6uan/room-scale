@@ -25,8 +25,6 @@ export type SwitcherProps = {
   /** Offered as the last row, when starting from nothing is a thing to do. */
   onCreate?: () => void;
   createLabel?: string;
-  /** Called when the list opens, for a list that has to be fetched. */
-  onOpen?: () => void;
 };
 
 /**
@@ -71,7 +69,6 @@ export function Switcher({
   onRemove,
   onCreate,
   createLabel,
-  onOpen,
 }: SwitcherProps) {
   const active = items.find((item) => item.id === activeId) ?? items[0];
   const [open, setOpen] = useState(false);
@@ -116,9 +113,6 @@ export function Switcher({
         aria-label={label}
         onClick={() => {
           setRenaming(null);
-          if (!open) {
-            onOpen?.();
-          }
           setOpen((was) => !was);
         }}
         className={`flex h-8 min-w-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium transition-colors hover:bg-black/[0.06] dark:hover:bg-white/10 ${
