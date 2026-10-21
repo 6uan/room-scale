@@ -40,18 +40,25 @@ import {
 } from "@/domain/furniture";
 import type { FloorPoint } from "@/domain/geometry";
 import {
+  type Layout,
+  type PieceGroup,
   activeInstances,
+  activeLayout,
   buildChecklist,
   createLayout,
   createUnderlay,
   duplicateLayout,
+  groupOf,
   nextId,
   nextLayoutName,
   renameLayout,
+  withGroup,
+  withGroupName,
   withLayoutInstances,
-  withProducts,
   withLayouts,
-  type Layout,
+  withPieceMoved,
+  withProducts,
+  withoutGroup,
 } from "@/domain/project";
 import { readPlanImage } from "@/components/underlay-image";
 import {
@@ -93,6 +100,8 @@ const DEFAULT_SECTION_METERS = metersFromInches(48);
  * ask it. Selecting is the spine: press a name on the left or a piece on the
  * plan, and the right-hand panel becomes that thing's editor.
  */
+const NO_GROUPS: readonly PieceGroup[] = [];
+
 export function Workspace() {
   const floor = useProjectStore((state) => state.project.floor);
   const underlay = useProjectStore((state) => state.project.underlay);
@@ -104,6 +113,11 @@ export function Workspace() {
   const setUnit = useProjectStore((state) => state.setDisplayUnit);
   const setProducts = useProjectStore((state) => state.setProducts);
   const setInstances = useProjectStore((state) => state.setInstances);
+  const storedGroups = useProjectStore(
+    (state) => activeLayout(state.project).groups,
+  );
+  const groups = storedGroups ?? NO_GROUPS;
+  const setGroups = useProjectStore((state) => state.setGroups);
   const layouts = useProjectStore((state) => state.project.layouts);
   const activeLayoutId = useProjectStore(
     (state) => state.project.activeLayoutId,
@@ -673,6 +687,19 @@ export function Workspace() {
               setDrawingRoom((on) => !on);
             }}
             drawingRoom={drawingRoom}
+            groups={groups}
+            onGroup={(ids) => {
+              const id = nextId(
+                "group",
+                groups.map((one) => one.id),
+              );
+              setGroups(withGroup(groups, id, ids));
+              setSelection(groupSelection(ids, []));
+            }}
+            onUngroup={(id) => setGroups(withoutGroup(groups, id))}
+            onRenameGroup={(id, name) =>
+              setGroups(withGroupName(groups, id, name))
+            }
             onToggleHidden={(id) => {
               const instance = instances.find((one) => one.id === id);
               if (instance !== undefined) {
@@ -695,12 +722,30 @@ export function Workspace() {
               }
               const rest = instances.filter((one) => one.id !== id);
               const at = rest.findIndex((one) => one.id === beforeId);
+              // One drag, one undo: the order and the group change together.
+              const gesture = `reorder:${id}`;
               setInstances(
                 at === -1
                   ? [...rest, moving]
                   : [...rest.slice(0, at), moving, ...rest.slice(at)],
+                gesture,
               );
+              const landedIn = groupOf(groups, beforeId);
+              setGroups(
+                withPieceMoved(
+                  groups,
+                  id,
+                  landedIn === undefined
+                    ? null
+                    : { groupId: landedIn.id, beforeInstanceId: beforeId },
+                ),
+                gesture,
+              );
+              endGesture();
             }}
+            onAddToGroup={(groupId, id) =>
+              setGroups(withPieceMoved(groups, id, { groupId }))
+            }
           />
           <CataloguePanel
             products={products}
@@ -744,6 +789,7 @@ export function Workspace() {
               selectedIds={selectedInstanceIds(selection)}
               troubledIds={troubledIds}
               groupRoomIds={groupedRoomIds(selection)}
+              groups={groups}
               onSelect={(instanceIds, roomIds) =>
                 setSelection(groupSelection(instanceIds, roomIds))
               }

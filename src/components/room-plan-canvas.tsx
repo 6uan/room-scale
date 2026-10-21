@@ -118,6 +118,8 @@ import {
   type DisplayUnit,
 } from "@/domain/units";
 import {
+  groupOf,
+  type PieceGroup,
   resizedUnderlay,
   underlayCorners,
   underlayExtentMeters,
@@ -234,6 +236,8 @@ export type RoomPlanCanvasProps = {
   troubledIds: ReadonlySet<string>;
   /** The rooms in a group, drawn as selected and dragged with it. */
   groupRoomIds?: readonly string[];
+  /** Pieces kept together: grabbing one picks up all of them. */
+  groups?: readonly PieceGroup[];
   onSelect: (
     instanceIds: readonly string[],
     roomIds: readonly string[],
@@ -449,6 +453,8 @@ type Drag =
  * through the plan projection into meters and the question is answered against
  * the floor — the same footprints validation measures.
  */
+const NO_GROUPS: readonly PieceGroup[] = [];
+
 export function RoomPlanCanvas({
   floor,
   furniture,
@@ -459,6 +465,7 @@ export function RoomPlanCanvas({
   onInstanceChange,
   onInstancesChange,
   groupRoomIds = [],
+  groups = NO_GROUPS,
   onRoomsChange,
   onDropProduct,
   selectedRoomId = null,
@@ -1088,6 +1095,7 @@ export function RoomPlanCanvas({
     /** Begins moving everything selected, led by what was grabbed. */
     const startGroupDrag = (
       leader: Extract<Drag, { kind: "group" }>["leader"],
+      instanceIds: readonly string[] = selectedIds,
     ) => {
       dragRef.current = {
         kind: "group",
@@ -1097,7 +1105,7 @@ export function RoomPlanCanvas({
         leader,
         instanceOrigins: new Map(
           furniture
-            .filter(({ instance }) => selectedIds.includes(instance.id))
+            .filter(({ instance }) => instanceIds.includes(instance.id))
             .map(({ instance }) => [instance.id, instance.position]),
         ),
         roomOrigins: new Map(
@@ -1120,6 +1128,18 @@ export function RoomPlanCanvas({
       selectedIds.includes(hit.instance.id)
     ) {
       startGroupDrag({ kind: "instance", id: hit.instance.id });
+      return;
+    }
+    // A piece kept in a group is grabbed as the group, the first time and
+    // every time: the whole point of the group is that the rug comes with
+    // the sofa. The list is where one of them is picked out on its own.
+    const kept = hit === null ? undefined : groupOf(groups, hit.instance.id);
+    if (hit !== null && kept !== undefined && kept.instanceIds.length > 1) {
+      onSelect(kept.instanceIds, []);
+      startGroupDrag(
+        { kind: "instance", id: hit.instance.id },
+        kept.instanceIds,
+      );
       return;
     }
     if (

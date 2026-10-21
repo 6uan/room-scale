@@ -49,8 +49,10 @@ import { FIRST_PROJECT_NAME, type Project } from "@/domain/project";
  *     existing piece is, so there is nothing to rewrite.
  * 19. A product is wanted or owned, and nothing in between. "Considering"
  *     becomes wanted; "ordered" becomes owned, because the money has gone.
+ * 20. A layout may hold groups of pieces. Absent is none, which is what every
+ *     existing layout has, so there is nothing to rewrite.
  */
-export const SCHEMA_VERSION = 19;
+export const SCHEMA_VERSION = 20;
 
 /** Meters, cents, and the rest are all plain finite numbers on the way in. */
 const finiteNumber = z
@@ -171,10 +173,17 @@ const instanceSchema = z.object({
   hidden: z.boolean().optional(),
 });
 
+const groupSchema = z.object({
+  id: z.string().min(1),
+  name: z.string(),
+  instanceIds: z.array(z.string().min(1)).min(1),
+});
+
 const layoutSchema = z.object({
   id: z.string().min(1),
   name: z.string(),
   instances: z.array(instanceSchema),
+  groups: z.array(groupSchema).optional(),
 });
 
 const underlaySchema = z.object({
@@ -592,6 +601,8 @@ const MIGRATIONS: Record<number, (document: object) => object> = {
       },
     };
   },
+  // Version 20 let a layout hold groups. Nothing stored had any.
+  19: (document) => ({ ...document, version: 20 }),
 };
 
 /**

@@ -39,8 +39,17 @@ export function ProjectGate({ children }: { children: ReactNode }) {
   const status = useProjectStore((state) => state.status);
   const adopt = useProjectStore((state) => state.adopt);
   const setStatus = useProjectStore((state) => state.setStatus);
-  // Effects run twice in development's strict mode; the load must not.
-  const loadStarted = useRef(false);
+  /**
+   * The store this gate has loaded into, by its `adopt` function.
+   *
+   * Effects run twice in development's strict mode, and the load must not.
+   * A plain boolean would do for that, but a hot reload of the store module
+   * creates a fresh store, still "loading", while this component keeps its
+   * refs — and a boolean would then refuse to load it, leaving the opening
+   * screen up until a manual refresh. Remembering *which* store was loaded
+   * tells the two cases apart.
+   */
+  const loadedInto = useRef<typeof adopt | null>(null);
   /**
    * When the project on screen was written to storage, by anybody. A save
    * is refused if the row is newer than this: another tab got there first.
@@ -50,10 +59,10 @@ export function ProjectGate({ children }: { children: ReactNode }) {
   const syncing = useRef(false);
 
   useEffect(() => {
-    if (loadStarted.current) {
+    if (loadedInto.current === adopt) {
       return;
     }
-    loadStarted.current = true;
+    loadedInto.current = adopt;
 
     void (async () => {
       try {

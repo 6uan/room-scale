@@ -2226,3 +2226,108 @@ test.describe("laying the apartment out", () => {
     await expect(room.getByLabel("Living room height")).toHaveValue("96");
   });
 });
+
+test.describe("groups in the list", () => {
+  test("groups a range of pieces, picks them up as one, and ungroups", async ({
+    page,
+  }) => {
+    await openWithLivingRoom(page);
+    await addProduct(page, { name: "Lamp", width: "12", depth: "12" });
+    await placeFromList(page, "Lamp");
+    await placeFromList(page, "Lamp", 60);
+    await placeFromList(page, "Lamp", 120);
+    const row = (name: string) =>
+      contents(page).getByRole("button", { name, exact: true });
+
+    // Shift picks the range from the first lamp to the third.
+    await row("Lamp 1").click();
+    await row("Lamp 3").click({ modifiers: ["Shift"] });
+    await expect(row("Lamp 2")).toHaveAttribute("aria-pressed", "true");
+
+    await row("Lamp 2").click({ button: "right" });
+    await page.getByRole("menuitem", { name: "Group 3 pieces" }).click();
+
+    // The group is a row of its own, and it is what is now selected.
+    const group = row("Group 1");
+    await expect(group).toHaveAttribute("aria-pressed", "true");
+    await expect(details(page).getByText("3 pieces")).toBeVisible();
+
+    // One piece on its own, then the group again by its row.
+    await row("Lamp 1").click();
+    await expect(group).toHaveAttribute("aria-pressed", "false");
+    await group.click();
+    await expect(row("Lamp 3")).toHaveAttribute("aria-pressed", "true");
+
+    // Renamed in place, like a room.
+    await group.dblclick();
+    await contents(page).getByLabel("Rename Group 1").fill("Lamps");
+    await page.keyboard.press("Enter");
+    await expect(row("Lamps")).toBeVisible();
+
+    // Folded up to its row, and opened again.
+    await contents(page)
+      .getByRole("button", { name: "Collapse Lamps" })
+      .click();
+    await expect(row("Lamp 2")).toBeHidden();
+    await contents(page).getByRole("button", { name: "Expand Lamps" }).click();
+    await expect(row("Lamp 2")).toBeVisible();
+
+    // The group survives a reload: it is part of the layout.
+    await page.waitForTimeout(500);
+    await page.reload();
+    await expect(row("Lamps")).toBeVisible();
+
+    await row("Lamps").click({ button: "right" });
+    await page.getByRole("menuitem", { name: "Ungroup" }).click();
+    await expect(row("Lamps")).toBeHidden();
+    await expect(row("Lamp 2")).toBeVisible();
+  });
+
+  test("drags a piece into a group, and out of it again", async ({ page }) => {
+    await openWithLivingRoom(page);
+    await addProduct(page, { name: "Lamp", width: "12", depth: "12" });
+    await placeFromList(page, "Lamp");
+    await placeFromList(page, "Lamp", 60);
+    await placeFromList(page, "Lamp", 120);
+    const row = (name: string) =>
+      contents(page).getByRole("button", { name, exact: true });
+    await row("Lamp 1").click();
+    await row("Lamp 2").click({ modifiers: ["Shift"] });
+    await row("Lamp 1").click({ button: "right" });
+    await page.getByRole("menuitem", { name: "Group 2 pieces" }).click();
+    /** How many the group holds, read off the inspector when it is picked. */
+    const groupHolds = async (count: string) => {
+      await row("Group 1").click();
+      await expect(details(page).getByText(`${count} pieces`)).toBeVisible();
+    };
+
+    // Dropped on the group's row: in, at the end.
+    await row("Lamp 3").dragTo(row("Group 1"));
+    await groupHolds("3");
+
+    // Dropped among the loose pieces, it has left. Undo brings it back in,
+    // as one step.
+    await placeFromList(page, "Lamp", -60);
+    await row("Lamp 3").dragTo(row("Lamp 4"));
+    await groupHolds("2");
+    await page.getByRole("button", { name: "Undo" }).click();
+    await groupHolds("3");
+  });
+
+  test("adds to the selection with the command key", async ({ page }) => {
+    await openWithLivingRoom(page);
+    await addProduct(page, { name: "Lamp", width: "12", depth: "12" });
+    await placeFromList(page, "Lamp");
+    await placeFromList(page, "Lamp", 60);
+    await placeFromList(page, "Lamp", 120);
+    const row = (name: string) =>
+      contents(page).getByRole("button", { name, exact: true });
+
+    await row("Lamp 1").click();
+    await row("Lamp 3").click({ modifiers: ["ControlOrMeta"] });
+    await expect(row("Lamp 1")).toHaveAttribute("aria-pressed", "true");
+    await expect(row("Lamp 2")).toHaveAttribute("aria-pressed", "false");
+    await expect(row("Lamp 3")).toHaveAttribute("aria-pressed", "true");
+    await expect(details(page).getByText("2 pieces")).toBeVisible();
+  });
+});
