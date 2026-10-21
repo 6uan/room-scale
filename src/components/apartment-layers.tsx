@@ -56,22 +56,34 @@ export type ApartmentLayersProps = {
   drawingRoom?: boolean;
   /** Sets a piece aside, or brings it back. */
   onToggleHidden?: (instanceId: string) => void;
-  /** Puts one piece where another is in the order, by a drag in the list. */
-  onReorder?: (instanceId: string, beforeInstanceId: string) => void;
+  /** Puts one piece somewhere else in the order, by a drag in the list. */
+  onReorder?: (instanceId: string, drop: Drop) => void;
   /** Takes one piece out of the room. */
   onRemove?: (instanceId: string) => void;
   /** Pieces picked up together, listed under one name. */
   groups?: readonly PieceGroup[];
   onGroup?: (instanceIds: readonly string[]) => void;
   onUngroup?: ((groupId: string) => void) | undefined;
-  /** Puts a whole group where a piece is in the order, by a drag of its row. */
+  /** Puts a whole group somewhere else in the order, by a drag of its row. */
   onReorderGroup?:
-    ((groupId: string, beforeInstanceId: string) => void) | undefined;
+    ((groupId: string, beforeInstanceId: string | null) => void) | undefined;
   /** Puts a piece into a group, by a drop on the group's row. */
   onAddToGroup?: ((groupId: string, instanceId: string) => void) | undefined;
   onRenameGroup?: ((groupId: string, name: string) => void) | undefined;
   /** Gives one piece a name of its own; blank hands it back the product's. */
   onRenamePiece?: ((instanceId: string, name: string) => void) | undefined;
+};
+
+/**
+ * Where a dragged piece lands: before another piece, or at the very end when
+ * null; and in a group, before one of its pieces or at its end, or in none.
+ */
+export type Drop = {
+  readonly beforeId: string | null;
+  readonly into: {
+    readonly groupId: string;
+    readonly beforeInstanceId?: string | undefined;
+  } | null;
 };
 
 /**
@@ -300,7 +312,14 @@ export function ApartmentLayers({
             onReorderGroup?.(group, id);
           } else if (from !== "" && from !== id) {
             event.preventDefault();
-            onReorder?.(from, id);
+            const landedIn = groupOf(groups, id);
+            onReorder?.(from, {
+              beforeId: id,
+              into:
+                landedIn === undefined
+                  ? null
+                  : { groupId: landedIn.id, beforeInstanceId: id },
+            });
           }
         }}
         className={over === id ? DROP_LINE : ""}
@@ -356,6 +375,53 @@ export function ApartmentLayers({
       </li>
     );
   };
+
+  /** The piece that follows this one in the whole order, or null at the end. */
+  const after = (instanceId: string | undefined): string | null => {
+    if (instanceId === undefined) {
+      return null;
+    }
+    const index = furniture.findIndex(
+      ({ instance }) => instance.id === instanceId,
+    );
+    return furniture[index + 1]?.instance.id ?? null;
+  };
+
+  /**
+   * A strip after the last row of a list, so something can be dropped last.
+   * Every other target puts the dragged row above itself, which leaves the
+   * end of a list the one place nothing could be put.
+   */
+  const endZone = (key: string, drop: Drop, beforeForGroup: string | null) => (
+    <li
+      key={key}
+      aria-hidden="true"
+      onDragOver={(event: DragEvent<HTMLLIElement>) => {
+        const types = event.dataTransfer.types;
+        if (
+          (onReorder !== undefined && types.includes(LAYER_DRAG_TYPE)) ||
+          (onReorderGroup !== undefined && types.includes(GROUP_DRAG_TYPE))
+        ) {
+          event.preventDefault();
+          setOver(key);
+        }
+      }}
+      onDragLeave={() => setOver((was) => (was === key ? null : was))}
+      onDrop={(event: DragEvent<HTMLLIElement>) => {
+        const from = event.dataTransfer.getData(LAYER_DRAG_TYPE);
+        const group = event.dataTransfer.getData(GROUP_DRAG_TYPE);
+        setOver(null);
+        if (group !== "") {
+          event.preventDefault();
+          onReorderGroup?.(group, beforeForGroup);
+        } else if (from !== "") {
+          event.preventDefault();
+          onReorder?.(from, drop);
+        }
+      }}
+      className={`h-2 ${over === key ? DROP_LINE : ""}`}
+    />
+  );
 
   /** A group as a row with its pieces folded under it. */
   const groupRow = (group: PieceGroup, groupEntries: readonly Entry[]) => {
@@ -444,6 +510,16 @@ export function ApartmentLayers({
             {groupEntries.map((entry) =>
               pieceRow(entry, troubledIds.has(entry.placed.instance.id), 2),
             )}
+            {endZone(
+              `end:${group.id}`,
+              {
+                beforeId: after(
+                  group.instanceIds[group.instanceIds.length - 1],
+                ),
+                into: { groupId: group.id },
+              },
+              after(group.instanceIds[group.instanceIds.length - 1]),
+            )}
           </ul>
         </Fold>
       </li>
@@ -462,6 +538,10 @@ export function ApartmentLayers({
     );
 
   const homeless = sections.find(({ roomId }) => roomId === null)?.items ?? [];
+  /** The last piece standing in a room, in the whole order. */
+  const lastIn = (roomId: string): string | undefined =>
+    entries.filter((entry) => entry.roomId === roomId).at(-1)?.placed.instance
+      .id;
 
   /** The pieces a right-clicked one would be grouped with: the selection, if it is in it. */
   const groupable =
@@ -596,6 +676,11 @@ export function ApartmentLayers({
                         sections.find(({ roomId }) => roomId === room.id)
                           ?.items ?? [],
                         false,
+                      )}
+                      {endZone(
+                        `end:${room.id}`,
+                        { beforeId: after(lastIn(room.id)), into: null },
+                        after(lastIn(room.id)),
                       )}
                     </ul>
                   </Fold>

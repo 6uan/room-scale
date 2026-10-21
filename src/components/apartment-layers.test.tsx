@@ -7,7 +7,7 @@ import { vi } from "vitest";
 import { createInstance, type PlacedFurniture } from "@/domain/furniture";
 import { withParts, withRoom, type Floor, type Room } from "@/domain/room";
 import type { Selection } from "@/components/selection";
-import { ApartmentLayers } from "./apartment-layers";
+import { ApartmentLayers, type Drop } from "./apartment-layers";
 import { projectWithLivingRoom } from "@/domain/project/fixtures";
 import { withGroup, withoutGroup, type PieceGroup } from "@/domain/project";
 
@@ -192,7 +192,7 @@ describe("ApartmentLayers pieces", () => {
     furniture: readonly PlacedFurniture[],
     handlers: {
       onToggleHidden?: (id: string) => void;
-      onReorder?: (id: string, beforeId: string) => void;
+      onReorder?: (id: string, drop: Drop) => void;
     },
   ) {
     return render(
@@ -321,7 +321,10 @@ describe("ApartmentLayers pieces", () => {
     fireEvent.dragOver(rugRow, { dataTransfer });
     fireEvent.drop(rugRow, { dataTransfer });
 
-    expect(onReorder).toHaveBeenCalledWith("i2", "i1");
+    expect(onReorder).toHaveBeenCalledWith("i2", {
+      beforeId: "i1",
+      into: null,
+    });
   });
 });
 
@@ -516,6 +519,59 @@ describe("ApartmentLayers groups", () => {
     fireEvent.drop(rugRow, { dataTransfer });
 
     expect(onReorderGroup).toHaveBeenCalledWith("g1", "i3");
+  });
+
+  it("drops a piece at the very end of a room's list, and at the end of a group's", () => {
+    const onReorder = vi.fn();
+    const { container } = render(
+      <ApartmentLayers
+        floor={projectWithLivingRoom().floor}
+        furniture={furniture}
+        selection={null}
+        troubledIds={new Set()}
+        onSelect={() => undefined}
+        onRoomChange={() => undefined}
+        onAddRoom={() => undefined}
+        onReorder={onReorder}
+        groups={[{ id: "g1", name: "Group 1", instanceIds: ["i1", "i2"] }]}
+      />,
+    );
+    const bedRow = screen.getByRole("button", { name: "Bed" }).closest("li");
+    if (bedRow === null) {
+      throw new Error("the bed has a row");
+    }
+    const data = new Map<string, string>();
+    const dataTransfer = {
+      setData: (type: string, value: string) => data.set(type, value),
+      getData: (type: string) => data.get(type) ?? "",
+      get types() {
+        return [...data.keys()];
+      },
+      effectAllowed: "move",
+    };
+    // The strips after the last rows: the group's, then the room's.
+    const [groupEnd, roomEnd] = container.querySelectorAll("li.h-2");
+    if (groupEnd === undefined || roomEnd === undefined) {
+      throw new Error("each list ends in a strip to drop on");
+    }
+
+    fireEvent.dragStart(bedRow, { dataTransfer });
+    fireEvent.dragOver(roomEnd, { dataTransfer });
+    expect(roomEnd.className).toContain("before:");
+    fireEvent.drop(roomEnd, { dataTransfer });
+    // Last of all, and in no group.
+    expect(onReorder).toHaveBeenLastCalledWith("i1", {
+      beforeId: null,
+      into: null,
+    });
+
+    fireEvent.dragStart(bedRow, { dataTransfer });
+    fireEvent.drop(groupEnd, { dataTransfer });
+    // After the group's last piece, which the rug follows, and still in it.
+    expect(onReorder).toHaveBeenLastCalledWith("i1", {
+      beforeId: "i3",
+      into: { groupId: "g1" },
+    });
   });
 
   it("folds a group, renames it, and ungroups it", async () => {
