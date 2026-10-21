@@ -10,10 +10,16 @@
  * axis independently, and the nearest within `SNAP_METERS` wins. Further
  * than that it stays exactly where it was put.
  *
- * Against another piece there are two things worth landing on: touching it,
- * edge to edge, and lining up with it, edge over edge — two nightstands
- * flush with the head of the bed. Touching is offered first, so it wins a
- * tie.
+ * Against another piece there are three things worth landing on: touching
+ * it, edge to edge; lining up with it, edge over edge — two nightstands
+ * flush with the head of the bed; and centring on it, middle over middle —
+ * a lamp on the middle of the console. Touching is offered first, so it
+ * wins a tie.
+ *
+ * How close is close is the caller's to say, in meters, because it is
+ * really a distance on the screen: a few pixels, whatever the zoom, so a
+ * piece can be put down freely when the plan is large on the screen and is
+ * still caught when it is small.
  *
  * The wall faces are those of every axis-aligned room part. A turned part
  * has no face along either axis to snap to, and is left out rather than
@@ -41,6 +47,7 @@ export function snapInstancePosition(
   furniture: readonly PlacedFurniture[],
   placed: PlacedFurniture,
   position: FloorPoint,
+  reachMeters: number = SNAP_METERS,
 ): FloorPoint {
   const box = boundingBox({ ...footprintRect(placed), center: position });
   const halfWidth = (box.maxX - box.minX) / 2;
@@ -100,11 +107,14 @@ export function snapInstancePosition(
     // Lining up: the same near edge, or the same far edge.
     xCandidates.push(theirs.minX + halfWidth, theirs.maxX - halfWidth);
     zCandidates.push(theirs.minZ + halfDepth, theirs.maxZ - halfDepth);
+    // Centring: middle over middle.
+    xCandidates.push((theirs.minX + theirs.maxX) / 2);
+    zCandidates.push((theirs.minZ + theirs.maxZ) / 2);
   }
 
   return {
-    xMeters: nearestSnap(position.xMeters, xCandidates),
-    zMeters: nearestSnap(position.zMeters, zCandidates),
+    xMeters: nearestSnap(position.xMeters, xCandidates, reachMeters),
+    zMeters: nearestSnap(position.zMeters, zCandidates, reachMeters),
   };
 }
 
@@ -128,9 +138,13 @@ function boundingBox(rect: OrientedRect): Box {
 }
 
 /** The nearest candidate within reach, or the value as given. First wins a tie. */
-function nearestSnap(value: number, candidates: readonly number[]): number {
+function nearestSnap(
+  value: number,
+  candidates: readonly number[],
+  reachMeters: number,
+): number {
   let best = value;
-  let nearest = SNAP_METERS;
+  let nearest = reachMeters;
   for (const candidate of candidates) {
     const distance = Math.abs(candidate - value);
     if (distance < nearest) {

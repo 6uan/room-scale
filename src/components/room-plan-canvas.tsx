@@ -455,6 +455,9 @@ type Drag =
  */
 const NO_GROUPS: readonly PieceGroup[] = [];
 
+/** The reach of a snap on the screen. */
+const SNAP_PIXELS = 8;
+
 export function RoomPlanCanvas({
   floor,
   furniture,
@@ -498,6 +501,13 @@ export function RoomPlanCanvas({
   const [view, setView] = useState<PlanProjection | null>(null);
   const fitted = planProjectionFor(floor, underlay, size);
   const projection = view ?? fitted;
+  /**
+   * How close a piece must come to a face to be caught by it: a few pixels
+   * on the screen, in meters at the zoom of the moment. In meters alone it
+   * was four inches whatever the zoom, which zoomed in is most of the
+   * screen and made a piece impossible to put down near anything.
+   */
+  const snapReach = () => SNAP_PIXELS / projectionRef.current.pixelsPerMeter;
 
   // Read by the pointer handlers, which must use the same transform the last
   // paint used rather than one recomputed from stale state.
@@ -597,6 +607,7 @@ export function RoomPlanCanvas({
       furniture,
       placed,
       clampToFloor(floor, point),
+      snapReach(),
     );
   }
   /**
@@ -1574,7 +1585,7 @@ export function RoomPlanCanvas({
     // which is the way to put a piece exactly where the pointer says.
     const landed = event.altKey
       ? dropped
-      : snapInstancePosition(floor, furniture, placed, dropped);
+      : snapInstancePosition(floor, furniture, placed, dropped, snapReach());
     onInstanceChange(
       moveInstance(placed.instance, clampToFloor(floor, landed)),
       `piece-move:${drag.instanceId}`,
@@ -1611,7 +1622,13 @@ export function RoomPlanCanvas({
         };
         const landed = altKey
           ? dropped
-          : snapInstancePosition(floor, furniture, leader, dropped);
+          : snapInstancePosition(
+              floor,
+              furniture,
+              leader,
+              dropped,
+              snapReach(),
+            );
         delta = {
           xMeters: landed.xMeters - origin.xMeters,
           zMeters: landed.zMeters - origin.zMeters,
