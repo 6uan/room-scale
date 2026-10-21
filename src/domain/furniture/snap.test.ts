@@ -148,6 +148,26 @@ describe("snapInstancePosition", () => {
     ).toEqual({ xMeters: 1.5, zMeters: 2 });
   });
 
+  it("centres a piece on another piece's middle", () => {
+    // A sofa at (1.5, 2); a second let go 3 cm off centred above it, clear
+    // of every wall.
+    const other = sofaAt(1.5, 2, 0, "i2");
+    const placed = sofaAt(1.53, 0.7);
+
+    expect(
+      snapInstancePosition(FLOOR, [other], placed, placed.instance.position),
+    ).toEqual({ xMeters: 1.5, zMeters: 0.7 });
+  });
+
+  it("reaches only as far as it is told", () => {
+    // 3 cm off the north wall, with a reach of 2 cm: left alone.
+    const placed = sofaAt(2, 0.53);
+
+    expect(
+      snapInstancePosition(FLOOR, [], placed, placed.instance.position, 0.02),
+    ).toEqual({ xMeters: 2, zMeters: 0.53 });
+  });
+
   it("never snaps a piece to itself", () => {
     const placed = sofaAt(2, 1.5);
 
