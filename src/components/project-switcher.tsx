@@ -122,9 +122,9 @@ export function ProjectSwitcher() {
       {pending === null ? null : (
         <div
           role="status"
-          // Up by the bar the deletion came from, and red: a thing was just
+          // In the bar the deletion came from, in its empty middle, and red: a thing was just
           // removed, and the way back is here for a few seconds only.
-          className="fixed top-16 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-full bg-red-600 py-1.5 pr-1.5 pl-4 text-[13px] text-white shadow-lg"
+          className="fixed top-1.5 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-full bg-red-600 py-1 pr-1 pl-4 text-[13px] text-white shadow-lg"
         >
           <span>Deleted {pending.name}</span>
           <button
