@@ -91,6 +91,18 @@ const SIZE_TRIPLE = new RegExp(
 );
 
 const PRICE = /\$\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?|\d+(?:\.\d{2})?)/;
+/** A line that is a price and nothing else: `$209.99`, `$1,699`. */
+const PRICE_ALONE =
+  /^\$\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})?$|^\$\s*\d+(?:\.\d{2})?$/;
+
+/**
+ * A spec table lists the drawer, the seat, the shelf, and somewhere among
+ * them the whole piece, which it calls "Overall". When the page says which
+ * sizes are the overall ones, those are the product's own and are read
+ * first; the rest of the page fills in only what they leave out. The size
+ * may sit on the label's line or on the one after it, as a table cell does.
+ */
+const OVERALL = /\boverall\b/i;
 
 type Axis = "width" | "depth" | "height";
 
@@ -135,8 +147,21 @@ function looksLikeNavigation(line: string): boolean {
   return NAVIGATION_WORDS.test(line) || !/[a-z]/.test(line);
 }
 
+/**
+ * The price.
+ *
+ * A retail page mentions money before it states the price: rewards earned,
+ * an offer on a first order of $100+, a monthly instalment. The price itself
+ * is printed large and alone, which in copied text is a line that is nothing
+ * but a dollar amount. That line is preferred; the first amount anywhere is
+ * the fallback.
+ */
 export function extractPrice(text: string): Extracted<number> | null {
-  const match = PRICE.exec(text);
+  const alone = text
+    .split("\n")
+    .map((line) => line.trim())
+    .find((line) => PRICE_ALONE.test(line));
+  const match = PRICE.exec(alone ?? text);
   if (match?.[1] === undefined) {
     return null;
   }
@@ -154,7 +179,10 @@ type ExtractedDimensions = Pick<
  * which number is the width is stating a fact; three numbers in a row are not.
  */
 export function extractDimensions(text: string): ExtractedDimensions {
-  const labelled = extractLabelledDimensions(text);
+  const labelled = {
+    ...extractLabelledDimensions(text),
+    ...extractLabelledDimensions(overallLines(text)),
+  };
   if (
     labelled.widthMeters !== undefined ||
     labelled.depthMeters !== undefined ||
@@ -167,6 +195,15 @@ export function extractDimensions(text: string): ExtractedDimensions {
   return triple === null
     ? { dimensionOrderIsAssumed: false }
     : { ...triple, dimensionOrderIsAssumed: true };
+}
+
+function overallLines(text: string): string {
+  const lines = text.split("\n");
+  return lines
+    .flatMap((line, index) =>
+      OVERALL.test(line) ? [line, lines[index + 1] ?? ""] : [],
+    )
+    .join("\n");
 }
 
 function extractLabelledDimensions(

@@ -24,8 +24,10 @@ import { centsFromDecimalString } from "@/domain/units";
 export function extractProductFromHtml(html: string): ExtractedProduct {
   const fromText = extractProduct(htmlToText(html));
   const structured = extractStructuredProduct(html);
+  const heading = extractHeading(html);
   return {
     ...fromText,
+    ...(heading === null ? {} : { name: heading }),
     ...(structured.name === undefined ? {} : { name: structured.name }),
     ...(structured.priceCents === undefined
       ? {}
@@ -54,6 +56,20 @@ export function htmlToText(html: string): string {
     .map((line) => line.replace(/\s+/g, " ").trim())
     .filter((line) => line !== "")
     .join("\n");
+}
+
+/**
+ * The page's main heading, which on a product page is the product. Copied
+ * text has no way to tell a heading from the navigation above it, and the
+ * browser title adds the shop's name and "& Reviews"; the markup knows.
+ */
+export function extractHeading(html: string): Extracted<string> | null {
+  const match = /<h1\b[^>]*>([\s\S]*?)<\/h1>/i.exec(html);
+  if (match?.[1] === undefined) {
+    return null;
+  }
+  const text = htmlToText(match[1]).replace(/\n/g, " ").trim();
+  return text === "" ? null : { value: text.slice(0, 120), sourceText: text };
 }
 
 const NAMED_ENTITIES: Record<string, string> = {

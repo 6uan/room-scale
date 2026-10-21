@@ -75,3 +75,29 @@ describe("extractProductFromHtml", () => {
     });
   });
 });
+
+describe("a Wayfair dresser, which has no structured data", () => {
+  const wayfair = readFileSync(
+    "src/domain/import/fixtures/wayfair-allenside.html",
+    "utf8",
+  );
+  const product = extractProductFromHtml(wayfair);
+
+  it("names it from the heading, not the browser title", () => {
+    expect(product.name?.value).toBe('Allenside 26.37 " W 5 - Drawer Dresser');
+  });
+
+  it("reads the price, not the credit-card offer above it", () => {
+    expect(product.priceCents).toEqual({
+      value: 20999,
+      sourceText: "$209.99",
+    });
+  });
+
+  it("reads the overall size, not the drawer's interior", () => {
+    expect(product.widthMeters?.value).toBeCloseTo(26.37 * 0.0254, 6);
+    expect(product.depthMeters?.value).toBeCloseTo(15.43 * 0.0254, 6);
+    expect(product.heightMeters?.value).toBeCloseTo(38.46 * 0.0254, 6);
+    expect(product.dimensionOrderIsAssumed).toBe(false);
+  });
+});
