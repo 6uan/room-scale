@@ -2283,6 +2283,37 @@ test.describe("groups in the list", () => {
     await expect(row("Lamp 2")).toBeVisible();
   });
 
+  test("drags a piece into a group, and out of it again", async ({ page }) => {
+    await openWithLivingRoom(page);
+    await addProduct(page, { name: "Lamp", width: "12", depth: "12" });
+    await placeFromList(page, "Lamp");
+    await placeFromList(page, "Lamp", 60);
+    await placeFromList(page, "Lamp", 120);
+    const row = (name: string) =>
+      contents(page).getByRole("button", { name, exact: true });
+    await row("Lamp 1").click();
+    await row("Lamp 2").click({ modifiers: ["Shift"] });
+    await row("Lamp 1").click({ button: "right" });
+    await page.getByRole("menuitem", { name: "Group 2 pieces" }).click();
+    /** How many the group holds, read off the inspector when it is picked. */
+    const groupHolds = async (count: string) => {
+      await row("Group 1").click();
+      await expect(details(page).getByText(`${count} pieces`)).toBeVisible();
+    };
+
+    // Dropped on the group's row: in, at the end.
+    await row("Lamp 3").dragTo(row("Group 1"));
+    await groupHolds("3");
+
+    // Dropped among the loose pieces, it has left. Undo brings it back in,
+    // as one step.
+    await placeFromList(page, "Lamp", -60);
+    await row("Lamp 3").dragTo(row("Lamp 4"));
+    await groupHolds("2");
+    await page.getByRole("button", { name: "Undo" }).click();
+    await groupHolds("3");
+  });
+
   test("adds to the selection with the command key", async ({ page }) => {
     await openWithLivingRoom(page);
     await addProduct(page, { name: "Lamp", width: "12", depth: "12" });

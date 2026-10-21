@@ -101,3 +101,49 @@ export function nextGroupName(existing: readonly PieceGroup[]): string {
   }
   return `Group ${counter}`;
 }
+
+/**
+ * One piece moved into a group — at a place in it, or at the end — or out of
+ * every group when the target is null. Dragging a row onto a group's row is
+ * the first; dragging it between two rows is the second or third, since a
+ * piece dropped among a group's pieces has joined it and one dropped among
+ * the loose pieces has left.
+ */
+export function withPieceMoved(
+  groups: readonly PieceGroup[],
+  instanceId: string,
+  target: {
+    readonly groupId: string;
+    readonly beforeInstanceId?: string | undefined;
+  } | null,
+): readonly PieceGroup[] {
+  const without = groups
+    .map((group) => ({
+      ...group,
+      instanceIds: group.instanceIds.filter((one) => one !== instanceId),
+    }))
+    .filter((group) => group.instanceIds.length > 0);
+  if (target === null) {
+    return without;
+  }
+  return without.map((group) => {
+    if (group.id !== target.groupId) {
+      return group;
+    }
+    const at =
+      target.beforeInstanceId === undefined
+        ? -1
+        : group.instanceIds.indexOf(target.beforeInstanceId);
+    return {
+      ...group,
+      instanceIds:
+        at === -1
+          ? [...group.instanceIds, instanceId]
+          : [
+              ...group.instanceIds.slice(0, at),
+              instanceId,
+              ...group.instanceIds.slice(at),
+            ],
+    };
+  });
+}

@@ -48,6 +48,7 @@ import {
   createLayout,
   createUnderlay,
   duplicateLayout,
+  groupOf,
   nextId,
   nextLayoutName,
   renameLayout,
@@ -55,6 +56,7 @@ import {
   withGroupName,
   withLayoutInstances,
   withLayouts,
+  withPieceMoved,
   withProducts,
   withoutGroup,
 } from "@/domain/project";
@@ -720,12 +722,30 @@ export function Workspace() {
               }
               const rest = instances.filter((one) => one.id !== id);
               const at = rest.findIndex((one) => one.id === beforeId);
+              // One drag, one undo: the order and the group change together.
+              const gesture = `reorder:${id}`;
               setInstances(
                 at === -1
                   ? [...rest, moving]
                   : [...rest.slice(0, at), moving, ...rest.slice(at)],
+                gesture,
               );
+              const landedIn = groupOf(groups, beforeId);
+              setGroups(
+                withPieceMoved(
+                  groups,
+                  id,
+                  landedIn === undefined
+                    ? null
+                    : { groupId: landedIn.id, beforeInstanceId: beforeId },
+                ),
+                gesture,
+              );
+              endGesture();
             }}
+            onAddToGroup={(groupId, id) =>
+              setGroups(withPieceMoved(groups, id, { groupId }))
+            }
           />
           <CataloguePanel
             products={products}

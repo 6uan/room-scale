@@ -6,6 +6,7 @@ import {
   nextGroupName,
   withGroup,
   withGroupName,
+  withPieceMoved,
   withoutGroup,
   type PieceGroup,
 } from "./groups";
@@ -39,6 +40,20 @@ describe("groups", () => {
   it("ungroups and renames", () => {
     expect(withoutGroup([BED, SOFA], "g1")).toEqual([SOFA]);
     expect(withGroupName([BED], "g1", "Bed")[0]?.name).toBe("Bed");
+  });
+
+  it("moves a piece into a group, before another or at the end, and out again", () => {
+    const joined = withPieceMoved([BED, SOFA], "c", {
+      groupId: "g1",
+      beforeInstanceId: "b",
+    });
+    expect(joined).toEqual([{ ...BED, instanceIds: ["a", "c", "b"] }]);
+
+    const appended = withPieceMoved([BED, SOFA], "c", { groupId: "g1" });
+    expect(appended[0]?.instanceIds).toEqual(["a", "b", "c"]);
+
+    const left = withPieceMoved([BED, SOFA], "b", null);
+    expect(left).toEqual([{ ...BED, instanceIds: ["a"] }, SOFA]);
   });
 
   it("drops a piece from its group when it leaves the room", () => {

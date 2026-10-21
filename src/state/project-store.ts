@@ -108,7 +108,7 @@ export type ProjectState = {
   ) => void;
   setLayouts: (layouts: readonly Layout[]) => void;
   /** The active layout's groups: which pieces are picked up together. */
-  setGroups: (groups: readonly PieceGroup[]) => void;
+  setGroups: (groups: readonly PieceGroup[], gesture?: Gesture) => void;
   setActiveLayout: (id: string) => void;
   setDisplayUnit: (unit: DisplayUnit) => void;
   /** Closes the gesture in progress, so the next edit starts a new step. */
@@ -209,7 +209,8 @@ export const useProjectStore = create<ProjectState>((set) => {
       edit((state) => withInstances(state.project, instances))(gesture),
     setLayouts: (layouts) =>
       edit((state) => withLayouts(state.project, layouts))(),
-    setGroups: (groups) => edit((state) => withGroups(state.project, groups))(),
+    setGroups: (groups, gesture) =>
+      edit((state) => withGroups(state.project, groups))(gesture),
 
     // The view, not the project: which arrangement is on screen and which unit
     // it is read in are not things anybody means to take back.

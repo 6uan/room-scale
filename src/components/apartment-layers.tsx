@@ -56,6 +56,8 @@ export type ApartmentLayersProps = {
   groups?: readonly PieceGroup[];
   onGroup?: (instanceIds: readonly string[]) => void;
   onUngroup?: ((groupId: string) => void) | undefined;
+  /** Puts a piece into a group, by a drop on the group's row. */
+  onAddToGroup?: ((groupId: string, instanceId: string) => void) | undefined;
   onRenameGroup?: ((groupId: string, name: string) => void) | undefined;
 };
 
@@ -112,6 +114,7 @@ export function ApartmentLayers({
   groups = NO_GROUPS,
   onGroup,
   onUngroup,
+  onAddToGroup,
   onRenameGroup,
 }: ApartmentLayersProps) {
   const names = placedNames(furniture);
@@ -322,25 +325,53 @@ export function ApartmentLayers({
           setMenu({ kind: "group", group, x: event.clientX, y: event.clientY });
         }}
       >
-        <EditableRow
-          name={group.name}
-          placeholder="Unnamed group"
-          icon={Group}
-          depth={1}
-          selected={allSelected}
-          onSelect={() => onSelect(groupSelection(group.instanceIds, []))}
-          onRename={
-            onRenameGroup === undefined
-              ? undefined
-              : (name) => onRenameGroup(group.id, name)
+        {/* A piece dragged onto the group's own row joins it, and the row
+            lights up while one is held over it, the way a folder does. The
+            rows under it are drop targets of their own, so this takes only
+            what is dropped on the row itself. */}
+        <div
+          onDragOver={(event: DragEvent<HTMLDivElement>) => {
+            if (
+              onAddToGroup !== undefined &&
+              event.dataTransfer.types.includes(LAYER_DRAG_TYPE)
+            ) {
+              event.preventDefault();
+              setOver(`group:${group.id}`);
+            }
+          }}
+          onDragLeave={() =>
+            setOver((was) => (was === `group:${group.id}` ? null : was))
           }
-          editing={renamingGroupId === group.id}
-          onEditingChange={(editing) =>
-            setRenamingGroupId(editing ? group.id : null)
-          }
-          folded={isFolded}
-          onToggleFolded={() => toggleFolded(group.id)}
-        />
+          onDrop={(event: DragEvent<HTMLDivElement>) => {
+            const from = event.dataTransfer.getData(LAYER_DRAG_TYPE);
+            setOver(null);
+            if (from !== "" && !group.instanceIds.includes(from)) {
+              event.preventDefault();
+              onAddToGroup?.(group.id, from);
+            }
+          }}
+        >
+          <EditableRow
+            name={group.name}
+            placeholder="Unnamed group"
+            icon={Group}
+            depth={1}
+            entered={over === `group:${group.id}`}
+            selected={allSelected}
+            onSelect={() => onSelect(groupSelection(group.instanceIds, []))}
+            onRename={
+              onRenameGroup === undefined
+                ? undefined
+                : (name) => onRenameGroup(group.id, name)
+            }
+            editing={renamingGroupId === group.id}
+            onEditingChange={(editing) =>
+              setRenamingGroupId(editing ? group.id : null)
+            }
+            folded={isFolded}
+            onToggleFolded={() => toggleFolded(group.id)}
+          />
+        </div>
         <Fold folded={isFolded}>
           <ul className="flex flex-col overflow-hidden">
             {groupEntries.map((entry) =>
@@ -595,6 +626,7 @@ function EditableRow({
   selected,
   onSelect,
   onRename,
+  entered = false,
   editing: editingProp,
   onEditingChange,
   folded,
@@ -607,6 +639,8 @@ function EditableRow({
   selected: boolean;
   onSelect: () => void;
   onRename?: ((name: string) => void) | undefined;
+  /** Lit as a drop target, with something held over it. */
+  entered?: boolean;
   /** Editing, when something outside the row — a menu — began it. */
   editing?: boolean;
   onEditingChange?: (editing: boolean) => void;
@@ -651,6 +685,7 @@ function EditableRow({
       icon={icon}
       depth={depth}
       selected={selected}
+      entered={entered}
       onSelect={onSelect}
       onDoubleClick={
         onRename === undefined ? undefined : () => setEditing(true)
@@ -710,6 +745,7 @@ function Row({
   troubled = false,
   dimmed = false,
   selected,
+  entered = false,
   onSelect,
   onDoubleClick,
   title,
@@ -723,6 +759,8 @@ function Row({
   /** Set aside: still listed, drawn faint. */
   dimmed?: boolean;
   selected: boolean;
+  /** A drop target with something held over it: lit, the way a folder is. */
+  entered?: boolean;
   onSelect: (event: MouseEvent<HTMLButtonElement>) => void;
   onDoubleClick?: (() => void) | undefined;
   title?: string | undefined;
@@ -735,9 +773,11 @@ function Row({
   return (
     <div
       className={`group flex min-w-0 items-center rounded-lg pr-1 transition-colors focus-within:outline-2 focus-within:outline-offset-[-2px] focus-within:outline-blue-500 ${
-        selected
-          ? "bg-black/10 dark:bg-white/15"
-          : "hover:bg-black/5 dark:hover:bg-white/10"
+        entered
+          ? "bg-blue-500/20 outline-2 outline-offset-[-2px] outline-blue-500"
+          : selected
+            ? "bg-black/10 dark:bg-white/15"
+            : "hover:bg-black/5 dark:hover:bg-white/10"
       }`}
     >
       {editor !== undefined ? (
