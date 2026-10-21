@@ -1,5 +1,6 @@
 "use client";
 
+import { liveQuery } from "dexie";
 import { useEffect, useRef, useState } from "react";
 import { Switcher, type SwitcherItem } from "@/components/switcher";
 import { createProject, nextId, nextProjectName } from "@/domain/project";
@@ -16,9 +17,10 @@ import { useProjectStore } from "@/state/project-store";
  * Which apartment is being planned.
  *
  * Projects live as rows in storage rather than in the store, so the list is
- * read when the menu opens rather than kept in step with every save. The one
- * that is open is named from the store instead, because its name may have
- * been typed a moment ago and not yet written.
+ * a live query over the table: it follows every write, including one made in
+ * another tab, which Dexie passes along on its own. The one that is open is
+ * named from the store instead, because its name may have been typed a
+ * moment ago and not yet written.
  *
  * Switching adopts the other project without a history: the edits that came
  * before belonged to a project that is no longer on the screen, and the gate
@@ -30,6 +32,15 @@ export function ProjectSwitcher() {
   const adopt = useProjectStore((state) => state.adopt);
   const setName = useProjectStore((state) => state.setName);
   const [stored, setStored] = useState<readonly ProjectSummary[]>([]);
+  useEffect(() => {
+    const subscription = liveQuery(() => listProjects()).subscribe({
+      next: setStored,
+      error: () => {
+        // Without storage there is only the project on screen.
+      },
+    });
+    return () => subscription.unsubscribe();
+  }, []);
   /**
    * A project deleted a moment ago, still in storage until the undo window
    * closes. Out of the list already, so the deletion reads as done; back in
@@ -52,14 +63,6 @@ export function ProjectSwitcher() {
     { id: projectId, name: project.name },
     ...stored.filter((one) => one.id !== projectId && one.id !== pending?.id),
   ];
-
-  function refresh(): void {
-    void listProjects()
-      .then(setStored)
-      .catch(() => {
-        // Without storage there is only the project on screen.
-      });
-  }
 
   async function open(id: string): Promise<void> {
     const result = await loadProject(undefined, id);
@@ -88,7 +91,7 @@ export function ProjectSwitcher() {
     }
     setPending((was) => {
       if (was !== null) {
-        void deleteProject(was.id).then(refresh);
+        void deleteProject(was.id);
       }
       return null;
     });
@@ -100,7 +103,6 @@ export function ProjectSwitcher() {
       pendingTimer.current = null;
     }
     setPending(null);
-    refresh();
   }
 
   async function remove(item: SwitcherItem): Promise<void> {
@@ -142,7 +144,6 @@ export function ProjectSwitcher() {
         nameLabel="Project name"
         items={items}
         activeId={projectId}
-        onOpen={refresh}
         onSwitch={(id) => void open(id)}
         onRename={(_, name) => setName(name)}
         onRemove={(item) => void remove(item)}

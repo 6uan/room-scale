@@ -965,6 +965,35 @@ test.describe("more than one project", () => {
     await expect(contents(page).getByText("Living room")).toBeVisible();
   });
 
+  test("lists a project made in another tab, while the menu is open", async ({
+    page,
+    context,
+  }) => {
+    await openWithLivingRoom(page);
+    const table = await openProjects(page);
+    await expect(table.getByRole("button", { name: /^Project 2/ })).toHaveCount(
+      0,
+    );
+
+    const other = await context.newPage();
+    await other.goto("/");
+    await (
+      await openProjects(other)
+    )
+      .getByRole("button", { name: "New project" })
+      .click();
+    await expect(other.getByRole("button", { name: "Projects" })).toContainText(
+      "Project 2",
+    );
+
+    // Storage was written in the other tab; this one follows without the
+    // menu being closed and opened again.
+    await expect(
+      table.getByRole("button", { name: /^Project 2/ }),
+    ).toBeVisible();
+    await other.close();
+  });
+
   test("renames a project, and the name sticks across a reload", async ({
     page,
   }) => {
