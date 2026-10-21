@@ -10,20 +10,26 @@ import {
 import { IconButton } from "@/components/icon-button";
 import { NumberField } from "@/components/number-field";
 import { PanelSection } from "@/components/panel/section";
-import { openingListName, openingName } from "@/components/opening-name";
 import {
-  MIN_OPENING_METERS,
+  openingDefaultName,
+  openingListName,
+  openingName,
+} from "@/components/opening-name";
+import { TextField } from "@/components/product-form";
+import {
   checkOpening,
-  partWallSides,
-  roomPart,
-  wallLengthMeters,
-  withOpeningWall,
   type Door,
+  MIN_OPENING_METERS,
   type Opening,
   type OpeningKind,
   type OpeningProblem,
+  partWallSides,
   type Room,
+  roomPart,
+  wallLengthMeters,
   type WallSide,
+  withOpeningName,
+  withOpeningWall,
 } from "@/domain/room";
 import { formatLength, type DisplayUnit } from "@/domain/units";
 
@@ -163,6 +169,14 @@ export function OpeningFields({
     <fieldset className="flex flex-col gap-4 rounded-lg border border-black/10 p-4 dark:border-white/15">
       {/* A direct child of the fieldset, so it names the group. */}
       <legend className="px-1 text-sm font-medium">{name}</legend>
+
+      <TextField
+        label="Name"
+        value={opening.name ?? ""}
+        placeholder={openingDefaultName(room, opening)}
+        problem={null}
+        onValueChange={(value) => onChange(withOpeningName(opening, value))}
+      />
 
       <SelectField
         label={`${name} wall`}

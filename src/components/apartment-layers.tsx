@@ -24,11 +24,19 @@ import {
 import { ContextMenu } from "@/components/context-menu";
 import { IconButton } from "@/components/icon-button";
 import { useScrollFade } from "@/components/scroll-fade";
-import { openingListName } from "@/components/opening-name";
+import { openingListName, sectionLabel } from "@/components/opening-name";
 import { PanelHeader } from "@/components/panel-header";
 import { placedNames, type PlacedFurniture } from "@/domain/furniture";
 import { groupOf, type PieceGroup } from "@/domain/project";
-import { roomsAt, type Floor, type Room } from "@/domain/room";
+import {
+  type Floor,
+  type Room,
+  roomsAt,
+  withOpeningName,
+  withOpenings,
+  withRoomPart,
+  withRoomPartName,
+} from "@/domain/room";
 import {
   groupSelection,
   isSelected,
@@ -48,17 +56,34 @@ export type ApartmentLayersProps = {
   drawingRoom?: boolean;
   /** Sets a piece aside, or brings it back. */
   onToggleHidden?: (instanceId: string) => void;
-  /** Puts one piece where another is in the order, by a drag in the list. */
-  onReorder?: (instanceId: string, beforeInstanceId: string) => void;
+  /** Puts one piece somewhere else in the order, by a drag in the list. */
+  onReorder?: (instanceId: string, drop: Drop) => void;
   /** Takes one piece out of the room. */
   onRemove?: (instanceId: string) => void;
   /** Pieces picked up together, listed under one name. */
   groups?: readonly PieceGroup[];
   onGroup?: (instanceIds: readonly string[]) => void;
   onUngroup?: ((groupId: string) => void) | undefined;
+  /** Puts a whole group somewhere else in the order, by a drag of its row. */
+  onReorderGroup?:
+    ((groupId: string, beforeInstanceId: string | null) => void) | undefined;
   /** Puts a piece into a group, by a drop on the group's row. */
   onAddToGroup?: ((groupId: string, instanceId: string) => void) | undefined;
   onRenameGroup?: ((groupId: string, name: string) => void) | undefined;
+  /** Gives one piece a name of its own; blank hands it back the product's. */
+  onRenamePiece?: ((instanceId: string, name: string) => void) | undefined;
+};
+
+/**
+ * Where a dragged piece lands: before another piece, or at the very end when
+ * null; and in a group, before one of its pieces or at its end, or in none.
+ */
+export type Drop = {
+  readonly beforeId: string | null;
+  readonly into: {
+    readonly groupId: string;
+    readonly beforeInstanceId?: string | undefined;
+  } | null;
 };
 
 /**
@@ -71,6 +96,8 @@ const DROP_LINE =
 
 /** The drag type a list row carries, so a product drag is not mistaken for it. */
 const LAYER_DRAG_TYPE = "application/x-roomscale-layer";
+/** The drag type a group row carries: the whole group moves in the order. */
+const GROUP_DRAG_TYPE = "application/x-roomscale-group";
 
 const NO_GROUPS: readonly PieceGroup[] = [];
 
@@ -115,7 +142,9 @@ export function ApartmentLayers({
   onGroup,
   onUngroup,
   onAddToGroup,
+  onReorderGroup,
   onRenameGroup,
+  onRenamePiece,
 }: ApartmentLayersProps) {
   const names = placedNames(furniture);
   const scroll = useScrollFade();
@@ -145,6 +174,10 @@ export function ApartmentLayers({
   >(null);
   /** A group whose name is being typed. */
   const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
+  /** A piece whose name is being typed. */
+  const [renamingPieceId, setRenamingPieceId] = useState<string | null>(null);
+  /** An opening or a section whose name is being typed. */
+  const [renamingRowId, setRenamingRowId] = useState<string | null>(null);
   /** The last piece picked on its own: where a Shift range starts from. */
   const anchor = useRef<string | null>(null);
 
@@ -249,7 +282,11 @@ export function ApartmentLayers({
           event.dataTransfer.effectAllowed = "move";
         }}
         onDragOver={(event: DragEvent<HTMLLIElement>) => {
-          if (event.dataTransfer.types.includes(LAYER_DRAG_TYPE)) {
+          const types = event.dataTransfer.types;
+          if (
+            types.includes(LAYER_DRAG_TYPE) ||
+            (onReorderGroup !== undefined && types.includes(GROUP_DRAG_TYPE))
+          ) {
             event.preventDefault();
             setOver(id);
           }
@@ -268,10 +305,21 @@ export function ApartmentLayers({
         }}
         onDrop={(event: DragEvent<HTMLLIElement>) => {
           const from = event.dataTransfer.getData(LAYER_DRAG_TYPE);
+          const group = event.dataTransfer.getData(GROUP_DRAG_TYPE);
           setOver(null);
-          if (from !== "" && from !== id) {
+          if (group !== "" && !(groupOf(groups, id)?.id === group)) {
             event.preventDefault();
-            onReorder?.(from, id);
+            onReorderGroup?.(group, id);
+          } else if (from !== "" && from !== id) {
+            event.preventDefault();
+            const landedIn = groupOf(groups, id);
+            onReorder?.(from, {
+              beforeId: id,
+              into:
+                landedIn === undefined
+                  ? null
+                  : { groupId: landedIn.id, beforeInstanceId: id },
+            });
           }
         }}
         className={over === id ? DROP_LINE : ""}
@@ -284,6 +332,24 @@ export function ApartmentLayers({
           dimmed={hidden}
           selected={isSelected(selection, "instance", id)}
           onSelect={(event) => choosePiece(id, event)}
+          onDoubleClick={
+            onRenamePiece === undefined
+              ? undefined
+              : () => setRenamingPieceId(id)
+          }
+          title={
+            onRenamePiece === undefined ? undefined : "Double-click to rename"
+          }
+          editor={
+            renamingPieceId === id ? (
+              <RenameField
+                name={name}
+                label={`Rename ${name}`}
+                onApply={(next) => onRenamePiece?.(id, next)}
+                onDone={() => setRenamingPieceId(null)}
+              />
+            ) : undefined
+          }
           trailing={
             onToggleHidden === undefined ? null : (
               /* A flex box, not an inline span: inline, it would take the
@@ -310,6 +376,53 @@ export function ApartmentLayers({
     );
   };
 
+  /** The piece that follows this one in the whole order, or null at the end. */
+  const after = (instanceId: string | undefined): string | null => {
+    if (instanceId === undefined) {
+      return null;
+    }
+    const index = furniture.findIndex(
+      ({ instance }) => instance.id === instanceId,
+    );
+    return furniture[index + 1]?.instance.id ?? null;
+  };
+
+  /**
+   * A strip after the last row of a list, so something can be dropped last.
+   * Every other target puts the dragged row above itself, which leaves the
+   * end of a list the one place nothing could be put.
+   */
+  const endZone = (key: string, drop: Drop, beforeForGroup: string | null) => (
+    <li
+      key={key}
+      aria-hidden="true"
+      onDragOver={(event: DragEvent<HTMLLIElement>) => {
+        const types = event.dataTransfer.types;
+        if (
+          (onReorder !== undefined && types.includes(LAYER_DRAG_TYPE)) ||
+          (onReorderGroup !== undefined && types.includes(GROUP_DRAG_TYPE))
+        ) {
+          event.preventDefault();
+          setOver(key);
+        }
+      }}
+      onDragLeave={() => setOver((was) => (was === key ? null : was))}
+      onDrop={(event: DragEvent<HTMLLIElement>) => {
+        const from = event.dataTransfer.getData(LAYER_DRAG_TYPE);
+        const group = event.dataTransfer.getData(GROUP_DRAG_TYPE);
+        setOver(null);
+        if (group !== "") {
+          event.preventDefault();
+          onReorderGroup?.(group, beforeForGroup);
+        } else if (from !== "") {
+          event.preventDefault();
+          onReorder?.(from, drop);
+        }
+      }}
+      className={`h-2 ${over === key ? DROP_LINE : ""}`}
+    />
+  );
+
   /** A group as a row with its pieces folded under it. */
   const groupRow = (group: PieceGroup, groupEntries: readonly Entry[]) => {
     const allSelected = group.instanceIds.every((id) =>
@@ -330,26 +443,46 @@ export function ApartmentLayers({
             rows under it are drop targets of their own, so this takes only
             what is dropped on the row itself. */}
         <div
+          draggable={onReorderGroup !== undefined}
+          onDragStart={(event: DragEvent<HTMLDivElement>) => {
+            event.dataTransfer.setData(GROUP_DRAG_TYPE, group.id);
+            event.dataTransfer.effectAllowed = "move";
+          }}
           onDragOver={(event: DragEvent<HTMLDivElement>) => {
-            if (
-              onAddToGroup !== undefined &&
-              event.dataTransfer.types.includes(LAYER_DRAG_TYPE)
-            ) {
+            const types = event.dataTransfer.types;
+            if (onAddToGroup !== undefined && types.includes(LAYER_DRAG_TYPE)) {
               event.preventDefault();
               setOver(`group:${group.id}`);
+            } else if (
+              onReorderGroup !== undefined &&
+              types.includes(GROUP_DRAG_TYPE)
+            ) {
+              // Another group held over this one lands above it.
+              event.preventDefault();
+              setOver(`before:${group.id}`);
             }
           }}
           onDragLeave={() =>
-            setOver((was) => (was === `group:${group.id}` ? null : was))
+            setOver((was) =>
+              was === `group:${group.id}` || was === `before:${group.id}`
+                ? null
+                : was,
+            )
           }
           onDrop={(event: DragEvent<HTMLDivElement>) => {
             const from = event.dataTransfer.getData(LAYER_DRAG_TYPE);
+            const other = event.dataTransfer.getData(GROUP_DRAG_TYPE);
+            const [first] = group.instanceIds;
             setOver(null);
-            if (from !== "" && !group.instanceIds.includes(from)) {
+            if (other !== "" && other !== group.id && first !== undefined) {
+              event.preventDefault();
+              onReorderGroup?.(other, first);
+            } else if (from !== "" && !group.instanceIds.includes(from)) {
               event.preventDefault();
               onAddToGroup?.(group.id, from);
             }
           }}
+          className={over === `before:${group.id}` ? DROP_LINE : ""}
         >
           <EditableRow
             name={group.name}
@@ -377,6 +510,16 @@ export function ApartmentLayers({
             {groupEntries.map((entry) =>
               pieceRow(entry, troubledIds.has(entry.placed.instance.id), 2),
             )}
+            {endZone(
+              `end:${group.id}`,
+              {
+                beforeId: after(
+                  group.instanceIds[group.instanceIds.length - 1],
+                ),
+                into: { groupId: group.id },
+              },
+              after(group.instanceIds[group.instanceIds.length - 1]),
+            )}
           </ul>
         </Fold>
       </li>
@@ -395,6 +538,10 @@ export function ApartmentLayers({
     );
 
   const homeless = sections.find(({ roomId }) => roomId === null)?.items ?? [];
+  /** The last piece standing in a room, in the whole order. */
+  const lastIn = (roomId: string): string | undefined =>
+    entries.filter((entry) => entry.roomId === roomId).at(-1)?.placed.instance
+      .id;
 
   /** The pieces a right-clicked one would be grouped with: the selection, if it is in it. */
   const groupable =
@@ -445,7 +592,7 @@ export function ApartmentLayers({
                         : room.parts.slice(1).map((part, offset) => (
                             <li key={part.id}>
                               <Row
-                                label={`Section ${offset + 2}`}
+                                label={sectionLabel(part, offset + 1)}
                                 icon={SquareDashed}
                                 depth={1}
                                 selected={isSelected(
@@ -459,6 +606,24 @@ export function ApartmentLayers({
                                     roomId: room.id,
                                     id: part.id,
                                   })
+                                }
+                                onDoubleClick={() => setRenamingRowId(part.id)}
+                                title="Double-click to rename"
+                                editor={
+                                  renamingRowId === part.id ? (
+                                    <RenameField
+                                      name={sectionLabel(part, offset + 1)}
+                                      label={`Rename ${sectionLabel(part, offset + 1)}`}
+                                      onApply={(next) =>
+                                        onRoomChange(
+                                          withRoomPart(room, part.id, (one) =>
+                                            withRoomPartName(one, next),
+                                          ),
+                                        )
+                                      }
+                                      onDone={() => setRenamingRowId(null)}
+                                    />
+                                  ) : undefined
                                 }
                               />
                             </li>
@@ -481,6 +646,29 @@ export function ApartmentLayers({
                                 id: opening.id,
                               })
                             }
+                            onDoubleClick={() => setRenamingRowId(opening.id)}
+                            title="Double-click to rename"
+                            editor={
+                              renamingRowId === opening.id ? (
+                                <RenameField
+                                  name={openingListName(room, opening)}
+                                  label={`Rename ${openingListName(room, opening)}`}
+                                  onApply={(next) =>
+                                    onRoomChange(
+                                      withOpenings(
+                                        room,
+                                        room.openings.map((one) =>
+                                          one.id === opening.id
+                                            ? withOpeningName(one, next)
+                                            : one,
+                                        ),
+                                      ),
+                                    )
+                                  }
+                                  onDone={() => setRenamingRowId(null)}
+                                />
+                              ) : undefined
+                            }
                           />
                         </li>
                       ))}
@@ -488,6 +676,11 @@ export function ApartmentLayers({
                         sections.find(({ roomId }) => roomId === room.id)
                           ?.items ?? [],
                         false,
+                      )}
+                      {endZone(
+                        `end:${room.id}`,
+                        { beforeId: after(lastIn(room.id)), into: null },
+                        after(lastIn(room.id)),
                       )}
                     </ul>
                   </Fold>
@@ -555,6 +748,14 @@ export function ApartmentLayers({
                   ]
                 : [];
             })(),
+            ...(onRenamePiece === undefined
+              ? []
+              : [
+                  {
+                    label: "Rename",
+                    onSelect: () => setRenamingPieceId(menu.placed.instance.id),
+                  },
+                ]),
             {
               label: "Edit product",
               onSelect: () =>
@@ -653,31 +854,7 @@ function EditableRow({
     setOwnEditing(next);
     onEditingChange?.(next);
   };
-  /** What has been typed so far; null until a letter is, so the name shows. */
-  const [typed, setTyped] = useState<string | null>(null);
-  const draft = typed ?? name;
-  const inputRef = useRef<HTMLInputElement>(null);
   const shown = name === "" ? placeholder : name;
-
-  useEffect(() => {
-    if (editing) {
-      const input = inputRef.current;
-      input?.focus();
-      input?.setSelectionRange(input.value.length, input.value.length);
-    }
-  }, [editing]);
-
-  function finish(): void {
-    setTyped(null);
-    setEditing(false);
-  }
-
-  function applyRename(): void {
-    if (draft !== name) {
-      onRename?.(draft);
-    }
-    finish();
-  }
 
   return (
     <Row
@@ -693,25 +870,11 @@ function EditableRow({
       title={onRename === undefined ? undefined : "Double-click to rename"}
       editor={
         editing ? (
-          // The field takes the label's place and nothing else moves: the
-          // icon, the indent, and the chevron stay exactly where they were.
-          <input
-            ref={inputRef}
-            type="text"
-            value={draft}
-            aria-label={`Rename ${name === "" ? placeholder.toLowerCase() : name}`}
-            onChange={(event) => setTyped(event.target.value)}
-            onBlur={applyRename}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                applyRename();
-              } else if (event.key === "Escape") {
-                event.preventDefault();
-                finish();
-              }
-            }}
-            className="min-w-0 flex-1 cursor-text bg-transparent font-medium outline-none caret-current"
+          <RenameField
+            name={name}
+            label={`Rename ${name === "" ? placeholder.toLowerCase() : name}`}
+            onApply={(next) => onRename?.(next)}
+            onDone={() => setEditing(false)}
           />
         ) : undefined
       }
@@ -723,6 +886,62 @@ function EditableRow({
           onClick={onToggleFolded}
         />
       }
+    />
+  );
+}
+
+/**
+ * The field a name is typed into, in the label's place: nothing else in the
+ * row moves. Enter or leaving the field applies the name, if it changed;
+ * Escape leaves it alone. Either way the field is done.
+ */
+function RenameField({
+  name,
+  label,
+  onApply,
+  onDone,
+}: {
+  name: string;
+  label: string;
+  onApply: (name: string) => void;
+  onDone: () => void;
+}) {
+  /** What has been typed so far; null until a letter is, so the name shows. */
+  const [typed, setTyped] = useState<string | null>(null);
+  const draft = typed ?? name;
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const input = inputRef.current;
+    input?.focus();
+    input?.setSelectionRange(input.value.length, input.value.length);
+  }, []);
+
+  function apply(): void {
+    if (draft.trim() !== name) {
+      onApply(draft.trim());
+    }
+    onDone();
+  }
+
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      value={draft}
+      aria-label={label}
+      onChange={(event) => setTyped(event.target.value)}
+      onBlur={apply}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          apply();
+        } else if (event.key === "Escape") {
+          event.preventDefault();
+          onDone();
+        }
+      }}
+      className="min-w-0 flex-1 cursor-text bg-transparent font-medium outline-none caret-current"
     />
   );
 }

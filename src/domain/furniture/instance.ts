@@ -32,6 +32,12 @@ export type FurnitureInstance = {
    * but kept with its place so it can come back. Absent means shown.
    */
   readonly hidden?: boolean | undefined;
+  /**
+   * What this one copy is called, when the product's name is not what you
+   * would say: "Left nightstand" rather than the retailer's forty characters.
+   * Absent means the product's name, numbered if there are several.
+   */
+  readonly name?: string | undefined;
 };
 
 /** An instance joined to the product it references. */
@@ -84,6 +90,16 @@ export function withInstanceHidden(
   const { hidden: was, ...rest } = instance;
   void was;
   return hidden ? { ...rest, hidden: true } : rest;
+}
+
+/** The piece under its own name, or back under the product's when blank. */
+export function withInstanceName(
+  instance: FurnitureInstance,
+  name: string,
+): FurnitureInstance {
+  const { name: was, ...rest } = instance;
+  void was;
+  return name.trim() === "" ? rest : { ...rest, name };
 }
 
 export function isShown(instance: FurnitureInstance): boolean {
@@ -215,13 +231,22 @@ export function withInstance(
 export function placedNames(
   furniture: readonly PlacedFurniture[],
 ): readonly string[] {
+  // A piece with a name of its own is called that. The rest are numbered
+  // among themselves: name one of two nightstands and the other is just
+  // the nightstand again, not "nightstand 2" of a pair that is now one.
+  const unnamed = furniture.filter(
+    ({ instance }) => instance.name === undefined,
+  );
   const totals = new Map<string, number>();
-  for (const { product } of furniture) {
+  for (const { product } of unnamed) {
     totals.set(product.id, (totals.get(product.id) ?? 0) + 1);
   }
 
   const seen = new Map<string, number>();
-  return furniture.map(({ product }) => {
+  return furniture.map(({ instance, product }) => {
+    if (instance.name !== undefined) {
+      return instance.name;
+    }
     const ordinal = (seen.get(product.id) ?? 0) + 1;
     seen.set(product.id, ordinal);
     return (totals.get(product.id) ?? 0) > 1

@@ -29,14 +29,15 @@ import { pressIs } from "@/components/shortcuts";
 import {
   countPlaced,
   createInstance,
+  type FurnitureInstance,
+  type FurnitureProduct,
   placedFurniture,
   placedNames,
   placementFor,
+  shownFurniture,
   withInstance,
   withInstanceHidden,
-  shownFurniture,
-  type FurnitureInstance,
-  type FurnitureProduct,
+  withInstanceName,
 } from "@/domain/furniture";
 import type { FloorPoint } from "@/domain/geometry";
 import {
@@ -48,7 +49,6 @@ import {
   createLayout,
   createUnderlay,
   duplicateLayout,
-  groupOf,
   nextId,
   nextLayoutName,
   renameLayout,
@@ -715,13 +715,16 @@ export function Workspace() {
               setInstances(instances.filter((one) => one.id !== id));
               setSelection(null);
             }}
-            onReorder={(id, beforeId) => {
+            onReorder={(id, drop) => {
               const moving = instances.find((one) => one.id === id);
               if (moving === undefined) {
                 return;
               }
               const rest = instances.filter((one) => one.id !== id);
-              const at = rest.findIndex((one) => one.id === beforeId);
+              const at =
+                drop.beforeId === null
+                  ? -1
+                  : rest.findIndex((one) => one.id === drop.beforeId);
               // One drag, one undo: the order and the group change together.
               const gesture = `reorder:${id}`;
               setInstances(
@@ -730,18 +733,38 @@ export function Workspace() {
                   : [...rest.slice(0, at), moving, ...rest.slice(at)],
                 gesture,
               );
-              const landedIn = groupOf(groups, beforeId);
-              setGroups(
-                withPieceMoved(
-                  groups,
-                  id,
-                  landedIn === undefined
-                    ? null
-                    : { groupId: landedIn.id, beforeInstanceId: beforeId },
-                ),
-                gesture,
-              );
+              setGroups(withPieceMoved(groups, id, drop.into), gesture);
               endGesture();
+            }}
+            onRenamePiece={(id, name) => {
+              const instance = instances.find((one) => one.id === id);
+              if (instance !== undefined) {
+                setInstances(
+                  withInstance(instances, withInstanceName(instance, name)),
+                );
+              }
+            }}
+            onReorderGroup={(groupId, beforeId) => {
+              const group = groups.find((one) => one.id === groupId);
+              if (
+                group === undefined ||
+                (beforeId !== null && group.instanceIds.includes(beforeId))
+              ) {
+                return;
+              }
+              const moving = group.instanceIds.flatMap((id) => {
+                const one = instances.find((candidate) => candidate.id === id);
+                return one === undefined ? [] : [one];
+              });
+              const rest = instances.filter(
+                (one) => !group.instanceIds.includes(one.id),
+              );
+              const at = rest.findIndex((one) => one.id === beforeId);
+              setInstances(
+                at === -1
+                  ? [...rest, ...moving]
+                  : [...rest.slice(0, at), ...moving, ...rest.slice(at)],
+              );
             }}
             onAddToGroup={(groupId, id) =>
               setGroups(withPieceMoved(groups, id, { groupId }))

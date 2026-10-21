@@ -687,6 +687,71 @@ describe("readStoredProject", () => {
     ]);
   });
 
+  it("keeps a piece's own name through the round trip", () => {
+    const stored = toStoredProject(
+      "current",
+      {
+        ...projectWithLivingRoom(),
+        layouts: [
+          {
+            id: "layout-1",
+            name: "Layout 1",
+            instances: [
+              {
+                id: "i1",
+                productId: "p1",
+                position: { xMeters: 1, zMeters: 1 },
+                rotationRadians: 0,
+                name: "Left nightstand",
+              },
+            ],
+          },
+        ],
+      },
+      1,
+    );
+    const result = readStoredProject(stored);
+
+    expect(result.ok && result.project.layouts[0]?.instances[0]?.name).toBe(
+      "Left nightstand",
+    );
+  });
+
+  it("keeps an opening's and a section's own names through the round trip", () => {
+    const [room] = STORED.project.floor.rooms;
+    const part = room?.parts[0];
+    const opening = room?.openings[0];
+    if (room === undefined || part === undefined || opening === undefined) {
+      throw new Error("the fixture has a room with a part and an opening");
+    }
+    const result = readStoredProject({
+      ...STORED,
+      project: {
+        ...STORED.project,
+        floor: {
+          ...STORED.project.floor,
+          rooms: [
+            {
+              ...room,
+              parts: [{ ...part, name: "Closet" }],
+              openings: [{ ...opening, name: "Closet door" }],
+            },
+          ],
+        },
+      },
+    });
+
+    const stored = result.ok ? result.project.floor.rooms[0] : undefined;
+    expect(stored?.parts[0]?.name).toBe("Closet");
+    expect(stored?.openings[0]?.name).toBe("Closet door");
+  });
+
+  it("reads a version 20 piece, which had no name, as one without", () => {
+    const result = readStoredProject({ ...STORED, version: 20 });
+
+    expect(result.ok).toBe(true);
+  });
+
   it("reads a version 19 layout, which had no groups, as one with none", () => {
     const result = readStoredProject({ ...STORED, version: 19 });
 

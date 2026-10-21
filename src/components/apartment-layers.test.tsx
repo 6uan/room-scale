@@ -7,7 +7,7 @@ import { vi } from "vitest";
 import { createInstance, type PlacedFurniture } from "@/domain/furniture";
 import { withParts, withRoom, type Floor, type Room } from "@/domain/room";
 import type { Selection } from "@/components/selection";
-import { ApartmentLayers } from "./apartment-layers";
+import { ApartmentLayers, type Drop } from "./apartment-layers";
 import { projectWithLivingRoom } from "@/domain/project/fixtures";
 import { withGroup, withoutGroup, type PieceGroup } from "@/domain/project";
 
@@ -123,6 +123,24 @@ describe("ApartmentLayers room names", () => {
     expect(screen.getByRole("button", { name: "Door 1" })).toBeVisible();
   });
 
+  it("renames an opening and a section in their rows", async () => {
+    const user = userEvent.setup();
+    render(<LayersHarness compound />);
+
+    await user.dblClick(screen.getByRole("button", { name: "Door 1" }));
+    const door = screen.getByRole("textbox", { name: "Rename Door 1" });
+    await user.clear(door);
+    await user.type(door, "Front door{Enter}");
+    expect(screen.getByRole("button", { name: "Front door" })).toBeVisible();
+
+    await user.dblClick(screen.getByRole("button", { name: "Section 2" }));
+    const section = screen.getByRole("textbox", { name: "Rename Section 2" });
+    await user.clear(section);
+    await user.type(section, "Closet{Enter}");
+    expect(screen.getByRole("button", { name: "Closet" })).toBeVisible();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
   it("does not repeat the only rectangle as Section 1", () => {
     render(<LayersHarness />);
 
@@ -174,7 +192,7 @@ describe("ApartmentLayers pieces", () => {
     furniture: readonly PlacedFurniture[],
     handlers: {
       onToggleHidden?: (id: string) => void;
-      onReorder?: (id: string, beforeId: string) => void;
+      onReorder?: (id: string, drop: Drop) => void;
     },
   ) {
     return render(
@@ -247,6 +265,39 @@ describe("ApartmentLayers pieces", () => {
     expect(onRemove).toHaveBeenCalledWith("i1");
   });
 
+  it("renames a piece in its row, and offers it from the menu", async () => {
+    const user = userEvent.setup();
+    const onRenamePiece = vi.fn();
+    render(
+      <ApartmentLayers
+        floor={projectWithLivingRoom().floor}
+        furniture={[rug, lamp]}
+        selection={null}
+        troubledIds={new Set()}
+        onSelect={() => undefined}
+        onRoomChange={() => undefined}
+        onAddRoom={() => undefined}
+        onRenamePiece={onRenamePiece}
+      />,
+    );
+
+    await user.dblClick(screen.getByRole("button", { name: "Rug" }));
+    const field = screen.getByLabelText("Rename Rug");
+    await user.clear(field);
+    await user.type(field, "Hall rug{Enter}");
+    expect(onRenamePiece).toHaveBeenCalledWith("i1", "Hall rug");
+    // The row is a row again, and nothing else was renamed.
+    expect(screen.getByRole("button", { name: "Rug" })).toBeVisible();
+
+    const row = screen.getByRole("button", { name: "Lamp" }).closest("li");
+    if (row === null) {
+      throw new Error("the lamp has a row");
+    }
+    fireEvent.contextMenu(row, { clientX: 40, clientY: 40 });
+    await user.click(screen.getByRole("menuitem", { name: "Rename" }));
+    expect(screen.getByLabelText("Rename Lamp")).toHaveFocus();
+  });
+
   it("reorders by dragging one row onto another", () => {
     const onReorder = vi.fn();
     renderPieces([rug, lamp], { onReorder });
@@ -270,7 +321,10 @@ describe("ApartmentLayers pieces", () => {
     fireEvent.dragOver(rugRow, { dataTransfer });
     fireEvent.drop(rugRow, { dataTransfer });
 
-    expect(onReorder).toHaveBeenCalledWith("i2", "i1");
+    expect(onReorder).toHaveBeenCalledWith("i2", {
+      beforeId: "i1",
+      into: null,
+    });
   });
 });
 
@@ -426,6 +480,98 @@ describe("ApartmentLayers groups", () => {
     expect(groupButton.parentElement?.className).not.toContain(
       "bg-blue-500/20",
     );
+  });
+
+  it("moves a whole group by dragging its row onto a piece's", () => {
+    const onReorderGroup = vi.fn();
+    render(
+      <ApartmentLayers
+        floor={projectWithLivingRoom().floor}
+        furniture={furniture}
+        selection={null}
+        troubledIds={new Set()}
+        onSelect={() => undefined}
+        onRoomChange={() => undefined}
+        onAddRoom={() => undefined}
+        onReorder={() => undefined}
+        groups={[{ id: "g1", name: "Group 1", instanceIds: ["i1", "i2"] }]}
+        onReorderGroup={onReorderGroup}
+      />,
+    );
+    const groupButton = screen.getByRole("button", { name: "Group 1" });
+    const rugRow = screen.getByRole("button", { name: "Rug" }).closest("li");
+    if (rugRow === null) {
+      throw new Error("the rug has a row");
+    }
+    const data = new Map<string, string>();
+    const dataTransfer = {
+      setData: (type: string, value: string) => data.set(type, value),
+      getData: (type: string) => data.get(type) ?? "",
+      get types() {
+        return [...data.keys()];
+      },
+      effectAllowed: "move",
+    };
+
+    fireEvent.dragStart(groupButton, { dataTransfer });
+    fireEvent.dragOver(rugRow, { dataTransfer });
+    expect(rugRow.className).toContain("before:");
+    fireEvent.drop(rugRow, { dataTransfer });
+
+    expect(onReorderGroup).toHaveBeenCalledWith("g1", "i3");
+  });
+
+  it("drops a piece at the very end of a room's list, and at the end of a group's", () => {
+    const onReorder = vi.fn();
+    const { container } = render(
+      <ApartmentLayers
+        floor={projectWithLivingRoom().floor}
+        furniture={furniture}
+        selection={null}
+        troubledIds={new Set()}
+        onSelect={() => undefined}
+        onRoomChange={() => undefined}
+        onAddRoom={() => undefined}
+        onReorder={onReorder}
+        groups={[{ id: "g1", name: "Group 1", instanceIds: ["i1", "i2"] }]}
+      />,
+    );
+    const bedRow = screen.getByRole("button", { name: "Bed" }).closest("li");
+    if (bedRow === null) {
+      throw new Error("the bed has a row");
+    }
+    const data = new Map<string, string>();
+    const dataTransfer = {
+      setData: (type: string, value: string) => data.set(type, value),
+      getData: (type: string) => data.get(type) ?? "",
+      get types() {
+        return [...data.keys()];
+      },
+      effectAllowed: "move",
+    };
+    // The strips after the last rows: the group's, then the room's.
+    const [groupEnd, roomEnd] = container.querySelectorAll("li.h-2");
+    if (groupEnd === undefined || roomEnd === undefined) {
+      throw new Error("each list ends in a strip to drop on");
+    }
+
+    fireEvent.dragStart(bedRow, { dataTransfer });
+    fireEvent.dragOver(roomEnd, { dataTransfer });
+    expect(roomEnd.className).toContain("before:");
+    fireEvent.drop(roomEnd, { dataTransfer });
+    // Last of all, and in no group.
+    expect(onReorder).toHaveBeenLastCalledWith("i1", {
+      beforeId: null,
+      into: null,
+    });
+
+    fireEvent.dragStart(bedRow, { dataTransfer });
+    fireEvent.drop(groupEnd, { dataTransfer });
+    // After the group's last piece, which the rug follows, and still in it.
+    expect(onReorder).toHaveBeenLastCalledWith("i1", {
+      beforeId: "i3",
+      into: { groupId: "g1" },
+    });
   });
 
   it("folds a group, renames it, and ungroups it", async () => {

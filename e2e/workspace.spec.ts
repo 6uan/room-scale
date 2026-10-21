@@ -2227,6 +2227,63 @@ test.describe("laying the apartment out", () => {
   });
 });
 
+test.describe("a piece's own name", () => {
+  test("renames one copy in the list, and the rest keep the product's name", async ({
+    page,
+  }) => {
+    await openWithLivingRoom(page);
+    await addProduct(page, { name: "Lamp", width: "12", depth: "12" });
+    await placeFromList(page, "Lamp");
+    await placeFromList(page, "Lamp", 60);
+    const row = (name: string) =>
+      contents(page).getByRole("button", { name, exact: true });
+
+    await row("Lamp 1").dblclick();
+    await contents(page).getByLabel("Rename Lamp 1").fill("Bedside");
+    await page.keyboard.press("Enter");
+
+    // Named, and the other is just the lamp again: there is one unnamed.
+    await expect(row("Bedside")).toBeVisible();
+    await expect(row("Lamp")).toBeVisible();
+    await row("Bedside").click();
+    await expect(
+      details(page).getByRole("heading", { name: "Bedside" }),
+    ).toBeVisible();
+    await expect(details(page).getByLabel("Name")).toHaveValue("Bedside");
+
+    // The name is part of the layout, so it is still there after a reload.
+    await page.waitForTimeout(500);
+    await page.reload();
+    await expect(row("Bedside")).toBeVisible();
+
+    // Blank in the inspector hands the product's name back.
+    await row("Bedside").click();
+    await details(page).getByLabel("Name").fill("");
+    await expect(row("Lamp 1")).toBeVisible();
+  });
+});
+
+test.describe("an opening's own name", () => {
+  test("renames a door in the list, and the panel follows", async ({
+    page,
+  }) => {
+    await openWithLivingRoom(page);
+    const row = (name: string) =>
+      contents(page).getByRole("button", { name, exact: true });
+
+    await row("Door 1").dblclick();
+    await contents(page).getByLabel("Rename Door 1").fill("Front door");
+    await page.keyboard.press("Enter");
+
+    await expect(row("Front door")).toBeVisible();
+    await row("Front door").click();
+    await expect(
+      details(page).getByRole("heading", { name: "Front door" }),
+    ).toBeVisible();
+    await expect(details(page).getByLabel("Name")).toHaveValue("Front door");
+  });
+});
+
 test.describe("groups in the list", () => {
   test("groups a range of pieces, picks them up as one, and ungroups", async ({
     page,
@@ -2312,6 +2369,41 @@ test.describe("groups in the list", () => {
     await groupHolds("2");
     await page.getByRole("button", { name: "Undo" }).click();
     await groupHolds("3");
+  });
+
+  test("drags a group above a loose piece", async ({ page }) => {
+    await openWithLivingRoom(page);
+    await addProduct(page, { name: "Lamp", width: "12", depth: "12" });
+    await placeFromList(page, "Lamp");
+    await placeFromList(page, "Lamp", 60);
+    await placeFromList(page, "Lamp", 120);
+    const row = (name: string) =>
+      contents(page).getByRole("button", { name, exact: true });
+    // The second and third lamps, so the group starts under the first.
+    await row("Lamp 2").click();
+    await row("Lamp 3").click({ modifiers: ["Shift"] });
+    await row("Lamp 2").click({ button: "right" });
+    await page.getByRole("menuitem", { name: "Group 2 pieces" }).click();
+    /** The rows in the order they are drawn. */
+    const order = () =>
+      contents(page)
+        .getByRole("button")
+        .evaluateAll((buttons) =>
+          buttons
+            .map((one) => one.textContent ?? "")
+            .filter((text) => text !== ""),
+        );
+    const before = await order();
+    expect(before.indexOf("Lamp 1")).toBeLessThan(before.indexOf("Group 1"));
+
+    // Dropped on the first lamp's row, the whole group lands above it.
+    await row("Group 1").dragTo(row("Lamp 1"));
+    await expect
+      .poll(async () => {
+        const after = await order();
+        return after.indexOf("Group 1") < after.indexOf("Lamp 1");
+      })
+      .toBe(true);
   });
 
   test("adds to the selection with the command key", async ({ page }) => {

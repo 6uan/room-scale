@@ -19,7 +19,7 @@ import { Disclosure } from "@/components/disclosure";
 import { NumberField } from "@/components/number-field";
 import { openingName } from "@/components/opening-name";
 import { OpeningFields } from "@/components/room-openings-form";
-import { ProductForm } from "@/components/product-form";
+import { ProductForm, TextField } from "@/components/product-form";
 import { RoomFields } from "@/components/room-fields";
 import { PanelSection } from "@/components/panel/section";
 import { orientedRectCorners } from "@/domain/geometry";
@@ -29,11 +29,12 @@ import type { Selection } from "@/components/selection";
 import {
   createProduct,
   footprintRect,
-  placedNames,
-  withInstanceHidden,
   type FurnitureInstance,
   type FurnitureProduct,
   type PlacedFurniture,
+  placedNames,
+  withInstanceHidden,
+  withInstanceName,
 } from "@/domain/furniture";
 import {
   WALL_THICKNESS_LIMITS,
@@ -421,6 +422,18 @@ function InstanceInspector({
       }
     >
       <PanelSection title="Placement" first>
+        {/* The piece's own name, kept apart from the product's: "Left
+            nightstand" is a fact about this copy, and the product's name
+            stays what the shop calls it. Blank is the product's name. */}
+        <TextField
+          label="Name"
+          value={placed.instance.name ?? ""}
+          placeholder={placed.product.name}
+          problem={null}
+          onValueChange={(value) =>
+            onInstanceChange(withInstanceName(placed.instance, value))
+          }
+        />
         <PlacementFields
           floor={floor}
           instance={placed.instance}
