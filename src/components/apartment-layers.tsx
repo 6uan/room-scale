@@ -645,33 +645,6 @@ function EditableRow({
     finish();
   }
 
-  if (editing) {
-    // Indented by a wrapper rather than a margin on the field: a full-width
-    // field with a margin is wider than its row and pushes the list about.
-    return (
-      <div className={depth === 1 ? "pl-4" : ""}>
-        <input
-          ref={inputRef}
-          type="text"
-          value={draft}
-          aria-label={`Rename ${name === "" ? placeholder.toLowerCase() : name}`}
-          onChange={(event) => setTyped(event.target.value)}
-          onBlur={applyRename}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              applyRename();
-            } else if (event.key === "Escape") {
-              event.preventDefault();
-              finish();
-            }
-          }}
-          className="w-full min-w-0 cursor-text rounded bg-black/15 px-2 py-1 text-sm font-medium outline-none caret-current dark:bg-white/20"
-        />
-      </div>
-    );
-  }
-
   return (
     <Row
       label={shown}
@@ -683,6 +656,30 @@ function EditableRow({
         onRename === undefined ? undefined : () => setEditing(true)
       }
       title={onRename === undefined ? undefined : "Double-click to rename"}
+      editor={
+        editing ? (
+          // The field takes the label's place and nothing else moves: the
+          // icon, the indent, and the chevron stay exactly where they were.
+          <input
+            ref={inputRef}
+            type="text"
+            value={draft}
+            aria-label={`Rename ${name === "" ? placeholder.toLowerCase() : name}`}
+            onChange={(event) => setTyped(event.target.value)}
+            onBlur={applyRename}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                applyRename();
+              } else if (event.key === "Escape") {
+                event.preventDefault();
+                finish();
+              }
+            }}
+            className="min-w-0 flex-1 cursor-text bg-transparent font-medium outline-none caret-current"
+          />
+        ) : undefined
+      }
       trailing={
         <IconButton
           label={folded ? `Expand ${shown}` : `Collapse ${shown}`}
@@ -716,6 +713,7 @@ function Row({
   onSelect,
   onDoubleClick,
   title,
+  editor,
   trailing = null,
 }: {
   label: string;
@@ -728,9 +726,12 @@ function Row({
   onSelect: (event: MouseEvent<HTMLButtonElement>) => void;
   onDoubleClick?: (() => void) | undefined;
   title?: string | undefined;
+  /** A field standing in for the label while the name is typed. */
+  editor?: React.ReactNode;
   /** A control beside the name, outside the row's own button. */
   trailing?: React.ReactNode;
 }) {
+  const inset = `flex min-w-0 flex-1 items-center gap-2 px-2.5 py-1.5 text-left text-sm ${DEPTH_CLASS[depth]}`;
   return (
     <div
       className={`group flex min-w-0 items-center rounded-lg pr-1 transition-colors focus-within:outline-2 focus-within:outline-offset-[-2px] focus-within:outline-blue-500 ${
@@ -739,26 +740,31 @@ function Row({
           : "hover:bg-black/5 dark:hover:bg-white/10"
       }`}
     >
-      <button
-        type="button"
-        aria-pressed={selected}
-        onClick={onSelect}
-        onDoubleClick={onDoubleClick}
-        title={title}
-        className={`flex min-w-0 flex-1 items-center gap-2 px-2.5 py-1.5 text-left text-sm outline-none ${
-          DEPTH_CLASS[depth]
-        } ${selected ? "font-medium" : ""} ${troubled ? "text-red-600" : ""} ${
-          dimmed ? "opacity-45" : ""
-        }`}
-      >
-        {/* The glyph says what kind of thing the row is; the words say which
-            one. Hidden from the name, so the row is still found by its words. */}
-        <Icon
-          aria-hidden="true"
-          className={`size-3.5 shrink-0 ${troubled ? "" : "opacity-45"}`}
-        />
-        <span className="min-w-0 truncate">{label}</span>
-      </button>
+      {editor !== undefined ? (
+        <div className={inset}>
+          <Icon aria-hidden="true" className="size-3.5 shrink-0 opacity-45" />
+          {editor}
+        </div>
+      ) : (
+        <button
+          type="button"
+          aria-pressed={selected}
+          onClick={onSelect}
+          onDoubleClick={onDoubleClick}
+          title={title}
+          className={`${inset} outline-none ${selected ? "font-medium" : ""} ${
+            troubled ? "text-red-600" : ""
+          } ${dimmed ? "opacity-45" : ""}`}
+        >
+          {/* The glyph says what kind of thing the row is; the words say which
+              one. Hidden from the name, so the row is still found by its words. */}
+          <Icon
+            aria-hidden="true"
+            className={`size-3.5 shrink-0 ${troubled ? "" : "opacity-45"}`}
+          />
+          <span className="min-w-0 truncate">{label}</span>
+        </button>
+      )}
       {trailing}
     </div>
   );
