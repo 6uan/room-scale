@@ -38,6 +38,8 @@ export type Extracted<T> = {
 
 export type ExtractedProduct = {
   readonly name?: Extracted<string>;
+  /** Only the link path knows this: the address the page was fetched from. */
+  readonly productUrl?: Extracted<string>;
   readonly priceCents?: Extracted<number>;
   readonly widthMeters?: Extracted<number>;
   readonly depthMeters?: Extracted<number>;

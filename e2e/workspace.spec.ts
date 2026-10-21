@@ -918,6 +918,104 @@ test.describe("comparing layouts", () => {
   });
 });
 
+test.describe("filling a product in from a link", () => {
+  async function openImport(page: Page) {
+    await openWithLivingRoom(page);
+    await contents(page).getByRole("button", { name: "New product" }).click();
+    const form = details(page);
+    await form
+      .getByRole("button", { name: "Paste from a product page" })
+      .click();
+    return form;
+  }
+
+  test("fetches the page once and fills in what it read, for checking", async ({
+    page,
+  }) => {
+    const form = await openImport(page);
+    const calls: string[] = [];
+    await page.route("**/api/import", async (route) => {
+      calls.push(route.request().postDataJSON().url);
+      await route.fulfill({
+        json: {
+          status: "read",
+          extracted: {
+            name: {
+              value: 'Abisko 94.5" Velvet Right Sectional',
+              sourceText: 'Abisko 94.5" Velvet Right Sectional',
+            },
+            priceCents: { value: 169900, sourceText: "price: 1699" },
+            widthMeters: { value: 2.4003, sourceText: '94.5"W' },
+            depthMeters: { value: 1.6129, sourceText: '63.5"D' },
+            heightMeters: { value: 0.7112, sourceText: '28"H' },
+            dimensionOrderIsAssumed: false,
+          },
+        },
+      });
+    });
+
+    const address = "https://www.article.com/product/22588/abisko";
+    await form.getByLabel(/Paste the product page/).fill(address);
+    await form.getByRole("button", { name: "Fetch the page" }).click();
+
+    // One fetch, of the one address, on the one press.
+    await expect(form.getByRole("status")).toContainText("Read 5 values");
+    expect(calls).toEqual([address]);
+
+    // The form is filled, not the catalogue: nothing is saved until it is
+    // checked and added, and the link is carried over as well.
+    await expect(form.getByLabel("Name")).toHaveValue(
+      'Abisko 94.5" Velvet Right Sectional',
+    );
+    await expect(form.getByLabel("Price")).toHaveValue("1699.00");
+    await expect(form.getByLabel("Width")).toHaveValue("94.5");
+    await expect(form.getByLabel("Length")).toHaveValue("63.5");
+    await expect(form.getByLabel("Product link")).toHaveValue(address);
+    await expect(
+      contents(page).getByRole("button", { name: /Place Abisko/ }),
+    ).toHaveCount(0);
+  });
+
+  test("says when a page could not be read, instead of guessing", async ({
+    page,
+  }) => {
+    const form = await openImport(page);
+    await page.route("**/api/import", (route) =>
+      route.fulfill({
+        json: { status: "read", extracted: { dimensionOrderIsAssumed: false } },
+      }),
+    );
+    await form
+      .getByLabel(/Paste the product page/)
+      .fill("https://www.target.com/p/tv-stand/-/A-1");
+    await form.getByRole("button", { name: "Fetch the page" }).click();
+
+    await expect(form.getByRole("status")).toContainText(
+      "Nothing could be read from that",
+    );
+    await expect(form.getByLabel("Name")).toHaveValue("");
+  });
+
+  test("the endpoint refuses an address on this machine", async ({
+    page,
+    request,
+  }) => {
+    const form = await openImport(page);
+    const answer = await request.post("/api/import", {
+      data: { url: "http://localhost:3000/" },
+    });
+    expect(await answer.json()).toMatchObject({ status: "refused" });
+
+    await form
+      .getByLabel(/Paste the product page/)
+      .fill("http://localhost:3000/");
+    await form.getByRole("button", { name: "Fetch the page" }).click();
+    await expect(form.getByRole("status")).toContainText(
+      "not a web address this can fetch",
+    );
+  });
+});
+
 test.describe("more than one project", () => {
   async function openProjects(page: Page) {
     const trigger = page.getByRole("button", { name: "Projects" });

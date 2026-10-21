@@ -22,6 +22,16 @@ Amazon sectional. Both shaped it:
   no title, no price, and no dimensions in it. Pasting what is on screen works
   where fetching the address never will, which is why that path came first.
 
+## The link path
+
+`product-html.ts` is how a fetched page reaches the same parser: scripts and
+styles dropped, block tags turned into line breaks, entities decoded, and the
+result handed to `extractProduct`. Where the markup carries a schema.org
+`Product` block its name and price are preferred, because they are stated
+rather than guessed. Article publishes one; `fixtures/article-abisko.html` is
+a trimmed capture of its sectional page, kept as the regression fixture. The
+fetch itself lives in `src/app/api/import`, outside the domain.
+
 ## Why text and not HTML
 
 It reads visible page text — what a person gets by selecting a page and copying

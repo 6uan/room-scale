@@ -94,7 +94,7 @@ Not carried out of this step: there is only version 1, so there is nothing to
 migrate yet. The read path dispatches on version and refuses what it does not
 recognize, which is the part that has to exist before there is a version 2.
 
-### 6. Fill a product in from its page, instead of typing it ◀ 6a only
+### 6. Fill a product in from its page, instead of typing it ◀ 6a and 6b
 
 Typing a dozen products by hand is the thing most likely to stop this tool being
 used. This step removes most of that typing without ever letting a guessed
@@ -121,11 +121,21 @@ to prefer — the JSON-LD step was dropped. And it reads rendered text rather
 than HTML, because retail markup is full of stylesheet lengths and script
 numbers that look exactly like measurements.
 
-**6b — Paste a link.** A Next server endpoint fetches the page
-server-side, since a browser cannot fetch cross-origin, strips it to text, and
-runs the same parser. Both pages tried so far return 200, but Target's is a
-JavaScript shell whose markup carries no title, price, or dimensions — so this
-path is a convenience for the pages it works on, never the only way in.
+**6b — Paste a link. ✅** `POST /api/import` fetches the one page, since a
+browser cannot fetch cross-origin, brings it to text, and runs the same
+parser. Only the address leaves the machine; nothing is kept. The fetch is
+hedged the way ADR 0005 asks: http(s) only, never an address inside the
+server's own network, a ten-second timeout, a four-megabyte cap, and the body
+read as text and nothing else.
+
+One thing came back from the markup that the paste path never had: Article
+publishes a schema.org `Product`, so its name and price are read from that
+rather than guessed from the first long line. Dimensions still come from the
+prose, as `28"H x 94.5"W x 63.5"D` in its spec table. The reference sectional
+reads in full. Target's page is the known miss — a JavaScript shell with no
+title, price, or dimensions in it — and the panel says nothing could be read
+rather than guessing, which is the point. Manual entry and the pasted text
+stay beside the link, not behind it.
 
 **6c — A local model for the pages the parser cannot read.** Ollama on
 `localhost`, with output constrained to the product schema so it cannot return
