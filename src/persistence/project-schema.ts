@@ -51,8 +51,9 @@ import { FIRST_PROJECT_NAME, type Project } from "@/domain/project";
  *     becomes wanted; "ordered" becomes owned, because the money has gone.
  * 20. A layout may hold groups of pieces. Absent is none, which is what every
  *     existing layout has, so there is nothing to rewrite.
- * 21. A placed piece may have a name of its own. Absent is the product's,
- *     which is what every existing piece is called.
+ * 21. A placed piece, an opening, and a section may each have a name of
+ *     their own. Absent is what they were always called: the product's
+ *     name, the kind numbered, the section numbered.
  */
 export const SCHEMA_VERSION = 21;
 
@@ -91,6 +92,7 @@ const openingFields = {
   wall: wallSideSchema,
   centerMeters: finiteNumber,
   widthMeters: finiteNumber,
+  name: z.string().optional(),
 };
 
 const openingSchema = z.discriminatedUnion("kind", [
@@ -112,6 +114,7 @@ const roomPartSchema = z.object({
   depthMeters: finiteNumber,
   rotationRadians: finiteNumber,
   openWalls: z.array(wallSideSchema),
+  name: z.string().optional(),
   // Optional and sparse, like `cuts`: a part written before version 14 has no
   // dividing walls, and absent says exactly that.
   dividingWalls: z.array(wallSideSchema).optional(),
@@ -606,7 +609,8 @@ const MIGRATIONS: Record<number, (document: object) => object> = {
   },
   // Version 20 let a layout hold groups. Nothing stored had any.
   19: (document) => ({ ...document, version: 20 }),
-  // Version 21 let a piece carry its own name. Nothing stored had one.
+  // Version 21 let a piece, an opening, or a section carry its own name.
+  // Nothing stored had one.
   20: (document) => ({ ...document, version: 21 }),
 };
 

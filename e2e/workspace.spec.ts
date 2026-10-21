@@ -2263,6 +2263,27 @@ test.describe("a piece's own name", () => {
   });
 });
 
+test.describe("an opening's own name", () => {
+  test("renames a door in the list, and the panel follows", async ({
+    page,
+  }) => {
+    await openWithLivingRoom(page);
+    const row = (name: string) =>
+      contents(page).getByRole("button", { name, exact: true });
+
+    await row("Door 1").dblclick();
+    await contents(page).getByLabel("Rename Door 1").fill("Front door");
+    await page.keyboard.press("Enter");
+
+    await expect(row("Front door")).toBeVisible();
+    await row("Front door").click();
+    await expect(
+      details(page).getByRole("heading", { name: "Front door" }),
+    ).toBeVisible();
+    await expect(details(page).getByLabel("Name")).toHaveValue("Front door");
+  });
+});
+
 test.describe("groups in the list", () => {
   test("groups a range of pieces, picks them up as one, and ungroups", async ({
     page,

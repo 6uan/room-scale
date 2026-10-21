@@ -24,11 +24,19 @@ import {
 import { ContextMenu } from "@/components/context-menu";
 import { IconButton } from "@/components/icon-button";
 import { useScrollFade } from "@/components/scroll-fade";
-import { openingListName } from "@/components/opening-name";
+import { openingListName, sectionLabel } from "@/components/opening-name";
 import { PanelHeader } from "@/components/panel-header";
 import { placedNames, type PlacedFurniture } from "@/domain/furniture";
 import { groupOf, type PieceGroup } from "@/domain/project";
-import { roomsAt, type Floor, type Room } from "@/domain/room";
+import {
+  type Floor,
+  type Room,
+  roomsAt,
+  withOpeningName,
+  withOpenings,
+  withRoomPart,
+  withRoomPartName,
+} from "@/domain/room";
 import {
   groupSelection,
   isSelected,
@@ -150,6 +158,8 @@ export function ApartmentLayers({
   const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
   /** A piece whose name is being typed. */
   const [renamingPieceId, setRenamingPieceId] = useState<string | null>(null);
+  /** An opening or a section whose name is being typed. */
+  const [renamingRowId, setRenamingRowId] = useState<string | null>(null);
   /** The last piece picked on its own: where a Shift range starts from. */
   const anchor = useRef<string | null>(null);
 
@@ -468,7 +478,7 @@ export function ApartmentLayers({
                         : room.parts.slice(1).map((part, offset) => (
                             <li key={part.id}>
                               <Row
-                                label={`Section ${offset + 2}`}
+                                label={sectionLabel(part, offset + 1)}
                                 icon={SquareDashed}
                                 depth={1}
                                 selected={isSelected(
@@ -482,6 +492,24 @@ export function ApartmentLayers({
                                     roomId: room.id,
                                     id: part.id,
                                   })
+                                }
+                                onDoubleClick={() => setRenamingRowId(part.id)}
+                                title="Double-click to rename"
+                                editor={
+                                  renamingRowId === part.id ? (
+                                    <RenameField
+                                      name={sectionLabel(part, offset + 1)}
+                                      label={`Rename ${sectionLabel(part, offset + 1)}`}
+                                      onApply={(next) =>
+                                        onRoomChange(
+                                          withRoomPart(room, part.id, (one) =>
+                                            withRoomPartName(one, next),
+                                          ),
+                                        )
+                                      }
+                                      onDone={() => setRenamingRowId(null)}
+                                    />
+                                  ) : undefined
                                 }
                               />
                             </li>
@@ -503,6 +531,29 @@ export function ApartmentLayers({
                                 roomId: room.id,
                                 id: opening.id,
                               })
+                            }
+                            onDoubleClick={() => setRenamingRowId(opening.id)}
+                            title="Double-click to rename"
+                            editor={
+                              renamingRowId === opening.id ? (
+                                <RenameField
+                                  name={openingListName(room, opening)}
+                                  label={`Rename ${openingListName(room, opening)}`}
+                                  onApply={(next) =>
+                                    onRoomChange(
+                                      withOpenings(
+                                        room,
+                                        room.openings.map((one) =>
+                                          one.id === opening.id
+                                            ? withOpeningName(one, next)
+                                            : one,
+                                        ),
+                                      ),
+                                    )
+                                  }
+                                  onDone={() => setRenamingRowId(null)}
+                                />
+                              ) : undefined
                             }
                           />
                         </li>

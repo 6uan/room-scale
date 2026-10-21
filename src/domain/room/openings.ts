@@ -68,6 +68,13 @@ export const WALL_SIDES: readonly WallSide[] = [
  *
  * A part with no cuts has exactly the four it always had.
  */
+/** The opening under its own name, or back under its kind's when blank. */
+export function withOpeningName(opening: Opening, name: string): Opening {
+  const { name: was, ...rest } = opening;
+  void was;
+  return name.trim() === "" ? rest : { ...rest, name };
+}
+
 export function partWallSides(part: RoomPart): readonly WallSide[] {
   return WALL_SIDES.filter((wall) => partWallLengthMeters(part, wall) > 0);
 }
@@ -100,6 +107,9 @@ type OpeningPlacement = {
   readonly wall: WallSide;
   readonly centerMeters: number;
   readonly widthMeters: number;
+  /** What it is called, when "Door 2" is not it: "Closet door". Absent is
+      its kind, numbered. */
+  readonly name?: string | undefined;
 };
 
 export type Door = OpeningPlacement & {

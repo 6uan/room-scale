@@ -10,40 +10,44 @@ import { Chip, ChipRow } from "@/components/panel/chip";
 import { CornerGlyph } from "@/components/panel/glyphs";
 import { PanelRow } from "@/components/panel/row";
 import { PanelSection } from "@/components/panel/section";
+import { sectionLabel } from "@/components/opening-name";
+import { TextField } from "@/components/product-form";
 import { RoomOpeningsForm } from "@/components/room-openings-form";
 import {
-  PART_CORNERS,
-  ROOM_LENGTH_LIMITS,
-  ROOM_ORIGIN_LIMITS,
+  type CutLeg,
   cutLegLimits,
   defaultCornerCut,
+  type Floor,
   nextPartId,
+  type OpeningKind,
+  PART_CORNERS,
+  type PartCorner,
   partWallSides,
-  WALL_THICKNESS_LIMITS,
+  type Room,
+  ROOM_LENGTH_LIMITS,
+  ROOM_ORIGIN_LIMITS,
   roomFloorAreaSquareMeters,
+  type RoomPart,
   roomPartCut,
+  roomPartWallState,
   snapRoomOrigin,
   snapRoomResize,
+  WALL_THICKNESS_LIMITS,
+  type WallSide,
+  type WallState,
+  wallStretches,
+  wallThicknessMeters,
   withOrigin,
   withParts,
   withRoomLength,
+  withRoomPart,
   withRoomPartCut,
   withRoomPartLength,
-  roomPartWallState,
-  wallStretches,
+  withRoomPartName,
   withRoomPartOrigin,
   withRoomPartRotation,
   withRoomPartWallState,
   withRoomWallThickness,
-  wallThicknessMeters,
-  type CutLeg,
-  type Floor,
-  type OpeningKind,
-  type PartCorner,
-  type Room,
-  type WallState,
-  type RoomPart,
-  type WallSide,
 } from "@/domain/room";
 import {
   displayUnitSuffix,
@@ -290,13 +294,28 @@ export function RoomFields({
                   pressed={part.id === shown.id}
                   onClick={() => onSelectPart?.(part.id)}
                 >
-                  {index === 0 ? "Room" : `Section ${index + 1}`}
+                  {index === 0 ? "Room" : sectionLabel(part, index)}
                 </Chip>
               ))}
             </div>
           </PanelRow>
         ) : null}
 
+        {compound && shownIndex > 0 ? (
+          <TextField
+            label="Section name"
+            value={shown.name ?? ""}
+            placeholder={`Section ${shownIndex + 1}`}
+            problem={null}
+            onValueChange={(value) =>
+              onChange(
+                withRoomPart(room, shown.id, (one) =>
+                  withRoomPartName(one, value),
+                ),
+              )
+            }
+          />
+        ) : null}
         <RoomPartFields
           key={shown.id}
           room={room}

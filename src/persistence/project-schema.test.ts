@@ -717,6 +717,35 @@ describe("readStoredProject", () => {
     );
   });
 
+  it("keeps an opening's and a section's own names through the round trip", () => {
+    const [room] = STORED.project.floor.rooms;
+    const part = room?.parts[0];
+    const opening = room?.openings[0];
+    if (room === undefined || part === undefined || opening === undefined) {
+      throw new Error("the fixture has a room with a part and an opening");
+    }
+    const result = readStoredProject({
+      ...STORED,
+      project: {
+        ...STORED.project,
+        floor: {
+          ...STORED.project.floor,
+          rooms: [
+            {
+              ...room,
+              parts: [{ ...part, name: "Closet" }],
+              openings: [{ ...opening, name: "Closet door" }],
+            },
+          ],
+        },
+      },
+    });
+
+    const stored = result.ok ? result.project.floor.rooms[0] : undefined;
+    expect(stored?.parts[0]?.name).toBe("Closet");
+    expect(stored?.openings[0]?.name).toBe("Closet door");
+  });
+
   it("reads a version 20 piece, which had no name, as one without", () => {
     const result = readStoredProject({ ...STORED, version: 20 });
 

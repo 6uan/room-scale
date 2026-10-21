@@ -99,6 +99,9 @@ export type PartCuts = {
  */
 export type RoomPart = TurnedRect & {
   readonly id: string;
+  /** What it is called, when "Section 2" is not it: "Closet". Absent is
+      its number. */
+  readonly name?: string | undefined;
   readonly openWalls: readonly WallSide[];
   readonly dividingWalls?: readonly WallSide[] | undefined;
   readonly cuts?: PartCuts | undefined;
@@ -773,6 +776,13 @@ export function withRoomPartRotation(
       },
     };
   });
+}
+
+/** The section under its own name, or back under its number when blank. */
+export function withRoomPartName(part: RoomPart, name: string): RoomPart {
+  const { name: was, ...rest } = part;
+  void was;
+  return name.trim() === "" ? rest : { ...rest, name };
 }
 
 export function withRoomPart(

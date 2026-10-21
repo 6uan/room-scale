@@ -123,6 +123,24 @@ describe("ApartmentLayers room names", () => {
     expect(screen.getByRole("button", { name: "Door 1" })).toBeVisible();
   });
 
+  it("renames an opening and a section in their rows", async () => {
+    const user = userEvent.setup();
+    render(<LayersHarness compound />);
+
+    await user.dblClick(screen.getByRole("button", { name: "Door 1" }));
+    const door = screen.getByRole("textbox", { name: "Rename Door 1" });
+    await user.clear(door);
+    await user.type(door, "Front door{Enter}");
+    expect(screen.getByRole("button", { name: "Front door" })).toBeVisible();
+
+    await user.dblClick(screen.getByRole("button", { name: "Section 2" }));
+    const section = screen.getByRole("textbox", { name: "Rename Section 2" });
+    await user.clear(section);
+    await user.type(section, "Closet{Enter}");
+    expect(screen.getByRole("button", { name: "Closet" })).toBeVisible();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
   it("does not repeat the only rectangle as Section 1", () => {
     render(<LayersHarness />);
 
