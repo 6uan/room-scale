@@ -646,27 +646,29 @@ function EditableRow({
   }
 
   if (editing) {
+    // Indented by a wrapper rather than a margin on the field: a full-width
+    // field with a margin is wider than its row and pushes the list about.
     return (
-      <input
-        ref={inputRef}
-        type="text"
-        value={draft}
-        aria-label={`Rename ${name === "" ? placeholder.toLowerCase() : name}`}
-        onChange={(event) => setTyped(event.target.value)}
-        onBlur={applyRename}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            event.preventDefault();
-            applyRename();
-          } else if (event.key === "Escape") {
-            event.preventDefault();
-            finish();
-          }
-        }}
-        className={`w-full min-w-0 cursor-text rounded bg-black/15 px-2 py-1 text-sm font-medium outline-none caret-current dark:bg-white/20 ${
-          depth === 1 ? "ml-4" : ""
-        }`}
-      />
+      <div className={depth === 1 ? "pl-4" : ""}>
+        <input
+          ref={inputRef}
+          type="text"
+          value={draft}
+          aria-label={`Rename ${name === "" ? placeholder.toLowerCase() : name}`}
+          onChange={(event) => setTyped(event.target.value)}
+          onBlur={applyRename}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              applyRename();
+            } else if (event.key === "Escape") {
+              event.preventDefault();
+              finish();
+            }
+          }}
+          className="w-full min-w-0 cursor-text rounded bg-black/15 px-2 py-1 text-sm font-medium outline-none caret-current dark:bg-white/20"
+        />
+      </div>
     );
   }
 
