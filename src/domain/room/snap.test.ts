@@ -488,6 +488,20 @@ describe("room part snapping", () => {
 });
 
 describe("drawnRoom", () => {
+  it("keeps a whole length when one edge has snapped to a neighbour's wall", () => {
+    const half = (meters: number) => Math.round(meters * 2) / 2;
+    const room = drawnRoom(
+      FLOOR,
+      "room-3",
+      "Hall",
+      { xMeters: 4.06, zMeters: 20 },
+      { xMeters: 6.4, zMeters: 21.6 },
+      half,
+    );
+    expect(part(room).origin.xMeters).toBeCloseTo(4.1, 10);
+    expect(part(room).widthMeters).toBeCloseTo(2.5, 10);
+  });
+
   const drawn = (from: [number, number], to: [number, number]) =>
     drawnRoom(
       FLOOR,
@@ -704,6 +718,24 @@ describe("drawnSection", () => {
     const part = drawn([6, 9.5], [8.93, 10.5]);
 
     expect(part.origin.xMeters + part.widthMeters).toBeCloseTo(9 - 0.1, 10);
+  });
+
+  it("keeps a whole length when one edge has snapped to a neighbour's wall", () => {
+    // Rounded to half a meter. The west edge lands on the shared wall at
+    // 4.1, a fraction; the east edge is then set a whole 2.5 from it rather
+    // than left at the round 6.5, which would make the width 2.4.
+    const half = (meters: number) => Math.round(meters * 2) / 2;
+    const part = drawnSection(
+      FLOOR,
+      SECOND,
+      "room-2-part-2",
+      { xMeters: 4.06, zMeters: 20 },
+      { xMeters: 6.4, zMeters: 21.6 },
+      half,
+    );
+    expect(part.origin.xMeters).toBeCloseTo(4.1, 10);
+    expect(part.widthMeters).toBeCloseTo(2.5, 10);
+    expect(part.depthMeters).toBeCloseTo(1.5, 10);
   });
 
   it("sorts the corners, so it does not matter which way the drag ran", () => {
