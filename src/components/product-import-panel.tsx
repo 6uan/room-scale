@@ -1,6 +1,6 @@
 "use client";
 
-import { Link, WandSparkles } from "lucide-react";
+import { WandSparkles } from "lucide-react";
 import { useId, useState } from "react";
 import { LabelledButton } from "@/components/icon-button";
 import {
@@ -19,11 +19,8 @@ export type ProductImportPanelProps = {
 /**
  * Paste a product page, get the form filled in.
  *
- * Two ways in, both ending at the same report: the page's address, fetched
- * once by the server on the button press and nothing else; or the page's
- * text, read right here. The address is quicker where it works and says so
- * where it does not, and the text is the way in that always works, which is
- * why it stays beside the link rather than behind it.
+ * The way in that always works: the page's address at the top of the form
+ * is quicker where it works, and this is for the pages it cannot read.
  *
  * Shown by the form when asked for, not folded under a disclosure of its
  * own: the form decides where it goes. Nothing here saves anything. It reads
@@ -35,81 +32,25 @@ export function ProductImportPanel({
   unit,
   onExtracted,
 }: ProductImportPanelProps) {
-  const urlId = useId();
   const textareaId = useId();
-  const [url, setUrl] = useState("");
   const [text, setText] = useState("");
-  const [fetching, setFetching] = useState(false);
-  const [report, setReport] = useState<Report | null>(null);
+  const [report, setReport] = useState<ExtractedProduct | null>(null);
 
   function handleFill(): void {
     const extracted = extractProduct(text);
-    setReport({ kind: "read", extracted });
+    setReport(extracted);
     onExtracted(extracted);
-  }
-
-  async function handleFetch(): Promise<void> {
-    setFetching(true);
-    setReport(null);
-    try {
-      const response = await fetch("/api/import", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ url }),
-      });
-      const result = (await response.json()) as FetchResult;
-      if (result.status !== "read") {
-        setReport({ kind: "failed", message: result.message });
-        return;
-      }
-      const extracted: ExtractedProduct = {
-        ...result.extracted,
-        productUrl: { value: url.trim(), sourceText: url.trim() },
-      };
-      setReport({ kind: "read", extracted });
-      onExtracted(extracted);
-    } catch {
-      setReport({ kind: "failed", message: "The page could not be fetched." });
-    } finally {
-      setFetching(false);
-    }
   }
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-black/10 p-3 dark:border-white/15">
-      <label htmlFor={urlId} className="text-[13px] leading-relaxed opacity-70">
-        Paste the product page&apos;s address. The page is fetched once, and
-        whatever can be read is filled into the form for you to check.
-      </label>
-      <div className="flex gap-2">
-        <input
-          id={urlId}
-          type="url"
-          value={url}
-          placeholder="https://"
-          onChange={(event) => setUrl(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && url.trim() !== "" && !fetching) {
-              event.preventDefault();
-              void handleFetch();
-            }
-          }}
-          className="min-w-0 flex-1 rounded-md border border-black/15 bg-transparent px-2.5 py-1.5 text-sm dark:border-white/20"
-        />
-        <LabelledButton
-          label={fetching ? "Fetching…" : "Fetch the page"}
-          icon={Link}
-          disabled={url.trim() === "" || fetching}
-          onClick={() => void handleFetch()}
-        />
-      </div>
-
       <label
         htmlFor={textareaId}
         className="text-[13px] leading-relaxed opacity-70"
       >
-        Or open the page, select all of it, copy, and paste the text here — this
-        works on pages the address does not.
+        Open the product page, select all of it, copy, and paste the text here.
+        This works on pages the link above does not. Whatever can be read is
+        filled into the form for you to check.
       </label>
       <textarea
         id={textareaId}
@@ -127,28 +68,15 @@ export function ProductImportPanel({
         />
       </div>
 
-      {report === null ? null : report.kind === "failed" ? (
-        <p role="status" className="text-sm">
-          {report.message} Paste the page&apos;s text instead, or fill the form
-          in by hand.
-        </p>
-      ) : (
-        <ExtractionReport report={report.extracted} unit={unit} />
+      {report === null ? null : (
+        <ExtractionReport report={report} unit={unit} />
       )}
     </div>
   );
 }
 
-type Report =
-  | { kind: "read"; extracted: ExtractedProduct }
-  | { kind: "failed"; message: string };
-
-/** What `/api/import` answers. */
-type FetchResult =
-  | { status: "read"; extracted: ExtractedProduct }
-  | { status: "refused" | "unreachable"; message: string };
-
-function ExtractionReport({
+/** What was read and where each value came from, for checking. */
+export function ExtractionReport({
   report,
   unit,
 }: {

@@ -922,15 +922,12 @@ test.describe("filling a product in from a link", () => {
   async function openImport(page: Page) {
     await openWithLivingRoom(page);
     await contents(page).getByRole("button", { name: "New product" }).click();
-    const form = details(page);
-    await form
-      .getByRole("button", { name: "Paste from a product page" })
-      .click();
-    return form;
+    return details(page);
   }
 
   test("fetches the page once and fills in what it read, for checking", async ({
     page,
+    context,
   }) => {
     const form = await openImport(page);
     const calls: string[] = [];
@@ -954,9 +951,16 @@ test.describe("filling a product in from a link", () => {
       });
     });
 
+    // The link is the first field, and pasting into it is the fetch.
     const address = "https://www.article.com/product/22588/abisko";
-    await form.getByLabel(/Paste the product page/).fill(address);
-    await form.getByRole("button", { name: "Fetch the page" }).click();
+    const link = form.getByLabel("Product link");
+    await expect(form.getByRole("textbox").first()).toHaveAccessibleName(
+      "Product link",
+    );
+    await link.click();
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.evaluate((text) => navigator.clipboard.writeText(text), address);
+    await page.keyboard.press("ControlOrMeta+V");
 
     // One fetch, of the one address, on the one press.
     await expect(form.getByRole("status")).toContainText("Read 5 values");
@@ -971,6 +975,7 @@ test.describe("filling a product in from a link", () => {
     await expect(form.getByLabel("Width")).toHaveValue("94.5");
     await expect(form.getByLabel("Length")).toHaveValue("63.5");
     await expect(form.getByLabel("Product link")).toHaveValue(address);
+    await expect(form.getByLabel("Retailer")).toHaveValue("Article");
     await expect(
       contents(page).getByRole("button", { name: /Place Abisko/ }),
     ).toHaveCount(0);
@@ -986,7 +991,7 @@ test.describe("filling a product in from a link", () => {
       }),
     );
     await form
-      .getByLabel(/Paste the product page/)
+      .getByLabel("Product link")
       .fill("https://www.target.com/p/tv-stand/-/A-1");
     await form.getByRole("button", { name: "Fetch the page" }).click();
 
@@ -1006,10 +1011,8 @@ test.describe("filling a product in from a link", () => {
     });
     expect(await answer.json()).toMatchObject({ status: "refused" });
 
-    await form
-      .getByLabel(/Paste the product page/)
-      .fill("http://localhost:3000/");
-    await form.getByRole("button", { name: "Fetch the page" }).click();
+    await form.getByLabel("Product link").fill("http://localhost:3000/");
+    await form.getByLabel("Product link").press("Enter");
     await expect(form.getByRole("status")).toContainText(
       "not a web address this can fetch",
     );

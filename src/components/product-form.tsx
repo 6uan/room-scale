@@ -5,6 +5,7 @@ import { useId, useState } from "react";
 import { NumberField } from "@/components/number-field";
 import { PriceField } from "@/components/price-field";
 import { ProductImportPanel } from "@/components/product-import-panel";
+import { ProductLinkField } from "@/components/product-link-field";
 import type { ExtractedProduct } from "@/domain/import";
 import {
   MAX_NAME_LENGTH,
@@ -56,9 +57,10 @@ export type ProductFormProps = {
  * through `PriceField`, which means neither can commit a value the domain would
  * reject.
  *
- * The name comes first, because it is what you know before anything else, and
- * the three sizes sit in one row the way a listing prints them. Pasting a page
- * is a way of filling the fields rather than a section of its own, so it is a
+ * The link comes first, because it is what you have before anything else —
+ * you are looking at the page — and pasting it fills the rest in. Then the
+ * name, and the three sizes in one row the way a listing prints them. Pasting
+ * the page's text is the way in for pages a link cannot read, so it is a
  * small button beside the name that opens the paste box when asked. The two
  * buttons stay at the bottom of the panel whatever is scrolled, because a save
  * button you have to go looking for is one you forget to press.
@@ -99,6 +101,9 @@ export function ProductForm({
       ...(extracted.productUrl === undefined
         ? {}
         : { productUrl: extracted.productUrl.value }),
+      ...(extracted.retailer === undefined
+        ? {}
+        : { retailer: extracted.retailer.value }),
       ...(extracted.priceCents === undefined
         ? {}
         : { priceCents: extracted.priceCents.value }),
@@ -120,6 +125,18 @@ export function ProductForm({
       className="-mb-5 flex min-h-0 flex-1 flex-col gap-5"
       noValidate
     >
+      <ProductLinkField
+        value={draft.productUrl}
+        unit={unit}
+        problem={
+          shown.productUrl
+            ? "Paste the full address, starting with https://."
+            : null
+        }
+        onValueChange={(productUrl) => setDraft({ ...draft, productUrl })}
+        onExtracted={applyExtracted}
+      />
+
       <TextField
         label="Name"
         value={draft.name}
@@ -212,19 +229,6 @@ export function ProductForm({
         value={draft.retailer}
         problem={null}
         onValueChange={(retailer) => setDraft({ ...draft, retailer })}
-      />
-
-      <TextField
-        label="Product link"
-        value={draft.productUrl}
-        type="url"
-        placeholder="https://"
-        problem={
-          shown.productUrl
-            ? "Paste the full address, starting with https://."
-            : null
-        }
-        onValueChange={(productUrl) => setDraft({ ...draft, productUrl })}
       />
 
       {problem === null ? null : (

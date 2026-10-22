@@ -30,13 +30,19 @@ describe("htmlToText", () => {
 });
 
 describe("extractStructuredProduct", () => {
-  it("reads the name and price off a schema.org Product", () => {
+  it("reads the name, price, and sizes off a schema.org Product", () => {
     expect(extractStructuredProduct(article)).toEqual({
       name: {
         value: 'Abisko 94.5" Velvet Right Sectional - Plush Yarrow Gold',
         sourceText: 'Abisko 94.5" Velvet Right Sectional - Plush Yarrow Gold',
       },
       priceCents: { value: 169900, sourceText: "price: 1699" },
+      widthMeters: { value: 2.4003, sourceText: "width: 94.5 in" },
+      depthMeters: { value: 1.6129, sourceText: "depth: 63.5 in" },
+      heightMeters: {
+        value: expect.closeTo(0.7112, 9) as number,
+        sourceText: "height: 28 in",
+      },
     });
   });
 
@@ -102,5 +108,41 @@ describe("a Wayfair dresser, which has no structured data", () => {
     expect(product.depthMeters?.value).toBeCloseTo(15.43 * 0.0254, 6);
     expect(product.heightMeters?.value).toBeCloseTo(38.46 * 0.0254, 6);
     expect(product.dimensionOrderIsAssumed).toBe(false);
+  });
+});
+
+describe("an IKEA bench, whose Product block states its sizes", () => {
+  const ikea = readFileSync(
+    "src/domain/import/fixtures/ikea-besta.html",
+    "utf8",
+  );
+  const product = extractProductFromHtml(ikea, "www.ikea.com");
+
+  it("takes the product's sizes from the block, not the package's from the prose", () => {
+    expect(product.widthMeters).toEqual({
+      value: expect.closeTo(94.5 * 0.0254, 6) as number,
+      sourceText: 'width: 94 1/2 "',
+    });
+    expect(product.depthMeters?.value).toBeCloseTo(16.5 * 0.0254, 6);
+    expect(product.heightMeters?.value).toBeCloseTo(29.875 * 0.0254, 6);
+    expect(product.dimensionOrderIsAssumed).toBe(false);
+  });
+
+  it("names it and takes the regular price, not the member price", () => {
+    expect(product.name?.value).toMatch(/^BESTÅ TV bench with doors/);
+    expect(product.priceCents).toEqual({
+      value: 74500,
+      sourceText: "price: 745",
+    });
+  });
+});
+
+describe("a Product block with QuantitativeValue sizes", () => {
+  it("reads the value and its unit code", () => {
+    const html = `<script type="application/ld+json">{"@type":"Product","name":"Stool","width":{"@type":"QuantitativeValue","value":40,"unitCode":"CMT"},"height":{"@type":"QuantitativeValue","value":"18","unitCode":"INH"}}</script>`;
+    const product = extractProductFromHtml(html);
+    expect(product.widthMeters?.value).toBeCloseTo(0.4, 9);
+    expect(product.heightMeters?.value).toBeCloseTo(18 * 0.0254, 6);
+    expect(product.widthMeters?.sourceText).toBe("width: 40 cm");
   });
 });

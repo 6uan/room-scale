@@ -149,6 +149,18 @@ is still every other shop's path and the fallback for everything a reader
 leaves out. And every value now carries the line above it, shown as "under
 …" in the report, so a wrong price is wrong visibly.
 
+IKEA came next and needed no reader, only two things the parser lacked:
+sizes written as fractions — `94 1/2 "`, `7 ¾ "` — and the width, depth, and
+height a schema.org Product may carry, which IKEA's does. Those are preferred
+over the prose, where the parser had been reading the package's measurements
+as the product's.
+
+And the link moved to the top of the form, because it is what you have
+first: you are looking at the page. Pasting it fetches the page and fills
+the rest in, the address stays as the product's link, and the shop's name
+is read off the hostname into the retailer field. The pasted-text box stays
+behind its button beside the name, for the pages a link cannot read.
+
 **6c — A local model for the pages the parser cannot read.** Ollama on
 `localhost`, with output constrained to the product schema so it cannot return
 something invalid. Entirely optional: if it is not running, 6a and 6b still

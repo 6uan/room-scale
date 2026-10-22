@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { extractProductFromHtml } from "./product-html";
-import { readerFor } from "./retailers";
+import { readerFor, retailerNameFromHostname } from "./retailers";
 
 const wayfair = readFileSync(
   "src/domain/import/fixtures/wayfair-allenside.html",
@@ -37,5 +37,22 @@ describe("Wayfair", () => {
     expect(product.priceCents?.sourceText).toBe("leadPrice: $209.99");
     expect(product.name?.value).toBe('Allenside 26.37 " W 5 - Drawer Dresser');
     expect(product.widthMeters?.value).toBeCloseTo(26.37 * 0.0254, 6);
+  });
+});
+
+describe("retailerNameFromHostname", () => {
+  it("uses the reader's name where there is one", () => {
+    expect(retailerNameFromHostname("www.wayfair.com")).toBe("Wayfair");
+    expect(retailerNameFromHostname("www.ikea.com")).toBe("IKEA");
+  });
+
+  it("raises the hostname's own label otherwise", () => {
+    expect(retailerNameFromHostname("www.article.com")).toBe("Article");
+    expect(retailerNameFromHostname("shop.westelm.co.uk")).toBe("Westelm");
+    expect(retailerNameFromHostname("target.com")).toBe("Target");
+  });
+
+  it("has nothing for an address with no label to raise", () => {
+    expect(retailerNameFromHostname("localhost")).toBeNull();
   });
 });
