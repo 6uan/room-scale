@@ -6,7 +6,10 @@ import { LIVING_ROOM } from "./fixtures";
 import {
   ROOM_LENGTH_LIMITS,
   checkRoomLength,
+  createRoom,
+  groupMates,
   isValidRoom,
+  partGroupOf,
   pointOnRoomPart,
   primaryRoomPart,
   resizeRoomPartEdgeToPoint,
@@ -14,11 +17,17 @@ import {
   roomFloorAreaSquareMeters,
   roomPartContains,
   roomPartPivotRect,
+  roomPartWallState,
+  withOpenings,
   withOrigin,
+  withPartGroup,
+  withPartGroupName,
+  withPartUngrouped,
+  withParts,
+  withRoomLength,
   withRoomPart,
   withRoomPartRotation,
-  withOpenings,
-  withRoomLength,
+  withoutPartGroup,
   type Room,
 } from "./room";
 
@@ -266,5 +275,79 @@ describe("turned parts", () => {
     expect(part(resized).widthMeters).toBe(
       ROOM_LENGTH_LIMITS.widthMeters.minMeters,
     );
+  });
+});
+
+describe("groups of sections", () => {
+  const base = withParts(
+    createRoom("r", "Bedroom", { xMeters: 0, zMeters: 0 }),
+    [
+      {
+        id: "a",
+        origin: { xMeters: 0, zMeters: 0 },
+        widthMeters: 5,
+        depthMeters: 5,
+        rotationRadians: 0,
+        openWalls: [],
+      },
+      {
+        id: "b",
+        origin: { xMeters: 1, zMeters: 1 },
+        widthMeters: 1,
+        depthMeters: 2,
+        rotationRadians: 0,
+        openWalls: [],
+      },
+      {
+        id: "c",
+        origin: { xMeters: 2, zMeters: 1 },
+        widthMeters: 1,
+        depthMeters: 1,
+        rotationRadians: 0,
+        openWalls: [],
+      },
+    ],
+  );
+
+  it("gathers sections under one name", () => {
+    const room = withPartGroup(base, { id: "g", name: "Closet" }, ["b", "c"]);
+    expect(room.partGroups).toEqual([{ id: "g", name: "Closet" }]);
+    expect(room.parts.map((part) => part.groupId)).toEqual([
+      undefined,
+      "g",
+      "g",
+    ]);
+    expect(partGroupOf(room, "c")?.name).toBe("Closet");
+    expect(groupMates(room, room.parts[1]!).map((part) => part.id)).toEqual([
+      "c",
+    ]);
+  });
+
+  it("drops a group left with one section", () => {
+    const room = withPartUngrouped(
+      withPartGroup(base, { id: "g", name: "Closet" }, ["b", "c"]),
+      "c",
+    );
+    expect(room.partGroups).toBeUndefined();
+    expect(room.parts.every((part) => part.groupId === undefined)).toBe(true);
+  });
+
+  it("ungroups all at once, and renames", () => {
+    const grouped = withPartGroup(base, { id: "g", name: "Closet" }, [
+      "b",
+      "c",
+    ]);
+    expect(
+      withPartGroupName(grouped, "g", "Pantry").partGroups?.[0]?.name,
+    ).toBe("Pantry");
+    const loose = withoutPartGroup(grouped, "g");
+    expect(loose.partGroups).toBeUndefined();
+    expect(loose.parts.every((part) => part.groupId === undefined)).toBe(true);
+  });
+
+  it("reads every side of a grouped section as dividing", () => {
+    const room = withPartGroup(base, { id: "g", name: "Closet" }, ["b", "c"]);
+    expect(roomPartWallState(room.parts[1]!, "west")).toBe("dividing");
+    expect(roomPartWallState(base.parts[1]!, "west")).toBe("auto");
   });
 });

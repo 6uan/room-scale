@@ -54,8 +54,11 @@ import { FIRST_PROJECT_NAME, type Project } from "@/domain/project";
  * 21. A placed piece, an opening, and a section may each have a name of
  *     their own. Absent is what they were always called: the product's
  *     name, the kind numbered, the section numbered.
+ * 22. A room's sections may be gathered into named groups, and a section
+ *     names the group it is in. Absent is none, which every existing
+ *     section is.
  */
-export const SCHEMA_VERSION = 21;
+export const SCHEMA_VERSION = 22;
 
 /** Meters, cents, and the rest are all plain finite numbers on the way in. */
 const finiteNumber = z
@@ -118,6 +121,8 @@ const roomPartSchema = z.object({
   // Optional and sparse, like `cuts`: a part written before version 14 has no
   // dividing walls, and absent says exactly that.
   dividingWalls: z.array(wallSideSchema).optional(),
+  // The group this section is in, written from version 22. Absent is none.
+  groupId: z.string().min(1).optional(),
   // Sparse and optional: a corner with no entry is square, which every part
   // written before version 12 is. Absent and empty say the same thing.
   cuts: z
@@ -136,6 +141,10 @@ const roomSchema = z.object({
   heightMeters: finiteNumber,
   parts: z.array(roomPartSchema).min(1),
   openings: z.array(openingSchema),
+  // Groups of sections, written from version 22. Absent is none.
+  partGroups: z
+    .array(z.object({ id: z.string().min(1), name: z.string() }))
+    .optional(),
   // Null is the ordinary case and means "whatever the floor says". A number
   // is a thing somebody measured about this room in particular.
   wallThicknessMeters: finiteNumber.nullable(),
@@ -612,6 +621,8 @@ const MIGRATIONS: Record<number, (document: object) => object> = {
   // Version 21 let a piece, an opening, or a section carry its own name.
   // Nothing stored had one.
   20: (document) => ({ ...document, version: 21 }),
+  // Version 22 let a room's sections be grouped. Nothing stored was.
+  21: (document) => ({ ...document, version: 22 }),
 };
 
 /**

@@ -520,7 +520,7 @@ function sectionProblems(floor: Floor): readonly LayoutProblem[] {
       continue;
     }
     room.parts.forEach((part, index) => {
-      if ((part.dividingWalls?.length ?? 0) > 0) {
+      if ((part.dividingWalls?.length ?? 0) > 0 || part.groupId !== undefined) {
         return;
       }
       const rest = { ...room, parts: room.parts.filter((one) => one !== part) };

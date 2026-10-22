@@ -1410,6 +1410,78 @@ test.describe("laying the apartment out", () => {
     await expect(shared).toHaveCount(0);
   });
 
+  test("groups two sections into one closet, walled round its outline", async ({
+    page,
+  }) => {
+    await openWithLivingRoom(page);
+    const roomRow = contents(page).getByRole("button", {
+      name: "Living room",
+      exact: true,
+    });
+    await roomRow.click();
+    const room = details(page).getByRole("region", {
+      name: "Living room",
+      exact: true,
+    });
+    const box = await planImage(page).boundingBox();
+    if (box === null) {
+      throw new Error("the plan has no box to point at");
+    }
+    const inches = (value: number) => value * 0.0254;
+    const wall = inches(WALL_INCHES);
+    const scale = Math.min(
+      (box.width - 80) / (inches(168) + 2 * wall),
+      (box.height - 80) / (inches(144) + 2 * wall),
+    );
+    const center = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const at = (xInches: number, yInches: number) => ({
+      x: center.x + inches(xInches) * scale,
+      y: center.y + inches(yInches) * scale,
+    });
+    const drawSection = async (
+      from: [number, number],
+      to: [number, number],
+    ) => {
+      await roomRow.click();
+      await room.getByRole("button", { name: "Add section" }).click();
+      const a = at(...from);
+      const b = at(...to);
+      await page.mouse.move(a.x, a.y);
+      await page.mouse.down();
+      await page.mouse.move(b.x, b.y, { steps: 8 });
+      await page.mouse.up();
+    };
+    // Two small rectangles side by side in the room's south-east corner.
+    await drawSection([0, 0], [36, 48]);
+    await drawSection([36, 0], [60, 24]);
+    const row = (name: string) =>
+      contents(page).getByRole("button", { name, exact: true });
+    await expect(row("Section 3")).toBeVisible();
+
+    // Grouped from the list: one row for the pair, and the pair under it.
+    await row("Section 3").click({ button: "right" });
+    await page.getByRole("menuitem", { name: "Group with Section 2" }).click();
+    await expect(row("Group 1")).toBeVisible();
+    await expect(row("Section 2")).toBeVisible();
+    await expect(row("Section 3")).toBeVisible();
+
+    // Named like a room, and the pair's walls stand round their outline:
+    // the plan now reads them as a closet with walls, not two patches.
+    await row("Group 1").dblclick();
+    await contents(page).getByLabel("Rename Group 1").fill("Closet");
+    await page.keyboard.press("Enter");
+    await expect(row("Closet")).toBeVisible();
+
+    // The group survives a reload, and comes apart on request.
+    await page.waitForTimeout(500);
+    await page.reload();
+    await expect(row("Closet")).toBeVisible();
+    await row("Closet").click({ button: "right" });
+    await page.getByRole("menuitem", { name: "Ungroup" }).click();
+    await expect(row("Closet")).toHaveCount(0);
+    await expect(row("Section 2")).toBeVisible();
+  });
+
   test("draws a second rectangle into a room and edits it on its own", async ({
     page,
   }) => {

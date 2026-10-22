@@ -23,6 +23,8 @@ import type { FloorPoint } from "@/domain/geometry";
 import { clipPolygonToRect } from "@/domain/geometry";
 import { wallThicknessMeters, type Floor } from "./floor";
 import {
+  groupMates,
+  isPartWallDividing,
   partWallSegment,
   pointOnRoomPart,
   roomPart,
@@ -78,7 +80,7 @@ export function isWallOpen(part: RoomPart, wall: WallSide): boolean {
  * kitchen carries on beyond it.
  */
 export function isWallDividing(part: RoomPart, wall: WallSide): boolean {
-  return part.dividingWalls?.includes(wall) === true;
+  return isPartWallDividing(part, wall);
 }
 
 /**
@@ -101,18 +103,23 @@ export function wallStretches(
     return [];
   }
 
-  const seams = isWallDividing(part, wall)
-    ? []
-    : mergeIntervals(
-        room.parts
-          .filter((sibling) => sibling.id !== part.id)
-          .flatMap((sibling) =>
-            bandInterval(part, wall, length, roomPartPolygon(sibling), {
-              nearMeters: THROUGH_EPSILON_METERS,
-              farMeters: THROUGH_EPSILON_METERS * 2,
-            }),
-          ),
-      );
+  // A grouped section's seams are with its group-mates only: the group's
+  // outline is walled against the rest of the room, whatever carries on
+  // beyond it, and the joins inside the group are not.
+  const through =
+    part.groupId !== undefined
+      ? groupMates(room, part)
+      : isWallDividing(part, wall)
+        ? []
+        : room.parts.filter((sibling) => sibling.id !== part.id);
+  const seams = mergeIntervals(
+    through.flatMap((sibling) =>
+      bandInterval(part, wall, length, roomPartPolygon(sibling), {
+        nearMeters: THROUGH_EPSILON_METERS,
+        farMeters: THROUGH_EPSILON_METERS * 2,
+      }),
+    ),
+  );
   const walled = subtractIntervals([{ start: 0, end: length }], seams);
   const open = isWallOpen(part, wall);
 
