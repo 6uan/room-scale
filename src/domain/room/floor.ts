@@ -277,9 +277,18 @@ export function snapRoomOrigin(
     );
 
   const doors = doorAlignments(room, others);
+  const own = wallThicknessMeters(floor, room);
+  const jambs = (axis: "x" | "z", length: number) =>
+    jambCandidates(jambsAlong(withRooms(floor, others), axis), own, length);
   return {
-    xMeters: snapAxis(origin.xMeters, bounds.widthMeters, faces("x"), doors.x),
-    zMeters: snapAxis(origin.zMeters, bounds.depthMeters, faces("z"), doors.z),
+    xMeters: snapAxis(origin.xMeters, bounds.widthMeters, faces("x"), [
+      ...doors.x,
+      ...jambs("x", bounds.widthMeters),
+    ]),
+    zMeters: snapAxis(origin.zMeters, bounds.depthMeters, faces("z"), [
+      ...doors.z,
+      ...jambs("z", bounds.depthMeters),
+    ]),
   };
 }
 
@@ -387,6 +396,55 @@ function roundedSpan(
   return snappedLow <= snappedHigh
     ? [snappedLow, snappedHigh]
     : [snappedHigh, snappedLow];
+}
+
+/**
+ * Where the openings on every wall running along `axis` begin and end, in
+ * floor coordinates on that axis: the jambs of every door, window, and
+ * passage on a wall square to the plan. A wall built up to a jamb is how a
+ * closet ends exactly where the passage beside it begins.
+ */
+function jambsAlong(floor: Floor, axis: "x" | "z"): readonly number[] {
+  return floor.rooms.flatMap((room) => {
+    const origin = roomBounds(room).origin;
+    return room.openings.flatMap((opening) => {
+      const part = roomPart(room, opening.partId);
+      if (part === undefined || part.rotationRadians !== 0) {
+        return [];
+      }
+      const alongX = opening.wall === "north" || opening.wall === "south";
+      const alongZ = opening.wall === "east" || opening.wall === "west";
+      if ((axis === "x" && !alongX) || (axis === "z" && !alongZ)) {
+        return [];
+      }
+      const half = opening.widthMeters / 2;
+      return [opening.centerMeters - half, opening.centerMeters + half].map(
+        (along) => {
+          const at = pointAlongWall(room, opening.wall, along, part.id);
+          return axis === "x"
+            ? origin.xMeters + at.xMeters
+            : origin.zMeters + at.zMeters;
+        },
+      );
+    });
+  });
+}
+
+/**
+ * An edge offered a jamb lands on it, or lands its wall band's far face on
+ * it — so the band ends where the opening starts — and, when the edge is
+ * one end of a span `length` long, the same for its other end.
+ */
+function jambCandidates(
+  jambs: readonly number[],
+  thickness: number,
+  length = 0,
+): readonly number[] {
+  return jambs.flatMap((jamb) =>
+    [jamb, jamb - thickness, jamb + thickness].flatMap((at) =>
+      length === 0 ? [at] : [at, at - length],
+    ),
+  );
 }
 
 /**
@@ -505,6 +563,8 @@ export function snapRoomEdge(
       ];
     });
   });
+  const own = wallThicknessMeters(floor, moving ?? null);
+  candidates.push(...jambCandidates(jambsAlong(floor, axis), own));
 
   return nearestSnap(value, candidates);
 }
@@ -719,6 +779,12 @@ function snapPartEdge(
       ];
     });
   });
+  candidates.push(
+    ...jambCandidates(
+      jambsAlong(floor, axis),
+      wallThicknessMeters(floor, mine),
+    ),
+  );
   return nearestSnap(value, candidates);
 }
 
@@ -789,6 +855,13 @@ function snapPartOriginAxis(
       ];
     });
   });
+  candidates.push(
+    ...jambCandidates(
+      jambsAlong(floor, axis),
+      wallThicknessMeters(floor, mine),
+      length,
+    ),
+  );
   return nearestSnap(value, candidates);
 }
 

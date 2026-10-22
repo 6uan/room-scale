@@ -51,6 +51,55 @@ function snapped(xMeters: number, zMeters: number) {
   return snapRoomOrigin(FLOOR, SECOND, { xMeters, zMeters });
 }
 
+describe("snapping to a jamb", () => {
+  // A passage in the first room's north wall, from x = 1 to x = 2.
+  const withPassage = withOpenings(FIRST, [
+    {
+      id: "p",
+      kind: "passage",
+      partId: part(FIRST).id,
+      wall: "north",
+      centerMeters: 1.5,
+      widthMeters: 1,
+    },
+  ]);
+  const floor = { ...FLOOR, rooms: [withPassage, SECOND] };
+
+  it("lands a dragged edge on the jamb", () => {
+    expect(snapRoomEdge(floor, "x", 1.97, SECOND)).toBeCloseTo(2, 10);
+  });
+
+  it("lands a dragged edge's wall band on the jamb, so the wall ends where the passage begins", () => {
+    // The moving room's wall is 0.1 thick: its band's far face on the jamb
+    // at 2 puts the edge at 2.1.
+    expect(snapRoomEdge(floor, "x", 2.07, SECOND)).toBeCloseTo(2.1, 10);
+  });
+
+  it("lands a section's resized edge on the jamb", () => {
+    const resized = snapRoomPartResize(
+      floor,
+      SECOND,
+      part(SECOND).id,
+      "west",
+      1.03,
+    );
+    expect(part(resized).origin.xMeters).toBeCloseTo(1, 10);
+  });
+
+  it("lands a moved room's far edge on the jamb", () => {
+    const width = part(SECOND).widthMeters;
+    const landed = snapRoomOrigin(floor, SECOND, {
+      xMeters: 2.03 - width,
+      zMeters: 9,
+    });
+    expect(landed.xMeters + width).toBeCloseTo(2, 10);
+  });
+
+  it("offers nothing on the axis the opening does not run along", () => {
+    expect(snapRoomEdge(floor, "z", 1.97, SECOND)).toBe(1.97);
+  });
+});
+
 describe("snapRoomOrigin, by the doors", () => {
   const door = (
     room: Room,
@@ -71,17 +120,17 @@ describe("snapRoomOrigin, by the doors", () => {
       },
     ]);
   const living = door(FIRST, "east", 1.2);
-  const hall = door(SECOND, "west", 0.5);
+  const hall = door(SECOND, "west", 0.45);
   const floor = { ...FLOOR, rooms: [living, hall] };
   /** Where the hall's origin puts its door on the living room's. */
   const aligned =
     pointAlongWall(living, "east", 1.2).zMeters -
-    pointAlongWall(hall, "west", 0.5).zMeters;
+    pointAlongWall(hall, "west", 0.45).zMeters;
 
   it("slides a room along a shared wall until the doors meet", () => {
     const landed = snapRoomOrigin(floor, hall, {
       xMeters: 4.06,
-      zMeters: aligned + 0.04,
+      zMeters: aligned + 0.02,
     });
     expect(landed.xMeters).toBeCloseTo(4.1, 10);
     expect(landed.zMeters).toBeCloseTo(aligned, 10);
@@ -91,9 +140,11 @@ describe("snapRoomOrigin, by the doors", () => {
     const sideways = { ...FLOOR, rooms: [living, door(SECOND, "north", 0.5)] };
     const landed = snapRoomOrigin(sideways, door(SECOND, "north", 0.5), {
       xMeters: 4.06,
-      zMeters: aligned + 0.04,
+      zMeters: aligned + 0.02,
     });
-    expect(landed.zMeters).toBeCloseTo(aligned + 0.04, 10);
+    // Whatever else catches it — a jamb of the living room's door, say —
+    // the doors are not lined up.
+    expect(Math.abs(landed.zMeters - aligned)).toBeGreaterThan(1e-9);
   });
 
   it("lines up nothing with a window", () => {
@@ -109,16 +160,15 @@ describe("snapRoomOrigin, by the doors", () => {
     ]);
     const landed = snapRoomOrigin({ ...FLOOR, rooms: [window, hall] }, hall, {
       xMeters: 4.06,
-      zMeters: aligned + 0.04,
+      zMeters: aligned + 0.02,
     });
-    expect(landed.zMeters).toBeCloseTo(aligned + 0.04, 10);
+    expect(Math.abs(landed.zMeters - aligned)).toBeGreaterThan(1e-9);
   });
 
   it("does not reach further for a door than for a wall", () => {
     const far = aligned + SNAP_METERS + 0.01;
-    expect(
-      snapRoomOrigin(floor, hall, { xMeters: 4.06, zMeters: far }).zMeters,
-    ).toBe(far);
+    const landed = snapRoomOrigin(floor, hall, { xMeters: 4.06, zMeters: far });
+    expect(Math.abs(landed.zMeters - aligned)).toBeGreaterThan(1e-9);
   });
 });
 
