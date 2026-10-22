@@ -28,6 +28,13 @@
 import type { FloorExtent, FloorPoint } from "@/domain/geometry";
 import { metersFromInches } from "@/domain/units";
 import {
+  AXIS_WALL_SIDES,
+  pointAlongWall,
+  type AxisWallSide,
+  type Opening,
+  type WallSide,
+} from "./openings";
+import {
   ROOM_LENGTH_LIMITS,
   createRoom,
   primaryRoomPart,
@@ -268,10 +275,79 @@ export function snapRoomOrigin(
       })),
     );
 
+  const doors = doorAlignments(room, others);
   return {
-    xMeters: snapAxis(origin.xMeters, bounds.widthMeters, faces("x")),
-    zMeters: snapAxis(origin.zMeters, bounds.depthMeters, faces("z")),
+    xMeters: snapAxis(origin.xMeters, bounds.widthMeters, faces("x"), doors.x),
+    zMeters: snapAxis(origin.zMeters, bounds.depthMeters, faces("z"), doors.z),
   };
+}
+
+/**
+ * The origins at which a door of this room would line up with a door of a
+ * neighbour on the wall facing it — a hall's door with the bedroom's, so
+ * that when the two rooms share that wall the one doorway cut in it is the
+ * same doorway from both sides.
+ *
+ * Lining up is along the wall, which is the axis the shared-wall snap does
+ * not decide: a door on an east wall slides along Z to meet a door on a
+ * west wall. Only doors and passages are offered, on walls square to the
+ * plan, and only to the facing wall; a window lines up with nothing.
+ */
+function doorAlignments(
+  room: Room,
+  others: readonly Room[],
+): { readonly x: readonly number[]; readonly z: readonly number[] } {
+  const x: number[] = [];
+  const z: number[] = [];
+  for (const mine of walkThroughs(room)) {
+    const at = pointAlongWall(room, mine.wall, mine.centerMeters, mine.partId);
+    for (const other of others) {
+      const origin = roomBounds(other).origin;
+      for (const theirs of walkThroughs(other)) {
+        if (theirs.wall !== FACING[mine.wall]) {
+          continue;
+        }
+        const there = pointAlongWall(
+          other,
+          theirs.wall,
+          theirs.centerMeters,
+          theirs.partId,
+        );
+        if (mine.wall === "north" || mine.wall === "south") {
+          x.push(origin.xMeters + there.xMeters - at.xMeters);
+        } else {
+          z.push(origin.zMeters + there.zMeters - at.zMeters);
+        }
+      }
+    }
+  }
+  return { x, z };
+}
+
+const FACING: Record<AxisWallSide, AxisWallSide> = {
+  north: "south",
+  south: "north",
+  east: "west",
+  west: "east",
+};
+
+/** The openings somebody walks through, on walls square to the plan. */
+function walkThroughs(
+  room: Room,
+): readonly (Opening & { readonly wall: AxisWallSide })[] {
+  return room.openings.flatMap((opening) => {
+    const part = room.parts.find((one) => one.id === opening.partId);
+    return opening.kind !== "window" &&
+      part !== undefined &&
+      part.rotationRadians === 0 &&
+      isAxisWallSide(opening.wall)
+      ? [{ ...opening, wall: opening.wall }]
+      : [];
+  });
+}
+
+function isAxisWallSide(wall: WallSide): wall is AxisWallSide {
+  return (AXIS_WALL_SIDES as readonly WallSide[]).includes(wall);
 }
 
 /**
@@ -604,6 +680,7 @@ function snapAxis(
   value: number,
   length: number,
   others: readonly { start: number; length: number; thickness: number }[],
+  doors: readonly number[] = [],
 ): number {
   const candidates = others.flatMap(({ start, length: theirs, thickness }) => [
     // Sharing a wall: a thickness past their far edge, or before their near one.
@@ -614,5 +691,5 @@ function snapAxis(
     start + theirs - length,
   ]);
 
-  return nearestSnap(value, candidates);
+  return nearestSnap(value, [...candidates, ...doors]);
 }

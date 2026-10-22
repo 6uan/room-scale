@@ -12,10 +12,12 @@ import {
   roundedResizeTarget,
   snapRoomResize,
 } from "./floor";
+import { pointAlongWall } from "./openings";
 import {
   ROOM_LENGTH_LIMITS,
   createRoom,
   primaryRoomPart,
+  withOpenings,
   withOrigin,
   withRoomWallThickness,
   type Room,
@@ -47,6 +49,77 @@ const part = (room: Room) => primaryRoomPart(room);
 function snapped(xMeters: number, zMeters: number) {
   return snapRoomOrigin(FLOOR, SECOND, { xMeters, zMeters });
 }
+
+describe("snapRoomOrigin, by the doors", () => {
+  const door = (
+    room: Room,
+    wall: "east" | "west" | "north" | "south",
+    centerMeters: number,
+  ) =>
+    withOpenings(room, [
+      {
+        id: `${room.id}-door`,
+        kind: "door" as const,
+        partId: part(room).id,
+        wall,
+        centerMeters,
+        widthMeters: 0.8,
+        hinge: "start" as const,
+        swing: "inward" as const,
+        style: "swing" as const,
+      },
+    ]);
+  const living = door(FIRST, "east", 1.2);
+  const hall = door(SECOND, "west", 0.5);
+  const floor = { ...FLOOR, rooms: [living, hall] };
+  /** Where the hall's origin puts its door on the living room's. */
+  const aligned =
+    pointAlongWall(living, "east", 1.2).zMeters -
+    pointAlongWall(hall, "west", 0.5).zMeters;
+
+  it("slides a room along a shared wall until the doors meet", () => {
+    const landed = snapRoomOrigin(floor, hall, {
+      xMeters: 4.06,
+      zMeters: aligned + 0.04,
+    });
+    expect(landed.xMeters).toBeCloseTo(4.1, 10);
+    expect(landed.zMeters).toBeCloseTo(aligned, 10);
+  });
+
+  it("offers nothing to a door on a wall that does not face the other", () => {
+    const sideways = { ...FLOOR, rooms: [living, door(SECOND, "north", 0.5)] };
+    const landed = snapRoomOrigin(sideways, door(SECOND, "north", 0.5), {
+      xMeters: 4.06,
+      zMeters: aligned + 0.04,
+    });
+    expect(landed.zMeters).toBeCloseTo(aligned + 0.04, 10);
+  });
+
+  it("lines up nothing with a window", () => {
+    const window = withOpenings(FIRST, [
+      {
+        id: "w",
+        kind: "window",
+        partId: part(FIRST).id,
+        wall: "east",
+        centerMeters: 1.2,
+        widthMeters: 1.2,
+      },
+    ]);
+    const landed = snapRoomOrigin({ ...FLOOR, rooms: [window, hall] }, hall, {
+      xMeters: 4.06,
+      zMeters: aligned + 0.04,
+    });
+    expect(landed.zMeters).toBeCloseTo(aligned + 0.04, 10);
+  });
+
+  it("does not reach further for a door than for a wall", () => {
+    const far = aligned + SNAP_METERS + 0.01;
+    expect(
+      snapRoomOrigin(floor, hall, { xMeters: 4.06, zMeters: far }).zMeters,
+    ).toBe(far);
+  });
+});
 
 describe("snapRoomOrigin", () => {
   it("shares a wall when a room is brought up against one", () => {
