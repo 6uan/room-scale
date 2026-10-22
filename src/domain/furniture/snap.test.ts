@@ -3,7 +3,7 @@ import { DEFAULT_FLOOR, SNAP_METERS } from "@/domain/room";
 import { LIVING_ROOM } from "@/domain/room/fixtures";
 import { createInstance, turnInstance } from "./instance";
 import type { FurnitureProduct } from "./product";
-import { snapInstancePosition } from "./snap";
+import { snapGroupDelta, snapInstancePosition } from "./snap";
 
 /** A one-room apartment, four by three, with its north-west corner at the origin. */
 const FLOOR = {
@@ -234,5 +234,62 @@ describe("snapInstancePosition against a closet", () => {
       placed.instance.position,
     );
     expect(landed.zMeters).toBeCloseTo(1.5 - thickness - 0.5, 10);
+  });
+});
+
+/** One by one, for a group that does not span the room. */
+const CHAIR: FurnitureProduct = {
+  ...SOFA,
+  id: "chair",
+  name: "Chair",
+  footprint: { widthMeters: 1, depthMeters: 1 },
+};
+
+function chairAt(xMeters: number, zMeters: number, id: string) {
+  return {
+    instance: createInstance(id, CHAIR.id, { xMeters, zMeters }),
+    product: CHAIR,
+  };
+}
+
+describe("snapGroupDelta", () => {
+  // Two chairs side by side, so the group is 2 m by 1 m, from x = 1 to 3.
+  const chairs = [chairAt(1.5, 1.5, "a"), chairAt(2.5, 1.5, "b")];
+
+  it("lands the group's outline on the wall, not the grabbed chair", () => {
+    // Dragged until the group's west edge is 2 cm from the west wall: the
+    // whole group is pulled those 2 cm, which is the same move for both.
+    const delta = snapGroupDelta(FLOOR, chairs, ["a", "b"], {
+      xMeters: -0.98,
+      zMeters: 0,
+    });
+    expect(delta.xMeters).toBeCloseTo(-1, 9);
+    expect(delta.zMeters).toBe(0);
+  });
+
+  it("never catches a member on another member", () => {
+    // Chair b is exactly against chair a. A drag of 5 cm is nowhere near a
+    // wall, and a's east edge must not pull b back into place.
+    const delta = snapGroupDelta(FLOOR, chairs, ["a", "b"], {
+      xMeters: 0.05,
+      zMeters: 0.05,
+    });
+    expect(delta).toEqual({ xMeters: 0.05, zMeters: 0.05 });
+  });
+
+  it("still lands against a piece outside the group", () => {
+    // A table whose north edge is 3 cm below the group's south edge.
+    const table = chairAt(2, 2.53, "table");
+    const delta = snapGroupDelta(FLOOR, [...chairs, table], ["a", "b"], {
+      xMeters: 0,
+      zMeters: 0,
+    });
+    expect(delta.zMeters).toBeCloseTo(0.03, 9);
+  });
+
+  it("leaves the drag alone with nothing to land on", () => {
+    expect(
+      snapGroupDelta(FLOOR, chairs, ["a", "b"], { xMeters: 0.3, zMeters: 0.2 }),
+    ).toEqual({ xMeters: 0.3, zMeters: 0.2 });
   });
 });

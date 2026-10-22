@@ -34,6 +34,7 @@ import {
   footprintRect,
   moveInstance,
   nearestGaps,
+  snapGroupDelta,
   snapInstancePosition,
   type WallGap,
   placedNames,
@@ -1611,29 +1612,17 @@ export function RoomPlanCanvas({
     };
     let delta = raw;
     if (drag.leader.kind === "instance") {
-      const leader = furniture.find(
-        ({ instance }) => instance.id === drag.leader.id,
-      );
-      const origin = drag.instanceOrigins.get(drag.leader.id);
-      if (leader !== undefined && origin !== undefined) {
-        const dropped = {
-          xMeters: origin.xMeters + raw.xMeters,
-          zMeters: origin.zMeters + raw.zMeters,
-        };
-        const landed = altKey
-          ? dropped
-          : snapInstancePosition(
-              floor,
-              furniture,
-              leader,
-              dropped,
-              snapReach(),
-            );
-        delta = {
-          xMeters: landed.xMeters - origin.xMeters,
-          zMeters: landed.zMeters - origin.zMeters,
-        };
-      }
+      // The group's outline is what lands, so a sectional goes against the
+      // wall as a sectional and its seats never catch on one another.
+      delta = altKey
+        ? raw
+        : snapGroupDelta(
+            floor,
+            furniture,
+            [...drag.instanceOrigins.keys()],
+            raw,
+            snapReach(),
+          );
     } else {
       const leader = floor.rooms.find((one) => one.id === drag.leader.id);
       const origin = drag.roomOrigins.get(drag.leader.id);
