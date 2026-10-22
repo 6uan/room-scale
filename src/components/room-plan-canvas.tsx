@@ -3924,13 +3924,61 @@ function cutOpening(
   context.rotate(angle);
   // Bleed half a pixel through the wall only. Widening across the opening
   // instead would make it measure wider than it is.
-  context.clearRect(
-    0,
-    Math.min(0, throughPixels) - 0.5,
-    length,
-    Math.abs(throughPixels) + 1,
-  );
+  const hole = {
+    y: Math.min(0, throughPixels) - 0.5,
+    height: Math.abs(throughPixels) + 1,
+  };
+  context.clearRect(0, hole.y, length, hole.height);
+  // A doorway is floor running through the wall, not a hole to the page:
+  // tinted as the floor is, with the room's grid carried through it.
+  context.globalAlpha = FLOOR_ALPHA;
+  context.fillStyle = frame.color;
+  context.fillRect(0, hole.y, length, hole.height);
+  context.beginPath();
+  context.rect(0, hole.y, length, hole.height);
+  context.clip();
+  context.rotate(-angle);
+  context.translate(-a.x, -a.y);
+  drawGridThrough(context, frame, room, wallPixels);
   context.restore();
+}
+
+/**
+ * The room's grid lines, each run on past the floor's edge by a wall's
+ * depth, so a doorway cut in that wall shows the grid passing through it.
+ * Meant to be drawn under a clip to the doorway; unclipped it would mark
+ * the walls.
+ */
+function drawGridThrough(
+  context: CanvasRenderingContext2D,
+  frame: PlanFrame,
+  room: Room,
+  wallPixels: number,
+): void {
+  context.globalAlpha = GRID_ALPHA;
+  context.strokeStyle = frame.color;
+  context.lineWidth = 1;
+  context.beginPath();
+  for (const line of roomGridLines(room)) {
+    const from = frame.toPixels(line.from);
+    const to = frame.toPixels(line.to);
+    const run = Math.hypot(to.x - from.x, to.y - from.y);
+    if (run <= 0) {
+      continue;
+    }
+    const dx = ((to.x - from.x) / run) * wallPixels;
+    const dy = ((to.y - from.y) / run) * wallPixels;
+    if (line.from.xMeters === line.to.xMeters) {
+      const x = Math.round(from.x) + 0.5;
+      context.moveTo(x, from.y - dy);
+      context.lineTo(x, to.y + dy);
+    } else {
+      const y = Math.round(from.y) + 0.5;
+      context.moveTo(from.x - dx, y);
+      context.lineTo(to.x + dx, y);
+    }
+  }
+  context.stroke();
 }
 
 function drawOpeningSymbol(
