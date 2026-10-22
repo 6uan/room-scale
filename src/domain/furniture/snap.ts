@@ -223,3 +223,54 @@ function nearestSnap(
   }
   return best;
 }
+
+/** Where a held axis is, or null when nothing is holding it. */
+export type SnapHold = {
+  readonly x: number | null;
+  readonly z: number | null;
+};
+
+export const NO_HOLD: SnapHold = { x: null, z: null };
+
+/**
+ * A snap that holds on once it has landed.
+ *
+ * Landing takes the ordinary reach — a few pixels — but leaving takes more:
+ * once a piece is on the wall it stays on the wall until the pointer has
+ * pulled clearly away, by `holdReachMeters`, which is bigger. Without this a
+ * piece set in a corner shivers on and off the corner with every pixel of
+ * hand movement, and a dimension that reads 0 then 0.3 then 0 is not one
+ * anybody trusts.
+ *
+ * Per axis: a fresh landing sets the hold; a raw value still within the
+ * hold's reach stays held; anything further lets go. `raw` is where the
+ * pointer put it, `landed` where the ordinary snap would.
+ */
+export function heldSnap(
+  raw: FloorPoint,
+  landed: FloorPoint,
+  hold: SnapHold,
+  holdReachMeters: number,
+): { readonly value: FloorPoint; readonly hold: SnapHold } {
+  const x = holdAxis(raw.xMeters, landed.xMeters, hold.x, holdReachMeters);
+  const z = holdAxis(raw.zMeters, landed.zMeters, hold.z, holdReachMeters);
+  return {
+    value: { xMeters: x.value, zMeters: z.value },
+    hold: { x: x.hold, z: z.hold },
+  };
+}
+
+function holdAxis(
+  raw: number,
+  landed: number,
+  hold: number | null,
+  reach: number,
+): { readonly value: number; readonly hold: number | null } {
+  if (landed !== raw) {
+    return { value: landed, hold: landed };
+  }
+  if (hold !== null && Math.abs(raw - hold) < reach) {
+    return { value: hold, hold };
+  }
+  return { value: raw, hold: null };
+}

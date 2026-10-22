@@ -33,9 +33,12 @@ import {
   furnitureAt,
   footprintRect,
   moveInstance,
+  NO_HOLD,
   groupGaps,
+  heldSnap,
   nearestGaps,
   snapGroupDelta,
+  type SnapHold,
   snapInstancePosition,
   type WallGap,
   placedNames,
@@ -338,6 +341,8 @@ type Drag =
       readonly pointerId: number;
       readonly instanceId: string;
       readonly grabOffset: FloorPoint;
+      /** Where the snap is holding the piece, per axis. */
+      readonly hold: SnapHold;
     }
   | {
       /** Everything selected, moved together by whichever one was grabbed. */
@@ -351,6 +356,8 @@ type Drag =
         | { readonly kind: "room"; readonly id: string };
       readonly instanceOrigins: ReadonlyMap<string, FloorPoint>;
       readonly roomOrigins: ReadonlyMap<string, FloorPoint>;
+      /** Where the snap is holding the group's offset, per axis. */
+      readonly hold: SnapHold;
     }
   | {
       /** A rectangle dragged over the floor, selecting what it touches. */
@@ -459,6 +466,8 @@ const NO_GROUPS: readonly PieceGroup[] = [];
 
 /** The reach of a snap on the screen. */
 const SNAP_PIXELS = 8;
+/** How far the pointer has to pull before a snap that has landed lets go. */
+const HOLD_PIXELS = 24;
 
 export function RoomPlanCanvas({
   floor,
@@ -510,6 +519,7 @@ export function RoomPlanCanvas({
    * screen and made a piece impossible to put down near anything.
    */
   const snapReach = () => SNAP_PIXELS / projectionRef.current.pixelsPerMeter;
+  const holdReach = () => HOLD_PIXELS / projectionRef.current.pixelsPerMeter;
 
   // Read by the pointer handlers, which must use the same transform the last
   // paint used rather than one recomputed from stale state.
@@ -1120,6 +1130,7 @@ export function RoomPlanCanvas({
         fromPixel: { x: event.clientX - box.left, y: event.clientY - box.top },
         from: point,
         leader,
+        hold: NO_HOLD,
         instanceOrigins: new Map(
           furniture
             .filter(({ instance }) => instanceIds.includes(instance.id))
@@ -1236,6 +1247,7 @@ export function RoomPlanCanvas({
         xMeters: point.xMeters - hit.instance.position.xMeters,
         zMeters: point.zMeters - hit.instance.position.zMeters,
       },
+      hold: NO_HOLD,
     };
     setCursor("move");
     setMovingId(hit.instance.id);
@@ -1588,11 +1600,20 @@ export function RoomPlanCanvas({
       xMeters: point.xMeters - drag.grabOffset.xMeters,
       zMeters: point.zMeters - drag.grabOffset.zMeters,
     };
-    // Against the nearest wall or piece if one is close, unless Alt is held,
-    // which is the way to put a piece exactly where the pointer says.
-    const landed = event.altKey
-      ? dropped
-      : snapInstancePosition(floor, furniture, placed, dropped, snapReach());
+    // Against the nearest wall or piece if one is close, and held there
+    // until pulled clearly away — unless Alt is held, which is the way to
+    // put a piece exactly where the pointer says.
+    let landed = dropped;
+    if (!event.altKey) {
+      const snapped = heldSnap(
+        dropped,
+        snapInstancePosition(floor, furniture, placed, dropped, snapReach()),
+        drag.hold,
+        holdReach(),
+      );
+      landed = snapped.value;
+      dragRef.current = { ...drag, hold: snapped.hold };
+    }
     onInstanceChange(
       moveInstance(placed.instance, clampToFloor(floor, landed)),
       `piece-move:${drag.instanceId}`,
@@ -1628,15 +1649,22 @@ export function RoomPlanCanvas({
           ? placed
           : { ...placed, instance: moveInstance(placed.instance, origin) };
       });
-      delta = altKey
-        ? raw
-        : snapGroupDelta(
+      if (!altKey) {
+        const snapped = heldSnap(
+          raw,
+          snapGroupDelta(
             floor,
             atStart,
             [...drag.instanceOrigins.keys()],
             raw,
             snapReach(),
-          );
+          ),
+          drag.hold,
+          holdReach(),
+        );
+        delta = snapped.value;
+        dragRef.current = { ...drag, hold: snapped.hold };
+      }
     } else {
       const leader = floor.rooms.find((one) => one.id === drag.leader.id);
       const origin = drag.roomOrigins.get(drag.leader.id);
