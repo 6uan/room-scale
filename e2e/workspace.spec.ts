@@ -1376,6 +1376,40 @@ test.describe("laying the apartment out", () => {
     await expect(room.getByLabel("Room 2 X position")).toHaveValue("88.5");
   });
 
+  test("lists a door cut in a shared wall under both rooms", async ({
+    page,
+  }) => {
+    await openWithLivingRoom(page);
+    await addRoom(page);
+    const room = details(page).getByRole("region", {
+      name: "Room 2",
+      exact: true,
+    });
+    // Below the living room, sharing its south wall: the wall the door is
+    // in. 72 and 4.5 make 76.5; 76 is near enough to mean it.
+    await room.getByLabel("Room 2 X position").fill("-84");
+    await room.getByLabel("Room 2 Y position").fill("76");
+    await expect(room.getByLabel("Room 2 Y position")).toHaveValue("76.5");
+
+    // The living room's door, listed under Room 2 as well, and it is the
+    // same door: selecting it opens the living room's.
+    const shared = contents(page).getByRole("button", {
+      name: "Door 1 · Living room",
+    });
+    await expect(shared).toBeVisible();
+    await shared.click();
+    await expect(
+      details(page).getByRole("region", { name: "Living room door 1" }),
+    ).toBeVisible();
+
+    // Moved away, Room 2 has no door of its own to show.
+    await contents(page)
+      .getByRole("button", { name: "Room 2", exact: true })
+      .click();
+    await room.getByLabel("Room 2 Y position").fill("120");
+    await expect(shared).toHaveCount(0);
+  });
+
   test("draws a second rectangle into a room and edits it on its own", async ({
     page,
   }) => {
