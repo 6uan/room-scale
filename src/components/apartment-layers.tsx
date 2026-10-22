@@ -36,6 +36,7 @@ import {
   withOpenings,
   withRoomPart,
   withRoomPartName,
+  sharedOpenings,
 } from "@/domain/room";
 import {
   groupSelection,
@@ -669,6 +670,32 @@ export function ApartmentLayers({
                                 />
                               ) : undefined
                             }
+                          />
+                        </li>
+                      ))}
+                      {/* A door cut in a wall this room shares with another
+                          is this room's door too. Listed here under its
+                          owner's name, faint, and it opens the same door. */}
+                      {sharedOpenings(floor, room).map(({ owner, opening }) => (
+                        <li key={`shared:${opening.id}`}>
+                          <Row
+                            label={`${openingListName(owner, opening)} · ${owner.name === "" ? "Room" : owner.name}`}
+                            icon={OPENING_ICONS[opening.kind]}
+                            depth={1}
+                            dimmed
+                            selected={isSelected(
+                              selection,
+                              "opening",
+                              opening.id,
+                            )}
+                            onSelect={() =>
+                              onSelect({
+                                kind: "opening",
+                                roomId: owner.id,
+                                id: opening.id,
+                              })
+                            }
+                            title={`Shared with ${owner.name === "" ? "the other room" : owner.name}`}
                           />
                         </li>
                       ))}

@@ -876,3 +876,11 @@ Not carried out of that: the underlay still moves by typed X/Y only rather
 than by drag, one image covers the whole apartment, and a skewed photograph
 is not straightened — a listing PDF's plan is flat, and a phone photo of one
 can wait until it stops somebody.
+
+**A door in a shared wall is both rooms' door.** It was always drawn that
+way — openings are cut from the finished wall band, so one doorway opens
+through both bands where two rooms share a wall — but it was listed only
+under the room it was drawn in. `sharedOpenings` finds the doors and
+passages cut in a wall this room shares, and the apartment list shows each
+under the other room too, faint and under its owner's name, opening the
+same door. Windows are left out; the wall is not open there.
