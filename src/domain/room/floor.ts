@@ -439,12 +439,27 @@ export function snapRoomEdge(
 ): number {
   const others = floor.rooms.filter((one) => one.id !== moving?.id);
 
-  const candidates = others.flatMap((room) => {
+  const candidates: (number | SnapCandidate)[] = others.flatMap((room) => {
     const thickness = sharedWallThicknessMeters(floor, moving ?? null, room);
-    return squareParts(room).flatMap((part) => {
+    return squareParts(room).flatMap((part): (number | SnapCandidate)[] => {
       const start = partAxisStart(part, axis);
       const end = start + partAxisLength(part, axis);
-      return [start - thickness, end + thickness, start, end];
+      // As for a section's edge: sharing a wall is caught from the band,
+      // and a face only from beside the room.
+      return [
+        {
+          at: start - thickness,
+          below: SNAP_METERS,
+          above: SNAP_METERS + thickness,
+        },
+        {
+          at: end + thickness,
+          below: SNAP_METERS + thickness,
+          above: SNAP_METERS,
+        },
+        { at: start, below: 0, above: SNAP_METERS },
+        { at: end, below: SNAP_METERS, above: 0 },
+      ];
     });
   });
 
@@ -608,18 +623,37 @@ function snapPartEdge(
   axis: "x" | "z",
   value: number,
 ): number {
-  const candidates = floor.rooms.flatMap((room) => {
+  const candidates: (number | SnapCandidate)[] = floor.rooms.flatMap((room) => {
     const thickness = sharedWallThicknessMeters(floor, mine, room);
-    return squareParts(room).flatMap((part) => {
+    return squareParts(room).flatMap((part): (number | SnapCandidate)[] => {
       if (room.id === mine.id && part.id === partId) {
         return [];
       }
       const start = partAxisStart(part, axis);
       const end = start + partAxisLength(part, axis);
       // Sections of the same room meet directly: no wall stands at a seam.
+      // Another room's wall is met from either side, and from a whole
+      // thickness further on the neighbour's side, so an edge dragged onto
+      // the band comes out of it rather than stopping in the wall.
+      // Lining up with a face is for an edge beside the room, never for one
+      // standing in its wall: from the band side a face does not catch at
+      // all, so an edge in the band comes out to share the wall instead.
       return room.id === mine.id
         ? [start, end]
-        : [start - thickness, end + thickness, start, end];
+        : [
+            {
+              at: start - thickness,
+              below: SNAP_METERS,
+              above: SNAP_METERS + thickness,
+            },
+            {
+              at: end + thickness,
+              below: SNAP_METERS + thickness,
+              above: SNAP_METERS,
+            },
+            { at: start, below: 0, above: SNAP_METERS },
+            { at: end, below: SNAP_METERS, above: 0 },
+          ];
     });
   });
   return nearestSnap(value, candidates);
@@ -633,19 +667,30 @@ function snapPartOriginAxis(
   value: number,
   length: number,
 ): number {
-  const candidates = floor.rooms.flatMap((room) => {
+  const candidates: (number | SnapCandidate)[] = floor.rooms.flatMap((room) => {
     const thickness = sharedWallThicknessMeters(floor, mine, room);
-    return squareParts(room).flatMap((part) => {
+    return squareParts(room).flatMap((part): (number | SnapCandidate)[] => {
       if (room.id === mine.id && part.id === partId) {
         return [];
       }
       const start = partAxisStart(part, axis);
       const theirs = partAxisLength(part, axis);
+      // As for a whole room: sharing a neighbour's wall is caught from a
+      // thickness further on the neighbour's side, so a section let go on
+      // the band comes out to share the wall.
       return room.id === mine.id
         ? [start + theirs, start - length, start, start + theirs - length]
         : [
-            start + theirs + thickness,
-            start - thickness - length,
+            {
+              at: start + theirs + thickness,
+              below: SNAP_METERS + thickness,
+              above: SNAP_METERS,
+            },
+            {
+              at: start - thickness - length,
+              below: SNAP_METERS,
+              above: SNAP_METERS + thickness,
+            },
             start,
             start + theirs - length,
           ];
