@@ -617,9 +617,25 @@ function snapPartEdge(
       const start = partAxisStart(part, axis);
       const end = start + partAxisLength(part, axis);
       // Sections of the same room meet directly: no wall stands at a seam.
+      // Another room's wall is met from either side, and from a whole
+      // thickness further on the neighbour's side, so an edge dragged onto
+      // the band comes out of it rather than stopping in the wall.
       return room.id === mine.id
         ? [start, end]
-        : [start - thickness, end + thickness, start, end];
+        : [
+            {
+              at: start - thickness,
+              below: SNAP_METERS,
+              above: SNAP_METERS + thickness,
+            },
+            {
+              at: end + thickness,
+              below: SNAP_METERS + thickness,
+              above: SNAP_METERS,
+            },
+            start,
+            end,
+          ];
     });
   });
   return nearestSnap(value, candidates);
@@ -641,11 +657,22 @@ function snapPartOriginAxis(
       }
       const start = partAxisStart(part, axis);
       const theirs = partAxisLength(part, axis);
+      // As for a whole room: sharing a neighbour's wall is caught from a
+      // thickness further on the neighbour's side, so a section let go on
+      // the band comes out to share the wall.
       return room.id === mine.id
         ? [start + theirs, start - length, start, start + theirs - length]
         : [
-            start + theirs + thickness,
-            start - thickness - length,
+            {
+              at: start + theirs + thickness,
+              below: SNAP_METERS + thickness,
+              above: SNAP_METERS,
+            },
+            {
+              at: start - thickness - length,
+              below: SNAP_METERS,
+              above: SNAP_METERS + thickness,
+            },
             start,
             start + theirs - length,
           ];

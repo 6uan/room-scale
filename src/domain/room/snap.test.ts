@@ -330,6 +330,31 @@ describe("room part snapping", () => {
     expect(origin).toEqual({ xMeters: 4, zMeters: 0 });
   });
 
+  it("brings a section let go on another room's wall band out to share it", () => {
+    // The second room's section, dragged west until its west edge stands on
+    // the first room's inner face at x = 4: a whole thickness into the wall,
+    // further than the ordinary reach, and it still comes out to 4.1.
+    const moving = part(SECOND);
+    const origin = snapRoomPartOrigin(FLOOR, SECOND, moving, {
+      xMeters: 4.0,
+      zMeters: 9,
+    });
+    expect(origin.xMeters).toBeCloseTo(4.1, 10);
+  });
+
+  it("stops a section's dragged edge short of another room by a wall, even from inside it", () => {
+    // Its west edge pulled onto the first room's band lands a thickness
+    // clear of it, as the edge of a whole room would.
+    const resized = snapRoomPartResize(
+      FLOOR,
+      SECOND,
+      part(SECOND).id,
+      "west",
+      4.0,
+    );
+    expect(part(resized).origin.xMeters).toBeCloseTo(4.1, 10);
+  });
+
   it("leaves a turned part exactly where the hand put it", () => {
     const turned = { ...multi.parts[1]!, rotationRadians: Math.PI / 4 };
     const room = { ...multi, parts: [part(FIRST), turned] };
