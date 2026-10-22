@@ -135,6 +135,14 @@ describe("snapRoomOrigin", () => {
     );
   });
 
+  it("brings a room let go on the neighbour's wall band out to share it", () => {
+    // Dropped with its west edge on the first room's inner face — the far
+    // side of the band from where it should be. That is a whole thickness
+    // off, further than the ordinary reach, and still comes out to 4.1.
+    expect(snapped(4.0, 0).xMeters).toBeCloseTo(4.1, 10);
+    expect(snapped(3.98, 0).xMeters).toBeCloseTo(4.1, 10);
+  });
+
   it("lines a room up with its neighbour without touching it", () => {
     // Nowhere near sharing a wall on X, but its top edge is near the other's.
     expect(snapped(9, 0.05).zMeters).toBe(0);
@@ -473,13 +481,17 @@ describe("snapping when the two rooms disagree about the wall between them", () 
     expect(
       snapRoomOrigin(MIXED, SECOND, { xMeters: 4.26, zMeters: 0 }).xMeters,
     ).toBeCloseTo(4.3, 10);
-    // The floor's own 0.1 is no longer a candidate at all. Typed at 4.1 — the
-    // wall these two rooms would have shared before either overrode anything —
-    // the room stays exactly where it was put rather than being pulled onto a
-    // wall nobody built. 4.3 is further away than the snap reaches.
+    // The floor's own 0.1 is no longer a candidate at all. Put at 4.1 — the
+    // wall these two rooms would have shared before either overrode anything
+    // — the room is standing in the fatter wall, and comes out of it to 4.3.
     expect(
       snapRoomOrigin(MIXED, SECOND, { xMeters: 4.1, zMeters: 0 }).xMeters,
-    ).toBe(4.1);
+    ).toBeCloseTo(4.3, 10);
+    // Clear of the wall on the open side, it stays exactly where it was put.
+    const clear = 4.3 + SNAP_METERS + 0.01;
+    expect(
+      snapRoomOrigin(MIXED, SECOND, { xMeters: clear, zMeters: 0 }).xMeters,
+    ).toBe(clear);
   });
 
   it("answers the same whichever of the two is the one being moved", () => {
