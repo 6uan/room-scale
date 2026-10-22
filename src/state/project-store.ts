@@ -24,8 +24,15 @@
  */
 
 import { create } from "zustand";
-import type { FurnitureInstance, FurnitureProduct } from "@/domain/furniture";
 import {
+  carriedWithRooms,
+  placedFurniture,
+  withInstance,
+  type FurnitureInstance,
+  type FurnitureProduct,
+} from "@/domain/furniture";
+import {
+  activeInstances,
   createProject,
   renameProject,
   withActiveLayout,
@@ -41,7 +48,7 @@ import {
   type PlanUnderlay,
   type Project,
 } from "@/domain/project";
-import type { Floor } from "@/domain/room";
+import { withRooms, type Floor, type Room } from "@/domain/room";
 import type { DisplayUnit } from "@/domain/units";
 import { CURRENT_PROJECT_ID } from "@/persistence/project-database";
 import {
@@ -99,6 +106,21 @@ export type ProjectState = {
   setName: (name: string) => void;
   setStatus: (status: ProjectStatus) => void;
   setFloor: (floor: Floor, gesture?: Gesture) => void;
+  /**
+   * Rooms as they are now, moved or otherwise changed. A room that moved
+   * carries the furniture standing in it, except the pieces named, which
+   * are moving on their own account — with a group, say.
+   */
+  moveRooms: (
+    rooms: readonly Room[],
+    gesture?: Gesture,
+    exceptIds?: readonly string[],
+  ) => void;
+  /** Pieces as they are now, merged into what is placed. */
+  moveInstances: (
+    instances: readonly FurnitureInstance[],
+    gesture?: Gesture,
+  ) => void;
   setUnderlay: (underlay: PlanUnderlay | null, gesture?: Gesture) => void;
   setProducts: (products: readonly FurnitureProduct[]) => void;
   /** Replaces what is placed, in the layout being worked on. */
@@ -201,6 +223,34 @@ export const useProjectStore = create<ProjectState>((set) => {
 
     setFloor: (floor, gesture) =>
       edit((state) => withFloor(state.project, floor))(gesture),
+    moveRooms: (rooms, gesture, exceptIds = []) =>
+      edit((state) => {
+        const { project } = state;
+        const moves = rooms.flatMap((after) => {
+          const before = project.floor.rooms.find((one) => one.id === after.id);
+          return before === undefined ? [] : [{ before, after }];
+        });
+        const floor = withRooms(
+          project.floor,
+          project.floor.rooms.map(
+            (one) => rooms.find((next) => next.id === one.id) ?? one,
+          ),
+        );
+        const instances = carriedWithRooms(
+          project.floor,
+          placedFurniture(activeInstances(project), project.products),
+          moves,
+          exceptIds,
+        );
+        return withInstances(withFloor(project, floor), instances);
+      })(gesture),
+    moveInstances: (moved, gesture) =>
+      edit((state) =>
+        withInstances(
+          state.project,
+          moved.reduce(withInstance, activeInstances(state.project)),
+        ),
+      )(gesture),
     setUnderlay: (underlay, gesture) =>
       edit((state) => withUnderlay(state.project, underlay))(gesture),
     setProducts: (products) =>
