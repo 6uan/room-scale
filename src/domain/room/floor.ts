@@ -662,13 +662,31 @@ function partAxisLength(part: RoomPart, axis: "x" | "z"): number {
   return axis === "x" ? part.widthMeters : part.depthMeters;
 }
 
-function nearestSnap(value: number, candidates: readonly number[]): number {
+/**
+ * A place to land, and how far away it still catches from either side —
+ * `below` for a value short of it, `above` for one past it.
+ */
+type SnapCandidate = {
+  readonly at: number;
+  readonly below: number;
+  readonly above: number;
+};
+
+function nearestSnap(
+  value: number,
+  candidates: readonly (number | SnapCandidate)[],
+): number {
   let best = value;
-  let nearest = SNAP_METERS;
+  let nearest = Number.POSITIVE_INFINITY;
   for (const candidate of candidates) {
-    const distance = Math.abs(candidate - value);
-    if (distance < nearest) {
-      best = candidate;
+    const { at, below, above } =
+      typeof candidate === "number"
+        ? { at: candidate, below: SNAP_METERS, above: SNAP_METERS }
+        : candidate;
+    const distance = Math.abs(at - value);
+    const reach = value < at ? below : above;
+    if (distance < reach && distance < nearest) {
+      best = at;
       nearest = distance;
     }
   }
@@ -683,9 +701,21 @@ function snapAxis(
   doors: readonly number[] = [],
 ): number {
   const candidates = others.flatMap(({ start, length: theirs, thickness }) => [
-    // Sharing a wall: a thickness past their far edge, or before their near one.
-    start + theirs + thickness,
-    start - thickness - length,
+    // Sharing a wall: a thickness past their far edge, or before their near
+    // one. Caught from a whole wall thickness further on the neighbour's
+    // side, so a room let go on top of the wall band — on its inner face,
+    // even — comes out to share the wall rather than being left in it. From
+    // the open side the reach is the ordinary one.
+    {
+      at: start + theirs + thickness,
+      below: SNAP_METERS + thickness,
+      above: SNAP_METERS,
+    },
+    {
+      at: start - thickness - length,
+      below: SNAP_METERS,
+      above: SNAP_METERS + thickness,
+    },
     // Lining up: the same near edge, or the same far edge.
     start,
     start + theirs - length,
