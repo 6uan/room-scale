@@ -1,6 +1,14 @@
 "use client";
 
-import { Keyboard, ReceiptText, Redo2, Settings, Undo2 } from "lucide-react";
+import {
+  Box,
+  Keyboard,
+  ReceiptText,
+  Redo2,
+  Settings,
+  Undo2,
+} from "lucide-react";
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { ApartmentLayers } from "@/components/apartment-layers";
 import {
@@ -93,6 +101,16 @@ import { useProjectStore } from "@/state/project-store";
 const DEFAULT_SECTION_METERS = metersFromInches(48);
 
 /**
+ * Loaded on the client only: Three.js wants a window, and the plan is the
+ * page that renders first either way.
+ */
+const ApartmentScene = dynamic(
+  () =>
+    import("@/scene/apartment-scene").then((module) => module.ApartmentScene),
+  { ssr: false },
+);
+
+/**
  * The workspace: what is in the apartment, the plan, and whatever is selected.
  *
  * Three panels rather than a page of forms, because there is one question being
@@ -141,6 +159,12 @@ export function Workspace() {
   const [guideOpen, setGuideOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
+  /**
+   * Whether the apartment is being looked at from inside rather than from
+   * above. Every edit happens on the plan, so arming any drawing or placing
+   * mode brings the plan back without the button having to be pressed.
+   */
+  const [perspective, setPerspective] = useState(false);
   /** Whether a drag on the plan draws a room. One room, then off again. */
   const [drawingRoom, setDrawingRoom] = useState(false);
   /**
@@ -164,6 +188,12 @@ export function Workspace() {
   const [placingProduct, setPlacingProduct] = useState<FurnitureProduct | null>(
     null,
   );
+  const showingPlan =
+    !perspective ||
+    drawingRoom ||
+    drawingSectionOf !== null ||
+    placingOpening !== null ||
+    placingProduct !== null;
 
   const furniture = placedFurniture(instances, products);
   // What is set aside stays in the list, but is off the plan, out of the
@@ -637,6 +667,15 @@ export function Workspace() {
               onClick={redo}
             />
           </ButtonGroup>
+          {/* The same apartment from inside. A mode rather than a page: the
+              panels on either side stay, and the plan comes back by itself
+              whenever something is drawn or placed. */}
+          <IconButton
+            label="Perspective"
+            icon={Box}
+            pressed={!showingPlan}
+            onClick={() => setPerspective((on) => !on)}
+          />
           <IconButton
             label="Keys"
             icon={Keyboard}
@@ -803,8 +842,16 @@ export function Workspace() {
           />
         </aside>
 
-        <main aria-label="Plan" className="relative min-h-0 overflow-hidden">
-          <div className="absolute inset-0">
+        <main
+          aria-label={showingPlan ? "Plan" : "Perspective"}
+          className="relative min-h-0 overflow-hidden"
+        >
+          {showingPlan ? null : (
+            <div className="absolute inset-0">
+              <ApartmentScene floor={floor} unit={unit} />
+            </div>
+          )}
+          <div className={showingPlan ? "absolute inset-0" : "hidden"}>
             <RoomPlanCanvas
               floor={floor}
               furniture={shown}
@@ -889,7 +936,7 @@ export function Workspace() {
 
           {/* Only until there is one room, and never dismissed — a plan with
               something on it says what it is without being told. */}
-          {floor.rooms.length === 0 ? (
+          {floor.rooms.length === 0 && showingPlan ? (
             <EmptyPlan
               drawing={drawingRoom}
               onDrawRoom={() => {

@@ -15,9 +15,8 @@ Two rules keep the order honest:
   Steps 4 to 10 are that question end to end. Everything after them makes the
   answer nicer to look at.
 
-Status: **steps 1 to 19 are done.** What is still to build is tracked as
-[issues](https://github.com/6uan/room-scale/issues). Step 20, the perspective
-view, is next.
+Status: **steps 1 to 19 are done, and step 20 has begun.** What is still to
+build is tracked as [issues](https://github.com/6uan/room-scale/issues).
 
 What is still to build lives in the issues, not here. This file is the record
 of what was built and why, kept for anyone changing it.
@@ -761,13 +760,36 @@ moving it out of the way must clear the problem.
 
 Nothing here changes an answer. It changes how easy the answer is to believe.
 
-### 20. Add a perspective view
+### 20. Add a perspective view ◀ in progress
 
 React Three Fiber, Three.js, and Drei arrive here. The same data, seen from
 inside the room, with furniture as correctly sized boxes and the openings from
 step 3 finally given their heights.
 
 The plan view stays fully capable. Neither view is the only way in.
+
+Four stages, each its own change, in this order:
+
+**20a — The room shell. ✅** `src/domain/room/shell.ts` turns the floor into
+a floor slab per section and a wall box per stretch of wall, in meters, in
+the floor's own coordinates, from the same functions the plan draws with —
+`wallStretches` decides where a wall is, so a seam between sections and a
+side left open come out as no wall here exactly as they draw as none there.
+It is pure and unit tested. `src/scene/apartment-scene.tsx` places meshes
+where it says and works nothing out for itself: one unit is one meter, Y is
+up, a wall's turn is its floor angle negated. The view is a mode behind a
+"Perspective" button in the header, the camera orbits the apartment's center,
+and arming any drawing or placing mode brings the plan back on its own,
+because every edit happens there.
+
+**20b — Furniture as boxes.** Each placed piece at its product's width,
+depth, and height, at its position and turn.
+
+**20c — Openings at their heights.** Doors, windows, and passages cut from
+the walls at their sill and head.
+
+**20d — Walking around.** The camera moved through the apartment at eye
+height.
 
 Done when: the room can be walked around, and every box measures what its
 product says it measures.

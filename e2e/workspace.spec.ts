@@ -1016,6 +1016,49 @@ test.describe("filling a product in from a link", () => {
   });
 });
 
+test.describe("the perspective view", () => {
+  test("stands the rooms up, and the plan comes back for drawing", async ({
+    page,
+  }) => {
+    await openWithLivingRoom(page);
+    await page.getByRole("button", { name: "Perspective" }).click();
+
+    // The same apartment, described the same way: one room, its height
+    // stated, because the picture is never the only way to know a number.
+    const scene = page.getByRole("img", { name: /^Perspective view/ });
+    await expect(scene).toBeVisible();
+    await expect(scene).toHaveAttribute(
+      "aria-label",
+      /holding 1 room: Living room 8' 0.0" high\./,
+    );
+    await expect(page.getByRole("main", { name: "Perspective" })).toBeVisible();
+    await expect(scene.locator("canvas")).toBeVisible();
+
+    // Arming a drawing mode is an edit, and edits happen on the plan.
+    await contents(page).getByRole("button", { name: "Add room" }).click();
+    await expect(page.getByRole("main", { name: "Plan" })).toBeVisible();
+    await expect(planImage(page)).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("main", { name: "Perspective" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Perspective" }).click();
+    await expect(page.getByRole("main", { name: "Plan" })).toBeVisible();
+  });
+
+  test("says so when there is nothing to stand up yet", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Perspective" }).click();
+    await expect(
+      page.getByRole("img", {
+        name: "Perspective view of an apartment with no rooms in it yet.",
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Draw the rooms on the plan first"),
+    ).toBeVisible();
+  });
+});
+
 test.describe("more than one project", () => {
   async function openProjects(page: Page) {
     const trigger = page.getByRole("button", { name: "Projects" });
