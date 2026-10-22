@@ -343,14 +343,14 @@ describe("room part snapping", () => {
   });
 
   it("stops a section's dragged edge short of another room by a wall, even from inside it", () => {
-    // Its west edge pulled onto the first room's band lands a thickness
+    // Its west edge pulled into the first room's band lands a thickness
     // clear of it, as the edge of a whole room would.
     const resized = snapRoomPartResize(
       FLOOR,
       SECOND,
       part(SECOND).id,
       "west",
-      4.0,
+      4.03,
     );
     expect(part(resized).origin.xMeters).toBeCloseTo(4.1, 10);
   });
