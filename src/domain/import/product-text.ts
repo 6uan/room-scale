@@ -34,7 +34,29 @@ export type Extracted<T> = {
   readonly value: T;
   /** Shown next to the field so the match can be checked against the page. */
   readonly sourceText: string;
+  /**
+   * The line above the match, when there is one. A price reads the same
+   * whichever product it is under; the line above says which, and is what
+   * lets "$520.00" under "4 Pieces Bedroom Set" be seen for what it is.
+   */
+  readonly context?: string;
 };
+
+/** The nearest line of text above `index`, for `Extracted.context`. */
+export function lineBefore(text: string, index: number): string | undefined {
+  const lines = text.slice(0, index).split("\n").slice(0, -1);
+  const line = lines.findLast((one) => one.trim() !== "")?.trim();
+  return line === undefined ? undefined : line.slice(0, 80);
+}
+
+function withContext<T>(
+  extracted: Extracted<T>,
+  text: string,
+  index: number,
+): Extracted<T> {
+  const context = lineBefore(text, index);
+  return context === undefined ? extracted : { ...extracted, context };
+}
 
 export type ExtractedProduct = {
   readonly name?: Extracted<string>;
@@ -92,8 +114,7 @@ const SIZE_TRIPLE = new RegExp(
 
 const PRICE = /\$\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?|\d+(?:\.\d{2})?)/;
 /** A line that is a price and nothing else: `$209.99`, `$1,699`. */
-const PRICE_ALONE =
-  /^\$\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})?$|^\$\s*\d+(?:\.\d{2})?$/;
+const ALONE_LINE = new RegExp(String.raw`^[ \t]*${PRICE.source}[ \t]*$`, "m");
 
 /**
  * A spec table lists the drawer, the seat, the shelf, and somewhere among
@@ -157,16 +178,18 @@ function looksLikeNavigation(line: string): boolean {
  * the fallback.
  */
 export function extractPrice(text: string): Extracted<number> | null {
-  const alone = text
-    .split("\n")
-    .map((line) => line.trim())
-    .find((line) => PRICE_ALONE.test(line));
-  const match = PRICE.exec(alone ?? text);
+  const match = ALONE_LINE.exec(text) ?? PRICE.exec(text);
   if (match?.[1] === undefined) {
     return null;
   }
   const cents = centsFromDecimalString(match[1]);
-  return cents === null ? null : { value: cents, sourceText: match[0].trim() };
+  return cents === null
+    ? null
+    : withContext(
+        { value: cents, sourceText: match[0].trim() },
+        text,
+        match.index,
+      );
 }
 
 type ExtractedDimensions = Pick<
@@ -215,22 +238,29 @@ function extractLabelledDimensions(
     axisToken: string,
     sizeToken: string,
     unitToken: string | undefined,
-    sourceText: string,
+    match: RegExpExecArray,
   ): void => {
     const axis = axisOf(axisToken);
     const meters = metersOf(sizeToken, unitToken);
     // First match wins: retail pages repeat dimensions in shipping tables
     // further down, and the first statement is the product's own.
     if (axis !== null && meters !== null && !found.has(axis)) {
-      found.set(axis, { value: meters, sourceText: sourceText.trim() });
+      found.set(
+        axis,
+        withContext(
+          { value: meters, sourceText: match[0].trim() },
+          text,
+          match.index,
+        ),
+      );
     }
   };
 
   for (const match of text.matchAll(SIZE_THEN_AXIS)) {
-    record(match[3] ?? "", match[1] ?? "", match[2], match[0]);
+    record(match[3] ?? "", match[1] ?? "", match[2], match);
   }
   for (const match of text.matchAll(AXIS_THEN_SIZE)) {
-    record(match[1] ?? "", match[2] ?? "", match[3], match[0]);
+    record(match[1] ?? "", match[2] ?? "", match[3], match);
   }
 
   const width = found.get("width");
@@ -276,10 +306,12 @@ function extractTriple(
   }
 
   const sourceText = match[0].trim();
+  const size = (value: number) =>
+    withContext({ value, sourceText }, text, match.index);
   return {
-    widthMeters: { value: width, sourceText },
-    depthMeters: { value: depth, sourceText },
-    heightMeters: { value: height, sourceText },
+    widthMeters: size(width),
+    depthMeters: size(depth),
+    heightMeters: size(height),
   };
 }
 

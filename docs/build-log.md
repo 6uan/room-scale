@@ -137,6 +137,19 @@ title, price, or dimensions in it — and the panel says nothing could be read
 rather than guessing, which is the point. Manual entry and the pasted text
 stay beside the link, not behind it.
 
+The first page tried after Article changed the design. A Wayfair dresser came
+out named from the browser title, sized from its drawer interior, and priced
+from a credit-card offer. Two of those were parser rules: a heading beats the
+title, and a size labelled "Overall" beats the first triple on the page. The
+price had no rule to find: Wayfair prints the price of a matching set, of
+assembly, and of a protection plan exactly the way it prints the product's
+own, and keeps the real one only in escaped script state. So there is now a
+registry of readers keyed by hostname, each a small function over the markup
+with a captured fixture, and Wayfair's reads that state. The generic parser
+is still every other shop's path and the fallback for everything a reader
+leaves out. And every value now carries the line above it, shown as "under
+…" in the report, so a wrong price is wrong visibly.
+
 **6c — A local model for the pages the parser cannot read.** Ollama on
 `localhost`, with output constrained to the product schema so it cannot return
 something invalid. Entirely optional: if it is not running, 6a and 6b still

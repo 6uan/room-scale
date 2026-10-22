@@ -72,7 +72,10 @@ export async function readUrl(
   }
 
   const html = await readUpTo(response, MAX_BYTES);
-  return { status: "read", extracted: extractProductFromHtml(html) };
+  return {
+    status: "read",
+    extracted: extractProductFromHtml(html, url.hostname),
+  };
 }
 
 /** The address as a URL, or null if it is not an http(s) one on the public internet. */

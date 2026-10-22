@@ -189,6 +189,12 @@ function ExtractionReport({
             <dd className="font-medium">{row.value}</dd>
             <dd className="opacity-60">
               from <q className="font-mono">{row.sourceText}</q>
+              {row.context === undefined ? null : (
+                <>
+                  {" "}
+                  under <q>{row.context}</q>
+                </>
+              )}
             </dd>
           </div>
         ))}
@@ -204,7 +210,12 @@ function ExtractionReport({
   );
 }
 
-type ReportRow = { label: string; value: string; sourceText: string };
+type ReportRow = {
+  label: string;
+  value: string;
+  sourceText: string;
+  context?: string;
+};
 
 function describe<T>(
   label: string,
@@ -217,5 +228,8 @@ function describe<T>(
         label,
         value: format(extracted.value),
         sourceText: extracted.sourceText,
+        ...(extracted.context === undefined
+          ? {}
+          : { context: extracted.context }),
       };
 }

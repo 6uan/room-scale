@@ -20,11 +20,21 @@ import {
   type ExtractedProduct,
 } from "./product-text";
 import { centsFromDecimalString } from "@/domain/units";
+import { readerFor } from "./retailers";
 
-export function extractProductFromHtml(html: string): ExtractedProduct {
+/**
+ * The sources, least trusted first, each overriding the one before: prose
+ * through the text parser; the main heading; schema.org data; and, where a
+ * shop has one, its own reader.
+ */
+export function extractProductFromHtml(
+  html: string,
+  hostname?: string,
+): ExtractedProduct {
   const fromText = extractProduct(htmlToText(html));
   const structured = extractStructuredProduct(html);
   const heading = extractHeading(html);
+  const retailer = hostname === undefined ? null : readerFor(hostname);
   return {
     ...fromText,
     ...(heading === null ? {} : { name: heading }),
@@ -32,6 +42,7 @@ export function extractProductFromHtml(html: string): ExtractedProduct {
     ...(structured.priceCents === undefined
       ? {}
       : { priceCents: structured.priceCents }),
+    ...retailer?.read(html),
   };
 }
 
