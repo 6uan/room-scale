@@ -145,6 +145,8 @@ const LABEL_PIXELS = 12;
  * which is how a plan marks cut material.
  */
 const FLOOR_ALPHA = 0.05;
+/** The dashes a wall's faces are carried across an opening with, in pixels. */
+const OPENING_DASH = [3, 3];
 const GRID_ALPHA = 0.09;
 const WALL_ALPHA = 0.88;
 const JAMB_ALPHA = 0.5;
@@ -4018,6 +4020,17 @@ function drawOpeningSymbol(
     [a, through(a, 1)],
     [b, through(b, 1)],
   ]);
+
+  // The wall's two faces carried across the opening as dashes, the way a
+  // plan shows a wall interrupted rather than missing. At the wall's own
+  // thickness, so the dashes say how deep the opening is.
+  context.save();
+  context.setLineDash(OPENING_DASH);
+  strokeSegments(context, [
+    [a, b],
+    [through(a, 1), through(b, 1)],
+  ]);
+  context.restore();
 
   if (opening.kind === "window") {
     // Glass, down the middle of the wall band.
