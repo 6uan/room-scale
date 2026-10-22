@@ -49,7 +49,72 @@ export function snapInstancePosition(
   position: FloorPoint,
   reachMeters: number = SNAP_METERS,
 ): FloorPoint {
-  const box = boundingBox({ ...footprintRect(placed), center: position });
+  return snapBox(
+    floor,
+    furniture.filter((other) => other.instance.id !== placed.instance.id),
+    boundingBox({ ...footprintRect(placed), center: position }),
+    position,
+    reachMeters,
+  );
+}
+
+/**
+ * How far a group of pieces moved together would land from where it was
+ * let go: the group's outline, snapped as if it were one piece.
+ *
+ * A sectional is four seats and five sides moved as one, and what goes
+ * against the wall is the sectional, not the seat that happened to be
+ * grabbed. So the rectangle around every member is what is offered to the
+ * walls and to the pieces outside the group — never to the members
+ * themselves, which move with it and would only catch it on its own edges.
+ * Every member then moves by the same amount, so what was flush stays flush.
+ */
+export function snapGroupDelta(
+  floor: Floor,
+  furniture: readonly PlacedFurniture[],
+  memberIds: readonly string[],
+  delta: FloorPoint,
+  reachMeters: number = SNAP_METERS,
+): FloorPoint {
+  const members = furniture.filter(({ instance }) =>
+    memberIds.includes(instance.id),
+  );
+  if (members.length === 0) {
+    return delta;
+  }
+  const boxes = members.map((member) => boundingBox(footprintRect(member)));
+  const moved: Box = {
+    minX: Math.min(...boxes.map((box) => box.minX)) + delta.xMeters,
+    maxX: Math.max(...boxes.map((box) => box.maxX)) + delta.xMeters,
+    minZ: Math.min(...boxes.map((box) => box.minZ)) + delta.zMeters,
+    maxZ: Math.max(...boxes.map((box) => box.maxZ)) + delta.zMeters,
+  };
+  const center = boxCenter(moved);
+  const landed = snapBox(
+    floor,
+    furniture.filter(({ instance }) => !memberIds.includes(instance.id)),
+    moved,
+    center,
+    reachMeters,
+  );
+  return {
+    xMeters: delta.xMeters + (landed.xMeters - center.xMeters),
+    zMeters: delta.zMeters + (landed.zMeters - center.zMeters),
+  };
+}
+
+/**
+ * Where a box let go here would land, as its center. The center is passed
+ * in rather than taken from the box, so the reach is measured from the
+ * number the caller holds and not from one a corner round-trip has nudged.
+ */
+function snapBox(
+  floor: Floor,
+  others: readonly PlacedFurniture[],
+  box: Box,
+  position: FloorPoint,
+  reachMeters: number,
+): FloorPoint {
   const halfWidth = (box.maxX - box.minX) / 2;
   const halfDepth = (box.maxZ - box.minZ) / 2;
 
@@ -97,10 +162,7 @@ export function snapInstancePosition(
     }
   }
 
-  for (const other of furniture) {
-    if (other.instance.id === placed.instance.id) {
-      continue;
-    }
+  for (const other of others) {
     const theirs = boundingBox(footprintRect(other));
     touch(theirs.minX, theirs.minZ);
     touch(theirs.maxX, theirs.maxZ);
@@ -124,6 +186,13 @@ type Box = {
   readonly minZ: number;
   readonly maxZ: number;
 };
+
+function boxCenter(box: Box): FloorPoint {
+  return {
+    xMeters: (box.minX + box.maxX) / 2,
+    zMeters: (box.minZ + box.maxZ) / 2,
+  };
+}
 
 function boundingBox(rect: OrientedRect): Box {
   const corners = orientedRectCorners(rect);
