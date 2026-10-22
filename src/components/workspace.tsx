@@ -131,6 +131,8 @@ export function Workspace() {
   const setUnit = useProjectStore((state) => state.setDisplayUnit);
   const setProducts = useProjectStore((state) => state.setProducts);
   const setInstances = useProjectStore((state) => state.setInstances);
+  const moveRooms = useProjectStore((state) => state.moveRooms);
+  const moveInstances = useProjectStore((state) => state.moveInstances);
   const storedGroups = useProjectStore(
     (state) => activeLayout(state.project).groups,
   );
@@ -719,7 +721,7 @@ export function Workspace() {
             selection={selection}
             troubledIds={troubledIds}
             onSelect={setSelection}
-            onRoomChange={(room) => setFloor(withRoom(floor, room))}
+            onRoomChange={(room) => moveRooms([room])}
             onAddRoom={() => {
               setPlacingOpening(null);
               setDrawingSectionOf(null);
@@ -863,29 +865,16 @@ export function Workspace() {
               onSelect={(instanceIds, roomIds) =>
                 setSelection(groupSelection(instanceIds, roomIds))
               }
+              // A room that moves carries its furniture, except what is
+              // already moving with it as part of the group.
               onRoomsChange={(rooms, gesture) =>
-                setFloor(
-                  withRooms(
-                    floor,
-                    floor.rooms.map(
-                      (one) =>
-                        rooms.find((moved) => moved.id === one.id) ?? one,
-                    ),
-                  ),
-                  gesture,
-                )
+                moveRooms(rooms, gesture, selectedInstanceIds(selection))
               }
               onInstanceChange={(instance, gesture) =>
-                setInstances(withInstance(instances, instance), gesture)
+                moveInstances([instance], gesture)
               }
               onInstancesChange={(moved, gesture) =>
-                setInstances(
-                  moved.reduce(
-                    (all, instance) => withInstance(all, instance),
-                    instances,
-                  ),
-                  gesture,
-                )
+                moveInstances(moved, gesture)
               }
               selectedRoomId={
                 selection?.kind === "room"
@@ -907,9 +896,7 @@ export function Workspace() {
               onSelectOpening={(roomId, id) =>
                 setSelection({ kind: "opening", roomId, id })
               }
-              onRoomChange={(room, gesture) =>
-                setFloor(withRoom(floor, room), gesture)
-              }
+              onRoomChange={(room, gesture) => moveRooms([room], gesture)}
               onGestureEnd={endGesture}
               drawing={drawingRoom || drawingSectionOf !== null}
               onDrawRoom={drawOnPlan}
@@ -998,9 +985,7 @@ export function Workspace() {
               void addPlanImage(file);
             }}
             onUnderlayChange={setUnderlay}
-            onRoomChange={(room, gesture) =>
-              setFloor(withRoom(floor, room), gesture)
-            }
+            onRoomChange={(room, gesture) => moveRooms([room], gesture)}
             onGestureEnd={endGesture}
             onRoomRemove={removeRoom}
             drawingSectionOf={drawingSectionOf}

@@ -512,6 +512,32 @@ test.describe("the plan as a canvas", () => {
     expect(rugBefore - rugWest).toBeCloseTo(lampBefore - lampWest, 0);
   });
 
+  test("carries the furniture when the room itself is dragged", async ({
+    page,
+  }) => {
+    await placeRug(page);
+    const fromWest = details(page).getByLabel("From west");
+    const gapWest = details(page).getByLabel("Gap to west wall");
+    const before = Number(await fromWest.inputValue());
+    const gapBefore = await gapWest.inputValue();
+    const centre = await planCentre(page);
+
+    // Grab the room by its floor, clear of the rug, and slide it east. The
+    // rug goes with it: its place on the floor changes, and its distance
+    // from the west wall does not.
+    await page.mouse.move(centre.x - 250, centre.y - 200);
+    await page.mouse.down();
+    await page.mouse.move(centre.x - 190, centre.y - 200, { steps: 10 });
+    await page.mouse.up();
+    await expect(
+      details(page).getByRole("region", { name: "Living room", exact: true }),
+    ).toBeVisible();
+
+    await page.mouse.click(centre.x + 60, centre.y);
+    expect(Number(await fromWest.inputValue())).toBeGreaterThan(before);
+    await expect(gapWest).toHaveValue(gapBefore);
+  });
+
   test("takes the room into the group, and moves it with its furniture", async ({
     page,
   }) => {
