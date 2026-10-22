@@ -149,6 +149,12 @@ is still every other shop's path and the fallback for everything a reader
 leaves out. And every value now carries the line above it, shown as "under
 …" in the report, so a wrong price is wrong visibly.
 
+IKEA came next and needed no reader, only two things the parser lacked:
+sizes written as fractions — `94 1/2 "`, `7 ¾ "` — and the width, depth, and
+height a schema.org Product may carry, which IKEA's does. Those are preferred
+over the prose, where the parser had been reading the package's measurements
+as the product's.
+
 **6c — A local model for the pages the parser cannot read.** Ollama on
 `localhost`, with output constrained to the product schema so it cannot return
 something invalid. Entirely optional: if it is not running, 6a and 6b still

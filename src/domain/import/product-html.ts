@@ -16,6 +16,7 @@
 
 import {
   extractProduct,
+  metersFromSizeText,
   type Extracted,
   type ExtractedProduct,
 } from "./product-text";
@@ -37,11 +38,10 @@ export function extractProductFromHtml(
   const retailer = hostname === undefined ? null : readerFor(hostname);
   return {
     ...fromText,
-    ...(heading === null ? {} : { name: heading }),
-    ...(structured.name === undefined ? {} : { name: structured.name }),
-    ...(structured.priceCents === undefined
+    ...structured,
+    ...(heading === null || structured.name !== undefined
       ? {}
-      : { priceCents: structured.priceCents }),
+      : { name: heading }),
     ...retailer?.read(html),
   };
 }
@@ -115,6 +115,9 @@ function decodeEntities(text: string): string {
 type Structured = {
   readonly name?: Extracted<string>;
   readonly priceCents?: Extracted<number>;
+  readonly widthMeters?: Extracted<number>;
+  readonly depthMeters?: Extracted<number>;
+  readonly heightMeters?: Extracted<number>;
 };
 
 /**
@@ -141,6 +144,9 @@ export function extractStructuredProduct(html: string): Structured {
             }
           : {}),
         ...structuredPrice(node),
+        ...structuredSize(node, "width", "widthMeters"),
+        ...structuredSize(node, "depth", "depthMeters"),
+        ...structuredSize(node, "height", "heightMeters"),
       };
     }
   }
@@ -170,6 +176,53 @@ function flattenJsonLd(value: unknown): Record<string, unknown>[] {
 function isProduct(node: Record<string, unknown>): boolean {
   const type = node["@type"];
   return Array.isArray(type) ? type.includes("Product") : type === "Product";
+}
+
+/**
+ * A schema.org size, which is either a string the parser can read — IKEA
+ * writes `94 1/2 "` — or a QuantitativeValue with a UN/CEFACT unit code.
+ * Most shops publish neither, and then the prose is read as before.
+ */
+function structuredSize(
+  node: Record<string, unknown>,
+  field: "width" | "depth" | "height",
+  key: "widthMeters" | "depthMeters" | "heightMeters",
+): Structured {
+  const raw = node[field];
+  const text =
+    typeof raw === "string"
+      ? raw
+      : typeof raw === "object" && raw !== null
+        ? quantitativeValueText(raw as Record<string, unknown>)
+        : null;
+  const meters = text === null ? null : metersFromSizeText(text);
+  return meters === null || text === null
+    ? {}
+    : { [key]: { value: meters, sourceText: `${field}: ${text.trim()}` } };
+}
+
+const UNIT_CODES: Record<string, string> = {
+  INH: "in",
+  CMT: "cm",
+  MMT: "mm",
+  FOT: "ft",
+  MTR: "m",
+};
+
+function quantitativeValueText(value: Record<string, unknown>): string | null {
+  const amount = value.value;
+  const code = typeof value.unitCode === "string" ? value.unitCode : "";
+  const unit = UNIT_CODES[code.toUpperCase()];
+  if (unit === undefined) {
+    return null;
+  }
+  if (unit === "m") {
+    const meters = Number(amount);
+    return Number.isFinite(meters) ? `${meters * 100} cm` : null;
+  }
+  return typeof amount === "number" || typeof amount === "string"
+    ? `${amount} ${unit}`
+    : null;
 }
 
 function structuredPrice(node: Record<string, unknown>): Structured {

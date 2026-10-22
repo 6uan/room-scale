@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { inchesFromMeters, metersFromInches } from "@/domain/units";
 import {
   extractDimensions,
+  metersFromSizeText,
   extractName,
   extractPrice,
   extractProduct,
@@ -144,6 +145,28 @@ describe("price", () => {
 
   it("reports nothing when there is no price", () => {
     expect(extractPrice("Add to cart")).toBeNull();
+  });
+});
+
+describe("sizes written as fractions", () => {
+  it("reads a mixed fraction, which is how US retail writes a half inch", () => {
+    const dimensions = extractDimensions('94 1/2"W x 16 1/2"D x 29 7/8"H');
+    expect(dimensions.widthMeters?.value).toBeCloseTo(94.5 * 0.0254, 6);
+    expect(dimensions.depthMeters?.value).toBeCloseTo(16.5 * 0.0254, 6);
+    expect(dimensions.heightMeters?.value).toBeCloseTo(29.875 * 0.0254, 6);
+  });
+
+  it("reads the fraction glyphs IKEA prints", () => {
+    expect(extractDimensions('Width: 7 ¾ "').widthMeters?.value).toBeCloseTo(
+      7.75 * 0.0254,
+      6,
+    );
+  });
+
+  it("reads a size standing on its own", () => {
+    expect(metersFromSizeText('16 1/2 "')).toBeCloseTo(16.5 * 0.0254, 6);
+    expect(metersFromSizeText("80 cm")).toBeCloseTo(0.8, 9);
+    expect(metersFromSizeText("about 80")).toBeNull();
   });
 });
 

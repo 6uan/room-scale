@@ -43,6 +43,12 @@ parser; what it leaves out, the parser fills in. Every reader ships with a
 trimmed capture of a real page under `fixtures/`, so when a shop changes its
 markup the fixture test fails rather than a number coming out wrong.
 
+A schema.org `Product` may state `width`, `depth`, and `height`, as a
+string or a QuantitativeValue; IKEA does, as mixed fractions (`94 1/2 "`),
+and those are preferred over the prose, where IKEA's package measurements
+would be read instead. `fixtures/ikea-besta.html` is the capture. IKEA
+needs no reader of its own.
+
 Every value also carries the line above it as `context`, shown in the report
 as "under …". A price reads the same whichever product it belongs to; the
 line above is what makes a wrong one visible before it is saved.

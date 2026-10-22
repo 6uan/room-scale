@@ -79,7 +79,12 @@ type LengthUnit = "inch" | "foot" | "centimeter" | "millimeter";
 /** US retail prints bare numbers in inches far more often than anything else. */
 const DEFAULT_UNIT: LengthUnit = "inch";
 
-const NUMBER = String.raw`\d{1,4}(?:\.\d{1,3})?`;
+/**
+ * `94.5`, `94 1/2`, `7 ¾`. US retail writes inches as decimals or as mixed
+ * fractions, and IKEA prints the vulgar-fraction glyphs; all three are one
+ * size and are read as one.
+ */
+const NUMBER = String.raw`\d{1,4}(?:\.\d{1,3}|[ \t]+\d{1,2}/\d{1,2}|[ \t]?[¼½¾⅛⅜⅝⅞⅓⅔])?`;
 const UNIT = String.raw`(?:''|"|in\.|inches|inch|in\b|cm\b|centimet(?:er|re)s?|mm\b|millimet(?:er|re)s?|ft\b|feet|foot|')`;
 const AXIS = String.raw`(?:W|D|H|L|Width|Depth|Height|Length)`;
 
@@ -336,8 +341,45 @@ function axisOf(token: string): Axis | null {
   }
 }
 
+/**
+ * A size written on its own — `16 1/2 "`, `80 cm`, `29.875` — as meters, or
+ * null when it is not one. For a value that arrives already isolated, as a
+ * field of structured data does, rather than found in running text.
+ */
+export function metersFromSizeText(text: string): number | null {
+  const match = SIZE_ALONE.exec(text.trim());
+  return match?.[1] === undefined ? null : metersOf(match[1], match[2]);
+}
+
+const SIZE_ALONE = new RegExp(String.raw`^(${NUMBER})[ \t]*(${UNIT})?$`, "i");
+
+const VULGAR: Record<string, number> = {
+  "¼": 0.25,
+  "½": 0.5,
+  "¾": 0.75,
+  "⅛": 0.125,
+  "⅜": 0.375,
+  "⅝": 0.625,
+  "⅞": 0.875,
+  "⅓": 1 / 3,
+  "⅔": 2 / 3,
+};
+
+/** `94.5`, `94 1/2`, or `94 ½` as a number. */
+function sizeValue(size: string): number {
+  const mixed = /^(\d+)[ \t]+(\d+)\/(\d+)$/.exec(size.trim());
+  if (mixed !== null) {
+    return Number(mixed[1]) + Number(mixed[2]) / Number(mixed[3]);
+  }
+  const glyph = /^(\d+)[ \t]?([¼½¾⅛⅜⅝⅞⅓⅔])$/.exec(size.trim());
+  if (glyph !== null) {
+    return Number(glyph[1]) + (VULGAR[glyph[2] ?? ""] ?? 0);
+  }
+  return Number(size);
+}
+
 function metersOf(size: string, unitToken: string | undefined): number | null {
-  const value = Number(size);
+  const value = sizeValue(size);
   if (!Number.isFinite(value) || value <= 0) {
     return null;
   }
