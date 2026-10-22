@@ -22,6 +22,31 @@ Amazon sectional. Both shaped it:
   no title, no price, and no dimensions in it. Pasting what is on screen works
   where fetching the address never will, which is why that path came first.
 
+## The link path
+
+`product-html.ts` is how a fetched page reaches the same parser: scripts and
+styles dropped, block tags turned into line breaks, entities decoded, and the
+result handed to `extractProduct`. Where the markup carries a schema.org
+`Product` block its name and price are preferred, because they are stated
+rather than guessed. Article publishes one; `fixtures/article-abisko.html` is
+a trimmed capture of its sectional page, kept as the regression fixture. The
+fetch itself lives in `src/app/api/import`, outside the domain.
+
+## Readers for particular shops
+
+`retailers.ts` is a registry keyed by hostname, for the shops whose pages the
+generic parser gets wrong. Wayfair is the first: it prints the price of a
+matching set, of assembly, and of a protection plan the same way it prints
+the product's own, and keeps the real one only in escaped script state under
+`leadPrice`. Its reader reads that field. What a reader returns overrides the
+parser; what it leaves out, the parser fills in. Every reader ships with a
+trimmed capture of a real page under `fixtures/`, so when a shop changes its
+markup the fixture test fails rather than a number coming out wrong.
+
+Every value also carries the line above it as `context`, shown in the report
+as "under …". A price reads the same whichever product it belongs to; the
+line above is what makes a wrong one visible before it is saved.
+
 ## Why text and not HTML
 
 It reads visible page text — what a person gets by selecting a page and copying

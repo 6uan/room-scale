@@ -96,6 +96,9 @@ export function ProductForm({
     setDraft((current) => ({
       ...current,
       ...(extracted.name === undefined ? {} : { name: extracted.name.value }),
+      ...(extracted.productUrl === undefined
+        ? {}
+        : { productUrl: extracted.productUrl.value }),
       ...(extracted.priceCents === undefined
         ? {}
         : { priceCents: extracted.priceCents.value }),

@@ -147,6 +147,71 @@ describe("price", () => {
   });
 });
 
+describe("price among other money", () => {
+  it("prefers a line that is only a price over an offer mentioned first", () => {
+    const text = [
+      "Earn $10.50 in rewards",
+      "Get $40 off your first order of $100+",
+      "$209.99",
+      "or $14/mo",
+    ].join("\n");
+    expect(extractPrice(text)).toEqual({
+      value: 20999,
+      sourceText: "$209.99",
+      context: "Get $40 off your first order of $100+",
+    });
+  });
+
+  it("says what line the price was under", () => {
+    expect(extractPrice("Allenside 4 Pieces Bedroom Set\n$520.00")).toEqual({
+      value: 52000,
+      sourceText: "$520.00",
+      context: "Allenside 4 Pieces Bedroom Set",
+    });
+  });
+
+  it("falls back to the first amount when no line is only a price", () => {
+    expect(extractPrice("Now $1,299.00 was $1,599.00")?.value).toBe(129900);
+  });
+});
+
+describe("overall dimensions among part dimensions", () => {
+  it("reads the overall size when a part's size is listed first", () => {
+    const text = [
+      "Drawer Interior",
+      "6.7'' H X 13'' D X 21.69'' W",
+      "Overall Dimensions",
+      "38.46'' H X 26.37'' W X 15.43'' D",
+    ].join("\n");
+    const dimensions = extractDimensions(text);
+    expect(dimensions.widthMeters?.value).toBeCloseTo(26.37 * 0.0254, 6);
+    expect(dimensions.depthMeters?.value).toBeCloseTo(15.43 * 0.0254, 6);
+    expect(dimensions.heightMeters?.value).toBeCloseTo(38.46 * 0.0254, 6);
+  });
+
+  it("says what line a size was under", () => {
+    const text = "Drawer Interior\n6.7'' H X 13'' D X 21.69'' W";
+    expect(extractDimensions(text).heightMeters?.context).toBe(
+      "Drawer Interior",
+    );
+  });
+
+  it("reads an overall size stated on the label's own line", () => {
+    const text = "Overall Width: 26.37 ''\nDrawer width: 21.69''";
+    expect(extractDimensions(text).widthMeters?.value).toBeCloseTo(
+      26.37 * 0.0254,
+      6,
+    );
+  });
+
+  it("lets the rest of the page fill in what overall leaves out", () => {
+    const text = 'Overall Width: 60"\nSeat Height: 18"\nDepth: 35"';
+    const dimensions = extractDimensions(text);
+    expect(dimensions.widthMeters?.value).toBeCloseTo(60 * 0.0254, 6);
+    expect(dimensions.depthMeters?.value).toBeCloseTo(35 * 0.0254, 6);
+  });
+});
+
 describe("name", () => {
   it("takes the first substantial line", () => {
     const name = extractName(
