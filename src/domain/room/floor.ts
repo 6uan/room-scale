@@ -352,6 +352,44 @@ function isAxisWallSide(wall: WallSide): wall is AxisWallSide {
 }
 
 /**
+ * The two ends of a drawn span on one axis, low first: rounded, snapped,
+ * and then made a whole length.
+ *
+ * Each end is rounded to the unit and offered to the neighbours, and an end
+ * that lands on a neighbour's wall stays there — sharing the wall matters
+ * more than being round. But a wall sits at a fraction, so the length
+ * between the ends would read 5' 11.6" where 5' 11" was drawn. So when
+ * exactly one end has snapped, the other is set a whole length from it:
+ * flush against the wall it touches, and a size the tape could have read.
+ * When both ends snapped, both walls are shared and the length is what it
+ * is; when neither did, both are round already.
+ */
+function roundedSpan(
+  from: number,
+  to: number,
+  snap: (value: number) => number,
+  roundMeters: (meters: number) => number,
+): readonly [number, number] {
+  const [low, high] = [roundMeters(from), roundMeters(to)].sort(
+    (a, b) => a - b,
+  ) as [number, number];
+  const snappedLow = snap(low);
+  const snappedHigh = snap(high);
+  const lowMoved = snappedLow !== low;
+  const highMoved = snappedHigh !== high;
+  const length = roundMeters(Math.abs(snappedHigh - snappedLow));
+  if (lowMoved && !highMoved) {
+    return [snappedLow, snappedLow + length];
+  }
+  if (highMoved && !lowMoved) {
+    return [snappedHigh - length, snappedHigh];
+  }
+  return snappedLow <= snappedHigh
+    ? [snappedLow, snappedHigh]
+    : [snappedHigh, snappedLow];
+}
+
+/**
  * The parts that offer a wall to snap to: the ones square to the plan.
  *
  * A turned part's edges do not lie on any axis line, so pretending its
@@ -391,25 +429,29 @@ export function drawnRoom(
   to: FloorPoint,
   roundMeters: (meters: number) => number = (meters) => meters,
 ): Room {
-  const xs = [
-    snapRoomEdge(floor, "x", roundMeters(from.xMeters)),
-    snapRoomEdge(floor, "x", roundMeters(to.xMeters)),
-  ].sort((a, b) => a - b);
-  const zs = [
-    snapRoomEdge(floor, "z", roundMeters(from.zMeters)),
-    snapRoomEdge(floor, "z", roundMeters(to.zMeters)),
-  ].sort((a, b) => a - b);
+  const xs = roundedSpan(
+    from.xMeters,
+    to.xMeters,
+    (value) => snapRoomEdge(floor, "x", value),
+    roundMeters,
+  );
+  const zs = roundedSpan(
+    from.zMeters,
+    to.zMeters,
+    (value) => snapRoomEdge(floor, "z", value),
+    roundMeters,
+  );
 
-  const west = xs[0] ?? 0;
-  const north = zs[0] ?? 0;
+  const west = xs[0];
+  const north = zs[0];
   const minimum = ROOM_LENGTH_LIMITS.widthMeters.minMeters;
 
   const room = createRoom(id, name, { xMeters: west, zMeters: north });
   const part = primaryRoomPart(room);
   return withRoomPart(room, part.id, (one) => ({
     ...one,
-    widthMeters: Math.max(minimum, (xs[1] ?? 0) - west),
-    depthMeters: Math.max(minimum, (zs[1] ?? 0) - north),
+    widthMeters: Math.max(minimum, xs[1] - west),
+    depthMeters: Math.max(minimum, zs[1] - north),
   }));
 }
 
@@ -595,18 +637,21 @@ export function drawnSection(
   to: FloorPoint,
   roundMeters: (meters: number) => number = (meters) => meters,
 ): RoomPart {
-  const snap = (axis: "x" | "z", value: number) =>
-    snapPartEdge(floor, room, id, axis, roundMeters(value));
-
-  const xs = [snap("x", from.xMeters), snap("x", to.xMeters)].sort(
-    (a, b) => a - b,
+  const xs = roundedSpan(
+    from.xMeters,
+    to.xMeters,
+    (value) => snapPartEdge(floor, room, id, "x", value),
+    roundMeters,
   );
-  const zs = [snap("z", from.zMeters), snap("z", to.zMeters)].sort(
-    (a, b) => a - b,
+  const zs = roundedSpan(
+    from.zMeters,
+    to.zMeters,
+    (value) => snapPartEdge(floor, room, id, "z", value),
+    roundMeters,
   );
 
-  const west = xs[0] ?? 0;
-  const north = zs[0] ?? 0;
+  const west = xs[0];
+  const north = zs[0];
   const minimum = ROOM_LENGTH_LIMITS.widthMeters.minMeters;
 
   return {
