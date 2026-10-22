@@ -63,7 +63,10 @@ export function wallGaps(
   floor: Floor,
   placed: PlacedFurniture,
 ): readonly WallGap[] {
-  const rect = footprintRect(placed);
+  return wallGapsOfRect(floor, footprintRect(placed));
+}
+
+function wallGapsOfRect(floor: Floor, rect: OrientedRect): readonly WallGap[] {
   const room = roomUnder(floor, rect);
   if (room === null) {
     return [];
@@ -121,7 +124,53 @@ export function nearestGaps(
   furniture: readonly PlacedFurniture[],
   placed: PlacedFurniture,
 ): readonly WallGap[] {
-  const gaps = wallGaps(floor, placed);
+  return nearestGapsOfRect(floor, furniture, footprintRect(placed), [
+    placed.instance.id,
+  ]);
+}
+
+/**
+ * The gaps around a group of pieces moved together, measured from the
+ * rectangle around all of them: a sectional's clearance to the wall and to
+ * the coffee table, never a seat's clearance to the next seat. The members
+ * are not in anybody's way here; they are the thing being measured.
+ */
+export function groupGaps(
+  floor: Floor,
+  furniture: readonly PlacedFurniture[],
+  memberIds: readonly string[],
+): readonly WallGap[] {
+  const members = furniture.filter(({ instance }) =>
+    memberIds.includes(instance.id),
+  );
+  if (members.length === 0) {
+    return [];
+  }
+  const boxes = members.map((member) => boundingBox(footprintRect(member)));
+  const minX = Math.min(...boxes.map((box) => box.minX));
+  const maxX = Math.max(...boxes.map((box) => box.maxX));
+  const minZ = Math.min(...boxes.map((box) => box.minZ));
+  const maxZ = Math.max(...boxes.map((box) => box.maxZ));
+  return nearestGapsOfRect(
+    floor,
+    furniture,
+    {
+      center: { xMeters: (minX + maxX) / 2, zMeters: (minZ + maxZ) / 2 },
+      widthMeters: maxX - minX,
+      depthMeters: maxZ - minZ,
+      rotationRadians: 0,
+    },
+    memberIds,
+  );
+}
+
+function nearestGapsOfRect(
+  floor: Floor,
+  furniture: readonly PlacedFurniture[],
+  rect: OrientedRect,
+  excludeIds: readonly string[],
+): readonly WallGap[] {
+  const gaps = wallGapsOfRect(floor, rect);
 
   return gaps.map((gap) => {
     const horizontal = gap.side === "west" || gap.side === "east";
@@ -129,7 +178,7 @@ export function nearestGaps(
     let best = gap;
 
     for (const other of furniture) {
-      if (other.instance.id === placed.instance.id) {
+      if (excludeIds.includes(other.instance.id)) {
         continue;
       }
       const theirs = boundingBox(footprintRect(other));
