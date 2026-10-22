@@ -3,7 +3,12 @@ import { DEFAULT_FLOOR, SNAP_METERS } from "@/domain/room";
 import { LIVING_ROOM } from "@/domain/room/fixtures";
 import { createInstance, turnInstance } from "./instance";
 import type { FurnitureProduct } from "./product";
-import { snapGroupDelta, snapInstancePosition } from "./snap";
+import {
+  NO_HOLD,
+  heldSnap,
+  snapGroupDelta,
+  snapInstancePosition,
+} from "./snap";
 
 /** A one-room apartment, four by three, with its north-west corner at the origin. */
 const FLOOR = {
@@ -291,5 +296,34 @@ describe("snapGroupDelta", () => {
     expect(
       snapGroupDelta(FLOOR, chairs, ["a", "b"], { xMeters: 0.3, zMeters: 0.2 }),
     ).toEqual({ xMeters: 0.3, zMeters: 0.2 });
+  });
+});
+
+describe("heldSnap", () => {
+  const at = (xMeters: number, zMeters = 0) => ({ xMeters, zMeters });
+
+  it("takes hold where the ordinary snap lands", () => {
+    const { value, hold } = heldSnap(at(0.98), at(1), NO_HOLD, 0.3);
+    expect(value).toEqual(at(1));
+    expect(hold).toEqual({ x: 1, z: null });
+  });
+
+  it("stays held while the pointer has not pulled clearly away", () => {
+    // Out of the ordinary reach, so the snap offers nothing — but within
+    // the hold's, so the piece stays where it landed.
+    const { value, hold } = heldSnap(at(1.2), at(1.2), { x: 1, z: null }, 0.3);
+    expect(value).toEqual(at(1));
+    expect(hold).toEqual({ x: 1, z: null });
+  });
+
+  it("lets go once pulled further than the hold's reach", () => {
+    const { value, hold } = heldSnap(at(1.4), at(1.4), { x: 1, z: null }, 0.3);
+    expect(value).toEqual(at(1.4));
+    expect(hold).toEqual({ x: null, z: null });
+  });
+
+  it("holds each axis on its own", () => {
+    const { value } = heldSnap(at(1.2, 2.5), at(1.2, 2.5), { x: 1, z: 2 }, 0.3);
+    expect(value).toEqual(at(1, 2.5));
   });
 });

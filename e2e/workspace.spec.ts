@@ -410,6 +410,40 @@ test.describe("the plan as a canvas", () => {
     await expect(details(page).getByLabel("From west")).toHaveValue("-34");
   });
 
+  test("holds a piece on the wall until the pointer pulls clearly away", async ({
+    page,
+  }) => {
+    await placeRug(page);
+    const box = await planImage(page).boundingBox();
+    if (box === null) {
+      throw new Error("the plan has no box to point at");
+    }
+    const metres = (inches: number) => inches * 0.0254;
+    const padding = 40;
+    const scale = Math.min(
+      (box.width - padding * 2) / metres(168 + WALL_INCHES * 2),
+      (box.height - padding * 2) / metres(144 + WALL_INCHES * 2),
+    );
+    const centre = await planCentre(page);
+    const fromWest = details(page).getByLabel("From west");
+
+    // Land flush on the west wall, and keep the button down.
+    await page.mouse.move(centre.x, centre.y);
+    await page.mouse.down();
+    const flush = centre.x + metres(-84 + 48 + 2) * scale;
+    await page.mouse.move(flush, centre.y, { steps: 10 });
+    await expect(fromWest).toHaveValue("-36");
+
+    // A dozen pixels back is a hand's tremor, not a decision: still flush.
+    await page.mouse.move(flush + 12, centre.y, { steps: 4 });
+    await expect(fromWest).toHaveValue("-36");
+
+    // Forty is a decision, and the piece follows the pointer again.
+    await page.mouse.move(flush + 40, centre.y, { steps: 4 });
+    await page.mouse.up();
+    expect(Number(await fromWest.inputValue())).toBeGreaterThan(-36);
+  });
+
   test("types a piece's gap to a wall, and reads it back", async ({ page }) => {
     await placeRug(page);
     // The rug is 96" wide in the middle of a room whose west wall is 84" out,
