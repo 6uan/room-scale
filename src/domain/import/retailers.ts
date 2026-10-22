@@ -33,6 +33,13 @@ export type RetailerReader = {
  * amounts on the page — a set the piece belongs to, assembly, a protection
  * plan — are listed under other keys and never as `leadPrice`.
  */
+const ikea: RetailerReader = {
+  name: "IKEA",
+  host: "ikea.com",
+  // Everything IKEA states is in its Product block; the name is all this adds.
+  read: () => ({}),
+};
+
 const wayfair: RetailerReader = {
   name: "Wayfair",
   host: "wayfair.com",
@@ -49,7 +56,7 @@ const wayfair: RetailerReader = {
   },
 };
 
-const READERS: readonly RetailerReader[] = [wayfair];
+const READERS: readonly RetailerReader[] = [wayfair, ikea];
 
 export function readerFor(hostname: string): RetailerReader | null {
   const host = hostname.toLowerCase();
@@ -58,4 +65,25 @@ export function readerFor(hostname: string): RetailerReader | null {
       (reader) => host === reader.host || host.endsWith(`.${reader.host}`),
     ) ?? null
   );
+}
+
+/**
+ * What to call the shop, from its address: the reader's name where there is
+ * one, and otherwise the hostname's own label with its first letter raised —
+ * `www.article.com` is "Article". Typed over freely; it is a starting value.
+ */
+export function retailerNameFromHostname(hostname: string): string | null {
+  const reader = readerFor(hostname);
+  if (reader !== null) {
+    return reader.name;
+  }
+  const labels = hostname.toLowerCase().split(".").filter(Boolean);
+  // Drop a public suffix of one or two labels (`.com`, `.co.uk`).
+  const label =
+    labels.length >= 3 && (labels.at(-2)?.length ?? 0) <= 3
+      ? labels.at(-3)
+      : labels.at(-2);
+  return label === undefined || label === "" || label === "www"
+    ? null
+    : label.charAt(0).toUpperCase() + label.slice(1);
 }

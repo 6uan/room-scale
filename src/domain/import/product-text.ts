@@ -60,8 +60,9 @@ function withContext<T>(
 
 export type ExtractedProduct = {
   readonly name?: Extracted<string>;
-  /** Only the link path knows this: the address the page was fetched from. */
+  /** Only the link path knows these: the address the page was fetched from, and the shop it names. */
   readonly productUrl?: Extracted<string>;
+  readonly retailer?: Extracted<string>;
   readonly priceCents?: Extracted<number>;
   readonly widthMeters?: Extracted<number>;
   readonly depthMeters?: Extracted<number>;
