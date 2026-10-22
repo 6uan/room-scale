@@ -42,6 +42,7 @@ import {
   resizeRoomPartEdge,
   roomBounds,
   roomFloorAreaSquareMeters,
+  roomPart,
   roomPartContains,
   withRoomPart,
   type Room,
@@ -530,7 +531,7 @@ export function snapRoomPartResize(
     room,
     partId,
     edge,
-    snapPartEdge(floor, room, partId, axis, positionMeters),
+    snapPartEdge(floor, room, partId, axis, positionMeters, edge),
   );
 }
 
@@ -557,6 +558,7 @@ export function snapRoomPartOrigin(
       "x",
       origin.xMeters,
       part.widthMeters,
+      part,
     ),
     zMeters: snapPartOriginAxis(
       floor,
@@ -565,6 +567,7 @@ export function snapRoomPartOrigin(
       "z",
       origin.zMeters,
       part.depthMeters,
+      part,
     ),
   };
 }
@@ -622,6 +625,7 @@ function snapPartEdge(
   partId: string,
   axis: "x" | "z",
   value: number,
+  edge?: WallSide,
 ): number {
   const candidates: (number | SnapCandidate)[] = floor.rooms.flatMap((room) => {
     const thickness = sharedWallThicknessMeters(floor, mine, room);
@@ -638,22 +642,36 @@ function snapPartEdge(
       // Lining up with a face is for an edge beside the room, never for one
       // standing in its wall: from the band side a face does not catch at
       // all, so an edge in the band comes out to share the wall instead.
-      return room.id === mine.id
-        ? [start, end]
-        : [
-            {
-              at: start - thickness,
-              below: SNAP_METERS,
-              above: SNAP_METERS + thickness,
-            },
-            {
-              at: end + thickness,
-              below: SNAP_METERS + thickness,
-              above: SNAP_METERS,
-            },
-            { at: start, below: 0, above: SNAP_METERS },
-            { at: end, below: SNAP_METERS, above: 0 },
-          ];
+      if (room.id === mine.id) {
+        // A seam, or — when this edge is a dividing wall — a thickness
+        // clear of the sibling, its band over the sibling's as one wall.
+        const own = wallThicknessMeters(floor, mine);
+        const edgeIsDividing =
+          edge !== undefined &&
+          roomPart(mine, partId)?.dividingWalls?.includes(edge) === true;
+        return edgeIsDividing
+          ? [
+              { at: end + own, below: SNAP_METERS + own, above: SNAP_METERS },
+              { at: start - own, below: SNAP_METERS, above: SNAP_METERS + own },
+              start,
+              end,
+            ]
+          : [start, end];
+      }
+      return [
+        {
+          at: start - thickness,
+          below: SNAP_METERS,
+          above: SNAP_METERS + thickness,
+        },
+        {
+          at: end + thickness,
+          below: SNAP_METERS + thickness,
+          above: SNAP_METERS,
+        },
+        { at: start, below: 0, above: SNAP_METERS },
+        { at: end, below: SNAP_METERS, above: 0 },
+      ];
     });
   });
   return nearestSnap(value, candidates);
@@ -666,6 +684,7 @@ function snapPartOriginAxis(
   axis: "x" | "z",
   value: number,
   length: number,
+  moving?: RoomPart,
 ): number {
   const candidates: (number | SnapCandidate)[] = floor.rooms.flatMap((room) => {
     const thickness = sharedWallThicknessMeters(floor, mine, room);
@@ -678,25 +697,74 @@ function snapPartOriginAxis(
       // As for a whole room: sharing a neighbour's wall is caught from a
       // thickness further on the neighbour's side, so a section let go on
       // the band comes out to share the wall.
-      return room.id === mine.id
-        ? [start + theirs, start - length, start, start + theirs - length]
-        : [
-            {
-              at: start + theirs + thickness,
-              below: SNAP_METERS + thickness,
-              above: SNAP_METERS,
-            },
-            {
-              at: start - thickness - length,
-              below: SNAP_METERS,
-              above: SNAP_METERS + thickness,
-            },
-            start,
-            start + theirs - length,
-          ];
+      if (room.id === mine.id) {
+        // Siblings meet at a seam — unless the side of the moving section
+        // that faces them was made a dividing wall. A wall stands there
+        // then, and it lands a thickness from the sibling's edge, where
+        // its band lies over the sibling's own wall band as one wall.
+        const own = wallThicknessMeters(floor, mine);
+        return [
+          start + theirs,
+          start - length,
+          start,
+          start + theirs - length,
+          ...(moving !== undefined && isDividing(moving, axis, "low")
+            ? [
+                {
+                  at: start + theirs + own,
+                  below: SNAP_METERS + own,
+                  above: SNAP_METERS,
+                },
+              ]
+            : []),
+          ...(moving !== undefined && isDividing(moving, axis, "high")
+            ? [
+                {
+                  at: start - own - length,
+                  below: SNAP_METERS,
+                  above: SNAP_METERS + own,
+                },
+              ]
+            : []),
+        ];
+      }
+      return [
+        {
+          at: start + theirs + thickness,
+          below: SNAP_METERS + thickness,
+          above: SNAP_METERS,
+        },
+        {
+          at: start - thickness - length,
+          below: SNAP_METERS,
+          above: SNAP_METERS + thickness,
+        },
+        start,
+        start + theirs - length,
+      ];
     });
   });
   return nearestSnap(value, candidates);
+}
+
+/**
+ * Whether the section's side at the low or high end of an axis — west or
+ * east, north or south — was made a dividing wall.
+ */
+function isDividing(
+  part: RoomPart,
+  axis: "x" | "z",
+  end: "low" | "high",
+): boolean {
+  const side: WallSide =
+    axis === "x"
+      ? end === "low"
+        ? "west"
+        : "east"
+      : end === "low"
+        ? "north"
+        : "south";
+  return part.dividingWalls?.includes(side) === true;
 }
 
 function partAxisStart(part: RoomPart, axis: "x" | "z"): number {

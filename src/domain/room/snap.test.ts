@@ -17,6 +17,7 @@ import {
   ROOM_LENGTH_LIMITS,
   createRoom,
   primaryRoomPart,
+  roomPart,
   withOpenings,
   withOrigin,
   withRoomWallThickness,
@@ -353,6 +354,108 @@ describe("room part snapping", () => {
       4.03,
     );
     expect(part(resized).origin.xMeters).toBeCloseTo(4.1, 10);
+  });
+
+  describe("a dividing wall meeting a sibling's wall", () => {
+    // Juan's guest room: the main rectangle, a closet-like section tucked
+    // along its south edge with dividing walls north and west, and a third
+    // section hanging below the main one to the west of the closet. The
+    // third section's east side is a real wall, and the closet's west side
+    // is a dividing one: they should lie over each other as one wall.
+    const inch = 0.0254;
+    const t = 1.5 * inch;
+    const guest: Room = {
+      ...createRoom("room-2", "Guest Room", { xMeters: 0, zMeters: 0 }),
+      wallThicknessMeters: t,
+      parts: [
+        {
+          id: "room-2-part-1",
+          origin: { xMeters: 87.51 * inch, zMeters: -169.2 * inch },
+          widthMeters: 132 * inch,
+          depthMeters: 160 * inch,
+          rotationRadians: 0,
+          openWalls: [],
+        },
+        {
+          id: "room-2-part-2",
+          origin: { xMeters: 131.51 * inch, zMeters: -30.2 * inch },
+          widthMeters: 88 * inch,
+          depthMeters: 21 * inch,
+          rotationRadians: 0,
+          openWalls: ["east", "south"],
+          dividingWalls: ["north", "west"],
+        },
+        {
+          id: "room-2-part-3",
+          origin: { xMeters: 87.51 * inch, zMeters: -9.2 * inch },
+          widthMeters: 40 * inch,
+          depthMeters: 70 * inch,
+          rotationRadians: 0,
+          openWalls: [],
+        },
+      ],
+    };
+    const floor = { ...FLOOR, rooms: [guest] };
+    const closet = guest.parts[1]!;
+    const asOneWall = (127.51 + 1.5) * inch;
+
+    it("lands the closet's dragged west wall over the sibling's east wall", () => {
+      // Pulled by its handle to 129.4 inches, just past where the sibling's
+      // wall band ends at 129.01: it lands there, band over band.
+      const resized = snapRoomPartResize(
+        floor,
+        guest,
+        closet.id,
+        "west",
+        129.4 * inch,
+      );
+      expect(roomPart(resized, closet.id)!.origin.xMeters).toBeCloseTo(
+        asOneWall,
+        10,
+      );
+    });
+
+    it("still offers the seam, for a wall pulled onto the sibling's edge", () => {
+      const resized = snapRoomPartResize(
+        floor,
+        guest,
+        closet.id,
+        "west",
+        127.3 * inch,
+      );
+      expect(roomPart(resized, closet.id)!.origin.xMeters).toBeCloseTo(
+        127.51 * inch,
+        10,
+      );
+    });
+
+    it("lands the whole closet the same way when it is moved", () => {
+      const origin = snapRoomPartOrigin(floor, guest, closet, {
+        xMeters: 129.3 * inch,
+        zMeters: closet.origin.zMeters,
+      });
+      expect(origin.xMeters).toBeCloseTo(asOneWall, 10);
+    });
+
+    it("offers no wall for a side that is not dividing", () => {
+      const plain = { ...closet, dividingWalls: ["north" as const] };
+      const room = {
+        ...guest,
+        parts: [guest.parts[0]!, plain, guest.parts[2]!],
+      };
+      const origin = snapRoomPartOrigin(
+        { ...FLOOR, rooms: [room] },
+        room,
+        plain,
+        {
+          xMeters: 129.3 * inch,
+          zMeters: plain.origin.zMeters,
+        },
+      );
+      // With no wall on that side there is nothing at 129.01 to land on,
+      // and the nearest offer is the seam at 127.51.
+      expect(origin.xMeters).toBeCloseTo(127.51 * inch, 10);
+    });
   });
 
   it("leaves a turned part exactly where the hand put it", () => {
