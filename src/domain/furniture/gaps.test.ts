@@ -3,7 +3,7 @@ import { DEFAULT_FLOOR } from "@/domain/room";
 import { LIVING_ROOM } from "@/domain/room/fixtures";
 import { createInstance, turnInstance } from "./instance";
 import type { FurnitureProduct } from "./product";
-import { nearestGaps, wallGaps, withWallGap } from "./gaps";
+import { groupGaps, nearestGaps, wallGaps, withWallGap } from "./gaps";
 
 /** A one-room apartment, four by three, north-west corner at the origin. */
 const FLOOR = {
@@ -255,5 +255,42 @@ describe("withWallGap", () => {
     const placed = sofaAt(10, 10);
 
     expect(withWallGap(FLOOR, placed, "west", 0.2)).toBe(placed.instance);
+  });
+});
+
+describe("groupGaps", () => {
+  // Two sofas end to end along the north wall, from x = 0.5 to 4.5 in a
+  // room 4 wide... so use a wider stance: sofas at x = 1 and 3, z = 1.
+  const sofas = [sofaAt(1, 1, 0, "a"), sofaAt(3, 1, 0, "b")];
+
+  it("measures the rectangle around the group, not the grabbed piece", () => {
+    const gaps = Object.fromEntries(
+      groupGaps(FLOOR, sofas, ["a", "b"]).map((gap) => [gap.side, gap]),
+    );
+    // The group runs the room's full width, and stands 0.5 off the north
+    // wall and 1.5 off the south one.
+    expect(gaps.west?.gapMeters).toBeCloseTo(0, 9);
+    expect(gaps.east?.gapMeters).toBeCloseTo(0, 9);
+    expect(gaps.north?.gapMeters).toBeCloseTo(0.5, 9);
+    expect(gaps.south?.gapMeters).toBeCloseTo(1.5, 9);
+  });
+
+  it("never measures a member against another member", () => {
+    for (const gap of groupGaps(FLOOR, sofas, ["a", "b"])) {
+      expect(gap.to).toBe("wall");
+    }
+  });
+
+  it("stops at a piece outside the group that stands in the way", () => {
+    const table = sofaAt(2, 2.5, 0, "table");
+    const south = groupGaps(FLOOR, [...sofas, table], ["a", "b"]).find(
+      (gap) => gap.side === "south",
+    );
+    expect(south?.to).toBe("piece");
+    expect(south?.gapMeters).toBeCloseTo(0.5, 9);
+  });
+
+  it("has nothing for an empty group", () => {
+    expect(groupGaps(FLOOR, sofas, [])).toEqual([]);
   });
 });

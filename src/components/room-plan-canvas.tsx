@@ -33,6 +33,7 @@ import {
   furnitureAt,
   footprintRect,
   moveInstance,
+  groupGaps,
   nearestGaps,
   snapGroupDelta,
   snapInstancePosition,
@@ -568,6 +569,8 @@ export function RoomPlanCanvas({
    * to repaint with every move and go the moment the piece is let go.
    */
   const [movingId, setMovingId] = useState<string | null>(null);
+  /** Every piece moving with it, when what moves is a group: measured as one. */
+  const [movingGroupIds, setMovingGroupIds] = useState<readonly string[]>([]);
   /** The selection rectangle being dragged, in pixels, or null. */
   const [marquee, setMarquee] = useState<{
     readonly from: PixelPoint;
@@ -742,6 +745,7 @@ export function RoomPlanCanvas({
       drawnPart,
       underlayHandles: resizableUnderlay,
       measuredId: movingId,
+      measuredGroupIds: movingGroupIds,
       ghost,
       unit,
     });
@@ -750,6 +754,7 @@ export function RoomPlanCanvas({
     furniture,
     unit,
     movingId,
+    movingGroupIds,
     ghost,
     selectedIds,
     selectedRoomId,
@@ -1128,6 +1133,7 @@ export function RoomPlanCanvas({
       };
       if (leader.kind === "instance") {
         setMovingId(leader.id);
+        setMovingGroupIds(instanceIds);
       }
       setCursor("move");
       canvas.focus();
@@ -1614,11 +1620,19 @@ export function RoomPlanCanvas({
     if (drag.leader.kind === "instance") {
       // The group's outline is what lands, so a sectional goes against the
       // wall as a sectional and its seats never catch on one another.
+      // The offset is from where the drag began, so the members are offered
+      // where they began too — not where the last move left them.
+      const atStart = furniture.map((placed) => {
+        const origin = drag.instanceOrigins.get(placed.instance.id);
+        return origin === undefined
+          ? placed
+          : { ...placed, instance: moveInstance(placed.instance, origin) };
+      });
       delta = altKey
         ? raw
         : snapGroupDelta(
             floor,
-            furniture,
+            atStart,
             [...drag.instanceOrigins.keys()],
             raw,
             snapReach(),
@@ -1849,6 +1863,7 @@ export function RoomPlanCanvas({
     dragRef.current = null;
     setCursor("none");
     setMovingId(null);
+    setMovingGroupIds([]);
     setResizing(null);
     canvasRef.current?.releasePointerCapture?.(event.pointerId);
     onGestureEnd?.();
@@ -2538,6 +2553,8 @@ type DrawOptions = {
   underlayHandles?: PlanUnderlay | null;
   /** The piece whose gaps to the walls are drawn and printed, if any. */
   measuredId?: string | null;
+  /** When more than one piece moves together, the gaps are the group's. */
+  measuredGroupIds?: readonly string[];
   /** A product about to be placed, drawn where it would land. */
   ghost?: PlacedFurniture | null;
   unit: DisplayUnit;
@@ -2569,6 +2586,7 @@ function drawPlan(
     drawnPart = null,
     underlayHandles = null,
     measuredId = null,
+    measuredGroupIds = [],
     ghost = null,
     unit,
   }: DrawOptions,
@@ -2670,7 +2688,15 @@ function drawPlan(
   // The gaps from the piece being dragged to the walls around it, over the
   // furniture so the numbers are never under a neighbour.
   const measured = furniture.find(({ instance }) => instance.id === measuredId);
-  if (measured !== undefined) {
+  if (measuredGroupIds.length > 1) {
+    drawWallGaps(
+      context,
+      frame,
+      groupGaps(floor, furniture, measuredGroupIds),
+      unit,
+      fontFamily,
+    );
+  } else if (measured !== undefined) {
     drawWallGaps(
       context,
       frame,

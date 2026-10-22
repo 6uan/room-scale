@@ -2575,6 +2575,55 @@ test.describe("groups in the list", () => {
     await groupHolds("3");
   });
 
+  test("lands a dragged group flush on the wall, by its outline", async ({
+    page,
+  }) => {
+    await openWithLivingRoom(page);
+    await addProduct(page, { name: "Lamp", width: "12", depth: "12" });
+    await placeFromList(page, "Lamp");
+    await placeFromList(page, "Lamp", 60);
+    const row = (name: string) =>
+      contents(page).getByRole("button", { name, exact: true });
+    const fromWest = async (name: string) => {
+      await row(name).click();
+      return Number(await details(page).getByLabel("From west").inputValue());
+    };
+    const gapEast = async (name: string) => {
+      await row(name).click();
+      return Number(
+        await details(page).getByLabel("Gap to east wall").inputValue(),
+      );
+    };
+
+    // Sixty pixels between the two lamps says how many pixels an inch is.
+    const pixelsPerInch =
+      60 / ((await fromWest("Lamp 2")) - (await fromWest("Lamp 1")));
+    const shortOfWall = await gapEast("Lamp 2");
+
+    await row("Lamp 1").click();
+    await row("Lamp 2").click({ modifiers: ["Shift"] });
+    await row("Lamp 1").click({ button: "right" });
+    await page.getByRole("menuitem", { name: "Group 2 pieces" }).click();
+
+    // Drag by the first lamp until the second's east edge is one inch short
+    // of the wall: the group's outline is what snaps, so it lands flush.
+    const box = await planImage(page).boundingBox();
+    if (box === null) {
+      throw new Error("the plan has no box to point at");
+    }
+    const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    await page.mouse.move(centre.x, centre.y);
+    await page.mouse.down();
+    await page.mouse.move(
+      centre.x + (shortOfWall - 1) * pixelsPerInch,
+      centre.y,
+      { steps: 10 },
+    );
+    await page.mouse.up();
+
+    expect(await gapEast("Lamp 2")).toBe(0);
+  });
+
   test("drags a group above a loose piece", async ({ page }) => {
     await openWithLivingRoom(page);
     await addProduct(page, { name: "Lamp", width: "12", depth: "12" });
