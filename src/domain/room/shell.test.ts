@@ -105,68 +105,106 @@ describe("apartmentShell", () => {
   });
 });
 
+/** The area a face covers: its outline less its holes, by the shoelace formula. */
+function faceArea(wall: WallSlab): number {
+  const area = (points: readonly { alongMeters: number; upMeters: number }[]) =>
+    Math.abs(
+      points.reduce((sum, point, index) => {
+        const next = points[(index + 1) % points.length]!;
+        return (
+          sum +
+          point.alongMeters * next.upMeters -
+          next.alongMeters * point.upMeters
+        );
+      }, 0),
+    ) / 2;
+  return (
+    area(wall.outline) - wall.holes.reduce((sum, hole) => sum + area(hole), 0)
+  );
+}
+
 describe("openings in the shell", () => {
   // The living room: 168 by 144 inches, 96 high, a 32" door centred 36" along
   // the south wall and a 48" window centred 84" along the north.
   const walls = roomShell(LIVING_ROOM_FLOOR, LIVING_ROOM).walls;
-  const inches = (meters: number) => meters / 0.0254;
-  const south = walls
-    .filter(
-      (wall) =>
-        wall.center.zMeters > 0 && Math.abs(Math.sin(wall.angleRadians)) < 0.5,
-    )
-    .map((wall) => ({
-      base: inches(wall.baseMeters),
-      top: inches(wall.baseMeters + wall.heightMeters),
-      length: inches(wall.lengthMeters),
-    }));
-  const north = walls
-    .filter(
-      (wall) =>
-        wall.center.zMeters < 0 && Math.abs(Math.sin(wall.angleRadians)) < 0.5,
-    )
-    .map((wall) => ({
-      base: inches(wall.baseMeters),
-      top: inches(wall.baseMeters + wall.heightMeters),
-      length: inches(wall.lengthMeters),
-    }));
+  const square = (inches: number) => inches * 0.0254 * 0.0254;
+  const runsEastWest = (wall: WallSlab) =>
+    Math.abs(Math.sin(wall.angleRadians)) < 0.5;
+  const south = walls.filter(
+    (wall) => runsEastWest(wall) && wall.center.zMeters > 0,
+  );
+  const north = walls.filter(
+    (wall) => runsEastWest(wall) && wall.center.zMeters < 0,
+  );
 
-  it("cuts a door from the floor to its head, with a lintel above it", () => {
-    // Wall either side of the door, and over it from 80" to the ceiling.
-    expect(south).toHaveLength(3);
-    const lintel = south.find((piece) => piece.base > 0);
-    expect(lintel?.base).toBeCloseTo(80, 9);
-    expect(lintel?.top).toBeCloseTo(96, 9);
-    expect(lintel?.length).toBeCloseTo(32, 9);
-    const full = south.filter((piece) => piece.base === 0);
-    expect(full.map((piece) => piece.length).sort((a, b) => a - b)).toEqual([
-      expect.closeTo(20, 9),
-      expect.closeTo(116, 9),
-    ]);
+  it("cuts a door as a notch in one face, not three boxes", () => {
+    expect(south).toHaveLength(1);
+    expect(south[0]?.holes).toHaveLength(0);
+    // Four corners and the door's four: up its jamb, across its head, down.
+    expect(south[0]?.outline).toHaveLength(8);
+    // The wall less exactly the door: 168 × 96, less 32 × 80.
+    expect(faceArea(south[0]!)).toBeCloseTo(square(168 * 96 - 32 * 80), 9);
   });
 
-  it("cuts a window between its sill and its head", () => {
-    // Either side, the wall under the sill, and the lintel over the head.
-    expect(north).toHaveLength(4);
-    const under = north.find(
-      (piece) => piece.base === 0 && Math.abs(piece.top - 36) < 1e-6,
-    );
-    const over = north.find((piece) => piece.base > 0);
-    expect(under?.length).toBeCloseTo(48, 9);
-    expect(over?.base).toBeCloseTo(84, 9);
-    expect(over?.length).toBeCloseTo(48, 9);
+  it("cuts a window as a hole in the face, between its sill and head", () => {
+    expect(north).toHaveLength(1);
+    expect(north[0]?.outline).toHaveLength(4);
+    expect(north[0]?.holes).toHaveLength(1);
+    const ups = north[0]!.holes[0]!.map((point) => point.upMeters / 0.0254);
+    expect(Math.min(...ups)).toBeCloseTo(36, 9);
+    expect(Math.max(...ups)).toBeCloseTo(84, 9);
+    expect(faceArea(north[0]!)).toBeCloseTo(square(168 * 96 - 48 * 48), 9);
   });
 
-  it("draws no lintel over an opening that runs to the ceiling", () => {
+  it("splits a wall where an opening runs from the floor to the ceiling", () => {
     const tall = withOpenings(
       LIVING_ROOM,
       LIVING_ROOM.openings.map((opening) =>
-        withOpeningHeights(opening, { headMeters: LIVING_ROOM.heightMeters }),
+        withOpeningHeights(opening, {
+          sillMeters: 0,
+          headMeters: LIVING_ROOM.heightMeters,
+        }),
       ),
     );
-    const floor = withRooms(LIVING_ROOM_FLOOR, [tall]);
-    const pieces = roomShell(floor, tall).walls;
-    expect(pieces.every((piece) => piece.baseMeters === 0)).toBe(true);
+    const pieces = roomShell(withRooms(LIVING_ROOM_FLOOR, [tall]), tall).walls;
+    const southPieces = pieces.filter(
+      (wall) => runsEastWest(wall) && wall.center.zMeters > 0,
+    );
+    // Nothing above or below a full-height opening: two plain faces.
+    expect(southPieces).toHaveLength(2);
+    for (const piece of southPieces) {
+      expect(piece.outline).toHaveLength(4);
+      expect(piece.holes).toHaveLength(0);
+    }
+  });
+
+  it("notches from the ceiling an opening that reaches it", () => {
+    const high = withOpenings(LIVING_ROOM, [
+      withOpeningHeights(LIVING_ROOM.openings[1]!, {
+        headMeters: LIVING_ROOM.heightMeters,
+      }),
+    ]);
+    const face = roomShell(
+      withRooms(LIVING_ROOM_FLOOR, [high]),
+      high,
+    ).walls.find((wall) => runsEastWest(wall) && wall.center.zMeters < 0)!;
+    expect(face.holes).toHaveLength(0);
+    expect(face.outline).toHaveLength(8);
+    expect(faceArea(face)).toBeCloseTo(square(168 * 96 - 48 * 60), 9);
+  });
+
+  it("takes a door at the very end of a wall into the corner", () => {
+    // A 32" door hard against the wall's start corner.
+    const corner = withOpenings(LIVING_ROOM, [
+      { ...LIVING_ROOM.openings[0]!, centerMeters: metersFromInches(16) },
+    ]);
+    const face = roomShell(
+      withRooms(LIVING_ROOM_FLOOR, [corner]),
+      corner,
+    ).walls.find((wall) => runsEastWest(wall) && wall.center.zMeters > 0)!;
+    // An L: the notch has taken the corner, so six points, not eight.
+    expect(face.outline).toHaveLength(6);
+    expect(faceArea(face)).toBeCloseTo(square(168 * 96 - 32 * 80), 9);
   });
 
   it("opens a door in a shared wall through both rooms' copies of it", () => {
@@ -197,8 +235,8 @@ describe("openings in the shell", () => {
     };
     const living = withOpenings(LIVING_ROOM, [door]);
     const shell = apartmentShell(withRooms(LIVING_ROOM_FLOOR, [living, next]));
-    const lintels = shell.walls.filter((wall) => wall.baseMeters > 0);
-    expect(lintels.map((wall) => wall.roomId).sort()).toEqual([
+    const notched = shell.walls.filter((wall) => wall.outline.length > 4);
+    expect(notched.map((wall) => wall.roomId).sort()).toEqual([
       "room-1",
       "room-2",
     ]);
@@ -222,7 +260,6 @@ describe("openings in the shell", () => {
       ],
     };
     const shell = apartmentShell(withRooms(BARE_FLOOR, [BARE, next]));
-    // Each room's copy of the shared wall is interior; the other six are not.
     const interior = shell.walls.filter((wall) => wall.interior);
     expect(interior).toHaveLength(2);
     expect(interior.map((wall) => wall.roomId).sort()).toEqual([

@@ -47,6 +47,12 @@ export type FloorSlab = {
  * turns the box's length axis from east to the wall's direction, about Y,
  * the same sense as a part's rotation.
  */
+/** A point on a wall's face: along it from its middle, and up from the floor. */
+export type WallPoint = {
+  readonly alongMeters: number;
+  readonly upMeters: number;
+};
+
 export type WallSlab = {
   readonly roomId: string;
   readonly partId: string;
@@ -54,12 +60,16 @@ export type WallSlab = {
   readonly lengthMeters: number;
   readonly thicknessMeters: number;
   readonly heightMeters: number;
-  /**
-   * How far up the box starts: zero for a run of wall, the head of an
-   * opening for the lintel over it, the floor for the wall under a window.
-   */
-  readonly baseMeters: number;
   readonly angleRadians: number;
+  /**
+   * The wall's face as one shape, around its edge: a rectangle the length
+   * and height of the wall, with a notch up from the floor for each door
+   * and down from the ceiling for an opening that reaches it. One shape, so
+   * a doorway has no seams round it — the wall is not three boxes meeting.
+   */
+  readonly outline: readonly WallPoint[];
+  /** Openings wholly inside the face: a window, between its sill and head. */
+  readonly holes: readonly (readonly WallPoint[])[];
   /**
    * Whether there is floor on the other side: a wall between two rooms, or
    * round a closet. The perspective view lets you see through these always,
@@ -119,13 +129,13 @@ export function roomShell(floor: Floor, room: Room): RoomShell {
             (stretch.startMeters + stretch.endMeters) / 2,
             stretch.thicknessMeters,
           );
-          const piece = (
-            startMeters: number,
-            endMeters: number,
-            baseMeters: number,
-            topMeters: number,
-          ): WallSlab => {
-            const mid = (startMeters + endMeters) / 2;
+          return wallFaces(
+            stretch.startMeters,
+            stretch.endMeters,
+            room.heightMeters,
+            cutsAlong(cuts, from, direction, outward, stretch),
+          ).map((face): WallSlab => {
+            const mid = (face.startMeters + face.endMeters) / 2;
             return {
               roomId: room.id,
               partId: part.id,
@@ -133,21 +143,15 @@ export function roomShell(floor: Floor, room: Room): RoomShell {
                 xMeters: from.xMeters + direction.dx * mid + outward.dx * half,
                 zMeters: from.zMeters + direction.dz * mid + outward.dz * half,
               },
-              lengthMeters: endMeters - startMeters,
+              lengthMeters: face.endMeters - face.startMeters,
               thicknessMeters: stretch.thicknessMeters,
-              heightMeters: topMeters - baseMeters,
-              baseMeters,
+              heightMeters: room.heightMeters,
               angleRadians: Math.atan2(direction.dz, direction.dx),
               interior,
+              outline: face.outline,
+              holes: face.holes,
             };
-          };
-          return cutWall(
-            stretch.startMeters,
-            stretch.endMeters,
-            room.heightMeters,
-            cutsAlong(cuts, from, direction, outward, stretch),
-            piece,
-          );
+          });
         });
     }),
   );
@@ -239,39 +243,167 @@ function cutsAlong(
   });
 }
 
+type Cut = { start: number; end: number; sill: number; head: number };
+
 /**
- * A stretch of wall with holes in it, as boxes: full height between the
- * holes, a lintel over each from its head to the ceiling, and under a window
- * the wall up to its sill. Nothing is drawn where nothing is left — a head at
- * the ceiling has no lintel, a door has no sill wall.
+ * A stretch of wall with openings in it, as faces: one shape per piece of
+ * wall that stands on its own, with each opening cut out of it.
+ *
+ * An opening from the floor to the ceiling leaves nothing above or below it,
+ * so it is the one thing that splits a stretch into separate faces. Every
+ * other opening is cut out of the face it is in: a door as a notch up from
+ * the floor, an opening that reaches the ceiling as a notch down from it,
+ * and a window as a hole between its sill and its head. Openings that
+ * overlap along the wall are taken as one, from the lower sill to the
+ * higher head, so the face never has to cross itself.
  */
-function cutWall<T>(
+function wallFaces(
   startMeters: number,
   endMeters: number,
   heightMeters: number,
-  cuts: readonly { start: number; end: number; sill: number; head: number }[],
-  piece: (start: number, end: number, base: number, top: number) => T,
-): T[] {
-  const pieces: T[] = [];
+  cuts: readonly Cut[],
+): readonly {
+  startMeters: number;
+  endMeters: number;
+  outline: readonly WallPoint[];
+  holes: readonly (readonly WallPoint[])[];
+}[] {
+  const merged = mergeCuts(
+    cuts.map((cut) => {
+      const sill = Math.min(Math.max(cut.sill, 0), heightMeters);
+      return {
+        start: cut.start,
+        end: cut.end,
+        sill,
+        head: Math.min(Math.max(cut.head, sill), heightMeters),
+      };
+    }),
+  );
+  const fromFloor = (cut: Cut) => cut.sill <= EPSILON;
+  const toCeiling = (cut: Cut) => cut.head >= heightMeters - EPSILON;
+
+  // Split where an opening runs floor to ceiling: nothing joins the sides.
+  const faces: { start: number; end: number; cuts: Cut[] }[] = [];
   let cursor = startMeters;
-  for (const cut of [...cuts].sort((a, b) => a.start - b.start)) {
-    if (cut.start - cursor > EPSILON) {
-      pieces.push(piece(cursor, cut.start, 0, heightMeters));
-    }
-    cursor = Math.max(cursor, cut.end);
-    const sill = Math.min(Math.max(cut.sill, 0), heightMeters);
-    const head = Math.min(Math.max(cut.head, sill), heightMeters);
-    if (sill > EPSILON) {
-      pieces.push(piece(cut.start, cut.end, 0, sill));
-    }
-    if (heightMeters - head > EPSILON) {
-      pieces.push(piece(cut.start, cut.end, head, heightMeters));
+  let inside: Cut[] = [];
+  for (const cut of merged) {
+    if (fromFloor(cut) && toCeiling(cut)) {
+      faces.push({ start: cursor, end: cut.start, cuts: inside });
+      cursor = cut.end;
+      inside = [];
+    } else {
+      inside.push(cut);
     }
   }
-  if (endMeters - cursor > EPSILON) {
-    pieces.push(piece(cursor, endMeters, 0, heightMeters));
+  faces.push({ start: cursor, end: endMeters, cuts: inside });
+
+  return faces
+    .filter((face) => face.end - face.start > EPSILON)
+    .map((face) => {
+      const middle = (face.start + face.end) / 2;
+      const at = (along: number, up: number): WallPoint => ({
+        alongMeters: along - middle,
+        upMeters: up,
+      });
+      const atStart = (cut: Cut) => cut.start <= face.start + EPSILON;
+      const atEnd = (cut: Cut) => cut.end >= face.end - EPSILON;
+      const doors = face.cuts.filter(fromFloor);
+      const tops = face.cuts.filter((cut) => !fromFloor(cut) && toCeiling(cut));
+      const windows = face.cuts.filter(
+        (cut) => !fromFloor(cut) && !toCeiling(cut),
+      );
+
+      // Round the edge: along the floor east, up the end, back along the
+      // ceiling west, down the start — stepping round each notch on the way.
+      // A notch at either end of the face takes that end's corner with it.
+      const outline: WallPoint[] = [];
+      const firstDoor = doors[0];
+      outline.push(
+        firstDoor !== undefined && atStart(firstDoor)
+          ? at(face.start, firstDoor.head)
+          : at(face.start, 0),
+      );
+      for (const door of doors) {
+        if (!atStart(door)) {
+          outline.push(at(door.start, 0), at(door.start, door.head));
+        }
+        if (atEnd(door)) {
+          outline.push(at(face.end, door.head));
+        } else {
+          outline.push(at(door.end, door.head), at(door.end, 0));
+        }
+      }
+      const lastDoor = doors.at(-1);
+      if (lastDoor === undefined || !atEnd(lastDoor)) {
+        outline.push(at(face.end, 0));
+      }
+      const lastTop = tops.at(-1);
+      outline.push(
+        lastTop !== undefined && atEnd(lastTop)
+          ? at(face.end, lastTop.sill)
+          : at(face.end, heightMeters),
+      );
+      for (const top of [...tops].reverse()) {
+        if (!atEnd(top)) {
+          outline.push(at(top.end, heightMeters), at(top.end, top.sill));
+        }
+        if (atStart(top)) {
+          outline.push(at(face.start, top.sill));
+        } else {
+          outline.push(at(top.start, top.sill), at(top.start, heightMeters));
+        }
+      }
+      const firstTop = tops[0];
+      if (firstTop === undefined || !atStart(firstTop)) {
+        outline.push(at(face.start, heightMeters));
+      }
+
+      return {
+        startMeters: face.start,
+        endMeters: face.end,
+        outline: withoutRepeats(outline),
+        holes: windows.map((window) => [
+          at(window.start, window.sill),
+          at(window.end, window.sill),
+          at(window.end, window.head),
+          at(window.start, window.head),
+        ]),
+      };
+    });
+}
+
+/** Overlapping openings as one, sorted along the wall. */
+function mergeCuts(cuts: readonly Cut[]): Cut[] {
+  const sorted = [...cuts].sort((a, b) => a.start - b.start);
+  const merged: Cut[] = [];
+  for (const cut of sorted) {
+    const last = merged.at(-1);
+    if (last !== undefined && cut.start < last.end - EPSILON) {
+      merged[merged.length - 1] = {
+        start: last.start,
+        end: Math.max(last.end, cut.end),
+        sill: Math.min(last.sill, cut.sill),
+        head: Math.max(last.head, cut.head),
+      };
+    } else {
+      merged.push({ ...cut });
+    }
   }
-  return pieces;
+  return merged;
+}
+
+/** Drops a point that repeats the one before it, and the last if it is the first. */
+function withoutRepeats(points: readonly WallPoint[]): WallPoint[] {
+  const same = (a: WallPoint, b: WallPoint) =>
+    Math.abs(a.alongMeters - b.alongMeters) < EPSILON &&
+    Math.abs(a.upMeters - b.upMeters) < EPSILON;
+  const kept = points.filter(
+    (point, index) => index === 0 || !same(point, points[index - 1]!),
+  );
+  while (kept.length > 1 && same(kept[0]!, kept.at(-1)!)) {
+    kept.pop();
+  }
+  return kept;
 }
 
 /**

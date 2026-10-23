@@ -849,6 +849,16 @@ inside face, one thickness from the next room's, so a door in a shared wall
 opens both rooms' copies of it. An opening whose top is above the ceiling,
 or not above its bottom, says so.
 
+Each wall was first cut into boxes — the runs either side, a lintel over each
+opening, the wall under a window — and every box drew its own outline, so a
+doorway came with seams running up from its jambs and across over its head.
+A wall is one shape now: its face as an outline with a notch up from the
+floor for each door, a notch down from the ceiling for an opening that
+reaches it, and a hole for each window, pushed out to the wall's thickness.
+Only an opening from floor to ceiling splits a wall, there being nothing
+above or below it to join. The shell's test is the area: a face is the wall
+less exactly its openings, whichever corner they stand in.
+
 **20d — Walking around.** The camera moved through the apartment at eye
 height.
 
