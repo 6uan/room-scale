@@ -1,5 +1,6 @@
 export * from "./bounds";
 export * from "./convex-polygon";
+export * from "./framing";
 export * from "./oriented-rect";
 export * from "./plan-projection";
 export * from "./rect-union";

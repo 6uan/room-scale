@@ -16,13 +16,16 @@ import {
   MIN_ZOOM,
   clampToViewport,
   createPlanProjection,
+  framingOfProjection,
   orientedRectCorners,
   panBy,
   projectLength,
   projectPoint,
+  projectionOfFraming,
   unprojectPoint,
   zoomAt,
   type FloorExtent,
+  type Framing,
   type FloorPoint,
   type PixelPoint,
   type PixelSize,
@@ -247,6 +250,13 @@ export type RoomPlanCanvasProps = {
   unit: DisplayUnit;
   /** Whether the details panel is floating over the plan's right edge. */
   panelOpen?: boolean;
+  /** Said whenever what the plan shows changes, so another view can follow it. */
+  onFramingChange?: (framing: Framing) => void;
+  /**
+   * A framing to show, from the perspective view. Taken once per `id`, then
+   * the plan pans and zooms from there as usual.
+   */
+  showFraming?: { readonly framing: Framing; readonly id: number } | null;
   /** Which piece is being worked on, or null. Never persisted: this is UI state. */
   /** The selected pieces: none, one, or a group dragged as one. */
   selectedIds: readonly string[];
@@ -492,6 +502,8 @@ export function RoomPlanCanvas({
   furniture,
   unit,
   panelOpen = false,
+  onFramingChange,
+  showFraming = null,
   selectedIds,
   troubledIds,
   onSelect,
@@ -531,7 +543,47 @@ export function RoomPlanCanvas({
   // where it was put — a view that jumps back is a view you cannot work in.
   const [view, setView] = useState<PlanProjection | null>(null);
   const fitted = planProjectionFor(floor, underlay, size);
+
+  // What is actually seen: the canvas, short of the details panel while it
+  // floats over the right edge.
+  const visibleWidth =
+    panelOpen && size.width > PANEL_RESERVE_PIXELS * 2
+      ? size.width - PANEL_RESERVE_PIXELS
+      : size.width;
+
+  // Coming back from the perspective view: show what it was showing, once,
+  // as soon as the plan has a size to show it in. Adjusted during render, the
+  // way a field takes a new value, rather than in an effect a frame late.
+  const [shownFramingId, setShownFramingId] = useState<number | null>(null);
+  if (
+    showFraming !== null &&
+    showFraming.id !== shownFramingId &&
+    visibleWidth > 0
+  ) {
+    const next = projectionOfFraming(showFraming.framing, {
+      left: 0,
+      width: visibleWidth,
+      height: size.height,
+    });
+    setShownFramingId(showFraming.id);
+    if (next !== null) {
+      setView(next);
+    }
+  }
   const projection = view ?? fitted;
+
+  // And the other way: what the plan shows, for the perspective view to open
+  // on. Nothing while the plan is hidden and has no size.
+  useEffect(() => {
+    const framing = framingOfProjection(projection, {
+      left: 0,
+      width: visibleWidth,
+      height: size.height,
+    });
+    if (framing !== null) {
+      onFramingChange?.(framing);
+    }
+  }, [projection, visibleWidth, size.height, onFramingChange]);
   /**
    * How close a piece must come to a face to be caught by it: a few pixels
    * on the screen, in meters at the zoom of the moment. In meters alone it
