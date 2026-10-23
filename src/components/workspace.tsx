@@ -35,6 +35,7 @@ import {
   selectedInstanceIds,
   type Selection,
 } from "@/components/selection";
+import { Chip, ChipRow } from "@/components/panel/chip";
 import { ShortcutsGuide } from "@/components/shortcuts-guide";
 import { pressIs } from "@/components/shortcuts";
 import {
@@ -188,6 +189,8 @@ export function Workspace() {
    * mode brings the plan back without the button having to be pressed.
    */
   const [perspective, setPerspective] = useState(false);
+  /** Whether the perspective view draws its walls solid. A fact about this sitting. */
+  const [solidWalls, setSolidWalls] = useState(false);
   /**
    * What the plan is showing, kept as it pans and zooms so the perspective
    * view can open on it. A ref, not state: the plan reports on every pan, and
@@ -945,7 +948,31 @@ export function Workspace() {
                     id: (was?.id ?? 0) + 1,
                   }))
                 }
+                solidWalls={solidWalls}
               />
+              {/*
+                See-through by default, so nothing in any room is hidden by a
+                wall from any angle; solid when you want to see the place as it
+                will look. Chosen, not guessed from where the camera is.
+              */}
+              <div className="absolute top-3 left-3 flex w-52 rounded-lg bg-black/70 p-1 dark:bg-white/10">
+                <ChipRow name="Walls">
+                  <Chip
+                    label="See-through walls"
+                    pressed={!solidWalls}
+                    onClick={() => setSolidWalls(false)}
+                  >
+                    See-through
+                  </Chip>
+                  <Chip
+                    label="Solid walls"
+                    pressed={solidWalls}
+                    onClick={() => setSolidWalls(true)}
+                  >
+                    Solid
+                  </Chip>
+                </ChipRow>
+              </div>
             </div>
           )}
           <div className={showingPlan ? "absolute inset-0" : "hidden"}>

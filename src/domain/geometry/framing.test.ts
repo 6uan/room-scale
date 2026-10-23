@@ -5,7 +5,6 @@ import {
   framingAfterOrbit,
   framingOfProjection,
   projectionOfFraming,
-  standsBeforeTarget,
   type Framing,
   type ScenePoint,
 } from "./framing";
@@ -152,36 +151,5 @@ describe("the perspective camera's framing", () => {
     expect(back.center).toEqual({ xMeters: 7, zMeters: 1 });
     expect(back.metersAcross).toBeCloseTo(20, 9);
     expect(back.metersDown).toBeCloseTo(16, 9);
-  });
-});
-
-describe("what stands before the point looked at", () => {
-  const target: ScenePoint = [0, 0, 0];
-  // Looking north, from the south and above.
-  const camera: ScenePoint = [0, 6, 8];
-
-  it("is what lies on the camera's side of it", () => {
-    expect(standsBeforeTarget({ xMeters: 0, zMeters: 2 }, camera, target)).toBe(
-      true,
-    );
-    expect(
-      standsBeforeTarget({ xMeters: 0, zMeters: -2 }, camera, target),
-    ).toBe(false);
-  });
-
-  it("leaves alone what is level with it, off to the side", () => {
-    expect(standsBeforeTarget({ xMeters: 5, zMeters: 0 }, camera, target)).toBe(
-      false,
-    );
-  });
-
-  it("follows the camera round as it orbits", () => {
-    const fromEast: ScenePoint = [8, 6, 0];
-    expect(
-      standsBeforeTarget({ xMeters: 3, zMeters: 0 }, fromEast, target),
-    ).toBe(true);
-    expect(
-      standsBeforeTarget({ xMeters: 0, zMeters: 2 }, fromEast, target),
-    ).toBe(false);
   });
 });

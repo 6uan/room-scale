@@ -1119,6 +1119,14 @@ test.describe("the perspective view", () => {
     await expect(page.getByRole("main", { name: "Perspective" })).toBeVisible();
     await expect(scene.locator("canvas")).toBeVisible();
 
+    // Walls are see-through until asked to be solid.
+    const seeThrough = page.getByRole("button", { name: "See-through walls" });
+    const solid = page.getByRole("button", { name: "Solid walls" });
+    await expect(seeThrough).toHaveAttribute("aria-pressed", "true");
+    await solid.click();
+    await expect(solid).toHaveAttribute("aria-pressed", "true");
+    await expect(seeThrough).toHaveAttribute("aria-pressed", "false");
+
     // Arming a drawing mode is an edit, and edits happen on the plan.
     await contents(page).getByRole("button", { name: "Add room" }).click();
     await expect(page.getByRole("main", { name: "Plan" })).toBeVisible();

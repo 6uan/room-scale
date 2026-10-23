@@ -167,27 +167,3 @@ export function framingAfterOrbit(
     metersDown: opened.metersDown * scale,
   };
 }
-
-/**
- * Whether something on the floor stands between the camera and the point it
- * is looking at — on the camera's side of that point, seen from above.
- *
- * The perspective view draws such a wall see-through rather than shorter:
- * every wall keeps its true height, and the ones in the way of what you are
- * looking at stop hiding it. Decided by position alone, so the two rooms on
- * either side of a shared wall always agree about it, and walls beyond the
- * point stay solid as the backdrop they are.
- */
-export function standsBeforeTarget(
-  point: FloorPoint,
-  camera: ScenePoint,
-  target: ScenePoint,
-): boolean {
-  const towardCameraX = camera[0] - target[0];
-  const towardCameraZ = camera[2] - target[2];
-  return (
-    (point.xMeters - target[0]) * towardCameraX +
-      (point.zMeters - target[2]) * towardCameraZ >
-    1e-9
-  );
-}

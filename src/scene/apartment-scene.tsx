@@ -1,7 +1,7 @@
 "use client";
 
 import { Edges, OrbitControls } from "@react-three/drei";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Canvas, useThree } from "@react-three/fiber";
 import {
   useLayoutEffect,
   useMemo,
@@ -10,18 +10,10 @@ import {
   useSyncExternalStore,
   type ComponentRef,
 } from "react";
-import {
-  MathUtils,
-  MeshStandardMaterial,
-  PerspectiveCamera,
-  Shape,
-  ShapeGeometry,
-  Vector3,
-} from "three";
+import { MathUtils, PerspectiveCamera, Shape, ShapeGeometry } from "three";
 import {
   cameraOfFraming,
   framingAfterOrbit,
-  standsBeforeTarget,
   type Framing,
 } from "@/domain/geometry";
 import {
@@ -64,6 +56,7 @@ export function ApartmentScene({
   productUnit = unit,
   framing,
   onFramingChange,
+  solidWalls = false,
 }: {
   floor: Floor;
   /** What is placed in this layout; a piece set aside is left out. */
@@ -75,6 +68,11 @@ export function ApartmentScene({
   framing?: Framing | null;
   /** Said when an orbit ends, so the plan can come back to it. */
   onFramingChange?: (framing: Framing) => void;
+  /**
+   * Every wall drawn solid, rather than see-through. See-through is the
+   * default: nothing in any room is hidden by a wall, from any angle.
+   */
+  solidWalls?: boolean;
 }) {
   const shell = useMemo(() => apartmentShell(floor), [floor]);
   const boxes = useMemo(() => furnitureBoxes(furniture), [furniture]);
@@ -107,6 +105,7 @@ export function ApartmentScene({
             wall={wall}
             color={dark ? WALL_DARK : WALL_LIGHT}
             edge={dark ? WALL_EDGE_DARK : WALL_EDGE_LIGHT}
+            solid={solidWalls}
           />
         ))}
         {boxes.map((box) => (
@@ -270,55 +269,28 @@ function FloorMesh({ slab, color }: { slab: FloorSlab; color: string }) {
 }
 
 /**
- * How much of a wall shows when it stands between the camera and what it is
- * looking at: enough to see where it is and how high it goes, not enough to
- * hide the room behind it.
+ * How much of a see-through wall shows: enough to see where it is and how
+ * high it goes, not enough to hide the room or the furniture behind it.
  */
 const SEE_THROUGH_OPACITY = 0.18;
 
 /**
- * One stretch of wall, at its full height always. Each frame it asks whether
- * it stands before the point the camera orbits, and if so it is drawn
- * see-through — and stops writing depth, so what is behind it is drawn
- * rather than hidden by an invisible surface.
+ * One stretch of wall, at its full height always — see-through unless walls
+ * are asked to be solid. A see-through wall writes no depth, so what is
+ * behind it is drawn rather than hidden by an invisible surface, and keeps
+ * its outline so it still reads as a wall of a measured height.
  */
 function WallMesh({
   wall,
   color,
   edge,
+  solid,
 }: {
   wall: WallSlab;
   color: string;
   edge: string;
+  solid: boolean;
 }) {
-  const material = useRef<MeshStandardMaterial>(null);
-  useFrame(({ camera, controls }) => {
-    const target =
-      controls !== null && "target" in controls
-        ? (controls.target as Vector3)
-        : null;
-    const surface = material.current;
-    if (surface === null || target === null) {
-      return;
-    }
-    // A wall between two rooms is always see-through, so a room is never
-    // hidden behind the one in front of it; an outside wall only when it
-    // stands between the camera and what it is looking at.
-    const before =
-      wall.interior ||
-      standsBeforeTarget(
-        wall.center,
-        [camera.position.x, camera.position.y, camera.position.z],
-        [target.x, target.y, target.z],
-      );
-    const opacity = before ? SEE_THROUGH_OPACITY : 1;
-    if (surface.opacity !== opacity) {
-      surface.opacity = opacity;
-      surface.transparent = before;
-      surface.depthWrite = !before;
-      surface.needsUpdate = true;
-    }
-  });
   return (
     <mesh
       position={[
@@ -331,9 +303,12 @@ function WallMesh({
       <boxGeometry
         args={[wall.lengthMeters, wall.heightMeters, wall.thicknessMeters]}
       />
-      <meshStandardMaterial ref={material} color={color} />
-      {/* Its outline stays when it is see-through, so the wall is still
-          read as a wall of a measured height. */}
+      <meshStandardMaterial
+        color={color}
+        transparent={!solid}
+        opacity={solid ? 1 : SEE_THROUGH_OPACITY}
+        depthWrite={solid}
+      />
       <Edges color={edge} />
     </mesh>
   );
