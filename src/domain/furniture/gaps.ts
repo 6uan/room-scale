@@ -348,6 +348,13 @@ function nearestFace(
           continue;
         }
       }
+      // A wall on the far side of the piece's middle is a wall on the other
+      // side of it. A dividing wall is kept whichever way the piece stands, so
+      // without this a closet's wall south of a bed was taken as the bed's
+      // north wall, and read as the bed standing six feet through it.
+      if ((face - middle) * outward < 0) {
+        continue;
+      }
       const distance = (face - edge) * outward;
       if (best === null || distance < (best - edge) * outward) {
         best = face;

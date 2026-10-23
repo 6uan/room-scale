@@ -73,6 +73,14 @@ function sofaAt(
   return { instance, product: SOFA };
 }
 
+/** The sofa's footprint on the floor, unturned. */
+function sofaBox(placed: ReturnType<typeof sofaAt>) {
+  const { position } = placed.instance;
+  return {
+    minZ: position.zMeters - SOFA.footprint.depthMeters / 2,
+  };
+}
+
 function gapsBySide(floor: typeof FLOOR, placed: ReturnType<typeof sofaAt>) {
   return Object.fromEntries(
     wallGaps(floor, placed).map((gap) => [gap.side, gap.gapMeters]),
@@ -159,6 +167,11 @@ describe("wallGaps with a closet section", () => {
     const gaps = gapsBySide(closet, placed);
     expect(gaps.south).toBeCloseTo(0.7 - DEFAULT_FLOOR.wallThicknessMeters, 10);
     expect(gaps.east).toBeCloseTo(0, 10);
+    // North is the room's own north wall, not the closet's wall behind the
+    // sofa: a wall on the far side of a piece is no gap on this side.
+    expect(gaps.north).toBeGreaterThan(0);
+    const box = sofaBox(placed);
+    expect(gaps.north).toBeCloseTo(box.minZ, 10);
   });
 
   it("measures from inside the closet to the section's own edge", () => {
