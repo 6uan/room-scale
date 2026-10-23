@@ -3030,3 +3030,57 @@ test.describe("reading lengths", () => {
     ).toHaveValue("179");
   });
 });
+
+test.describe("the apartment list and the panel", () => {
+  test("drags a room to another place in the list, and undoes it", async ({
+    page,
+  }) => {
+    await openWithLivingRoom(page);
+    await addRoom(page);
+    const rooms = contents(page).getByRole("button", {
+      name: /^(Living room|Room 2)$/,
+    });
+    await expect(rooms).toHaveText(["Living room", "Room 2"]);
+
+    await contents(page)
+      .getByRole("button", { name: "Room 2", exact: true })
+      .dragTo(
+        contents(page).getByRole("button", {
+          name: "Living room",
+          exact: true,
+        }),
+      );
+    await expect(rooms).toHaveText(["Room 2", "Living room"]);
+
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect(rooms).toHaveText(["Living room", "Room 2"]);
+  });
+
+  test("keeps the plan's readings clear of the details panel", async ({
+    page,
+  }) => {
+    await openWithLivingRoom(page);
+    const readout = plan(page).locator("p", { hasText: /^x / });
+    const planBox = await plan(page).boundingBox();
+    const closed = await readout.boundingBox();
+    if (planBox === null || closed === null) {
+      throw new Error("the plan and its readout should be on screen");
+    }
+    // Nothing selected: in the plan's own corner.
+    expect(closed.x + closed.width).toBeGreaterThan(
+      planBox.x + planBox.width - 40,
+    );
+
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
+    const panel = await details(page).boundingBox();
+    const open = await readout.boundingBox();
+    if (panel === null || open === null) {
+      throw new Error("the panel and the readout should both be on screen");
+    }
+    // Panel open: beside it, not under it.
+    expect(open.x + open.width).toBeLessThanOrEqual(panel.x);
+    expect(open.x + open.width).toBeGreaterThan(panel.x - 40);
+  });
+});

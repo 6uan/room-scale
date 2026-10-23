@@ -212,6 +212,32 @@ export function withRooms(floor: Floor, rooms: readonly Room[]): Floor {
   return { ...floor, rooms };
 }
 
+/**
+ * Moves one room to just before another in the floor's order, or to the end
+ * when there is nothing to put it before. The order is the list's: where a
+ * room is listed, nothing else. A room asked to go before itself, or one that
+ * is not there, leaves the floor as it was.
+ */
+export function withRoomMoved(
+  floor: Floor,
+  roomId: string,
+  beforeRoomId: string | null,
+): Floor {
+  const moving = floor.rooms.find((room) => room.id === roomId);
+  if (moving === undefined || roomId === beforeRoomId) {
+    return floor;
+  }
+  const rest = floor.rooms.filter((room) => room.id !== roomId);
+  const at =
+    beforeRoomId === null
+      ? rest.length
+      : rest.findIndex((room) => room.id === beforeRoomId);
+  if (at === -1) {
+    return floor;
+  }
+  return withRooms(floor, [...rest.slice(0, at), moving, ...rest.slice(at)]);
+}
+
 /** Replaces one room by id, leaving the order alone. */
 export function withRoom(floor: Floor, next: Room): Floor {
   return {

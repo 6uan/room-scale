@@ -25,7 +25,10 @@ import { LayoutProblems } from "@/components/layout-problems";
 import { openingName } from "@/components/opening-name";
 import { LayoutSwitcher } from "@/components/layout-switcher";
 import { ProjectSwitcher } from "@/components/project-switcher";
-import { RoomPlanCanvas } from "@/components/room-plan-canvas";
+import {
+  PANEL_RESERVE_PIXELS,
+  RoomPlanCanvas,
+} from "@/components/room-plan-canvas";
 import {
   groupSelection,
   groupedRoomIds,
@@ -81,6 +84,7 @@ import {
   withOpenings,
   withParts,
   withRoom,
+  withRoomMoved,
   withRooms,
   type Opening,
   type OpeningKind,
@@ -770,6 +774,9 @@ export function Workspace() {
               setInstances(instances.filter((one) => one.id !== id));
               setSelection(null);
             }}
+            onReorderRoom={(roomId, beforeRoomId) =>
+              setFloor(withRoomMoved(floor, roomId, beforeRoomId))
+            }
             onReorder={(id, drop) => {
               const moving = instances.find((one) => one.id === id);
               if (moving === undefined) {
@@ -872,6 +879,7 @@ export function Workspace() {
               floor={floor}
               furniture={shown}
               unit={unit}
+              panelOpen={selection !== null}
               selectedIds={selectedInstanceIds(selection)}
               troubledIds={troubledIds}
               groupRoomIds={groupedRoomIds(selection)}
@@ -964,29 +972,36 @@ export function Workspace() {
               itself only exists when there is something in it — an empty chip
               sitting over the corner of the drawing is the same nuisance as
               the all-clear it used to hold. */}
-          {notice === null ? null : (
-            <p
-              role="status"
-              className="pointer-events-none absolute bottom-16 left-1/2 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-[13px] text-white dark:bg-white/15"
-            >
-              {notice}
-            </p>
-          )}
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 p-4 pr-52">
-            <div
-              className={
-                problems.length === 0
-                  ? ""
-                  : "pointer-events-auto inline-block max-w-full rounded-lg bg-black/70 px-3 py-2 backdrop-blur dark:bg-white/10"
-              }
-            >
-              <LayoutProblems
-                problems={problems}
-                names={namesById}
-                roomNames={roomNames}
-                openingNames={openingNames}
-                unit={unit}
-              />
+          {/* Short of the details panel while it is open, as the plan's own
+              readings are, so a long problem does not run under it. */}
+          <div
+            className="pointer-events-none absolute inset-y-0 left-0"
+            style={{ right: selection === null ? 0 : PANEL_RESERVE_PIXELS }}
+          >
+            {notice === null ? null : (
+              <p
+                role="status"
+                className="pointer-events-none absolute bottom-16 left-1/2 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-[13px] text-white dark:bg-white/15"
+              >
+                {notice}
+              </p>
+            )}
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 p-4 pr-52">
+              <div
+                className={
+                  problems.length === 0
+                    ? ""
+                    : "pointer-events-auto inline-block max-w-full rounded-lg bg-black/70 px-3 py-2 backdrop-blur dark:bg-white/10"
+                }
+              >
+                <LayoutProblems
+                  problems={problems}
+                  names={namesById}
+                  roomNames={roomNames}
+                  openingNames={openingNames}
+                  unit={unit}
+                />
+              </div>
             </div>
           </div>
         </main>

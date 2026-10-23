@@ -889,6 +889,16 @@ directly under the room's own name and carried nothing else. A closet can now
 be deleted whole, and the first rectangle, whose chip already says "Room", is
 no longer offered for deletion on its own.
 
+**Rooms are reordered by dragging their row, and nothing over the plan sits
+under the panel.** A room's own row in the list drags, and drops above the
+row it is let go on, or last on the strip after the last room — the order
+being the list's and nothing else's. Only the room's row picks it up, not the
+item holding its sections and pieces, so a piece dragged inside a room never
+carries the room with it. And the details panel, floating over the plan's
+right edge since it stopped being a column, covered the corner readout, the
+centred hints and the problems along the bottom; they live in a layer that
+ends where the panel begins while it is open.
+
 **One format for a length, chosen once, and arrow keys in every field.**
 A field showed bare inches (`116`) while every label beside it read feet and
 inches with a tenth (`9' 8.0"`), so one number was on screen two ways. Now a

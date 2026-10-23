@@ -145,7 +145,7 @@ const PLAN_PADDING_PIXELS = 40;
  * move when the panel comes and goes — the strip is simply spare canvas
  * until it is wanted. Matches the panel's `w-80`.
  */
-const PANEL_RESERVE_PIXELS = 320;
+export const PANEL_RESERVE_PIXELS = 320;
 const LABEL_PIXELS = 12;
 
 /**
@@ -245,6 +245,8 @@ export type RoomPlanCanvasProps = {
   floor: Floor;
   furniture: readonly PlacedFurniture[];
   unit: DisplayUnit;
+  /** Whether the details panel is floating over the plan's right edge. */
+  panelOpen?: boolean;
   /** Which piece is being worked on, or null. Never persisted: this is UI state. */
   /** The selected pieces: none, one, or a group dragged as one. */
   selectedIds: readonly string[];
@@ -489,6 +491,7 @@ export function RoomPlanCanvas({
   floor,
   furniture,
   unit,
+  panelOpen = false,
   selectedIds,
   troubledIds,
   onSelect,
@@ -2091,99 +2094,111 @@ export function RoomPlanCanvas({
       />
 
       {/*
-        The measurements used to be drawn on the plan, in dimension lines
-        outside its walls. They cost the drawing its margins and told you the
-        same two numbers however far you zoomed in.
-
-        They are text now, and split by how often they change: what the floor
-        adds up to sits in one corner and rarely moves, while the coordinates
-        of whatever is selected sit in the opposite one. Putting a number that
-        changes next to a number that does not makes both harder to read.
+        Everything said over the plan, in a layer that stops where the details
+        panel starts while it is open. Anchored to the canvas instead, the
+        corner readout and the centred hints sat under the panel. The layer
+        starts at the canvas's own top-left, so what is placed by pixel — the
+        size beside a dragged corner, the selection rectangle — stays put.
       */}
-      {/*
-        Both are readings of a floor, so neither exists until there is one.
-        "0.0 sq ft" in one corner and "x — y —" in the other are two things to
-        read that answer nothing, on the one screen where somebody is deciding
-        whether this tool is worth their afternoon.
-      */}
-      {floor.rooms.length === 0 ? null : (
-        <>
-          <p className="pointer-events-none absolute left-3 top-3 rounded-lg bg-black/70 px-3 py-1.5 font-mono text-[13px] tabular-nums text-white/90 dark:bg-white/10">
-            {formatArea(floorAreaSquareMeters(floor), unit)}
+      <div
+        className="pointer-events-none absolute inset-y-0 left-0"
+        style={{ right: panelOpen ? PANEL_RESERVE_PIXELS : 0 }}
+      >
+        {/*
+          The measurements used to be drawn on the plan, in dimension lines
+          outside its walls. They cost the drawing its margins and told you the
+          same two numbers however far you zoomed in.
+
+          They are text now, and split by how often they change: what the floor
+          adds up to sits in one corner and rarely moves, while the coordinates
+          of whatever is selected sit in the opposite one. Putting a number that
+          changes next to a number that does not makes both harder to read.
+        */}
+        {/*
+          Both are readings of a floor, so neither exists until there is one.
+          "0.0 sq ft" in one corner and "x — y —" in the other are two things to
+          read that answer nothing, on the one screen where somebody is deciding
+          whether this tool is worth their afternoon.
+        */}
+        {floor.rooms.length === 0 ? null : (
+          <>
+            <p className="pointer-events-none absolute left-3 top-3 rounded-lg bg-black/70 px-3 py-1.5 font-mono text-[13px] tabular-nums text-white/90 dark:bg-white/10">
+              {formatArea(floorAreaSquareMeters(floor), unit)}
+            </p>
+
+            <p className="pointer-events-none absolute right-3 bottom-3 flex gap-3 rounded-lg bg-black/70 px-3 py-1.5 font-mono text-[13px] tabular-nums text-white/90 dark:bg-white/10">
+              <span>
+                {at === null ? "x —" : `x ${formatLength(at.xMeters, unit)}`}
+              </span>
+              <span>
+                {at === null ? "y —" : `y ${formatLength(at.zMeters, unit)}`}
+              </span>
+            </p>
+          </>
+        )}
+
+        {drawing ? (
+          <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-[13px] text-white dark:bg-white/15">
+            Drag out a room, or click to drop one. Esc to stop.
           </p>
+        ) : null}
 
-          <p className="pointer-events-none absolute right-3 bottom-3 flex gap-3 rounded-lg bg-black/70 px-3 py-1.5 font-mono text-[13px] tabular-nums text-white/90 dark:bg-white/10">
-            <span>
-              {at === null ? "x —" : `x ${formatLength(at.xMeters, unit)}`}
-            </span>
-            <span>
-              {at === null ? "y —" : `y ${formatLength(at.zMeters, unit)}`}
-            </span>
+        {/* How big the room will be, beside the corner being dragged. Said as
+            the drag goes rather than after it lands, because the tape says
+            11' by 14' and the hand has nothing else to go by. */}
+        {drawnPart === null ? null : (
+          <DrawnSize part={drawnPart} projection={projection} unit={unit} />
+        )}
+        {resizedPart === null ? null : (
+          <DrawnSize part={resizedPart} projection={projection} unit={unit} />
+        )}
+
+        {placingOpening === null ? null : (
+          <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-[13px] text-white dark:bg-white/15">
+            Click the wall for the {placingOpening.kind}. Esc to stop.
           </p>
-        </>
-      )}
+        )}
 
-      {drawing ? (
-        <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-[13px] text-white dark:bg-white/15">
-          Drag out a room, or click to drop one. Esc to stop.
-        </p>
-      ) : null}
+        {placingProduct === null ? null : (
+          <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-[13px] text-white dark:bg-white/15">
+            Click where {placingProduct.name} goes. Esc to stop.
+          </p>
+        )}
 
-      {/* How big the room will be, beside the corner being dragged. Said as
-          the drag goes rather than after it lands, because the tape says
-          11' by 14' and the hand has nothing else to go by. */}
-      {drawnPart === null ? null : (
-        <DrawnSize part={drawnPart} projection={projection} unit={unit} />
-      )}
-      {resizedPart === null ? null : (
-        <DrawnSize part={resizedPart} projection={projection} unit={unit} />
-      )}
+        {marquee === null ? null : (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute border border-dashed border-current bg-current/10 opacity-70"
+            style={{
+              left: Math.min(marquee.from.x, marquee.to.x),
+              top: Math.min(marquee.from.y, marquee.to.y),
+              width: Math.abs(marquee.to.x - marquee.from.x),
+              height: Math.abs(marquee.to.y - marquee.from.y),
+            }}
+          />
+        )}
 
-      {placingOpening === null ? null : (
-        <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-[13px] text-white dark:bg-white/15">
-          Click the wall for the {placingOpening.kind}. Esc to stop.
-        </p>
-      )}
-
-      {placingProduct === null ? null : (
-        <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-[13px] text-white dark:bg-white/15">
-          Click where {placingProduct.name} goes. Esc to stop.
-        </p>
-      )}
-
-      {marquee === null ? null : (
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute border border-dashed border-current bg-current/10 opacity-70"
-          style={{
-            left: Math.min(marquee.from.x, marquee.to.x),
-            top: Math.min(marquee.from.y, marquee.to.y),
-            width: Math.abs(marquee.to.x - marquee.from.x),
-            height: Math.abs(marquee.to.y - marquee.from.y),
-          }}
-        />
-      )}
-
-      {/* Said once, where it is needed, and gone as soon as it is not — and
-          never on an empty floor, where the invitation in the middle of the
-          canvas is already saying something more useful. */}
-      {active ||
-      drawing ||
-      placingOpening !== null ||
-      placingProduct !== null ||
-      floor.rooms.length === 0 ? null : (
-        <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-[13px] text-white dark:bg-white/15">
-          {selectedRoomPartId !== null
-            ? "Drag or resize this section here, or type its X/Y and W/D"
-            : selectedRoomId !== null
-              ? selectedRoom?.parts.length === 1
-                ? "Drag or resize the room here, or type its X/Y and W/D"
-                : "Drag the room, or double-click a section to edit it"
-              : selectedOpeningId !== null
-                ? "Drag the opening or a jamb, or type its measurements"
-                : "Click the plan to pan and zoom"}
-        </p>
-      )}
+        {/* Said once, where it is needed, and gone as soon as it is not — and
+            never on an empty floor, where the invitation in the middle of the
+            canvas is already saying something more useful. */}
+        {active ||
+        drawing ||
+        placingOpening !== null ||
+        placingProduct !== null ||
+        floor.rooms.length === 0 ? null : (
+          <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-[13px] text-white dark:bg-white/15">
+            {selectedRoomPartId !== null
+              ? "Drag or resize this section here, or type its X/Y and W/D"
+              : selectedRoomId !== null
+                ? selectedRoom?.parts.length === 1
+                  ? "Drag or resize the room here, or type its X/Y and W/D"
+                  : "Drag the room, or double-click a section to edit it"
+                : selectedOpeningId !== null
+                  ? "Drag the opening or a jamb, or type its measurements"
+                  : "Click the plan to pan and zoom"}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
