@@ -74,7 +74,7 @@ export type InspectorProps = {
     readonly roomId: string;
     readonly kind: OpeningKind;
   } | null;
-  onOpeningChange: (room: Room, opening: Opening) => void;
+  onOpeningChange: (room: Room, opening: Opening, gesture?: string) => void;
   onOpeningRemove: (room: Room, opening: Opening) => void;
   onInstanceChange: (instance: FurnitureInstance) => void;
   onInstanceRemove: (instance: FurnitureInstance) => void;
@@ -301,6 +301,7 @@ function OpeningInspector({
   selection,
   onOpeningChange,
   onOpeningRemove,
+  onGestureEnd,
 }: InspectorProps & {
   selection: { kind: "opening"; roomId: string; id: string };
 }) {
@@ -314,7 +315,7 @@ function OpeningInspector({
   return (
     <Panel
       title={name}
-      subtitle="Opening"
+      sectioned
       action={
         <ActionMenu
           label={`${name} actions`}
@@ -332,7 +333,8 @@ function OpeningInspector({
         room={room}
         opening={opening}
         unit={unit}
-        onChange={(next) => onOpeningChange(room, next)}
+        onChange={(next, gesture) => onOpeningChange(room, next, gesture)}
+        onGestureEnd={onGestureEnd}
       />
     </Panel>
   );

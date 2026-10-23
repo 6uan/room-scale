@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import { IconButton } from "@/components/icon-button";
 import { NumberField } from "@/components/number-field";
+import { Chip, ChipRow } from "@/components/panel/chip";
+import { PanelRow } from "@/components/panel/row";
 import { PanelSection } from "@/components/panel/section";
 import {
   openingDefaultName,
@@ -46,14 +48,26 @@ const KINDS: readonly { kind: OpeningKind; label: string; icon: LucideIcon }[] =
  * and takes a door like any other wall.
  */
 const WALL_LABELS: Record<WallSide, string> = {
-  north: "North (top)",
+  north: "North wall (top)",
   "north-east": "North-east corner",
-  east: "East (right)",
+  east: "East wall (right)",
   "south-east": "South-east corner",
-  south: "South (bottom)",
+  south: "South wall (bottom)",
   "south-west": "South-west corner",
-  west: "West (left)",
+  west: "West wall (left)",
   "north-west": "North-west corner",
+};
+
+/** Two letters for a chamfer, one for a square side, as the room's wall row has them. */
+const WALL_INITIALS: Record<WallSide, string> = {
+  north: "N",
+  "north-east": "NE",
+  east: "E",
+  "south-east": "SE",
+  south: "S",
+  "south-west": "SW",
+  west: "W",
+  "north-west": "NW",
 };
 
 export type RoomOpeningsFormProps = {
@@ -135,15 +149,28 @@ export type OpeningFieldsProps = {
   opening: Opening;
   room: Room;
   unit: DisplayUnit;
-  onChange: (opening: Opening) => void;
+  /** `gesture` groups a scrub of one field into one undo step. */
+  onChange: (opening: Opening, gesture?: string) => void;
+  onGestureEnd?: () => void;
 };
 
-/** Exact numeric editing for one selected opening. */
+/**
+ * Exact editing for one selected opening, on the same rows as every other
+ * panel: chips for a choice of two or three, compact fields for a length.
+ *
+ * It was the last panel still built from loose controls — a bordered box
+ * repeating the panel's own name, a dropdown for the wall and one for each
+ * of the door's three settings, and a feet-and-inches echo under each field.
+ * A dropdown hides the two or three answers there are until it is opened;
+ * chips show them, and the wall chips read N, E, S, W the way the room's own
+ * wall row does.
+ */
 export function OpeningFields({
   opening,
   room,
   unit,
   onChange,
+  onGestureEnd,
 }: OpeningFieldsProps) {
   // This opening's own section, rather than the room's first: walls differ in
   // length between sections, and a chamfer exists only on the one that is cut.
@@ -153,64 +180,71 @@ export function OpeningFields({
   const name = openingName(room, opening);
 
   return (
-    <fieldset className="flex flex-col gap-4 rounded-lg border border-black/10 p-4 dark:border-white/15">
-      {/* A direct child of the fieldset, so it names the group. */}
-      <legend className="px-1 text-sm font-medium">{name}</legend>
+    <>
+      <PanelSection first>
+        <TextField
+          label="Name"
+          value={opening.name ?? ""}
+          placeholder={openingDefaultName(room, opening)}
+          problem={null}
+          onValueChange={(value) => onChange(withOpeningName(opening, value))}
+        />
 
-      <TextField
-        label="Name"
-        value={opening.name ?? ""}
-        placeholder={openingDefaultName(room, opening)}
-        problem={null}
-        onValueChange={(value) => onChange(withOpeningName(opening, value))}
-      />
+        <PanelRow name="Wall" label="Wall">
+          <ChipRow name={`${name} wall`}>
+            {(part === undefined ? [] : partWallSides(part)).map((wall) => (
+              <Chip
+                key={wall}
+                label={WALL_LABELS[wall]}
+                pressed={opening.wall === wall}
+                onClick={() => onChange(withOpeningWall(room, opening, wall))}
+              >
+                {WALL_INITIALS[wall]}
+              </Chip>
+            ))}
+          </ChipRow>
+        </PanelRow>
 
-      <SelectField
-        label={`${name} wall`}
-        visibleLabel="Wall"
-        value={opening.wall}
-        options={(part === undefined ? [] : partWallSides(part)).map(
-          (wall) => ({
-            value: wall,
-            label: WALL_LABELS[wall],
-          }),
+        {/* Center rather than an edge: it is the one number that stays put
+            when the width changes, which is how a door is measured on site. */}
+        <PanelRow name="Along the wall">
+          <NumberField
+            label="Center"
+            compactLabel="Center"
+            scrubGesture={`opening-field:${opening.id}:center`}
+            unit={unit}
+            meters={opening.centerMeters}
+            limits={{ minMeters: 0, maxMeters: wallLength }}
+            onMetersChange={(centerMeters, gesture) =>
+              onChange({ ...opening, centerMeters }, gesture)
+            }
+            {...(onGestureEnd === undefined ? {} : { onGestureEnd })}
+          />
+          <NumberField
+            label="Width"
+            compactLabel="W"
+            scrubGesture={`opening-field:${opening.id}:width`}
+            unit={unit}
+            meters={opening.widthMeters}
+            limits={{ minMeters: MIN_OPENING_METERS, maxMeters: wallLength }}
+            onMetersChange={(widthMeters, gesture) =>
+              onChange({ ...opening, widthMeters }, gesture)
+            }
+            {...(onGestureEnd === undefined ? {} : { onGestureEnd })}
+          />
+        </PanelRow>
+
+        {problem === null ? null : (
+          <p role="alert" className="text-xs text-red-600">
+            {problemMessage(problem, wallLength, unit)}
+          </p>
         )}
-        onChange={(wall) =>
-          onChange(withOpeningWall(room, opening, wall as WallSide))
-        }
-      />
-
-      <div className="flex flex-wrap gap-4">
-        <NumberField
-          label="Center"
-          unit={unit}
-          meters={opening.centerMeters}
-          limits={{ minMeters: 0, maxMeters: wallLength }}
-          onMetersChange={(centerMeters) =>
-            onChange({ ...opening, centerMeters })
-          }
-        />
-        <NumberField
-          label="Width"
-          unit={unit}
-          meters={opening.widthMeters}
-          limits={{ minMeters: MIN_OPENING_METERS, maxMeters: wallLength }}
-          onMetersChange={(widthMeters) =>
-            onChange({ ...opening, widthMeters })
-          }
-        />
-      </div>
+      </PanelSection>
 
       {opening.kind === "door" ? (
         <DoorFields door={opening} name={name} onChange={onChange} />
       ) : null}
-
-      {problem === null ? null : (
-        <p role="alert" className="text-xs text-red-600">
-          {problemMessage(problem, wallLength, unit)}
-        </p>
-      )}
-    </fieldset>
+    </>
   );
 }
 
@@ -224,82 +258,73 @@ function DoorFields({
   onChange: (opening: Opening) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-4">
-      <SelectField
-        label={`${name} hinge`}
-        visibleLabel="Hinge"
-        value={door.hinge}
-        options={[
-          { value: "start", label: "Start of wall" },
-          { value: "end", label: "End of wall" },
-        ]}
-        onChange={(hinge) =>
-          onChange({ ...door, hinge: hinge as Door["hinge"] })
-        }
-      />
-      <SelectField
-        label={`${name} swing`}
-        visibleLabel="Swing"
-        value={door.swing}
-        options={[
-          { value: "inward", label: "Into the room" },
-          { value: "outward", label: "Out of the room" },
-        ]}
-        onChange={(swing) =>
-          onChange({ ...door, swing: swing as Door["swing"] })
-        }
-      />
-      <SelectField
-        label={`${name} style`}
-        visibleLabel="Style"
+    <PanelSection title="Door">
+      <ChoiceRow
+        name={`${name} style`}
+        label="Style"
         value={door.style}
         options={[
           { value: "swing", label: "Hinged" },
           { value: "bifold", label: "Bifold" },
           { value: "sliding", label: "Sliding" },
         ]}
-        onChange={(style) =>
-          onChange({ ...door, style: style as Door["style"] })
-        }
+        onChange={(style) => onChange({ ...door, style })}
       />
-    </div>
+      <ChoiceRow
+        name={`${name} hinge`}
+        label="Hinge"
+        value={door.hinge}
+        options={[
+          { value: "start", label: "Start", title: "At the start of the wall" },
+          { value: "end", label: "End", title: "At the end of the wall" },
+        ]}
+        onChange={(hinge) => onChange({ ...door, hinge })}
+      />
+      <ChoiceRow
+        name={`${name} swing`}
+        label="Swing"
+        value={door.swing}
+        options={[
+          { value: "inward", label: "In", title: "Into the room" },
+          { value: "outward", label: "Out", title: "Out of the room" },
+        ]}
+        onChange={(swing) => onChange({ ...door, swing })}
+      />
+    </PanelSection>
   );
 }
 
-type SelectFieldProps = {
-  /** The accessible name, which has to stay unique across every opening. */
-  label: string;
-  visibleLabel: string;
-  value: string;
-  options: readonly { value: string; label: string }[];
-  onChange: (value: string) => void;
-};
-
-function SelectField({
+/** A labelled row of chips, exactly one of them pressed. */
+function ChoiceRow<T extends string>({
+  name,
   label,
-  visibleLabel,
   value,
   options,
   onChange,
-}: SelectFieldProps) {
+}: {
+  /** The group's accessible name, unique across every opening. */
+  name: string;
+  label: string;
+  value: T;
+  options: readonly { value: T; label: string; title?: string }[];
+  onChange: (value: T) => void;
+}) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-sm font-medium" aria-hidden="true">
-        {visibleLabel}
-      </span>
-      <select
-        aria-label={label}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="rounded-md border border-black/15 bg-transparent px-2.5 py-1.5 text-sm dark:border-white/20"
-      >
+    <PanelRow name={label} label={label}>
+      <ChipRow name={name}>
         {options.map((option) => (
-          <option key={option.value} value={option.value}>
+          <Chip
+            key={option.value}
+            label={option.title ?? option.label}
+            {...(option.title === undefined ? {} : { title: option.title })}
+            pressed={value === option.value}
+            onClick={() => onChange(option.value)}
+          >
             {option.label}
-          </option>
+          </Chip>
         ))}
-      </select>
-    </div>
+      </ChipRow>
+    </PanelRow>
   );
 }
 
