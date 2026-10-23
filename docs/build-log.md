@@ -877,6 +877,19 @@ than by drag, one image covers the whole apartment, and a skewed photograph
 is not straightened — a listing PDF's plan is flat, and a phone photo of one
 can wait until it stops somebody.
 
+**The details panel is for what is selected, and only then.** With nothing
+selected it used to show the apartment: the plan underlay, the wall
+thickness, and four figures — rooms, across, down, area — that describe the
+drawing rather than any decision. Those figures are gone; the area stays on
+the plan's own chip, where it was already. The underlay and the wall
+thickness moved behind the gear, beside the unit, where set-once things
+live. The panel now floats over the plan's right edge while something is
+selected and is simply absent otherwise, and the plan is fitted into the
+width left of it either way — so the plan has the whole width when nothing
+is selected, and selecting or deselecting never moves it. It used to: the
+panel was a column, the plan refitted to the column coming and going, and
+the apartment jumped sideways on every click into empty space.
+
 **Sections can be grouped, and a group is walled round its outline.** An
 L-shaped closet inside a bedroom is two rectangles, and they were two
 things: two rows, two names, dividing walls set by hand on each, and a

@@ -15,7 +15,6 @@ import {
   LabelledLink,
 } from "@/components/icon-button";
 import { cn } from "@/components/cn";
-import { Disclosure } from "@/components/disclosure";
 import { NumberField } from "@/components/number-field";
 import { openingName } from "@/components/opening-name";
 import { OpeningFields } from "@/components/room-openings-form";
@@ -37,23 +36,13 @@ import {
   withInstanceName,
 } from "@/domain/furniture";
 import {
-  WALL_THICKNESS_LIMITS,
-  floorAreaSquareMeters,
-  floorBounds,
   ROOM_ORIGIN_LIMITS,
   type Floor,
   type Opening,
   type OpeningKind,
   type Room,
 } from "@/domain/room";
-import {
-  displayUnitSuffix,
-  displayValueFromMeters,
-  formatArea,
-  formatCents,
-  formatLength,
-  type DisplayUnit,
-} from "@/domain/units";
+import { formatCents, formatLength, type DisplayUnit } from "@/domain/units";
 import {
   UNDERLAY_WIDTH_LIMITS,
   underlayExtentMeters,
@@ -115,9 +104,7 @@ export function Inspector(props: InspectorProps) {
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
-      {selection === null ? (
-        <FloorInspector {...props} />
-      ) : selection.kind === "room" ||
+      {selection === null ? null : selection.kind === "room" ||
         selection.kind === "room-part" ||
         selection.kind === "section-group" ? (
         <RoomInspector {...props} selection={selection} />
@@ -195,83 +182,6 @@ function Panel({
 }
 
 /** Nothing selected: the apartment's own settings. */
-function FloorInspector({
-  floor,
-  unit,
-  onFloorChange,
-  underlay,
-  onAddPlanImage,
-  onUnderlayChange,
-}: InspectorProps) {
-  const { extent } = floorBounds(floor);
-
-  return (
-    <Panel
-      title="Apartment"
-      subtitle="Select a room or a piece of furniture to edit it."
-    >
-      <UnderlayFields
-        underlay={underlay}
-        unit={unit}
-        onAddPlanImage={onAddPlanImage}
-        onUnderlayChange={onUnderlayChange}
-      />
-      {/*
-        One number, for every wall on the floor.
-
-        It was two — a thicker shell and thinner partitions, with which was
-        which derived from where the rooms stood. That drew a wall shared for
-        part of its run at two widths, with a step where the neighbour ended,
-        and an apartment of a dozen rooms came out ragged. It is a number that
-        changes no answer: nothing in the fit checking reads it.
-
-        Folded away for the same reason a room's own override is: set once, if
-        ever, and read far more often than changed.
-      */}
-      <Disclosure
-        label="Wall thickness"
-        summary={`${thicknessLabel(floor.wallThicknessMeters, unit)} walls`}
-      >
-        <p className="text-[13px] leading-relaxed opacity-60">
-          What every room is built out of until it says otherwise. A single room
-          can be measured on its own from its own panel.
-        </p>
-        <NumberField
-          label="Wall thickness"
-          unit={unit}
-          meters={floor.wallThicknessMeters}
-          limits={WALL_THICKNESS_LIMITS}
-          onMetersChange={(wallThicknessMeters) =>
-            onFloorChange({ ...floor, wallThicknessMeters })
-          }
-        />
-      </Disclosure>
-
-      {/*
-        Four figures reading zero are four things to read and nothing learned.
-        They arrive with the first room, which is the moment any of them
-        becomes a fact about anything.
-      */}
-      {floor.rooms.length === 0 ? null : (
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-4 border-t border-black/10 pt-4 text-sm dark:border-white/15">
-          <Fact label="Rooms" value={String(floor.rooms.length)} />
-          <Fact label="Across" value={formatLength(extent.widthMeters, unit)} />
-          <Fact label="Down" value={formatLength(extent.depthMeters, unit)} />
-          <Fact
-            label="Floor area"
-            value={formatArea(floorAreaSquareMeters(floor), unit)}
-          />
-        </dl>
-      )}
-    </Panel>
-  );
-}
-
-/** A wall thickness the way the field beside it reads, not in feet-and-inches. */
-function thicknessLabel(meters: number, unit: DisplayUnit): string {
-  const value = displayValueFromMeters(meters, unit);
-  return `${Number(value.toFixed(2))} ${displayUnitSuffix(unit)}`;
-}
 
 function RoomInspector({
   floor,
@@ -662,7 +572,7 @@ function ProductInspector({
  * through an explicit Apply because scaling is anchored to the drawn line,
  * and reapplying a half-typed value would scale the image out from under it.
  */
-function UnderlayFields({
+export function UnderlayFields({
   underlay,
   unit,
   onAddPlanImage,
@@ -783,14 +693,5 @@ function Missing({ what }: { what: string }) {
         That {what} is no longer here. Select something else.
       </p>
     </Panel>
-  );
-}
-
-function Fact({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <dt className="text-[13px] opacity-60">{label}</dt>
-      <dd className="text-[15px] tabular-nums">{value}</dd>
-    </div>
   );
 }
