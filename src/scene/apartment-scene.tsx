@@ -24,6 +24,8 @@ import {
 import {
   cameraOfFraming,
   framingAfterOrbit,
+  orbitDistanceLimits,
+  orbitTargetOnFloor,
   standsBeforeTarget,
   type Framing,
 } from "@/domain/geometry";
@@ -130,6 +132,7 @@ export function ApartmentScene({
         ))}
         <FramedControls
           framing={framing ?? wholeFloor(floor)}
+          whole={wholeFloor(floor)}
           heightMeters={Math.max(
             0,
             ...floor.rooms.map((room) => room.heightMeters),
@@ -163,10 +166,13 @@ function wholeFloor(floor: Floor): Framing {
  */
 function FramedControls({
   framing,
+  whole,
   heightMeters,
   onFramingChange,
 }: {
   framing: Framing;
+  /** The whole apartment: what the orbit stays over, and how far it may pull back. */
+  whole: Framing;
   /** The tallest wall, so the walls of what was framed are not cut off. */
   heightMeters: number;
   onFramingChange?: (framing: Framing) => void;
@@ -181,6 +187,7 @@ function FramedControls({
   const [start] = useState(() =>
     cameraOfFraming(framing, fov, aspect, heightMeters),
   );
+  const limits = orbitDistanceLimits(whole, fov, aspect, heightMeters);
 
   useLayoutEffect(() => {
     camera.position.set(...start.position);
@@ -195,6 +202,36 @@ function FramedControls({
       makeDefault
       target={start.target}
       maxPolarAngle={Math.PI / 2 - 0.02}
+      minDistance={limits.minMeters}
+      maxDistance={limits.maxMeters}
+      // Panning slides along the floor rather than up and down the screen,
+      // which is what carried the orbit point — and the camera with it —
+      // below the floor.
+      screenSpacePanning={false}
+      onChange={() => {
+        const orbit = controls.current;
+        if (orbit === null) {
+          return;
+        }
+        const { target, object: eye } = orbit;
+        const kept = orbitTargetOnFloor([target.x, target.y, target.z], whole);
+        if (
+          kept[0] !== target.x ||
+          kept[1] !== target.y ||
+          kept[2] !== target.z
+        ) {
+          // Moved by the same amount, so a pan stops at the edge rather than
+          // swinging the view round the clamped point.
+          eye.position.add(
+            new Vector3(
+              kept[0] - target.x,
+              kept[1] - target.y,
+              kept[2] - target.z,
+            ),
+          );
+          target.set(...kept);
+        }
+      }}
       onEnd={() => {
         const target = controls.current?.target;
         if (target === undefined || onFramingChange === undefined) {
