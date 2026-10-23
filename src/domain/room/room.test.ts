@@ -28,6 +28,7 @@ import {
   withRoomPart,
   withRoomPartRotation,
   withoutPartGroup,
+  withoutRoomParts,
   type Room,
 } from "./room";
 
@@ -343,6 +344,30 @@ describe("groups of sections", () => {
     const loose = withoutPartGroup(grouped, "g");
     expect(loose.partGroups).toBeUndefined();
     expect(loose.parts.every((part) => part.groupId === undefined)).toBe(true);
+  });
+
+  it("deletes sections with their openings, and a group left with one", () => {
+    const grouped = withOpenings(
+      withPartGroup(base, { id: "g", name: "Closet" }, ["b", "c"]),
+      [
+        createOpening("door", "o1", base, "north", 0.5, "a"),
+        createOpening("door", "o2", base, "north", 0.5, "c"),
+      ],
+    );
+
+    const one = withoutRoomParts(grouped, ["c"]);
+    expect(one.parts.map((part) => part.id)).toEqual(["a", "b"]);
+    expect(one.openings.map((opening) => opening.id)).toEqual(["o1"]);
+    expect(one.partGroups).toBeUndefined();
+    expect(one.parts[1]?.groupId).toBeUndefined();
+
+    const closet = withoutRoomParts(grouped, ["b", "c"]);
+    expect(closet.parts.map((part) => part.id)).toEqual(["a"]);
+    expect(closet.partGroups).toBeUndefined();
+  });
+
+  it("refuses to delete every section, which would be the room", () => {
+    expect(withoutRoomParts(base, ["a", "b", "c"])).toBe(base);
   });
 
   it("reads every side of a grouped section as dividing", () => {

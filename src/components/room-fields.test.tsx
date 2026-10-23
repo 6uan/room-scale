@@ -409,46 +409,6 @@ describe("RoomFields", () => {
     expect(onSelectPart).toHaveBeenCalledWith("room-1-part-1");
   });
 
-  it("collapses selection back to the room when one part remains", () => {
-    const floor = projectWithLivingRoom().floor;
-    const base = floor.rooms[0];
-    if (base === undefined) {
-      throw new Error("a new project starts with a room");
-    }
-    const room = withParts(base, [
-      ...base.parts,
-      {
-        id: "room-1-part-2",
-        origin: { xMeters: 2, zMeters: 2 },
-        widthMeters: 2,
-        depthMeters: 2,
-        rotationRadians: 0,
-        openWalls: [],
-      },
-    ]);
-    const onSelectPart = vi.fn();
-    render(
-      <RoomFields
-        floor={{ ...floor, rooms: [room] }}
-        room={room}
-        unit="metric"
-        selectedPartId="room-1-part-2"
-        onChange={vi.fn()}
-        onGestureEnd={vi.fn()}
-        onAddOpening={vi.fn()}
-        onSelectPart={onSelectPart}
-      />,
-    );
-
-    // Only the section on screen can be removed, so removing is unambiguous
-    // without a trash icon on every row.
-    fireEvent.click(
-      screen.getByRole("button", { name: "Remove Living room section 2" }),
-    );
-
-    expect(onSelectPart).toHaveBeenCalledWith(null);
-  });
-
   it("arms the plan instead of spawning a rectangle at a guess", () => {
     const floor = projectWithLivingRoom().floor;
     const room = floor.rooms[0];

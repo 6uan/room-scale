@@ -5,7 +5,6 @@ import {
   Eye,
   EyeOff,
   ImagePlus,
-  PackageOpen,
   Pencil,
   Trash2,
 } from "lucide-react";
@@ -14,15 +13,16 @@ import {
   IconFileButton,
   LabelledLink,
 } from "@/components/icon-button";
+import { ActionMenu } from "@/components/action-menu";
 import { cn } from "@/components/cn";
 import { NumberField } from "@/components/number-field";
-import { openingName } from "@/components/opening-name";
+import { openingName, sectionLabel } from "@/components/opening-name";
 import { OpeningFields } from "@/components/room-openings-form";
 import { ProductForm, TextField } from "@/components/product-form";
-import { RoomFields } from "@/components/room-fields";
+import { RoomFields, shownSectionIndex } from "@/components/room-fields";
 import { PanelSection } from "@/components/panel/section";
 import { orientedRectCorners } from "@/domain/geometry";
-import { roomBounds } from "@/domain/room";
+import { partGroupOf, roomBounds, withoutRoomParts } from "@/domain/room";
 import { PlacementFields } from "@/components/placement-fields";
 import type { Selection } from "@/components/selection";
 import {
@@ -124,11 +124,12 @@ export function Inspector(props: InspectorProps) {
 /**
  * One inspector panel: what is selected, and everything you can do to it.
  *
- * `action` is the one thing you can do to the whole of it — removing it —
- * and it sits beside the name rather than at the far end of the fields. It
- * used to be the last control in the panel, which put the most destructive
- * button behind a scroll through every measurement, and put it where the eye
- * lands after reading rather than where it goes to act.
+ * `action` is what you can do to the whole of it — an `ActionMenu`, which
+ * is where deleting it lives — and it sits beside the name rather than at the
+ * far end of the fields. It used to be the last control in the panel, which
+ * put the most destructive button behind a scroll through every measurement,
+ * and put it where the eye lands after reading rather than where it goes to
+ * act.
  */
 function Panel({
   title,
@@ -194,7 +195,6 @@ function RoomInspector({
   onDrawSection,
   onAddOpening,
   placingOpening,
-  onOpeningRemove,
   onSelect,
 }: InspectorProps & {
   selection:
@@ -209,17 +209,61 @@ function RoomInspector({
   }
 
   const name = room.name === "" ? "Unnamed room" : room.name;
+  const selectedPartId =
+    selection.kind === "room-part"
+      ? selection.id
+      : selection.kind === "section-group"
+        ? (room.parts.find((part) => part.groupId === selection.id)?.id ?? null)
+        : null;
+
+  // What the menu can delete, smallest first: the section on screen, the
+  // closet it is in, the room. The first rectangle is the room itself — its
+  // chip says "Room" — so it is never offered on its own.
+  const shownIndex = shownSectionIndex(room, selectedPartId);
+  const shown = room.parts[shownIndex];
+  const group = shown === undefined ? undefined : partGroupOf(room, shown.id);
+  const removeSections = (partIds: readonly string[]) => {
+    onRoomChange(withoutRoomParts(room, partIds));
+    onSelect({ kind: "room", id: room.id });
+  };
 
   return (
     <Panel
       title={name}
       sectioned
       action={
-        <IconButton
-          label={`Remove ${name}`}
-          icon={Trash2}
-          tone="danger"
-          onClick={() => onRoomRemove(room)}
+        <ActionMenu
+          label={`${name} actions`}
+          items={[
+            ...(shown === undefined || shownIndex === 0
+              ? []
+              : [
+                  {
+                    label: `Delete ${sectionLabel(shown, shownIndex)}`,
+                    danger: true,
+                    onSelect: () => removeSections([shown.id]),
+                  },
+                ]),
+            ...(group === undefined
+              ? []
+              : [
+                  {
+                    label: `Delete ${group.name}`,
+                    danger: true,
+                    onSelect: () =>
+                      removeSections(
+                        room.parts
+                          .filter((part) => part.groupId === group.id)
+                          .map((part) => part.id),
+                      ),
+                  },
+                ]),
+            {
+              label: `Delete ${name}`,
+              danger: true,
+              onSelect: () => onRoomRemove(room),
+            },
+          ]}
         />
       }
     >
@@ -235,14 +279,7 @@ function RoomInspector({
         placingOpeningKind={
           placingOpening?.roomId === room.id ? placingOpening.kind : null
         }
-        selectedPartId={
-          selection.kind === "room-part"
-            ? selection.id
-            : selection.kind === "section-group"
-              ? (room.parts.find((part) => part.groupId === selection.id)?.id ??
-                null)
-              : null
-        }
+        selectedPartId={selectedPartId}
         onSelectPart={(partId) =>
           onSelect(
             partId === null
@@ -253,12 +290,6 @@ function RoomInspector({
         onSelectOpening={(openingId) =>
           onSelect({ kind: "opening", roomId: room.id, id: openingId })
         }
-        onRemoveOpening={(openingId) => {
-          const opening = room.openings.find((one) => one.id === openingId);
-          if (opening !== undefined) {
-            onOpeningRemove(room, opening);
-          }
-        }}
       />
     </Panel>
   );
@@ -278,15 +309,30 @@ function OpeningInspector({
   if (room === undefined || opening === undefined) {
     return <Missing what="opening" />;
   }
+  const name = openingName(room, opening);
 
   return (
-    <Panel title={openingName(room, opening)} subtitle="Opening">
+    <Panel
+      title={name}
+      subtitle="Opening"
+      action={
+        <ActionMenu
+          label={`${name} actions`}
+          items={[
+            {
+              label: `Delete ${name}`,
+              danger: true,
+              onSelect: () => onOpeningRemove(room, opening),
+            },
+          ]}
+        />
+      }
+    >
       <OpeningFields
         room={room}
         opening={opening}
         unit={unit}
         onChange={(next) => onOpeningChange(room, next)}
-        onRemove={() => onOpeningRemove(room, opening)}
       />
     </Panel>
   );
@@ -332,11 +378,15 @@ function InstanceInspector({
               )
             }
           />
-          <IconButton
-            label={`Take ${name} out of the room`}
-            icon={PackageOpen}
-            tone="danger"
-            onClick={() => onInstanceRemove(placed.instance)}
+          <ActionMenu
+            label={`${name} actions`}
+            items={[
+              {
+                label: `Take ${name} out of the room`,
+                danger: true,
+                onSelect: () => onInstanceRemove(placed.instance),
+              },
+            ]}
           />
         </div>
       }
@@ -450,7 +500,6 @@ function GroupInspector({
   const zs = [...corners, ...roomCorners].map((corner) => corner.zMeters);
   const widthMeters = Math.max(...xs) - Math.min(...xs);
   const depthMeters = Math.max(...zs) - Math.min(...zs);
-  const count = chosen.length + rooms.length;
   const title =
     rooms.length === 0
       ? `${chosen.length} pieces`
@@ -463,13 +512,16 @@ function GroupInspector({
       title={title}
       sectioned
       action={
-        <IconButton
-          label={`Remove these ${count} things`}
-          icon={Trash2}
-          tone="danger"
-          onClick={() =>
-            onGroupRemove(selection.instanceIds, selection.roomIds)
-          }
+        <ActionMenu
+          label={`${title} actions`}
+          items={[
+            {
+              label: `Delete ${title}`,
+              danger: true,
+              onSelect: () =>
+                onGroupRemove(selection.instanceIds, selection.roomIds),
+            },
+          ]}
         />
       }
     >
@@ -542,11 +594,15 @@ function ProductInspector({
       subtitle="Furniture"
       action={
         existing === undefined ? undefined : (
-          <IconButton
-            label={`Remove ${existing.name}`}
-            icon={Trash2}
-            tone="danger"
-            onClick={() => onProductRemove(existing)}
+          <ActionMenu
+            label={`${existing.name} actions`}
+            items={[
+              {
+                label: `Delete ${existing.name}`,
+                danger: true,
+                onSelect: () => onProductRemove(existing),
+              },
+            ]}
           />
         )
       }

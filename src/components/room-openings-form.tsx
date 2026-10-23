@@ -4,7 +4,6 @@ import {
   DoorOpen,
   MoveHorizontal,
   PanelsTopLeft,
-  Trash2,
   type LucideIcon,
 } from "lucide-react";
 import { IconButton } from "@/components/icon-button";
@@ -63,21 +62,21 @@ export type RoomOpeningsFormProps = {
   onAddOpening: (kind: OpeningKind) => void;
   /** Opens the opening's own editor, the same selection the list makes. */
   onSelectOpening?: (opening: Opening) => void;
-  onRemoveOpening?: (opening: Opening) => void;
 };
 
 /**
  * Arms the plan to put a door, window, or passage on this room's wall, and
- * lists what the room already has — each row selectable for exact editing,
- * and removable right here, so taking a door out does not mean going to find
- * it somewhere else first.
+ * lists what the room already has — each row selectable for exact editing.
+ *
+ * The rows used to carry a red trash can each, which put three or four of
+ * them in one panel beside the room's own. A row is the way to the opening
+ * now, and the opening's panel is where it is deleted, by name.
  */
 export function RoomOpeningsForm({
   room,
   placingKind = null,
   onAddOpening,
   onSelectOpening,
-  onRemoveOpening,
 }: RoomOpeningsFormProps) {
   return (
     <PanelSection
@@ -102,10 +101,7 @@ export function RoomOpeningsForm({
       {room.openings.length === 0 ? null : (
         <ul className="flex flex-col gap-1">
           {room.openings.map((opening) => (
-            <li
-              key={opening.id}
-              className="flex items-center justify-between gap-2"
-            >
+            <li key={opening.id} className="flex">
               <button
                 type="button"
                 onClick={() => onSelectOpening?.(opening)}
@@ -114,13 +110,6 @@ export function RoomOpeningsForm({
                 {openingListName(room, opening)}
                 <span className="opacity-50"> · {opening.wall} wall</span>
               </button>
-              <IconButton
-                label={`Remove ${openingName(room, opening)}`}
-                icon={Trash2}
-                size="small"
-                tone="danger"
-                onClick={() => onRemoveOpening?.(opening)}
-              />
             </li>
           ))}
         </ul>
@@ -147,7 +136,6 @@ export type OpeningFieldsProps = {
   room: Room;
   unit: DisplayUnit;
   onChange: (opening: Opening) => void;
-  onRemove: () => void;
 };
 
 /** Exact numeric editing for one selected opening. */
@@ -156,7 +144,6 @@ export function OpeningFields({
   room,
   unit,
   onChange,
-  onRemove,
 }: OpeningFieldsProps) {
   // This opening's own section, rather than the room's first: walls differ in
   // length between sections, and a chamfer exists only on the one that is cut.
@@ -223,16 +210,6 @@ export function OpeningFields({
           {problemMessage(problem, wallLength, unit)}
         </p>
       )}
-
-      <div className="flex justify-end">
-        <IconButton
-          label={`Remove ${name.toLowerCase()}`}
-          icon={Trash2}
-          size="small"
-          tone="danger"
-          onClick={onRemove}
-        />
-      </div>
     </fieldset>
   );
 }
