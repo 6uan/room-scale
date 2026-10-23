@@ -1516,7 +1516,8 @@ test.describe("laying the apartment out", () => {
     await row("Section 2").click();
     const otherBefore = await otherX.inputValue();
     await row("Section 3").click();
-    const hold = at(48, 12);
+    // Where the third section is now: it went east with the group.
+    const hold = { x: grab.x + 60, y: grab.y };
     await page.mouse.move(hold.x, hold.y);
     await page.mouse.down();
     await page.mouse.move(hold.x + 40, hold.y, { steps: 8 });
