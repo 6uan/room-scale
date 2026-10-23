@@ -270,6 +270,8 @@ export type RoomPlanCanvasProps = {
   selectedRoomId?: string | null;
   /** A selected rectangle inside the room; null means the whole room module. */
   selectedRoomPartId?: string | null;
+  /** The sections of a selected group: marked together, moved together. */
+  selectedGroupPartIds?: readonly string[];
   onSelectRoom?: (roomId: string) => void;
   onSelectRoomPart?: (roomId: string, partId: string) => void;
   onRoomChange?: (room: Room, gesture?: Gesture) => void;
@@ -466,6 +468,7 @@ type Drag =
  * the floor — the same footprints validation measures.
  */
 const NO_GROUPS: readonly PieceGroup[] = [];
+const NO_IDS: readonly string[] = [];
 
 /** The reach of a snap on the screen. */
 const SNAP_PIXELS = 8;
@@ -487,6 +490,7 @@ export function RoomPlanCanvas({
   onDropProduct,
   selectedRoomId = null,
   selectedRoomPartId = null,
+  selectedGroupPartIds = NO_IDS,
   onSelectRoom,
   onSelectRoomPart,
   onRoomChange,
@@ -750,6 +754,7 @@ export function RoomPlanCanvas({
       selectedRoomId,
       groupRoomIds,
       selectedRoomPartId,
+      selectedGroupPartIds,
       selectedOpeningId,
       troubledIds,
       viewport: size,
@@ -773,6 +778,7 @@ export function RoomPlanCanvas({
     selectedRoomId,
     groupRoomIds,
     selectedRoomPartId,
+    selectedGroupPartIds,
     selectedOpeningId,
     troubledIds,
     size,
@@ -2584,6 +2590,7 @@ type DrawOptions = {
   selectedRoomId: string | null;
   groupRoomIds?: readonly string[];
   selectedRoomPartId: string | null;
+  selectedGroupPartIds?: readonly string[];
   selectedOpeningId: string | null;
   troubledIds: ReadonlySet<string>;
   viewport: PixelSize;
@@ -2620,6 +2627,7 @@ function drawPlan(
     selectedRoomId,
     groupRoomIds = [],
     selectedRoomPartId,
+    selectedGroupPartIds = NO_IDS,
     selectedOpeningId,
     troubledIds,
     viewport,
@@ -2701,7 +2709,9 @@ function drawPlan(
 
   for (const room of floor.rooms) {
     drawRoomName(context, frame, room, fontFamily);
-    if (room.id === selectedRoomId || groupRoomIds.includes(room.id)) {
+    if (selectedGroupPartIds.length > 0 && room.id === selectedRoomId) {
+      markSelectedGroup(context, frame, room, selectedGroupPartIds);
+    } else if (room.id === selectedRoomId || groupRoomIds.includes(room.id)) {
       markSelectedRoom(context, frame, room, selectedRoomPartId);
     }
   }
@@ -3416,6 +3426,41 @@ function draggedRotation(radians: number): number {
 }
 
 /** The selected room, outlined inside its own walls, with its handles. */
+/**
+ * A selected group of sections: each member outlined, as the room's own
+ * sections are, and no resize handles — the group is picked up and moved
+ * as one; a member is resized by selecting it on its own.
+ */
+function markSelectedGroup(
+  context: CanvasRenderingContext2D,
+  frame: PlanFrame,
+  room: Room,
+  partIds: readonly string[],
+): void {
+  const pixelsPerMeter = spanPixels(frame, 1);
+  context.save();
+  context.fillStyle = frame.color;
+  context.strokeStyle = frame.color;
+  context.lineWidth = 2;
+  context.setLineDash([6, 4]);
+  for (const part of room.parts.filter((one) => partIds.includes(one.id))) {
+    inPartFrame(context, frame, part, (width, depth) => {
+      context.globalAlpha = SELECTED_FILL_ALPHA;
+      if (roomPartIsCut(part)) {
+        tracePartOutline(context, part, pixelsPerMeter);
+        context.fill();
+        context.globalAlpha = 1;
+        context.stroke();
+        return;
+      }
+      context.fillRect(0, 0, width, depth);
+      context.globalAlpha = 1;
+      context.strokeRect(0, 0, width, depth);
+    });
+  }
+  context.restore();
+}
+
 function markSelectedRoom(
   context: CanvasRenderingContext2D,
   frame: PlanFrame,

@@ -19,6 +19,12 @@ export type Selection =
       readonly roomId: string;
       readonly id: string;
     }
+  /** A group of sections, picked up as one thing. */
+  | {
+      readonly kind: "section-group";
+      readonly roomId: string;
+      readonly id: string;
+    }
   | { readonly kind: "instance"; readonly id: string }
   /** Several things at once, to be moved or removed together. Always 2+. */
   | {

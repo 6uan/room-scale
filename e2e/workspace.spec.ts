@@ -1472,6 +1472,24 @@ test.describe("laying the apartment out", () => {
     await page.keyboard.press("Enter");
     await expect(row("Closet")).toBeVisible();
 
+    // Folded like a room, and the panel's chips list the closet once, with
+    // its own sections on a row of their own.
+    await contents(page)
+      .getByRole("button", { name: "Collapse Closet" })
+      .click();
+    await expect(row("Section 2")).toBeHidden();
+    await contents(page).getByRole("button", { name: "Expand Closet" }).click();
+    await expect(row("Section 2")).toBeVisible();
+    await row("Closet").click();
+    await expect(row("Closet")).toHaveAttribute("aria-pressed", "true");
+    await expect(row("Section 2")).toHaveAttribute("aria-pressed", "false");
+    await expect(
+      room.getByRole("button", { name: "Select Living room Closet" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      room.getByRole("group", { name: "Group sections" }),
+    ).toBeVisible();
+
     // The group survives a reload, and comes apart on request.
     await page.waitForTimeout(500);
     await page.reload();
