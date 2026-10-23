@@ -43,7 +43,6 @@ function renderInspector(overrides: Partial<InspectorProps>) {
     onSelect: vi.fn(),
     onFloorChange: vi.fn(),
     underlay: null,
-    onAddPlanImage: vi.fn(),
     onUnderlayChange: vi.fn(),
     onRoomChange: vi.fn(),
     onGestureEnd: vi.fn(),

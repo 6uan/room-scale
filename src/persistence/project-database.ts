@@ -31,11 +31,14 @@ export type SettingsRow = {
   id:
     | typeof OPEN_PROJECT_KEY
     | typeof IMPERIAL_LENGTHS_KEY
-    | typeof PRODUCT_LENGTHS_KEY;
+    | typeof PRODUCT_LENGTHS_KEY
+    | typeof UNDERLAY_OPACITY_KEY;
   /** On the open-project row. */
   projectId?: string;
   /** On the imperial-lengths and product-lengths rows. */
   imperialLengths?: ImperialLengths;
+  /** On the underlay-opacity row: how much of the plan image shows, 0 to 1. */
+  underlayOpacity?: number;
 };
 
 export type RoomScaleDatabase = Dexie & {
@@ -58,6 +61,9 @@ export const IMPERIAL_LENGTHS_KEY = "imperial-lengths";
 
 /** How a product's own size is read in imperial, kept apart from the apartment's. */
 export const PRODUCT_LENGTHS_KEY = "product-lengths";
+
+/** How strongly the plan image behind the grid is drawn, as this reader likes it. */
+export const UNDERLAY_OPACITY_KEY = "underlay-opacity";
 
 /**
  * Where a record that could not be read is put before anything overwrites it.

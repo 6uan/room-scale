@@ -20,6 +20,9 @@ export type PreferencesState = {
   /** How a product's own size reads in imperial: inches, as retailers print it. */
   readonly productLengths: ImperialLengths;
   readonly setProductLengths: (productLengths: ImperialLengths) => void;
+  /** How strongly the plan image behind the grid is drawn, 0 to 1. */
+  readonly underlayOpacity: number;
+  readonly setUnderlayOpacity: (underlayOpacity: number) => void;
 };
 
 export const usePreferencesStore = create<PreferencesState>()((set) => ({
@@ -27,6 +30,8 @@ export const usePreferencesStore = create<PreferencesState>()((set) => ({
   setImperialLengths: (imperialLengths) => set({ imperialLengths }),
   productLengths: "inches",
   setProductLengths: (productLengths) => set({ productLengths }),
+  underlayOpacity: 0.4,
+  setUnderlayOpacity: (underlayOpacity) => set({ underlayOpacity }),
 }));
 
 /** The unit lengths are read in: the project's, as this reader likes it. */

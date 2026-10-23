@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   UNDERLAY_WIDTH_LIMITS,
   createUnderlay,
+  movedUnderlay,
   resizedUnderlay,
+  underlayContains,
   underlayCorners,
   underlayExtentMeters,
   underlayWithWidth,
@@ -143,5 +145,23 @@ describe("underlayWithWidth", () => {
   it("refuses a width that is no width at all", () => {
     expect(underlayWithWidth(DROPPED, 0)).toBe(DROPPED);
     expect(underlayWithWidth(DROPPED, -3)).toBe(DROPPED);
+  });
+});
+
+describe("moving the image", () => {
+  it("knows whether a point is on it, edges included", () => {
+    // 8 by 6, from (-4, -3).
+    expect(underlayContains(DROPPED, { xMeters: 0, zMeters: 0 })).toBe(true);
+    expect(underlayContains(DROPPED, { xMeters: 4, zMeters: 3 })).toBe(true);
+    expect(underlayContains(DROPPED, { xMeters: 4.01, zMeters: 0 })).toBe(
+      false,
+    );
+  });
+
+  it("moves its corner and nothing else", () => {
+    const moved = movedUnderlay(DROPPED, { xMeters: 1, zMeters: 2 });
+    expect(moved.origin).toEqual({ xMeters: 1, zMeters: 2 });
+    expect(underlayExtentMeters(moved)).toEqual(underlayExtentMeters(DROPPED));
+    expect(moved.visible).toBe(DROPPED.visible);
   });
 });

@@ -129,7 +129,9 @@ import {
 import {
   groupOf,
   type PieceGroup,
+  movedUnderlay,
   resizedUnderlay,
+  underlayContains,
   underlayCorners,
   underlayExtentMeters,
   type PlanUnderlay,
@@ -252,6 +254,8 @@ export type RoomPlanCanvasProps = {
   panelOpen?: boolean;
   /** The unit a product's own size reads in, which can differ from the plan's. */
   productUnit?: DisplayUnit;
+  /** How strongly the plan image is drawn, 0 to 1. */
+  underlayOpacity?: number;
   /** Said whenever what the plan shows changes, so another view can follow it. */
   onFramingChange?: (framing: Framing) => void;
   /**
@@ -352,7 +356,14 @@ export type RoomPlanCanvasProps = {
   onPlaceOpeningEnd?: () => void;
   /** The listing's plan, drawn dimmed beneath everything and traced over. */
   underlay?: PlanUnderlay | null;
-  onUnderlayChange?: (underlay: PlanUnderlay) => void;
+  /** `gesture` groups one drag of the image into one undo step. */
+  onUnderlayChange?: (underlay: PlanUnderlay, gesture?: string) => void;
+  /**
+   * Whether the plan image is what is selected. While it is, a drag that
+   * starts on the image moves the image, rather than drawing a selection
+   * rectangle or picking up the room drawn over it.
+   */
+  underlaySelected?: boolean;
 };
 
 /**
@@ -476,6 +487,13 @@ type Drag =
       readonly kind: "underlay-resize";
       readonly pointerId: number;
       readonly corner: UnderlayCorner;
+    }
+  | {
+      /** The whole underlay, moved under the drawing while it is selected. */
+      readonly kind: "underlay-move";
+      readonly pointerId: number;
+      /** Where on the image it was taken hold of, from its top-left corner. */
+      readonly grab: FloorPoint;
     };
 
 /**
@@ -505,6 +523,7 @@ export function RoomPlanCanvas({
   unit,
   panelOpen = false,
   productUnit = unit,
+  underlayOpacity = 0.4,
   onFramingChange,
   showFraming = null,
   selectedIds,
@@ -536,6 +555,7 @@ export function RoomPlanCanvas({
   onPlaceOpeningEnd,
   underlay = null,
   onUnderlayChange,
+  underlaySelected = false,
 }: RoomPlanCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const dragRef = useRef<Drag | null>(null);
@@ -1063,6 +1083,30 @@ export function RoomPlanCanvas({
       return;
     }
 
+    // The image, while it is what is selected: taken hold of anywhere on it,
+    // even under a room, because selecting it said the image is what is
+    // being worked on. Outside it, the press is the plan's as usual.
+    if (
+      underlaySelected &&
+      underlay !== null &&
+      underlay.visible &&
+      !panningRef.current &&
+      underlayContains(underlay, point)
+    ) {
+      dragRef.current = {
+        kind: "underlay-move",
+        pointerId: event.pointerId,
+        grab: {
+          xMeters: point.xMeters - underlay.origin.xMeters,
+          zMeters: point.zMeters - underlay.origin.zMeters,
+        },
+      };
+      setCursor("move");
+      canvas.focus();
+      canvas.setPointerCapture?.(event.pointerId);
+      return;
+    }
+
     const openingHandle = openingHandleAt(
       floor,
       selectedOpeningId,
@@ -1386,6 +1430,14 @@ export function RoomPlanCanvas({
         : "resize-nesw";
     }
 
+    // The image itself, while it is selected: what a drag here moves.
+    if (underlaySelected && underlay !== null && underlay.visible) {
+      const onImage = floorPointAt(canvas, event, projectionRef.current);
+      if (onImage !== null && underlayContains(underlay, onImage)) {
+        return "move";
+      }
+    }
+
     const grabbed = handleAt(
       floor,
       selectedRoomId,
@@ -1681,7 +1733,27 @@ export function RoomPlanCanvas({
       if (underlay === null || point === null) {
         return;
       }
-      onUnderlayChange?.(resizedUnderlay(underlay, drag.corner, point));
+      onUnderlayChange?.(
+        resizedUnderlay(underlay, drag.corner, point),
+        "underlay-resize",
+      );
+      return;
+    }
+
+    if (drag.kind === "underlay-move") {
+      const point = floorPointAt(canvas, event, projectionRef.current);
+      if (underlay === null || point === null) {
+        return;
+      }
+      // Whole units, as everything dragged lands: the corner reads 8' 0",
+      // not 7' 11.93".
+      onUnderlayChange?.(
+        movedUnderlay(underlay, {
+          xMeters: roundToDisplayUnit(point.xMeters - drag.grab.xMeters, unit),
+          zMeters: roundToDisplayUnit(point.zMeters - drag.grab.zMeters, unit),
+        }),
+        "underlay-move",
+      );
       return;
     }
 
@@ -2129,8 +2201,9 @@ export function RoomPlanCanvas({
               <img
                 src={underlay.imageDataUrl}
                 alt="The floor plan being traced"
-                className="pointer-events-none absolute max-w-none opacity-40 dark:opacity-30"
+                className="pointer-events-none absolute max-w-none"
                 style={{
+                  opacity: underlayOpacity,
                   left: frame.left,
                   top: frame.top,
                   width: frame.width,
@@ -2276,7 +2349,9 @@ export function RoomPlanCanvas({
                   : "Drag the room, or double-click a section to edit it"
                 : selectedOpeningId !== null
                   ? "Drag the opening or a jamb, or type its measurements"
-                  : "Click the plan to pan and zoom"}
+                  : underlaySelected
+                    ? "Drag the image to move it, or a corner to size it"
+                    : "Click the plan to pan and zoom"}
           </p>
         )}
       </div>

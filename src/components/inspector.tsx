@@ -1,17 +1,12 @@
 "use client";
 
-import {
-  ExternalLink,
-  Eye,
-  EyeOff,
-  ImagePlus,
-  Pencil,
-  Trash2,
-} from "lucide-react";
-import { IconButton, IconFileButton } from "@/components/icon-button";
+import { ExternalLink, Eye, EyeOff, Pencil } from "lucide-react";
+import { IconButton } from "@/components/icon-button";
 import { ActionMenu } from "@/components/action-menu";
 import { cn } from "@/components/cn";
 import { NumberField } from "@/components/number-field";
+import { OpacityField } from "@/components/opacity-field";
+import { usePreferencesStore } from "@/state/preferences-store";
 import { openingName, sectionLabel } from "@/components/opening-name";
 import { OpeningFields } from "@/components/room-openings-form";
 import {
@@ -63,7 +58,6 @@ export type InspectorProps = {
   onSelect: (selection: Selection) => void;
   onFloorChange: (floor: Floor) => void;
   underlay: PlanUnderlay | null;
-  onAddPlanImage: (file: File) => void;
   onUnderlayChange: (underlay: PlanUnderlay | null) => void;
   onRoomChange: (room: Room, gesture?: string) => void;
   onGestureEnd: () => void;
@@ -124,6 +118,8 @@ export function Inspector(props: InspectorProps) {
         <InstanceInspector {...props} selection={selection} />
       ) : selection.kind === "group" ? (
         <GroupInspector {...props} selection={selection} />
+      ) : selection.kind === "underlay" ? (
+        <UnderlayInspector {...props} />
       ) : (
         <ProductInspector {...props} selection={selection} />
       )}
@@ -726,124 +722,142 @@ function ProductInspector({
 }
 
 /**
- * The listing's plan under the canvas: added, scaled by one measured line,
- * nudged into place, and taken away once the tracing is done.
- *
- * The typed length is the only number here that is a measurement; it goes
- * through an explicit Apply because scaling is anchored to the drawn line,
- * and reapplying a half-typed value would scale the image out from under it.
+ * Where the plan image is, how big, and how strongly it is drawn: the same
+ * fields in its own panel and in Settings. The opacity is this browser's —
+ * how faint a tracing image should be is a way of looking, not part of the
+ * apartment — so it is kept with the reader's other preferences.
  */
-export function UnderlayFields({
+export function UnderlayAdjustments({
   underlay,
   unit,
-  onAddPlanImage,
   onUnderlayChange,
 }: {
-  underlay: PlanUnderlay | null;
+  underlay: PlanUnderlay;
   unit: DisplayUnit;
-  onAddPlanImage: (file: File) => void;
   onUnderlayChange: (underlay: PlanUnderlay | null) => void;
 }) {
+  const opacity = usePreferencesStore((state) => state.underlayOpacity);
+  const setOpacity = usePreferencesStore((state) => state.setUnderlayOpacity);
   return (
-    <fieldset className="flex flex-col gap-2 border-b border-black/10 pb-4 dark:border-white/15">
-      <legend className="sr-only">Plan underlay</legend>
-      <div className="flex items-center justify-between gap-2">
-        <span aria-hidden="true" className="text-xs font-medium">
-          Plan underlay
-        </span>
-        {underlay === null ? (
-          <IconFileButton
-            label="Add plan image"
-            icon={ImagePlus}
-            accept="image/*"
-            size="small"
-            onFile={onAddPlanImage}
-          />
-        ) : (
-          <div className="flex items-center gap-0.5">
-            <IconButton
-              label={underlay.visible ? "Hide image" : "Show image"}
-              icon={underlay.visible ? Eye : EyeOff}
-              size="small"
-              onClick={() =>
-                onUnderlayChange({ ...underlay, visible: !underlay.visible })
-              }
-            />
-            <IconButton
-              label="Remove image"
-              icon={Trash2}
-              size="small"
-              tone="danger"
-              onClick={() => onUnderlayChange(null)}
-            />
-          </div>
-        )}
+    <>
+      {/*
+        Where it is and how big it is, in one row.
+
+        The width used to be set by a tape-measure mode: arm the plan, drag
+        a line along a wall you knew, type its length, press Apply. Four
+        steps to reach one number — and a number nobody checks afterwards,
+        because the image is a guide and it is right when it looks right
+        against what is being drawn. It is a corner to drag now, and this
+        field for anyone who does know the width.
+      */}
+      <div className="grid grid-cols-3 gap-2">
+        <NumberField
+          label="Underlay X position"
+          compactLabel="X"
+          unit={unit}
+          meters={underlay.origin.xMeters}
+          limits={ROOM_ORIGIN_LIMITS}
+          onMetersChange={(xMeters) =>
+            onUnderlayChange({
+              ...underlay,
+              origin: { ...underlay.origin, xMeters },
+            })
+          }
+        />
+        <NumberField
+          label="Underlay Y position"
+          compactLabel="Y"
+          unit={unit}
+          meters={underlay.origin.zMeters}
+          limits={ROOM_ORIGIN_LIMITS}
+          onMetersChange={(zMeters) =>
+            onUnderlayChange({
+              ...underlay,
+              origin: { ...underlay.origin, zMeters },
+            })
+          }
+        />
+        <NumberField
+          label="Underlay width"
+          compactLabel="W"
+          unit={unit}
+          meters={underlayExtentMeters(underlay).widthMeters}
+          limits={UNDERLAY_WIDTH_LIMITS}
+          onMetersChange={(widthMeters) =>
+            onUnderlayChange(underlayWithWidth(underlay, widthMeters))
+          }
+        />
       </div>
 
-      {underlay === null ? (
-        <p className="text-xs leading-relaxed opacity-60">
-          Put the listing&rsquo;s floor plan behind the grid and trace the rooms
-          over it. The image stays on this machine.
-        </p>
-      ) : (
-        <>
-          {/*
-            Where it is and how big it is, in one row.
+      <p className="text-xs leading-relaxed opacity-60">
+        Drag a corner of the image to size it against what you are drawing; its
+        proportions are kept. It guides the drawing and changes no measurement.
+      </p>
+      <div className="flex flex-col gap-1.5">
+        <span aria-hidden="true" className="text-xs font-medium">
+          Opacity
+        </span>
+        <OpacityField
+          label="Plan image opacity"
+          opacity={opacity}
+          onOpacityChange={setOpacity}
+        />
+      </div>
+    </>
+  );
+}
 
-            The width used to be set by a tape-measure mode: arm the plan, drag
-            a line along a wall you knew, type its length, press Apply. Four
-            steps to reach one number — and a number nobody checks afterwards,
-            because the image is a guide and it is right when it looks right
-            against what is being drawn. It is a corner to drag now, and this
-            field for anyone who does know the width.
-          */}
-          <div className="grid grid-cols-3 gap-2">
-            <NumberField
-              label="Underlay X position"
-              compactLabel="X"
-              unit={unit}
-              meters={underlay.origin.xMeters}
-              limits={ROOM_ORIGIN_LIMITS}
-              onMetersChange={(xMeters) =>
-                onUnderlayChange({
-                  ...underlay,
-                  origin: { ...underlay.origin, xMeters },
-                })
-              }
-            />
-            <NumberField
-              label="Underlay Y position"
-              compactLabel="Y"
-              unit={unit}
-              meters={underlay.origin.zMeters}
-              limits={ROOM_ORIGIN_LIMITS}
-              onMetersChange={(zMeters) =>
-                onUnderlayChange({
-                  ...underlay,
-                  origin: { ...underlay.origin, zMeters },
-                })
-              }
-            />
-            <NumberField
-              label="Underlay width"
-              compactLabel="W"
-              unit={unit}
-              meters={underlayExtentMeters(underlay).widthMeters}
-              limits={UNDERLAY_WIDTH_LIMITS}
-              onMetersChange={(widthMeters) =>
-                onUnderlayChange(underlayWithWidth(underlay, widthMeters))
-              }
-            />
-          </div>
-
-          <p className="text-xs leading-relaxed opacity-60">
-            Drag a corner of the image to size it against what you are drawing;
-            its proportions are kept. It guides the drawing and changes no
-            measurement.
-          </p>
-        </>
-      )}
-    </fieldset>
+/**
+ * The plan image as a thing of its own: selected from the top of the
+ * Apartment list, shown or hidden, placed, sized, faded, and deleted from
+ * its menu.
+ */
+function UnderlayInspector({
+  underlay,
+  unit,
+  onUnderlayChange,
+  onSelect,
+}: InspectorProps) {
+  if (underlay === null) {
+    return <Missing what="plan image" />;
+  }
+  return (
+    <Panel
+      title="Plan image"
+      sectioned
+      action={
+        <div className="flex items-center gap-1">
+          <IconButton
+            label={underlay.visible ? "Hide plan image" : "Show plan image"}
+            icon={underlay.visible ? Eye : EyeOff}
+            onClick={() =>
+              onUnderlayChange({ ...underlay, visible: !underlay.visible })
+            }
+          />
+          <ActionMenu
+            label="Plan image actions"
+            items={[
+              {
+                label: "Delete plan image",
+                danger: true,
+                onSelect: () => {
+                  onUnderlayChange(null);
+                  onSelect(null);
+                },
+              },
+            ]}
+          />
+        </div>
+      }
+    >
+      <PanelSection first>
+        <UnderlayAdjustments
+          underlay={underlay}
+          unit={unit}
+          onUnderlayChange={onUnderlayChange}
+        />
+      </PanelSection>
+    </Panel>
   );
 }
 
