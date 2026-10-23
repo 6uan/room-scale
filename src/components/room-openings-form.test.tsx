@@ -58,7 +58,7 @@ describe("RoomOpeningsForm", () => {
 });
 
 describe("OpeningFields", () => {
-  it("keeps a typed center exact in the reader's unit", () => {
+  it("keeps a typed gap exact in the reader's unit, and moves the door by it", () => {
     const opening = LIVING_ROOM.openings[0];
     if (opening === undefined) {
       throw new Error("the default room has a door");
@@ -74,12 +74,15 @@ describe("OpeningFields", () => {
       />,
     );
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Center" }), {
-      target: { value: "40" },
-    });
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Gap from the start corner" }),
+      { target: { value: "24" } },
+    );
 
+    // A 32" door 24" from the corner is centred 40" along the wall.
     const changed = onChange.mock.lastCall?.[0] as Opening | undefined;
     expect(changed?.centerMeters).toBeCloseTo(metersFromInches(40), 10);
+    expect(changed?.widthMeters).toBe(opening.widthMeters);
   });
 
   it("moves the opening to another wall with one chip", async () => {

@@ -22,6 +22,7 @@ import {
   type Door,
   MIN_OPENING_METERS,
   type Opening,
+  openingGapsMeters,
   type OpeningKind,
   type OpeningProblem,
   partWallSides,
@@ -29,8 +30,11 @@ import {
   roomPart,
   wallLengthMeters,
   type WallSide,
+  withOpeningEndGap,
   withOpeningName,
+  withOpeningStartGap,
   withOpeningWall,
+  withOpeningWidthFromStart,
 } from "@/domain/room";
 import { formatLength, type DisplayUnit } from "@/domain/units";
 
@@ -178,6 +182,7 @@ export function OpeningFields({
   const wallLength = wallLengthMeters(room, opening.wall, opening.partId);
   const problem = checkOpening(room, opening);
   const name = openingName(room, opening);
+  const gaps = openingGapsMeters(room, opening);
 
   return (
     <>
@@ -205,18 +210,22 @@ export function OpeningFields({
           </ChipRow>
         </PanelRow>
 
-        {/* Center rather than an edge: it is the one number that stays put
-            when the width changes, which is how a door is measured on site. */}
+        {/*
+          Read along the wall: the gap from the start corner, the opening,
+          the gap to the end corner — the three numbers the plan draws beside
+          a selected opening, and what a tape reads from either corner. The
+          stored center is not shown; it is a number nobody measures.
+        */}
         <PanelRow name="Along the wall">
           <NumberField
-            label="Center"
-            compactLabel="Center"
-            scrubGesture={`opening-field:${opening.id}:center`}
+            label="Gap from the start corner"
+            compactLabel="Start"
+            scrubGesture={`opening-field:${opening.id}:start`}
             unit={unit}
-            meters={opening.centerMeters}
+            meters={gaps.startMeters}
             limits={{ minMeters: 0, maxMeters: wallLength }}
-            onMetersChange={(centerMeters, gesture) =>
-              onChange({ ...opening, centerMeters }, gesture)
+            onMetersChange={(meters, gesture) =>
+              onChange(withOpeningStartGap(opening, meters), gesture)
             }
             {...(onGestureEnd === undefined ? {} : { onGestureEnd })}
           />
@@ -227,8 +236,20 @@ export function OpeningFields({
             unit={unit}
             meters={opening.widthMeters}
             limits={{ minMeters: MIN_OPENING_METERS, maxMeters: wallLength }}
-            onMetersChange={(widthMeters, gesture) =>
-              onChange({ ...opening, widthMeters }, gesture)
+            onMetersChange={(meters, gesture) =>
+              onChange(withOpeningWidthFromStart(opening, meters), gesture)
+            }
+            {...(onGestureEnd === undefined ? {} : { onGestureEnd })}
+          />
+          <NumberField
+            label="Gap to the end corner"
+            compactLabel="End"
+            scrubGesture={`opening-field:${opening.id}:end`}
+            unit={unit}
+            meters={gaps.endMeters}
+            limits={{ minMeters: 0, maxMeters: wallLength }}
+            onMetersChange={(meters, gesture) =>
+              onChange(withOpeningEndGap(room, opening, meters), gesture)
             }
             {...(onGestureEnd === undefined ? {} : { onGestureEnd })}
           />
@@ -335,7 +356,7 @@ function problemMessage(
 ): string {
   switch (problem) {
     case "not-a-number":
-      return "Enter a number for both the center and the width.";
+      return "Enter a number for both gaps and the width.";
     case "too-narrow":
       return `An opening is at least ${formatLength(MIN_OPENING_METERS, unit)} wide.`;
     case "off-wall":

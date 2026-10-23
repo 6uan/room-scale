@@ -12,6 +12,7 @@ import {
   moveOpening,
   openingAtPoint,
   openingEndpoints,
+  openingGapsMeters,
   openingRangeMeters,
   pointAlongWall,
   resizeOpeningJamb,
@@ -19,7 +20,10 @@ import {
   wallOutwardNormal,
   wallOutwardNormalOnFloor,
   wallPlacementAt,
+  withOpeningEndGap,
+  withOpeningStartGap,
   withOpeningWall,
+  withOpeningWidthFromStart,
   type Opening,
 } from "./openings";
 
@@ -392,5 +396,47 @@ describe("doorSwingPolygon", () => {
 
   it("gives a slider no floor at all", () => {
     expect(doorSwingPolygon(ROOM, { ...door, style: "sliding" })).toEqual([]);
+  });
+});
+
+describe("an opening's gaps to the corners", () => {
+  const door = LIVING_ROOM.openings[0]!;
+  const inches = (meters: number) => meters / 0.0254;
+
+  it("reads the wall either side of the door, as the plan draws it", () => {
+    // A 32" door centred 36" along a 168" wall.
+    const gaps = openingGapsMeters(LIVING_ROOM, door);
+    expect(inches(gaps.startMeters)).toBeCloseTo(20, 9);
+    expect(inches(gaps.endMeters)).toBeCloseTo(116, 9);
+  });
+
+  it("moves the door by either gap, keeping its width", () => {
+    const fromStart = withOpeningStartGap(door, metersFromInches(30));
+    expect(
+      inches(openingGapsMeters(LIVING_ROOM, fromStart).startMeters),
+    ).toBeCloseTo(30, 9);
+    expect(fromStart.widthMeters).toBe(door.widthMeters);
+
+    const fromEnd = withOpeningEndGap(LIVING_ROOM, door, metersFromInches(10));
+    expect(
+      inches(openingGapsMeters(LIVING_ROOM, fromEnd).endMeters),
+    ).toBeCloseTo(10, 9);
+    expect(fromEnd.widthMeters).toBe(door.widthMeters);
+  });
+
+  it("widens toward the end corner, leaving the start gap alone", () => {
+    const wider = withOpeningWidthFromStart(door, metersFromInches(36));
+    const gaps = openingGapsMeters(LIVING_ROOM, wider);
+    expect(inches(gaps.startMeters)).toBeCloseTo(20, 9);
+    expect(inches(gaps.endMeters)).toBeCloseTo(112, 9);
+  });
+
+  it("keeps a gap typed past the corner exact, for checkOpening to report", () => {
+    const off = withOpeningStartGap(door, metersFromInches(150));
+    expect(inches(openingGapsMeters(LIVING_ROOM, off).startMeters)).toBeCloseTo(
+      150,
+      9,
+    );
+    expect(checkOpening(LIVING_ROOM, off)).toBe("off-wall");
   });
 });
