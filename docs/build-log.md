@@ -990,7 +990,15 @@ Apartment list's header, beside the one that adds a room, rather than from
 Settings, which no longer carries it; once there is one, the same button
 replaces it, keeping where it was and how wide. While it is selected, a drag
 that starts on it moves it, rather than drawing a selection or taking hold of
-the room traced over it, and one drag is one step to undo.
+the room traced over it, and one drag is one step to undo. And it turns: a
+listing's plan is often drawn north-up when the apartment is not, or scanned
+a few degrees off, so the image takes an angle, typed in degrees with the
+quarter turns a click away, and turns about its middle as a section does.
+Its corners, what a press on it hits, and a resize all work in the image's
+own turned frame, and a resize holds the opposite corner where it is on the
+floor at any angle. The angle is the image's, kept with the project beside
+its position and width, so the stored document goes to version 24 with
+nothing to rewrite — absent is square.
 
 **Rooms are reordered by dragging their row, and nothing over the plan sits
 under the panel.** A room's own row in the list drags, and drops above the

@@ -58,7 +58,7 @@ import { FIRST_PROJECT_NAME, type Project } from "@/domain/project";
  *     names the group it is in. Absent is none, which every existing
  *     section is.
  */
-export const SCHEMA_VERSION = 23;
+export const SCHEMA_VERSION = 24;
 
 /** Meters, cents, and the rest are all plain finite numbers on the way in. */
 const finiteNumber = z
@@ -218,6 +218,8 @@ const underlaySchema = z.object({
   metersPerPixel: finiteNumber.refine((value) => value > 0, "must be positive"),
   origin: z.object({ xMeters: finiteNumber, zMeters: finiteNumber }),
   visible: z.boolean(),
+  // Turned about its middle, written from version 24. Absent is square.
+  rotationRadians: finiteNumber.optional(),
 });
 
 const projectSchema = z.object({
@@ -630,6 +632,9 @@ const MIGRATIONS: Record<number, (document: object) => object> = {
   // Version 23 let an opening have its own sill and head heights. Nothing
   // stored had them, and absent is the standard for its kind.
   22: (document) => ({ ...document, version: 23 }),
+  // Version 24 let the plan image be turned. Nothing stored was, and absent
+  // is square to the plan.
+  23: (document) => ({ ...document, version: 24 }),
 };
 
 /**

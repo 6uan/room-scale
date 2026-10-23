@@ -746,6 +746,47 @@ describe("readStoredProject", () => {
     expect(stored?.openings[0]?.name).toBe("Closet door");
   });
 
+  it("reads a version 23 plan image, which could not be turned, as square", () => {
+    const result = readStoredProject({
+      ...STORED,
+      version: 23,
+      project: {
+        ...STORED.project,
+        underlay: {
+          imageDataUrl: "data:image/png;base64,x",
+          imageWidthPixels: 800,
+          imageHeightPixels: 600,
+          metersPerPixel: 0.01,
+          origin: { xMeters: 0, zMeters: 0 },
+          visible: true,
+        },
+      },
+    });
+
+    expect(
+      result.ok && result.project.underlay?.rotationRadians,
+    ).toBeUndefined();
+  });
+
+  it("keeps a turned plan image turned through a save and a read", () => {
+    const project = {
+      ...projectWithLivingRoom(),
+      underlay: {
+        imageDataUrl: "data:image/png;base64,x",
+        imageWidthPixels: 800,
+        imageHeightPixels: 600,
+        metersPerPixel: 0.01,
+        origin: { xMeters: 0, zMeters: 0 },
+        visible: true,
+        rotationRadians: 0.5,
+      },
+    };
+    const result = readStoredProject(
+      toStoredProject("current", project, 1_700_000_000_000),
+    );
+    expect(result.ok && result.project.underlay?.rotationRadians).toBe(0.5);
+  });
+
   it("reads a version 22 opening, which had no heights, as its kind's standard", () => {
     const result = readStoredProject({ ...STORED, version: 22 });
 

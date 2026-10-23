@@ -2208,6 +2208,10 @@ export function RoomPlanCanvas({
                   top: frame.top,
                   width: frame.width,
                   height: frame.height,
+                  // About its middle, clockwise for a positive angle — the
+                  // floor's sense, since the plan's Y runs south.
+                  transform: `rotate(${underlay.rotationRadians ?? 0}rad)`,
+                  transformOrigin: "center",
                 }}
               />
             );

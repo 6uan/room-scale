@@ -6,6 +6,7 @@ import { ActionMenu } from "@/components/action-menu";
 import { cn } from "@/components/cn";
 import { NumberField } from "@/components/number-field";
 import { OpacityField } from "@/components/opacity-field";
+import { AngleField } from "@/components/angle-field";
 import { usePreferencesStore } from "@/state/preferences-store";
 import { openingName, sectionLabel } from "@/components/opening-name";
 import { OpeningFields } from "@/components/room-openings-form";
@@ -42,6 +43,7 @@ import {
   UNDERLAY_WIDTH_LIMITS,
   underlayExtentMeters,
   underlayWithWidth,
+  withUnderlayRotation,
   type PlanUnderlay,
 } from "@/domain/project";
 
@@ -721,6 +723,9 @@ function ProductInspector({
   );
 }
 
+/** The quarter turns a plan image is most often off by. */
+const IMAGE_TURNS = [0, 90, 180, 270] as const;
+
 /**
  * Where the plan image is, how big, and how strongly it is drawn: the same
  * fields in its own panel and in Settings. The opacity is this browser's —
@@ -793,6 +798,20 @@ export function UnderlayAdjustments({
         Drag a corner of the image to size it against what you are drawing; its
         proportions are kept. It guides the drawing and changes no measurement.
       </p>
+      {/*
+        Turned to line up with the drawing: a listing's plan is often drawn
+        north-up when the apartment is not, or scanned a few degrees off.
+        Typed in degrees, with the quarter turns a click away.
+      */}
+      <AngleField
+        label="Plan image angle"
+        compactLabel="∠"
+        presets={IMAGE_TURNS}
+        radians={underlay.rotationRadians ?? 0}
+        onRadiansChange={(radians) =>
+          onUnderlayChange(withUnderlayRotation(underlay, radians))
+        }
+      />
       <div className="flex flex-col gap-1.5">
         <span aria-hidden="true" className="text-xs font-medium">
           Opacity

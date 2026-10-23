@@ -2010,6 +2010,17 @@ test.describe("laying the apartment out", () => {
     await opacity.press("ArrowDown");
     await expect(image).toHaveCSS("opacity", "0.69");
 
+    // Turned a quarter, about its middle, and back by typing.
+    await details(page)
+      .getByRole("button", { name: "Plan image angle 90 degrees" })
+      .click();
+    await expect(image).toHaveAttribute("style", /rotate\(1\.57/);
+    const angle = details(page).getByLabel("Plan image angle", {
+      exact: true,
+    });
+    await angle.fill("0");
+    await expect(image).toHaveAttribute("style", /rotate\(0rad\)/);
+
     // Replaced from the header, where it was and as wide as it was.
     const wide = await width.inputValue();
     const corner = await x.inputValue();
