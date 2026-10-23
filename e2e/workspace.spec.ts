@@ -843,7 +843,10 @@ test.describe("comparing layouts", () => {
       .getByRole("button", { name: "Sectional", exact: true })
       .click();
     await details(page)
-      .getByRole("button", { name: "Take Sectional out of the room" })
+      .getByRole("button", { name: "Sectional actions" })
+      .click();
+    await page
+      .getByRole("menuitem", { name: "Take Sectional out of the room" })
       .click();
     await placeFromList(page, "Loveseat");
     await expect(planImage(page)).toHaveAccessibleName(
@@ -928,7 +931,10 @@ test.describe("comparing layouts", () => {
       .getByRole("button", { name: "Sectional", exact: true })
       .click();
     await details(page)
-      .getByRole("button", { name: "Take Sectional out of the room" })
+      .getByRole("button", { name: "Sectional actions" })
+      .click();
+    await page
+      .getByRole("menuitem", { name: "Take Sectional out of the room" })
       .click();
     await placeFromList(page, "Loveseat");
     await page.waitForTimeout(500);
@@ -1827,33 +1833,34 @@ test.describe("laying the apartment out", () => {
     await expect(plan(page).getByText("168.0 sq ft")).toBeVisible();
   });
 
-  test("removes an opening from the room's own panel, keeping the room selected", async ({
+  test("deletes an opening from its own panel's menu, by name, and undoes it", async ({
     page,
   }) => {
     await openWithLivingRoom(page);
     await contents(page)
-      .getByRole("button", { name: "Living room", exact: true })
+      .getByRole("button", { name: "Window 1", exact: true })
       .click();
-
-    const room = details(page).getByRole("region", {
-      name: "Living room",
-      exact: true,
-    });
     await expect(planImage(page)).toHaveAccessibleName(/a window/);
 
-    await room
-      .getByRole("button", { name: "Remove Living room window 1" })
+    await details(page)
+      .getByRole("button", { name: "Living room window 1 actions" })
+      .click();
+    await page
+      .getByRole("menuitem", { name: "Delete Living room window 1" })
       .click();
 
-    // The window is gone everywhere, and the room is still being edited.
+    // The window is gone everywhere, and the door beside it is not.
     await expect(planImage(page)).not.toHaveAccessibleName(/a window/);
     await expect(
       contents(page).getByRole("button", { name: "Window 1" }),
     ).toHaveCount(0);
-    await expect(room).toBeVisible();
     await expect(
-      room.getByRole("button", { name: "Remove Living room door 1" }),
+      contents(page).getByRole("button", { name: "Door 1", exact: true }),
     ).toBeVisible();
+
+    // No confirmation was asked for, because this is what takes it back.
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect(planImage(page)).toHaveAccessibleName(/a window/);
   });
 
   test("traces the listing: an image is dropped, resized by a corner, and kept", async ({

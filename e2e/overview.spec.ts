@@ -150,7 +150,10 @@ test.describe("the overview", () => {
       .getByRole("button", { name: "Olive pillow 2", exact: true })
       .click();
     await details(page)
-      .getByRole("button", { name: "Take Olive pillow 2 out of the room" })
+      .getByRole("button", { name: "Olive pillow 2 actions" })
+      .click();
+    await page
+      .getByRole("menuitem", { name: "Take Olive pillow 2 out of the room" })
       .click();
     await page.waitForTimeout(500);
 

@@ -877,6 +877,18 @@ than by drag, one image covers the whole apartment, and a skewed photograph
 is not straightened — a listing PDF's plan is flat, and a phone photo of one
 can wait until it stops somebody.
 
+**Deleting is a named item in a "⋯" menu, not a red can.** The room panel
+had two identical trash cans one above the other — one deleted the room, the
+other only the section on screen — and each opening row had a third and a
+fourth. Every panel header now carries one "⋯", and each item says what it
+takes away: "Delete Section 2", "Delete Closet B", "Delete Living room",
+smallest first. The second press is the whole of the friction; there is no
+"are you sure", because step 16 already made every one of these undoable.
+The "Footprint" heading went with its can — it headed the room's shape
+directly under the room's own name and carried nothing else. A closet can now
+be deleted whole, and the first rectangle, whose chip already says "Room", is
+no longer offered for deletion on its own.
+
 **The details panel is for what is selected, and only then.** With nothing
 selected it used to show the apartment: the plan underlay, the wall
 thickness, and four figures — rooms, across, down, area — that describe the

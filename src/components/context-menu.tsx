@@ -11,11 +11,27 @@ export type ContextMenuItem = {
 };
 
 export type ContextMenuProps = {
-  /** Where the pointer was, in viewport pixels. */
+  /**
+   * Where the pointer was, in viewport pixels — or, with `alignRight`, the
+   * right edge of the button it hangs from.
+   */
   readonly at: { readonly x: number; readonly y: number };
+  /**
+   * Hung from a button's right edge and grown leftwards to fit the longest
+   * item, rather than cut at a fixed width: an item naming what it deletes is
+   * as long as the name, and "Take Harmony sectional out of the r…" no longer
+   * says what it does.
+   */
+  readonly alignRight?: boolean;
   readonly label: string;
   readonly items: readonly ContextMenuItem[];
   readonly onClose: () => void;
+  /**
+   * The button that opened it, when a button did. A press on it is left to
+   * the button, which closes the menu itself; closing here as well would
+   * close it and open it again in the same press.
+   */
+  readonly trigger?: HTMLElement | null;
 };
 
 /**
@@ -26,7 +42,14 @@ export type ContextMenuProps = {
  * through it and Enter picks. It is pinned to the pointer and nudged back on
  * screen if the pointer was near an edge.
  */
-export function ContextMenu({ at, label, items, onClose }: ContextMenuProps) {
+export function ContextMenu({
+  at,
+  label,
+  items,
+  onClose,
+  trigger,
+  alignRight = false,
+}: ContextMenuProps) {
   const menu = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -34,7 +57,8 @@ export function ContextMenu({ at, label, items, onClose }: ContextMenuProps) {
     first?.focus();
 
     const onPointerDown = (event: PointerEvent) => {
-      if (!menu.current?.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (!menu.current?.contains(target) && !trigger?.contains(target)) {
         onClose();
       }
     };
@@ -67,7 +91,7 @@ export function ContextMenu({ at, label, items, onClose }: ContextMenuProps) {
       window.removeEventListener("scroll", onClose, true);
       window.removeEventListener("resize", onClose);
     };
-  }, [onClose]);
+  }, [onClose, trigger]);
 
   // Kept on screen: a menu opened near the right or bottom edge sits to the
   // left of, or above, the pointer instead of running off it.
@@ -75,13 +99,21 @@ export function ContextMenu({ at, label, items, onClose }: ContextMenuProps) {
   const height = items.length * 36 + 12;
   const left = Math.min(at.x, window.innerWidth - width - 8);
   const top = Math.min(at.y, window.innerHeight - height - 8);
+  const placed = alignRight
+    ? {
+        right: window.innerWidth - at.x,
+        top,
+        minWidth: width,
+        maxWidth: at.x - 8,
+      }
+    : { left, top, width };
 
   return (
     <div
       ref={menu}
       role="menu"
       aria-label={label}
-      style={{ left, top, width }}
+      style={placed}
       className="fixed z-50 flex flex-col rounded-xl border border-black/10 bg-white p-1.5 shadow-xl dark:border-white/15 dark:bg-neutral-900"
     >
       {items.map((item) => (

@@ -881,6 +881,28 @@ export function withPartUngrouped(room: Room, partId: string): Room {
   });
 }
 
+/**
+ * Takes sections out of a room, with the openings on their walls.
+ *
+ * A group left with fewer than two sections is dropped, as everywhere else.
+ * Taking every section is refused — the room is returned unchanged — because
+ * a room is built from at least one rectangle; deleting all of it is deleting
+ * the room, which is a different thing to ask for.
+ */
+export function withoutRoomParts(room: Room, partIds: readonly string[]): Room {
+  const parts = room.parts.filter((part) => !partIds.includes(part.id));
+  if (parts.length === 0 || parts.length === room.parts.length) {
+    return room;
+  }
+  return tidyGroups({
+    ...room,
+    parts,
+    openings: room.openings.filter(
+      (opening) => !partIds.includes(opening.partId),
+    ),
+  });
+}
+
 export function withPartGroupName(
   room: Room,
   groupId: string,

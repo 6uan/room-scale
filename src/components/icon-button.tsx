@@ -232,7 +232,7 @@ export function ButtonGroup({ children }: { children: React.ReactNode }) {
   );
 }
 
-function iconButtonClass({
+export function iconButtonClass({
   pressed = false,
   tone = "normal",
   size = "normal",

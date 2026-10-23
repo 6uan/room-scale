@@ -1,10 +1,10 @@
 "use client";
 
-import { Plus, Trash2, Undo2 } from "lucide-react";
+import { Plus, Undo2 } from "lucide-react";
 import { Disclosure } from "@/components/disclosure";
 import { cn } from "@/components/cn";
 import { AngleField } from "@/components/angle-field";
-import { IconButton, LabelledButton } from "@/components/icon-button";
+import { LabelledButton } from "@/components/icon-button";
 import { NumberField } from "@/components/number-field";
 import { Chip, ChipRow } from "@/components/panel/chip";
 import { CornerGlyph } from "@/components/panel/glyphs";
@@ -157,8 +157,23 @@ export type RoomFieldsProps = {
   selectedPartId?: string | null;
   onSelectPart?: (partId: string | null) => void;
   onSelectOpening?: (openingId: string) => void;
-  onRemoveOpening?: (openingId: string) => void;
 };
+
+/**
+ * The section the panel is describing: the selected one, or the first.
+ *
+ * Falling back to the first means there is no state where the panel has
+ * nothing to show — selecting the room rather than a section still puts a
+ * rectangle's measurements in front of you, which is what somebody who just
+ * clicked a room wanted to read.
+ */
+export function shownSectionIndex(
+  room: Room,
+  selectedPartId: string | null,
+): number {
+  const selected = room.parts.findIndex((part) => part.id === selectedPartId);
+  return selected === -1 ? 0 : selected;
+}
 
 export function RoomFields({
   floor,
@@ -173,27 +188,12 @@ export function RoomFields({
   selectedPartId = null,
   onSelectPart,
   onSelectOpening,
-  onRemoveOpening,
 }: RoomFieldsProps) {
   const compound = room.parts.length > 1;
   const roomName = room.name === "" ? "Room" : room.name;
 
-  /**
-   * The section the panel is describing: the selected one, or the first.
-   *
-   * Falling back to the first means there is no state where the footprint has
-   * nothing to show — selecting the room rather than a section still puts a
-   * rectangle's measurements in front of you, which is what somebody who just
-   * clicked a room wanted to read.
-   */
-  const selectedIndex = room.parts.findIndex(
-    (part) => part.id === selectedPartId,
-  );
-  const shownIndex = selectedIndex === -1 ? 0 : selectedIndex;
+  const shownIndex = shownSectionIndex(room, selectedPartId);
   const shown = room.parts[shownIndex];
-  const shownLabel = compound
-    ? `${roomName} section ${shownIndex + 1}`
-    : roomName;
   const shownGroup =
     shown === undefined ? undefined : partGroupOf(room, shown.id);
 
@@ -260,20 +260,6 @@ export function RoomFields({
     onSelectPart?.(id);
   }
 
-  function removePart(part: RoomPart): void {
-    if (room.parts.length === 1) {
-      return;
-    }
-    onChange({
-      ...room,
-      parts: room.parts.filter((one) => one.id !== part.id),
-      openings: room.openings.filter((opening) => opening.partId !== part.id),
-    });
-    if (room.parts.length === 2 || selectedPartId === part.id) {
-      onSelectPart?.(null);
-    }
-  }
-
   // A room is built from at least one rectangle everywhere else in the domain
   // — `primaryRoomPart` throws rather than return nothing, and `isValidRoom`
   // will not call a room without one valid. Nothing to draw is all this can
@@ -284,21 +270,14 @@ export function RoomFields({
 
   return (
     <>
-      <PanelSection
-        title="Footprint"
-        first
-        action={
-          compound ? (
-            <IconButton
-              label={`Remove ${shownLabel}`}
-              icon={Trash2}
-              size="small"
-              tone="danger"
-              onClick={() => removePart(shown)}
-            />
-          ) : undefined
-        }
-      >
+      {/*
+        No heading. It said "Footprint" over the room's shape, directly under
+        the room's own name, and the only thing it carried was a second red
+        trash can that looked like the first and deleted one section rather
+        than the room. Deleting a section is in the room's own menu now,
+        named, and the shape needs no title to be the first thing here.
+      */}
+      <PanelSection first>
         {/*
           One section's fields at a time, and a row to pick which.
 
@@ -443,7 +422,6 @@ export function RoomFields({
         placingKind={placingOpeningKind}
         onAddOpening={onAddOpening}
         onSelectOpening={(opening) => onSelectOpening?.(opening.id)}
-        onRemoveOpening={(opening) => onRemoveOpening?.(opening.id)}
       />
 
       <WallThicknessFields

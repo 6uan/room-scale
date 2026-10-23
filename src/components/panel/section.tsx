@@ -20,7 +20,8 @@ export function PanelSection({
   first = false,
   children,
 }: {
-  title: string;
+  /** Absent for the band that opens a panel, which the panel's own name heads. */
+  title?: string;
   /** The one thing this section adds, drawn beside its name. */
   action?: React.ReactNode;
   /** The first section carries no divider, having nothing above it. */
@@ -32,13 +33,22 @@ export function PanelSection({
       aria-label={title}
       className={cn(
         "flex flex-col gap-4 py-6",
-        first ? "pt-0" : "border-t border-black/10 dark:border-white/15",
+        // An untitled first band keeps a row's gap below the panel's name; its
+        // own heading used to supply it, and the header's buttons sat on the
+        // first row without it.
+        first
+          ? title === undefined
+            ? "pt-4"
+            : "pt-0"
+          : "border-t border-black/10 dark:border-white/15",
       )}
     >
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-[13px] font-medium">{title}</h3>
-        {action}
-      </div>
+      {title === undefined ? null : (
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-[13px] font-medium">{title}</h3>
+          {action}
+        </div>
+      )}
       {children}
     </section>
   );
