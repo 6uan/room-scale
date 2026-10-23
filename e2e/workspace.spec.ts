@@ -1130,6 +1130,23 @@ test.describe("the perspective view", () => {
     await expect(page.getByRole("main", { name: "Plan" })).toBeVisible();
   });
 
+  test("stands each placed piece up at its product's size", async ({
+    page,
+  }) => {
+    await openWithLivingRoom(page);
+    await addProduct(page, { name: "Sofa", width: "84", depth: "36" });
+    await placeFromList(page, "Sofa");
+    await page.getByRole("button", { name: "Perspective" }).click();
+
+    // Said in words as well as drawn: a box is the product's footprint,
+    // stood up to its height, and nothing else.
+    const scene = page.getByRole("img", { name: /^Perspective view/ });
+    await expect(scene).toHaveAttribute(
+      "aria-label",
+      /1 piece standing: Sofa, 84" by 36", [\d.]+" high\./,
+    );
+  });
+
   test("says so when there is nothing to stand up yet", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Perspective" }).click();
