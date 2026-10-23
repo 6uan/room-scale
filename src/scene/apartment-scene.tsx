@@ -301,11 +301,16 @@ function WallMesh({
     if (surface === null || target === null) {
       return;
     }
-    const before = standsBeforeTarget(
-      wall.center,
-      [camera.position.x, camera.position.y, camera.position.z],
-      [target.x, target.y, target.z],
-    );
+    // A wall between two rooms is always see-through, so a room is never
+    // hidden behind the one in front of it; an outside wall only when it
+    // stands between the camera and what it is looking at.
+    const before =
+      wall.interior ||
+      standsBeforeTarget(
+        wall.center,
+        [camera.position.x, camera.position.y, camera.position.z],
+        [target.x, target.y, target.z],
+      );
     const opacity = before ? SEE_THROUGH_OPACITY : 1;
     if (surface.opacity !== opacity) {
       surface.opacity = opacity;

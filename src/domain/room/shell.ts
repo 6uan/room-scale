@@ -25,6 +25,7 @@ import {
   partWallSegment,
   pointOnRoomPart,
   roomBounds,
+  roomContains,
   roomPartPolygon,
   type Room,
 } from "./room";
@@ -59,6 +60,12 @@ export type WallSlab = {
    */
   readonly baseMeters: number;
   readonly angleRadians: number;
+  /**
+   * Whether there is floor on the other side: a wall between two rooms, or
+   * round a closet. The perspective view lets you see through these always,
+   * so a room is never hidden behind the one in front of it.
+   */
+  readonly interior: boolean;
 };
 
 export type RoomShell = {
@@ -104,6 +111,14 @@ export function roomShell(floor: Floor, room: Room): RoomShell {
         .filter((stretch) => stretch.kind === "wall")
         .flatMap((stretch) => {
           const half = stretch.thicknessMeters / 2;
+          const interior = floorBeyond(
+            floor,
+            from,
+            direction,
+            outward,
+            (stretch.startMeters + stretch.endMeters) / 2,
+            stretch.thicknessMeters,
+          );
           const piece = (
             startMeters: number,
             endMeters: number,
@@ -123,6 +138,7 @@ export function roomShell(floor: Floor, room: Room): RoomShell {
               heightMeters: topMeters - baseMeters,
               baseMeters,
               angleRadians: Math.atan2(direction.dz, direction.dx),
+              interior,
             };
           };
           return cutWall(
@@ -257,5 +273,29 @@ function cutWall<T>(
   }
   return pieces;
 }
+
+/**
+ * Whether any room's floor lies just past a wall's outer face, at the middle
+ * of the stretch: another room one wall thickness away, or this room's own
+ * floor carrying on beyond a closet's wall.
+ */
+function floorBeyond(
+  floor: Floor,
+  from: FloorPoint,
+  direction: { dx: number; dz: number },
+  outward: { dx: number; dz: number },
+  alongMeters: number,
+  thicknessMeters: number,
+): boolean {
+  const past = thicknessMeters + BEYOND_WALL_METERS;
+  const point = {
+    xMeters: from.xMeters + direction.dx * alongMeters + outward.dx * past,
+    zMeters: from.zMeters + direction.dz * alongMeters + outward.dz * past,
+  };
+  return floor.rooms.some((room) => roomContains(room, point));
+}
+
+/** A hair past the outer face, to ask whether there is floor there. */
+const BEYOND_WALL_METERS = 0.01;
 
 const EPSILON = 1e-6;

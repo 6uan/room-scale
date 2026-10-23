@@ -826,7 +826,11 @@ between the camera and the point it orbits is drawn see-through, with its
 outline, and stops hiding what is behind it. Decided by position rather than
 by which way a wall faces, so the two rooms on either side of a shared wall —
 each of which draws its own — always agree about it; walls beyond the point
-stay solid as the backdrop. It follows the camera as it orbits.
+stay solid as the backdrop. It follows the camera as it orbits. A wall
+between two rooms, or round a closet, is see-through always — the shell
+marks it interior when there is floor just past its outer face — since a
+room behind the one you are looking at was otherwise hidden by the wall
+between them; only the outside walls are left to depend on the camera.
 
 **20c — Openings at their heights. ✅** Doors, windows, and passages cut from
 the walls at their sill and head. Each opening carries a sill and a head of
