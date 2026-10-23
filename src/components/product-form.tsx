@@ -3,6 +3,7 @@
 import { ChevronDown, ClipboardPaste } from "lucide-react";
 import { useId, useState } from "react";
 import { NumberField } from "@/components/number-field";
+import { Chip, ChipRow } from "@/components/panel/chip";
 import { PriceField } from "@/components/price-field";
 import { ProductImportPanel } from "@/components/product-import-panel";
 import { ProductLinkField } from "@/components/product-link-field";
@@ -21,6 +22,7 @@ import {
   type PurchaseStatus,
 } from "@/domain/furniture";
 import type { DisplayUnit } from "@/domain/units";
+import { usePreferencesStore } from "@/state/preferences-store";
 
 export const PURCHASE_STATUS_LABELS: Record<PurchaseStatus, string> = {
   wanted: "Wishlist",
@@ -74,6 +76,10 @@ export function ProductForm({
   onCancel,
 }: ProductFormProps) {
   const [draft, setDraft] = useState(initial);
+  const sizeId = useId();
+  const setProductLengths = usePreferencesStore(
+    (state) => state.setProductLengths,
+  );
   const [submitted, setSubmitted] = useState(false);
   const [pasting, setPasting] = useState(false);
   const problems = checkProduct(draft);
@@ -174,34 +180,74 @@ export function ProductForm({
         onValueChange={(category) => setDraft({ ...draft, category })}
       />
 
-      <div className="grid grid-cols-3 gap-3">
-        <NumberField
-          label="Width"
-          unit={unit}
-          meters={draft.footprint.widthMeters}
-          limits={PRODUCT_LENGTH_LIMITS}
-          onMetersChange={(meters) =>
-            setDraft(withFootprint(draft, "widthMeters", meters))
-          }
-        />
-        <NumberField
-          label="Length"
-          unit={unit}
-          meters={draft.footprint.depthMeters}
-          limits={PRODUCT_LENGTH_LIMITS}
-          onMetersChange={(meters) =>
-            setDraft(withFootprint(draft, "depthMeters", meters))
-          }
-        />
-        <NumberField
-          label="Height"
-          unit={unit}
-          meters={draft.heightMeters}
-          limits={PRODUCT_LENGTH_LIMITS}
-          onMetersChange={(heightMeters) =>
-            setDraft({ ...draft, heightMeters })
-          }
-        />
+      {/*
+        The three sizes on one row, read in the product's own unit, with the
+        choice of that unit beside them. Retailers print a sofa as 84" and a
+        tape reads a room as 12' 6"; which a product reads in is a choice made
+        here, where products are typed, and it holds for every product.
+      */}
+      <div
+        role="group"
+        aria-labelledby={sizeId}
+        className="flex flex-col gap-2"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span id={sizeId} className="text-sm font-medium">
+            Size
+          </span>
+          {unit === "metric" ? null : (
+            <div className="flex w-32">
+              <ChipRow name="Product sizes in">
+                <Chip
+                  label="Inches"
+                  pressed={unit === "inches"}
+                  onClick={() => setProductLengths("inches")}
+                >
+                  in
+                </Chip>
+                <Chip
+                  label="Feet and inches"
+                  pressed={unit === "imperial"}
+                  onClick={() => setProductLengths("feet-and-inches")}
+                >
+                  ft-in
+                </Chip>
+              </ChipRow>
+            </div>
+          )}
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <NumberField
+            label="Width"
+            compactLabel="W"
+            unit={unit}
+            meters={draft.footprint.widthMeters}
+            limits={PRODUCT_LENGTH_LIMITS}
+            onMetersChange={(meters) =>
+              setDraft(withFootprint(draft, "widthMeters", meters))
+            }
+          />
+          <NumberField
+            label="Length"
+            compactLabel="L"
+            unit={unit}
+            meters={draft.footprint.depthMeters}
+            limits={PRODUCT_LENGTH_LIMITS}
+            onMetersChange={(meters) =>
+              setDraft(withFootprint(draft, "depthMeters", meters))
+            }
+          />
+          <NumberField
+            label="Height"
+            compactLabel="H"
+            unit={unit}
+            meters={draft.heightMeters}
+            limits={PRODUCT_LENGTH_LIMITS}
+            onMetersChange={(heightMeters) =>
+              setDraft({ ...draft, heightMeters })
+            }
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">

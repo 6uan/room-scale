@@ -10,6 +10,7 @@ import {
   inchesFromMeters,
   lengthFieldText,
   lengthStepValue,
+  productReadingUnit,
   readingUnit,
   storedUnit,
   metersFromCentimeters,
@@ -140,6 +141,13 @@ describe("what a field shows and steps by", () => {
 });
 
 describe("the reading unit", () => {
+  it("reads a product in its own imperial unit, and centimeters in metric", () => {
+    expect(productReadingUnit("imperial", "inches")).toBe("inches");
+    expect(productReadingUnit("inches", "feet-and-inches")).toBe("imperial");
+    expect(productReadingUnit("imperial", "feet-and-inches")).toBe("imperial");
+    expect(productReadingUnit("metric", "inches")).toBe("metric");
+  });
+
   it("reads imperial in inches only when this reader asked to", () => {
     expect(readingUnit("imperial", "feet-and-inches")).toBe("imperial");
     expect(readingUnit("imperial", "inches")).toBe("inches");

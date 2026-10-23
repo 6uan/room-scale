@@ -38,6 +38,23 @@ export function readingUnit(
     : stored;
 }
 
+/**
+ * The unit a product's own size is read in: what you buy, rather than where
+ * it goes. Retailers list a sofa as 84" while a listing gives a room as
+ * 12' 6", so in imperial a product reads by its own preference — inches unless
+ * told otherwise — and the apartment by the project's. Metric is centimeters
+ * for both.
+ */
+export function productReadingUnit(
+  unit: DisplayUnit,
+  productLengths: ImperialLengths,
+): DisplayUnit {
+  if (unit === "metric") {
+    return "metric";
+  }
+  return productLengths === "inches" ? "inches" : "imperial";
+}
+
 /** Which unit a project keeps, for a unit picked on screen. */
 export function storedUnit(unit: DisplayUnit): StoredUnit {
   return unit === "metric" ? "metric" : "imperial";

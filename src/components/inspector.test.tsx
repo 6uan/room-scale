@@ -38,6 +38,7 @@ function renderInspector(overrides: Partial<InspectorProps>) {
     furniture: [],
     products: [],
     unit: "imperial",
+    productUnit: "inches",
     selection: { kind: "room", id: room.id },
     onSelect: vi.fn(),
     onFloorChange: vi.fn(),

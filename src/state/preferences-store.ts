@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import {
+  productReadingUnit,
   readingUnit,
   type DisplayUnit,
   type ImperialLengths,
@@ -16,11 +17,16 @@ import { useProjectStore } from "./project-store";
 export type PreferencesState = {
   readonly imperialLengths: ImperialLengths;
   readonly setImperialLengths: (imperialLengths: ImperialLengths) => void;
+  /** How a product's own size reads in imperial: inches, as retailers print it. */
+  readonly productLengths: ImperialLengths;
+  readonly setProductLengths: (productLengths: ImperialLengths) => void;
 };
 
 export const usePreferencesStore = create<PreferencesState>()((set) => ({
   imperialLengths: "feet-and-inches",
   setImperialLengths: (imperialLengths) => set({ imperialLengths }),
+  productLengths: "inches",
+  setProductLengths: (productLengths) => set({ productLengths }),
 }));
 
 /** The unit lengths are read in: the project's, as this reader likes it. */
@@ -28,4 +34,11 @@ export function useDisplayUnit(): DisplayUnit {
   const stored = useProjectStore((state) => state.project.displayUnit);
   const imperialLengths = usePreferencesStore((state) => state.imperialLengths);
   return readingUnit(stored, imperialLengths);
+}
+
+/** The unit a product's own width, depth and height are read in. */
+export function useProductUnit(): DisplayUnit {
+  const unit = useDisplayUnit();
+  const productLengths = usePreferencesStore((state) => state.productLengths);
+  return productReadingUnit(unit, productLengths);
 }

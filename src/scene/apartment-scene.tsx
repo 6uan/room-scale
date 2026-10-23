@@ -53,6 +53,7 @@ export function ApartmentScene({
   floor,
   furniture = NO_FURNITURE,
   unit,
+  productUnit = unit,
   framing,
   onFramingChange,
 }: {
@@ -60,6 +61,8 @@ export function ApartmentScene({
   /** What is placed in this layout; a piece set aside is left out. */
   furniture?: readonly PlacedFurniture[];
   unit: DisplayUnit;
+  /** The unit a product's own size reads in, which can differ from the rooms'. */
+  productUnit?: DisplayUnit;
   /** What the plan was showing when the view was switched; null frames the whole floor. */
   framing?: Framing | null;
   /** Said when an orbit ends, so the plan can come back to it. */
@@ -72,7 +75,7 @@ export function ApartmentScene({
   return (
     <div
       role="img"
-      aria-label={describe(floor, furniture, unit)}
+      aria-label={describe(floor, furniture, unit, productUnit)}
       className="absolute inset-0"
     >
       {floor.rooms.length === 0 ? (
@@ -278,6 +281,7 @@ function describe(
   floor: Floor,
   furniture: readonly PlacedFurniture[],
   unit: DisplayUnit,
+  productUnit: DisplayUnit,
 ): string {
   if (floor.rooms.length === 0) {
     return "Perspective view of an apartment with no rooms in it yet.";
@@ -295,9 +299,9 @@ function describe(
       ? []
       : [
           `${names[index] ?? placed.product.name}, ` +
-            `${formatLength(placed.product.footprint.widthMeters, unit)} by ` +
-            `${formatLength(placed.product.footprint.depthMeters, unit)}, ` +
-            `${formatLength(placed.product.heightMeters, unit)} high`,
+            `${formatLength(placed.product.footprint.widthMeters, productUnit)} by ` +
+            `${formatLength(placed.product.footprint.depthMeters, productUnit)}, ` +
+            `${formatLength(placed.product.heightMeters, productUnit)} high`,
         ],
   );
   return (

@@ -57,6 +57,8 @@ export type InspectorProps = {
   furniture: readonly PlacedFurniture[];
   products: readonly FurnitureProduct[];
   unit: DisplayUnit;
+  /** The unit a product's own size reads in: inches by default in imperial. */
+  productUnit: DisplayUnit;
   selection: Selection;
   onSelect: (selection: Selection) => void;
   onFloorChange: (floor: Floor) => void;
@@ -365,6 +367,7 @@ function InstanceInspector({
   floor,
   furniture,
   unit,
+  productUnit,
   selection,
   onSelect,
   onInstanceChange,
@@ -460,15 +463,15 @@ function InstanceInspector({
             number here; the price is read second and set smaller. */}
         <div className="flex items-baseline justify-between gap-3">
           <p className="text-[19px] font-semibold tracking-tight tabular-nums">
-            {formatLength(placed.product.footprint.widthMeters, unit)} ×{" "}
-            {formatLength(placed.product.footprint.depthMeters, unit)}
+            {formatLength(placed.product.footprint.widthMeters, productUnit)} ×{" "}
+            {formatLength(placed.product.footprint.depthMeters, productUnit)}
           </p>
           <p className="text-sm tabular-nums opacity-60">
             {formatCents(placed.product.priceCents)}
           </p>
         </div>
         <p className="-mt-2 text-[12px] opacity-50">
-          {formatLength(placed.product.heightMeters, unit)} high
+          {formatLength(placed.product.heightMeters, productUnit)} high
         </p>
         {placed.product.productUrl === "" ? null : (
           <div className="self-start">
@@ -494,6 +497,7 @@ function GroupInspector({
   floor,
   furniture,
   unit,
+  productUnit,
   selection,
   onGroupRemove,
   onRoundPositions,
@@ -581,8 +585,15 @@ function GroupInspector({
             <li key={placed.instance.id} className="flex justify-between gap-3">
               <span className="truncate">{name}</span>
               <span className="shrink-0 tabular-nums opacity-55">
-                {formatLength(placed.product.footprint.widthMeters, unit)} ×{" "}
-                {formatLength(placed.product.footprint.depthMeters, unit)}
+                {formatLength(
+                  placed.product.footprint.widthMeters,
+                  productUnit,
+                )}{" "}
+                ×{" "}
+                {formatLength(
+                  placed.product.footprint.depthMeters,
+                  productUnit,
+                )}
               </span>
             </li>
           ))}
@@ -594,7 +605,7 @@ function GroupInspector({
 
 function ProductInspector({
   products,
-  unit,
+  productUnit,
   selection,
   onSelect,
   onProductSave,
@@ -639,7 +650,7 @@ function ProductInspector({
       <ProductForm
         key={existing?.id ?? "new"}
         initial={initial}
-        unit={unit}
+        unit={productUnit}
         submitLabel={existing === undefined ? "Add product" : "Save changes"}
         problem={productProblem}
         onSave={onProductSave}

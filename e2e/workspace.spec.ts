@@ -3004,6 +3004,36 @@ test.describe("groups in the list", () => {
 });
 
 test.describe("reading lengths", () => {
+  test("reads a product in inches beside a room in feet and inches, and switches products together", async ({
+    page,
+  }) => {
+    await openWithLivingRoom(page, "/", "feet-and-inches");
+    await addProduct(page, { name: "Sofa", width: "84", depth: "36" });
+    const place = contents(page).getByRole("button", {
+      name: "Place Sofa in the room",
+    });
+
+    // What you buy reads as the shop prints it; the room as the tape does.
+    await expect(place).toContainText(`84" × 36"`);
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
+    await expect(
+      details(page).getByLabel("Living room width", { exact: true }),
+    ).toHaveValue(`14' 0"`);
+
+    // The product's own toggle turns every product to feet and inches.
+    await place.click({ button: "right" });
+    await page.getByRole("menuitem", { name: "Edit", exact: true }).click();
+    await details(page)
+      .getByRole("button", { name: "Feet and inches" })
+      .click();
+    await expect(
+      details(page).getByLabel("Width", { exact: true }),
+    ).toHaveValue(`7' 0"`);
+    await expect(place).toContainText(`7' 0" × 3' 0"`);
+  });
+
   test("reads feet and inches in fields as on labels, steps with the arrow keys, and remembers inches", async ({
     page,
   }) => {
@@ -3036,7 +3066,9 @@ test.describe("reading lengths", () => {
     await page.keyboard.press("Escape");
     await expect(width).toHaveValue("179");
 
-    // A preference of this browser's, so it is there after a reload.
+    // A preference of this browser's, so it is there after a reload. Read
+    // as a format, not a number: the width's own save is on a timer this
+    // test has no business racing.
     await page.waitForTimeout(300);
     await page.reload();
     await contents(page)
@@ -3044,7 +3076,7 @@ test.describe("reading lengths", () => {
       .click();
     await expect(
       details(page).getByLabel("Living room width", { exact: true }),
-    ).toHaveValue("179");
+    ).toHaveValue(/^\d+(\.\d+)?$/);
   });
 });
 
