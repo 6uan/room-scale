@@ -4,7 +4,9 @@ import {
   createUnderlay,
   movedUnderlay,
   resizedUnderlay,
+  underlayCenter,
   underlayContains,
+  withUnderlayRotation,
   underlayCorners,
   underlayExtentMeters,
   underlayWithWidth,
@@ -163,5 +165,59 @@ describe("moving the image", () => {
     expect(moved.origin).toEqual({ xMeters: 1, zMeters: 2 });
     expect(underlayExtentMeters(moved)).toEqual(underlayExtentMeters(DROPPED));
     expect(moved.visible).toBe(DROPPED.visible);
+  });
+});
+
+describe("turning the image", () => {
+  // 8 by 6, centred on the floor's origin.
+  const quarter = withUnderlayRotation(DROPPED, Math.PI / 2);
+  const cornerAt = (underlay: PlanUnderlay, corner: string) =>
+    underlayCorners(underlay).find((one) => one.corner === corner)!.at;
+
+  it("turns about its middle, keeping its size", () => {
+    expect(underlayCenter(quarter)).toEqual(underlayCenter(DROPPED));
+    expect(underlayExtentMeters(quarter)).toEqual(
+      underlayExtentMeters(DROPPED),
+    );
+  });
+
+  it("turns clockwise on the plan: its top-left corner to the top-right", () => {
+    const corner = cornerAt(quarter, "north-west");
+    expect(corner.xMeters).toBeCloseTo(3, 9);
+    expect(corner.zMeters).toBeCloseTo(-4, 9);
+  });
+
+  it("is hit where it is drawn once turned, not where it was", () => {
+    // Unturned it spans x ±4 and z ±3; a quarter turn makes that x ±3, z ±4.
+    expect(underlayContains(DROPPED, { xMeters: 3.5, zMeters: 0 })).toBe(true);
+    expect(underlayContains(quarter, { xMeters: 3.5, zMeters: 0 })).toBe(false);
+    expect(underlayContains(quarter, { xMeters: 0, zMeters: 3.5 })).toBe(true);
+  });
+
+  it("resizes from a corner holding the opposite one still, at any angle", () => {
+    const tilted = withUnderlayRotation(DROPPED, (30 * Math.PI) / 180);
+    const held = cornerAt(tilted, "north-west");
+    // Pull the south-east corner out along the image's own diagonal.
+    const pulled = cornerAt(tilted, "south-east");
+    const center = underlayCenter(tilted);
+    const out = {
+      xMeters: center.xMeters + (pulled.xMeters - center.xMeters) * 2,
+      zMeters: center.zMeters + (pulled.zMeters - center.zMeters) * 2,
+    };
+    const bigger = resizedUnderlay(tilted, "south-east", out);
+    expect(underlayExtentMeters(bigger).widthMeters).toBeGreaterThan(8);
+    const stillHeld = cornerAt(bigger, "north-west");
+    expect(stillHeld.xMeters).toBeCloseTo(held.xMeters, 9);
+    expect(stillHeld.zMeters).toBeCloseTo(held.zMeters, 9);
+    expect(bigger.rotationRadians).toBe(tilted.rotationRadians);
+  });
+
+  it("takes a typed width holding its own top-left corner, however turned", () => {
+    const tilted = withUnderlayRotation(DROPPED, (30 * Math.PI) / 180);
+    const held = cornerAt(tilted, "north-west");
+    const wider = underlayWithWidth(tilted, 10);
+    expect(underlayExtentMeters(wider).widthMeters).toBeCloseTo(10, 9);
+    expect(cornerAt(wider, "north-west").xMeters).toBeCloseTo(held.xMeters, 9);
+    expect(cornerAt(wider, "north-west").zMeters).toBeCloseTo(held.zMeters, 9);
   });
 });

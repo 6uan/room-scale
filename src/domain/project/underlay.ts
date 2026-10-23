@@ -28,9 +28,18 @@ export type PlanUnderlay = {
   readonly imageHeightPixels: number;
   /** The one number the sizing fixes: how long an image pixel really is. */
   readonly metersPerPixel: number;
-  /** Where the image's top-left corner sits on the floor. */
+  /**
+   * Where the image's top-left corner sits on the floor, before it is turned:
+   * the corner of the box it fills, which it turns about the middle of.
+   */
   readonly origin: FloorPoint;
   readonly visible: boolean;
+  /**
+   * How far the image is turned about its middle, in the floor's sense (its
+   * +X toward +Z, which is clockwise on the plan). Absent is square to the
+   * plan, as every image placed before it could be turned is.
+   */
+  readonly rotationRadians?: number | undefined;
 };
 
 /** How wide a freshly dropped plan is assumed to be, until it is resized. */
@@ -63,18 +72,70 @@ export function underlayExtentMeters(underlay: PlanUnderlay): {
   };
 }
 
-/** Whether a floor point lies on the image, edges included. */
+/** The middle of the image, which it turns about. */
+export function underlayCenter(underlay: PlanUnderlay): FloorPoint {
+  const { widthMeters, depthMeters } = underlayExtentMeters(underlay);
+  return {
+    xMeters: underlay.origin.xMeters + widthMeters / 2,
+    zMeters: underlay.origin.zMeters + depthMeters / 2,
+  };
+}
+
+/** Turns a point about a center by an angle in the floor's sense. */
+function turned(
+  point: FloorPoint,
+  center: FloorPoint,
+  radians: number,
+): FloorPoint {
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  const dx = point.xMeters - center.xMeters;
+  const dz = point.zMeters - center.zMeters;
+  return {
+    xMeters: center.xMeters + dx * cos - dz * sin,
+    zMeters: center.zMeters + dx * sin + dz * cos,
+  };
+}
+
+/**
+ * A floor point in the image's own frame: where it would be if the image
+ * were turned back square, so the box tests and the corner arithmetic work
+ * as they always have.
+ */
+function intoImage(underlay: PlanUnderlay, point: FloorPoint): FloorPoint {
+  return turned(
+    point,
+    underlayCenter(underlay),
+    -(underlay.rotationRadians ?? 0),
+  );
+}
+
+/** A point in the image's own frame, back out onto the floor. */
+function outOfImage(underlay: PlanUnderlay, point: FloorPoint): FloorPoint {
+  return turned(point, underlayCenter(underlay), underlay.rotationRadians ?? 0);
+}
+
+/** Whether a floor point lies on the image, edges included, however it is turned. */
 export function underlayContains(
   underlay: PlanUnderlay,
   point: FloorPoint,
 ): boolean {
   const { widthMeters, depthMeters } = underlayExtentMeters(underlay);
+  const local = intoImage(underlay, point);
   return (
-    point.xMeters >= underlay.origin.xMeters &&
-    point.xMeters <= underlay.origin.xMeters + widthMeters &&
-    point.zMeters >= underlay.origin.zMeters &&
-    point.zMeters <= underlay.origin.zMeters + depthMeters
+    local.xMeters >= underlay.origin.xMeters - 1e-9 &&
+    local.xMeters <= underlay.origin.xMeters + widthMeters + 1e-9 &&
+    local.zMeters >= underlay.origin.zMeters - 1e-9 &&
+    local.zMeters <= underlay.origin.zMeters + depthMeters + 1e-9
   );
+}
+
+/** The image turned about its middle to an angle, nothing else changed. */
+export function withUnderlayRotation(
+  underlay: PlanUnderlay,
+  rotationRadians: number,
+): PlanUnderlay {
+  return { ...underlay, rotationRadians };
 }
 
 /** The image with its top-left corner moved, its size untouched. */
@@ -111,22 +172,77 @@ export function createUnderlay(
   };
 }
 
-/** The image's four corners on the floor, for the handles that resize it. */
+/**
+ * The image's four corners on the floor, for the handles that resize it —
+ * where they are once it is turned. Named for the corner of the image, not
+ * of the plan: "north-west" is the image's own top-left.
+ */
 export function underlayCorners(
   underlay: PlanUnderlay,
 ): readonly { readonly corner: UnderlayCorner; readonly at: FloorPoint }[] {
-  const { widthMeters, depthMeters } = underlayExtentMeters(underlay);
-  const west = underlay.origin.xMeters;
-  const north = underlay.origin.zMeters;
-  const east = west + widthMeters;
-  const south = north + depthMeters;
+  return CORNERS.map((corner) => ({
+    corner,
+    at: outOfImage(underlay, boxCorner(underlay, corner)),
+  }));
+}
 
-  return [
-    { corner: "north-west", at: { xMeters: west, zMeters: north } },
-    { corner: "north-east", at: { xMeters: east, zMeters: north } },
-    { corner: "south-east", at: { xMeters: east, zMeters: south } },
-    { corner: "south-west", at: { xMeters: west, zMeters: south } },
-  ];
+const CORNERS: readonly UnderlayCorner[] = [
+  "north-west",
+  "north-east",
+  "south-east",
+  "south-west",
+];
+
+/** A corner of the image's box, before it is turned. */
+function boxCorner(underlay: PlanUnderlay, corner: UnderlayCorner): FloorPoint {
+  const { widthMeters, depthMeters } = underlayExtentMeters(underlay);
+  const east = corner === "north-east" || corner === "south-east";
+  const south = corner === "south-east" || corner === "south-west";
+  return {
+    xMeters: underlay.origin.xMeters + (east ? widthMeters : 0),
+    zMeters: underlay.origin.zMeters + (south ? depthMeters : 0),
+  };
+}
+
+/**
+ * The image at a new scale, one of its corners held where it is on the floor.
+ *
+ * Turned, the image turns about its middle, and the middle moves when the
+ * size changes — so the held corner is put back where it was by placing the
+ * new middle at the held corner less the turned offset from the middle to
+ * that corner: C' = P − R(θ)·(±w'/2, ±h'/2).
+ */
+function rescaledHolding(
+  underlay: PlanUnderlay,
+  held: UnderlayCorner,
+  metersPerPixel: number,
+): PlanUnderlay {
+  const anchor = outOfImage(underlay, boxCorner(underlay, held));
+  const width = underlay.imageWidthPixels * metersPerPixel;
+  const depth = underlay.imageHeightPixels * metersPerPixel;
+  const east = held === "north-east" || held === "south-east";
+  const south = held === "south-east" || held === "south-west";
+  const offset = {
+    xMeters: (east ? 1 : -1) * (width / 2),
+    zMeters: (south ? 1 : -1) * (depth / 2),
+  };
+  const turnedOffset = turned(
+    offset,
+    { xMeters: 0, zMeters: 0 },
+    underlay.rotationRadians ?? 0,
+  );
+  const center = {
+    xMeters: anchor.xMeters - turnedOffset.xMeters,
+    zMeters: anchor.zMeters - turnedOffset.zMeters,
+  };
+  return {
+    ...underlay,
+    metersPerPixel,
+    origin: {
+      xMeters: center.xMeters - width / 2,
+      zMeters: center.zMeters - depth / 2,
+    },
+  };
 }
 
 /**
@@ -152,7 +268,11 @@ export function resizedUnderlay(
 ): PlanUnderlay {
   const east = corner === "north-east" || corner === "south-east";
   const south = corner === "south-east" || corner === "south-west";
-  const fixed = oppositeCorner(underlay, corner);
+  const held = OPPOSITE[corner];
+  // Measured in the image's own frame, so a turned image sizes along its
+  // own diagonal rather than the plan's.
+  const fixed = boxCorner(underlay, held);
+  const local = intoImage(underlay, point);
   const wide = underlay.imageWidthPixels;
   const tall = underlay.imageHeightPixels;
   const diagonal = wide * wide + tall * tall;
@@ -161,25 +281,15 @@ export function resizedUnderlay(
   }
 
   const reach =
-    ((point.xMeters - fixed.xMeters) * (east ? wide : -wide) +
-      (point.zMeters - fixed.zMeters) * (south ? tall : -tall)) /
+    ((local.xMeters - fixed.xMeters) * (east ? wide : -wide) +
+      (local.zMeters - fixed.zMeters) * (south ? tall : -tall)) /
     diagonal;
   const metersPerPixel = clamp(
     reach,
     UNDERLAY_WIDTH_LIMITS.minMeters / wide,
     UNDERLAY_WIDTH_LIMITS.maxMeters / wide,
   );
-
-  return {
-    ...underlay,
-    metersPerPixel,
-    // The origin is the north-west corner, so it is the fixed corner itself
-    // only when the drag was on the south-east one.
-    origin: {
-      xMeters: east ? fixed.xMeters : fixed.xMeters - wide * metersPerPixel,
-      zMeters: south ? fixed.zMeters : fixed.zMeters - tall * metersPerPixel,
-    },
-  };
+  return rescaledHolding(underlay, held, metersPerPixel);
 }
 
 /**
@@ -196,27 +306,19 @@ export function underlayWithWidth(
   if (!(widthMeters > 0) || !(underlay.imageWidthPixels > 0)) {
     return underlay;
   }
-  return {
-    ...underlay,
-    metersPerPixel: widthMeters / underlay.imageWidthPixels,
-  };
+  return rescaledHolding(
+    underlay,
+    "north-west",
+    widthMeters / underlay.imageWidthPixels,
+  );
 }
 
-function oppositeCorner(
-  underlay: PlanUnderlay,
-  corner: UnderlayCorner,
-): FloorPoint {
-  const opposite: Record<UnderlayCorner, UnderlayCorner> = {
-    "north-west": "south-east",
-    "north-east": "south-west",
-    "south-east": "north-west",
-    "south-west": "north-east",
-  };
-  const found = underlayCorners(underlay).find(
-    (one) => one.corner === opposite[corner],
-  );
-  return found?.at ?? underlay.origin;
-}
+const OPPOSITE: Record<UnderlayCorner, UnderlayCorner> = {
+  "north-west": "south-east",
+  "north-east": "south-west",
+  "south-east": "north-west",
+  "south-west": "north-east",
+};
 
 function clamp(value: number, low: number, high: number): number {
   return Math.min(Math.max(value, low), high);
