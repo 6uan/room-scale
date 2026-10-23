@@ -26,6 +26,7 @@ import {
   type PartCorner,
   type Room,
   type RoomPart,
+  isPartWallDividing,
 } from "./room";
 import { pointOnFloor } from "./floor";
 
@@ -663,7 +664,7 @@ function wallPointIsExterior(
   if (part === undefined) {
     return false;
   }
-  if (part.dividingWalls?.includes(wall) === true) {
+  if (isPartWallDividing(part, wall)) {
     return true;
   }
   const epsilon = 0.000001;

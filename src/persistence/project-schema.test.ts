@@ -746,6 +746,14 @@ describe("readStoredProject", () => {
     expect(stored?.openings[0]?.name).toBe("Closet door");
   });
 
+  it("reads a version 21 room, which had no section groups, as one with none", () => {
+    const result = readStoredProject({ ...STORED, version: 21 });
+
+    expect(
+      result.ok && result.project.floor.rooms[0]?.partGroups,
+    ).toBeUndefined();
+  });
+
   it("reads a version 20 piece, which had no name, as one without", () => {
     const result = readStoredProject({ ...STORED, version: 20 });
 

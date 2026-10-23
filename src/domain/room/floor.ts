@@ -41,6 +41,7 @@ import {
   resizeRoomEdge,
   resizeRoomPartEdge,
   roomBounds,
+  isPartWallDividing,
   roomFloorAreaSquareMeters,
   roomPart,
   roomPartContains,
@@ -751,9 +752,11 @@ function snapPartEdge(
         // A seam, or — when this edge is a dividing wall — a thickness
         // clear of the sibling, its band over the sibling's as one wall.
         const own = wallThicknessMeters(floor, mine);
+        const moving = roomPart(mine, partId);
         const edgeIsDividing =
           edge !== undefined &&
-          roomPart(mine, partId)?.dividingWalls?.includes(edge) === true;
+          moving !== undefined &&
+          isPartWallDividing(moving, edge);
         return edgeIsDividing
           ? [
               { at: end + own, below: SNAP_METERS + own, above: SNAP_METERS },
@@ -882,7 +885,7 @@ function isDividing(
       : end === "low"
         ? "north"
         : "south";
-  return part.dividingWalls?.includes(side) === true;
+  return isPartWallDividing(part, side);
 }
 
 function partAxisStart(part: RoomPart, axis: "x" | "z"): number {

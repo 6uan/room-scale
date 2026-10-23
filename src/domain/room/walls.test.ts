@@ -414,3 +414,50 @@ describe("openings and open walls", () => {
     ).toBeNull();
   });
 });
+
+describe("a group of sections", () => {
+  // An L-shaped closet inside a room: two sections side by side, grouped,
+  // standing wholly inside the room's own floor.
+  const host = part({ id: "p1", widthMeters: 6, depthMeters: 5 });
+  const left = part({
+    id: "p2",
+    origin: { xMeters: 1, zMeters: 1 },
+    widthMeters: 1,
+    depthMeters: 2,
+    groupId: "g1",
+  });
+  const right = part({
+    id: "p3",
+    origin: { xMeters: 2, zMeters: 1 },
+    widthMeters: 1,
+    depthMeters: 1,
+    groupId: "g1",
+  });
+  const room: Room = {
+    ...roomOf("r", [host, left, right]),
+    partGroups: [{ id: "g1", name: "Closet" }],
+  };
+  const floor = floorOf([room]);
+  const kinds = (of: RoomPart, wall: "north" | "east" | "south" | "west") =>
+    wallStretches(floor, room, of, wall).map(
+      (stretch) =>
+        `${stretch.kind}:${stretch.startMeters.toFixed(2)}-${stretch.endMeters.toFixed(2)}`,
+    );
+
+  it("walls the group's outline even though the room's floor carries on", () => {
+    expect(kinds(left, "west")).toEqual(["wall:0.00-2.00"]);
+    expect(kinds(left, "south")).toEqual(["wall:0.00-1.00"]);
+    expect(kinds(right, "north")).toEqual(["wall:0.00-1.00"]);
+  });
+
+  it("leaves the seam between two grouped sections open", () => {
+    // The left section's east side: the right one continues through its
+    // top metre, and the rest is wall.
+    expect(kinds(left, "east")).toEqual(["seam:0.00-1.00", "wall:1.00-2.00"]);
+    expect(kinds(right, "west")).toEqual(["seam:0.00-1.00"]);
+  });
+
+  it("leaves the host room's own sides exactly as they were", () => {
+    expect(kinds(host, "north")).toEqual(["wall:0.00-6.00"]);
+  });
+});

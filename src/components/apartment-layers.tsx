@@ -22,6 +22,7 @@ import {
   type MouseEvent,
 } from "react";
 import { ContextMenu } from "@/components/context-menu";
+import { nextId } from "@/domain/project";
 import { IconButton } from "@/components/icon-button";
 import { useScrollFade } from "@/components/scroll-fade";
 import { openingListName, sectionLabel } from "@/components/opening-name";
@@ -29,14 +30,21 @@ import { PanelHeader } from "@/components/panel-header";
 import { placedNames, type PlacedFurniture } from "@/domain/furniture";
 import { groupOf, type PieceGroup } from "@/domain/project";
 import {
-  type Floor,
-  type Room,
+  partGroupOf,
   roomsAt,
+  sharedOpenings,
   withOpeningName,
   withOpenings,
+  withPartGroup,
+  withPartGroupName,
+  withPartUngrouped,
   withRoomPart,
   withRoomPartName,
-  sharedOpenings,
+  withoutPartGroup,
+  type Floor,
+  type PartGroup,
+  type Room,
+  type RoomPart,
 } from "@/domain/room";
 import {
   groupSelection,
@@ -171,6 +179,14 @@ export function ApartmentLayers({
         y: number;
       }
     | { kind: "group"; group: PieceGroup; x: number; y: number }
+    | { kind: "section"; room: Room; part: RoomPart; x: number; y: number }
+    | {
+        kind: "section-group";
+        room: Room;
+        group: PartGroup;
+        x: number;
+        y: number;
+      }
     | null
   >(null);
   /** A group whose name is being typed. */
@@ -179,6 +195,134 @@ export function ApartmentLayers({
   const [renamingPieceId, setRenamingPieceId] = useState<string | null>(null);
   /** An opening or a section whose name is being typed. */
   const [renamingRowId, setRenamingRowId] = useState<string | null>(null);
+
+  /** The rows under a room: its loose sections, and its groups with theirs. */
+  function sectionRows(room: Room): readonly (
+    | { kind: "section"; part: RoomPart; index: number }
+    | {
+        kind: "group";
+        group: PartGroup;
+        members: readonly { part: RoomPart; index: number }[];
+      }
+  )[] {
+    const rows: (
+      | { kind: "section"; part: RoomPart; index: number }
+      | {
+          kind: "group";
+          group: PartGroup;
+          members: { part: RoomPart; index: number }[];
+        }
+    )[] = [];
+    room.parts.forEach((part, index) => {
+      if (index === 0) {
+        return;
+      }
+      const group = partGroupOf(room, part.id);
+      if (group === undefined) {
+        rows.push({ kind: "section", part, index });
+        return;
+      }
+      const existing = rows.find(
+        (row) => row.kind === "group" && row.group.id === group.id,
+      );
+      if (existing !== undefined && existing.kind === "group") {
+        existing.members.push({ part, index });
+      } else {
+        rows.push({ kind: "group", group, members: [{ part, index }] });
+      }
+    });
+    return rows;
+  }
+
+  function sectionRow(room: Room, part: RoomPart, index: number, depth: 1 | 2) {
+    return (
+      <li
+        key={part.id}
+        onContextMenu={(event: MouseEvent<HTMLLIElement>) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setMenu({
+            kind: "section",
+            room,
+            part,
+            x: event.clientX,
+            y: event.clientY,
+          });
+        }}
+      >
+        <Row
+          label={sectionLabel(part, index)}
+          icon={SquareDashed}
+          depth={depth}
+          selected={isSelected(selection, "room-part", part.id)}
+          onSelect={() =>
+            onSelect({ kind: "room-part", roomId: room.id, id: part.id })
+          }
+          onDoubleClick={() => setRenamingRowId(part.id)}
+          title="Double-click to rename"
+          editor={
+            renamingRowId === part.id ? (
+              <RenameField
+                name={sectionLabel(part, index)}
+                label={`Rename ${sectionLabel(part, index)}`}
+                onApply={(next) =>
+                  onRoomChange(
+                    withRoomPart(room, part.id, (one) =>
+                      withRoomPartName(one, next),
+                    ),
+                  )
+                }
+                onDone={() => setRenamingRowId(null)}
+              />
+            ) : undefined
+          }
+        />
+      </li>
+    );
+  }
+
+  /**
+   * What a section can be grouped with: every other section of its room,
+   * named as its row is, and every group — joined rather than copied.
+   */
+  function groupTargets(
+    room: Room,
+    part: RoomPart,
+  ): readonly { label: string; apply: () => Room }[] {
+    const groups = room.partGroups ?? [];
+    const own = partGroupOf(room, part.id);
+    return [
+      ...groups
+        .filter((group) => group.id !== own?.id)
+        .map((group) => ({
+          label: `Group with ${group.name}`,
+          apply: () => withPartGroup(room, group, [part.id]),
+        })),
+      ...room.parts.flatMap((other, index) =>
+        index === 0 ||
+        other.id === part.id ||
+        partGroupOf(room, other.id) !== undefined
+          ? []
+          : [
+              {
+                label: `Group with ${sectionLabel(other, index)}`,
+                apply: () =>
+                  withPartGroup(
+                    room,
+                    {
+                      id: nextId(
+                        "section-group",
+                        groups.map((group) => group.id),
+                      ),
+                      name: `Group ${groups.length + 1}`,
+                    },
+                    [part.id, other.id],
+                  ),
+              },
+            ],
+      ),
+    ];
+  }
   /** The last piece picked on its own: where a Shift range starts from. */
   const anchor = useRef<string | null>(null);
 
@@ -587,48 +731,80 @@ export function ApartmentLayers({
                   <Fold folded={folded.has(room.id)}>
                     <ul className="flex flex-col overflow-hidden">
                       {/* The first rectangle is the room, already on the row
-                          above; only what was added to it gets a row of its own. */}
-                      {room.parts.length === 1
-                        ? null
-                        : room.parts.slice(1).map((part, offset) => (
-                            <li key={part.id}>
-                              <Row
-                                label={sectionLabel(part, offset + 1)}
-                                icon={SquareDashed}
-                                depth={1}
-                                selected={isSelected(
+                          above; only what was added to it gets a row of its own.
+                          Grouped sections sit under their group's row. */}
+                      {sectionRows(room).map((entry) =>
+                        entry.kind === "group" ? (
+                          <li
+                            key={`group:${entry.group.id}`}
+                            onContextMenu={(
+                              event: MouseEvent<HTMLLIElement>,
+                            ) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              setMenu({
+                                kind: "section-group",
+                                room,
+                                group: entry.group,
+                                x: event.clientX,
+                                y: event.clientY,
+                              });
+                            }}
+                          >
+                            <Row
+                              label={entry.group.name}
+                              icon={SquareDashed}
+                              depth={1}
+                              selected={entry.members.some((member) =>
+                                isSelected(
                                   selection,
                                   "room-part",
-                                  part.id,
-                                )}
-                                onSelect={() =>
+                                  member.part.id,
+                                ),
+                              )}
+                              onSelect={() => {
+                                const first = entry.members[0];
+                                if (first !== undefined) {
                                   onSelect({
                                     kind: "room-part",
                                     roomId: room.id,
-                                    id: part.id,
-                                  })
+                                    id: first.part.id,
+                                  });
                                 }
-                                onDoubleClick={() => setRenamingRowId(part.id)}
-                                title="Double-click to rename"
-                                editor={
-                                  renamingRowId === part.id ? (
-                                    <RenameField
-                                      name={sectionLabel(part, offset + 1)}
-                                      label={`Rename ${sectionLabel(part, offset + 1)}`}
-                                      onApply={(next) =>
-                                        onRoomChange(
-                                          withRoomPart(room, part.id, (one) =>
-                                            withRoomPartName(one, next),
-                                          ),
-                                        )
-                                      }
-                                      onDone={() => setRenamingRowId(null)}
-                                    />
-                                  ) : undefined
-                                }
-                              />
-                            </li>
-                          ))}
+                              }}
+                              onDoubleClick={() =>
+                                setRenamingRowId(entry.group.id)
+                              }
+                              title="Double-click to rename"
+                              editor={
+                                renamingRowId === entry.group.id ? (
+                                  <RenameField
+                                    name={entry.group.name}
+                                    label={`Rename ${entry.group.name}`}
+                                    onApply={(next) =>
+                                      onRoomChange(
+                                        withPartGroupName(
+                                          room,
+                                          entry.group.id,
+                                          next,
+                                        ),
+                                      )
+                                    }
+                                    onDone={() => setRenamingRowId(null)}
+                                  />
+                                ) : undefined
+                              }
+                            />
+                            <ul className="flex flex-col">
+                              {entry.members.map((member) =>
+                                sectionRow(room, member.part, member.index, 2),
+                              )}
+                            </ul>
+                          </li>
+                        ) : (
+                          sectionRow(room, entry.part, entry.index, 1)
+                        ),
+                      )}
                       {room.openings.map((opening) => (
                         <li key={opening.id}>
                           <Row
@@ -726,7 +902,57 @@ export function ApartmentLayers({
           </div>
         </div>
       </div>
-      {menu === null ? null : menu.kind === "group" ? (
+      {menu === null ? null : menu.kind === "section" ? (
+        <ContextMenu
+          at={menu}
+          label={sectionLabel(
+            menu.part,
+            menu.room.parts.findIndex((one) => one.id === menu.part.id),
+          )}
+          onClose={() => setMenu(null)}
+          items={[
+            ...groupTargets(menu.room, menu.part).map((target) => ({
+              label: target.label,
+              onSelect: () => onRoomChange(target.apply()),
+            })),
+            ...(() => {
+              const group = partGroupOf(menu.room, menu.part.id);
+              return group === undefined
+                ? []
+                : [
+                    {
+                      label: `Remove from ${group.name}`,
+                      onSelect: () =>
+                        onRoomChange(
+                          withPartUngrouped(menu.room, menu.part.id),
+                        ),
+                    },
+                  ];
+            })(),
+            {
+              label: "Rename",
+              onSelect: () => setRenamingRowId(menu.part.id),
+            },
+          ]}
+        />
+      ) : menu.kind === "section-group" ? (
+        <ContextMenu
+          at={menu}
+          label={menu.group.name}
+          onClose={() => setMenu(null)}
+          items={[
+            {
+              label: "Rename",
+              onSelect: () => setRenamingRowId(menu.group.id),
+            },
+            {
+              label: "Ungroup",
+              onSelect: () =>
+                onRoomChange(withoutPartGroup(menu.room, menu.group.id)),
+            },
+          ]}
+        />
+      ) : menu.kind === "group" ? (
         <ContextMenu
           at={menu}
           label={menu.group.name}

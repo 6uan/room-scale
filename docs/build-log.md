@@ -877,6 +877,17 @@ than by drag, one image covers the whole apartment, and a skewed photograph
 is not straightened — a listing PDF's plan is flat, and a phone photo of one
 can wait until it stops somebody.
 
+**Sections can be grouped, and a group is walled round its outline.** An
+L-shaped closet inside a bedroom is two rectangles, and they were two
+things: two rows, two names, dividing walls set by hand on each, and a
+seam between them that was easy to get wrong. A group of sections is one
+thing now — one row under the room, one name, picked up as one — and its
+walls come from its outline: every side a group-mate does not continue
+through is a wall, and the joins inside are not. It stays under its room
+in the list, where a closet belongs, which is why it is not a room of its
+own; a room inside a room would have fought the overlap check and the
+area. The stored document goes to version 22 to carry the groups.
+
 **A door in a shared wall is both rooms' door.** It was always drawn that
 way — openings are cut from the finished wall band, so one doorway opens
 through both bands where two rooms share a wall — but it was listed only

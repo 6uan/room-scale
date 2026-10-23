@@ -54,6 +54,7 @@ import { PRODUCT_DRAG_TYPE } from "@/components/catalogue-panel";
 import {
   WALL_SIDES,
   BIFOLD_REACH,
+  groupMates,
   checkOpening,
   drawnRoom,
   isWallDividing,
@@ -1518,10 +1519,21 @@ export function RoomPlanCanvas({
           unit,
         ),
       });
-      onRoomChange?.(
+      // Its group-mates go with it by the same amount: a closet is picked
+      // up as a closet.
+      const delta = {
+        xMeters: origin.xMeters - part.origin.xMeters,
+        zMeters: origin.zMeters - part.origin.zMeters,
+      };
+      const moved = groupMates(room, part).reduce(
+        (next, mate) =>
+          withRoomPartOrigin(next, mate.id, {
+            xMeters: mate.origin.xMeters + delta.xMeters,
+            zMeters: mate.origin.zMeters + delta.zMeters,
+          }),
         withRoomPartOrigin(room, part.id, origin),
-        `room-part-move:${part.id}`,
       );
+      onRoomChange?.(moved, `room-part-move:${part.id}`);
       return;
     }
 

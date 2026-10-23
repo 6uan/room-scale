@@ -105,6 +105,25 @@ export type RoomPart = TurnedRect & {
   readonly openWalls: readonly WallSide[];
   readonly dividingWalls?: readonly WallSide[] | undefined;
   readonly cuts?: PartCuts | undefined;
+  /**
+   * The group of sections this one belongs to, if any — see `PartGroup`.
+   * A grouped section keeps a wall on every side a group-mate does not
+   * continue through, so the group's outline is walled and its seams are
+   * not, without anybody marking sides dividing.
+   */
+  readonly groupId?: string | undefined;
+};
+
+/**
+ * Several sections of a room that are one thing: an L-shaped closet, a
+ * pantry with a nook. One name in the list, one thing to pick up, and
+ * walls round the outline of all of them together. The sections stay
+ * rectangles, so every wall still takes a door and every size stays
+ * typeable; the group is only which of them belong together.
+ */
+export type PartGroup = {
+  readonly id: string;
+  readonly name: string;
 };
 
 export type Room = {
@@ -113,6 +132,8 @@ export type Room = {
   readonly heightMeters: number;
   readonly parts: readonly RoomPart[];
   readonly openings: readonly Opening[];
+  /** The groups its sections are gathered into. Absent is none. */
+  readonly partGroups?: readonly PartGroup[] | undefined;
   /**
    * This room's own wall thickness, or null to take the apartment's.
    *
@@ -201,7 +222,7 @@ export function roomPartWallState(part: RoomPart, wall: WallSide): WallState {
   if (part.openWalls.includes(wall)) {
     return "open";
   }
-  return part.dividingWalls?.includes(wall) === true ? "dividing" : "auto";
+  return isPartWallDividing(part, wall) ? "dividing" : "auto";
 }
 
 /** Sets one side of a section to one of its three states. */
@@ -794,6 +815,113 @@ export function withRoomPart(
     ...room,
     parts: room.parts.map((part) => (part.id === partId ? change(part) : part)),
   };
+}
+
+/** Whether a side of a section keeps its wall where the room's floor carries on. */
+export function isPartWallDividing(part: RoomPart, wall: WallSide): boolean {
+  return (
+    part.dividingWalls?.includes(wall) === true || part.groupId !== undefined
+  );
+}
+
+export function partGroupOf(room: Room, partId: string): PartGroup | undefined {
+  const part = roomPart(room, partId);
+  return part?.groupId === undefined
+    ? undefined
+    : room.partGroups?.find((group) => group.id === part.groupId);
+}
+
+/** The other sections in this one's group. None for a section on its own. */
+export function groupMates(room: Room, part: RoomPart): readonly RoomPart[] {
+  return part.groupId === undefined
+    ? []
+    : room.parts.filter(
+        (one) => one.id !== part.id && one.groupId === part.groupId,
+      );
+}
+
+/**
+ * Gathers sections into one group, named. A section already in another
+ * group leaves it; a group left with fewer than two sections is dropped,
+ * because one section on its own is just a section.
+ */
+export function withPartGroup(
+  room: Room,
+  group: PartGroup,
+  partIds: readonly string[],
+): Room {
+  const parts = room.parts.map((part) =>
+    partIds.includes(part.id) ? { ...part, groupId: group.id } : part,
+  );
+  const groups = [
+    ...(room.partGroups ?? []).filter((one) => one.id !== group.id),
+    group,
+  ];
+  return tidyGroups({ ...room, parts, partGroups: groups });
+}
+
+/** Lets a group's sections go their own ways again. */
+export function withoutPartGroup(room: Room, groupId: string): Room {
+  return tidyGroups({
+    ...room,
+    parts: room.parts.map((part) =>
+      part.groupId === groupId ? ungrouped(part) : part,
+    ),
+    partGroups: (room.partGroups ?? []).filter((one) => one.id !== groupId),
+  });
+}
+
+/** Takes one section out of its group. */
+export function withPartUngrouped(room: Room, partId: string): Room {
+  return tidyGroups({
+    ...room,
+    parts: room.parts.map((part) =>
+      part.id === partId ? ungrouped(part) : part,
+    ),
+  });
+}
+
+export function withPartGroupName(
+  room: Room,
+  groupId: string,
+  name: string,
+): Room {
+  return {
+    ...room,
+    partGroups: (room.partGroups ?? []).map((group) =>
+      group.id === groupId ? { ...group, name } : group,
+    ),
+  };
+}
+
+function ungrouped(part: RoomPart): RoomPart {
+  const { groupId, ...rest } = part;
+  void groupId;
+  return rest;
+}
+
+/** Drops groups with fewer than two sections, and the `partGroups` key when empty. */
+function tidyGroups(room: Room): Room {
+  const counts = new Map<string, number>();
+  for (const part of room.parts) {
+    if (part.groupId !== undefined) {
+      counts.set(part.groupId, (counts.get(part.groupId) ?? 0) + 1);
+    }
+  }
+  const kept = (room.partGroups ?? []).filter(
+    (group) => (counts.get(group.id) ?? 0) >= 2,
+  );
+  const keptIds = new Set(kept.map((group) => group.id));
+  const parts = room.parts.map((part) =>
+    part.groupId !== undefined && !keptIds.has(part.groupId)
+      ? ungrouped(part)
+      : part,
+  );
+  const { partGroups, ...rest } = room;
+  void partGroups;
+  return kept.length === 0
+    ? { ...rest, parts }
+    : { ...rest, parts, partGroups: kept };
 }
 
 export function withParts(room: Room, parts: readonly RoomPart[]): Room {
