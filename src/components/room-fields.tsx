@@ -14,27 +14,20 @@ import { sectionLabel } from "@/components/opening-name";
 import { TextField } from "@/components/product-form";
 import { RoomOpeningsForm } from "@/components/room-openings-form";
 import {
-  type CutLeg,
-  cutLegLimits,
-  defaultCornerCut,
-  type Floor,
-  nextPartId,
-  type OpeningKind,
   PART_CORNERS,
-  type PartCorner,
-  partWallSides,
-  type Room,
   ROOM_LENGTH_LIMITS,
   ROOM_ORIGIN_LIMITS,
+  WALL_THICKNESS_LIMITS,
+  cutLegLimits,
+  defaultCornerCut,
+  nextPartId,
+  partGroupOf,
+  partWallSides,
   roomFloorAreaSquareMeters,
-  type RoomPart,
   roomPartCut,
   roomPartWallState,
   snapRoomOrigin,
   snapRoomResize,
-  WALL_THICKNESS_LIMITS,
-  type WallSide,
-  type WallState,
   wallStretches,
   wallThicknessMeters,
   withOrigin,
@@ -48,6 +41,15 @@ import {
   withRoomPartRotation,
   withRoomPartWallState,
   withRoomWallThickness,
+  type CutLeg,
+  type Floor,
+  type OpeningKind,
+  type PartCorner,
+  type PartGroup,
+  type Room,
+  type RoomPart,
+  type WallSide,
+  type WallState,
 } from "@/domain/room";
 import {
   displayUnitSuffix,
@@ -192,6 +194,37 @@ export function RoomFields({
   const shownLabel = compound
     ? `${roomName} section ${shownIndex + 1}`
     : roomName;
+  const shownGroup =
+    shown === undefined ? undefined : partGroupOf(room, shown.id);
+
+  /** The chips in the Editing row: the room, each loose section, each group once. */
+  function sectionChips(
+    of: Room,
+  ): readonly (
+    | { kind: "section"; part: RoomPart; index: number }
+    | { kind: "group"; group: PartGroup; members: RoomPart[] }
+  )[] {
+    const chips: (
+      | { kind: "section"; part: RoomPart; index: number }
+      | { kind: "group"; group: PartGroup; members: RoomPart[] }
+    )[] = [];
+    of.parts.forEach((part, index) => {
+      const group = index === 0 ? undefined : partGroupOf(of, part.id);
+      if (group === undefined) {
+        chips.push({ kind: "section", part, index });
+        return;
+      }
+      const existing = chips.find(
+        (chip) => chip.kind === "group" && chip.group.id === group.id,
+      );
+      if (existing !== undefined && existing.kind === "group") {
+        existing.members.push(part);
+      } else {
+        chips.push({ kind: "group", group, members: [part] });
+      }
+    });
+    return chips;
+  }
 
   function addPart(): void {
     const base = room.parts.at(-1);
@@ -286,17 +319,59 @@ export function RoomFields({
                 same set twice and break every query that names it. The first
                 rectangle is the room itself, as the list on the left has it;
                 only the ones added to it are called sections. */}
-            <div className="flex min-w-0 flex-1 gap-1">
-              {room.parts.map((part, index) => (
-                <Chip
-                  key={part.id}
-                  label={`Select ${roomName} section ${index + 1}`}
-                  pressed={part.id === shown.id}
-                  onClick={() => onSelectPart?.(part.id)}
-                >
-                  {index === 0 ? "Room" : sectionLabel(part, index)}
-                </Chip>
-              ))}
+            <div className="flex min-w-0 flex-1 flex-wrap gap-1">
+              {/* One chip per group rather than per section in it: the row
+                  lists what the room is made of, and a closet is one thing. */}
+              {sectionChips(room).map((chip) =>
+                chip.kind === "group" ? (
+                  <Chip
+                    key={`group:${chip.group.id}`}
+                    label={`Select ${roomName} ${chip.group.name}`}
+                    pressed={chip.members.some((part) => part.id === shown.id)}
+                    onClick={() => {
+                      const first = chip.members[0];
+                      if (first !== undefined) {
+                        onSelectPart?.(first.id);
+                      }
+                    }}
+                  >
+                    {chip.group.name}
+                  </Chip>
+                ) : (
+                  <Chip
+                    key={chip.part.id}
+                    label={`Select ${roomName} section ${chip.index + 1}`}
+                    pressed={chip.part.id === shown.id}
+                    onClick={() => onSelectPart?.(chip.part.id)}
+                  >
+                    {chip.index === 0
+                      ? "Room"
+                      : sectionLabel(chip.part, chip.index)}
+                  </Chip>
+                ),
+              )}
+            </div>
+          </PanelRow>
+        ) : null}
+
+        {/* Inside a group, which of its sections the fields below describe. */}
+        {compound && shownGroup !== undefined ? (
+          <PanelRow name="Group sections" label={shownGroup.name}>
+            <div className="flex min-w-0 flex-1 flex-wrap gap-1">
+              {room.parts.flatMap((part, index) =>
+                part.groupId === shownGroup.id ? (
+                  <Chip
+                    key={part.id}
+                    label={`Select ${roomName} section ${index + 1}`}
+                    pressed={part.id === shown.id}
+                    onClick={() => onSelectPart?.(part.id)}
+                  >
+                    {sectionLabel(part, index)}
+                  </Chip>
+                ) : (
+                  []
+                ),
+              )}
             </div>
           </PanelRow>
         ) : null}

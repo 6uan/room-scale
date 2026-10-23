@@ -270,6 +270,8 @@ export type RoomPlanCanvasProps = {
   selectedRoomId?: string | null;
   /** A selected rectangle inside the room; null means the whole room module. */
   selectedRoomPartId?: string | null;
+  /** The sections of a selected group: marked together, moved together. */
+  selectedGroupPartIds?: readonly string[];
   onSelectRoom?: (roomId: string) => void;
   onSelectRoomPart?: (roomId: string, partId: string) => void;
   onRoomChange?: (room: Room, gesture?: Gesture) => void;
@@ -382,6 +384,8 @@ type Drag =
       readonly roomId: string;
       readonly partId: string;
       readonly grabOffset: FloorPoint;
+      /** Whether the group this section is in was what got picked up. */
+      readonly withGroup: boolean;
     }
   | {
       readonly kind: "resize";
@@ -466,6 +470,7 @@ type Drag =
  * the floor — the same footprints validation measures.
  */
 const NO_GROUPS: readonly PieceGroup[] = [];
+const NO_IDS: readonly string[] = [];
 
 /** The reach of a snap on the screen. */
 const SNAP_PIXELS = 8;
@@ -487,6 +492,7 @@ export function RoomPlanCanvas({
   onDropProduct,
   selectedRoomId = null,
   selectedRoomPartId = null,
+  selectedGroupPartIds = NO_IDS,
   onSelectRoom,
   onSelectRoomPart,
   onRoomChange,
@@ -750,6 +756,7 @@ export function RoomPlanCanvas({
       selectedRoomId,
       groupRoomIds,
       selectedRoomPartId,
+      selectedGroupPartIds,
       selectedOpeningId,
       troubledIds,
       viewport: size,
@@ -773,6 +780,7 @@ export function RoomPlanCanvas({
     selectedRoomId,
     groupRoomIds,
     selectedRoomPartId,
+    selectedGroupPartIds,
     selectedOpeningId,
     troubledIds,
     size,
@@ -1201,12 +1209,23 @@ export function RoomPlanCanvas({
     }
 
     if (hit === null && room !== null) {
-      const part =
-        room.id === selectedRoomId && selectedRoomPartId !== null
+      // A selected group is picked up by any of its sections, and stays
+      // selected as a group while it moves; a selected section is picked up
+      // by whichever section was pressed.
+      const grouped =
+        room.id === selectedRoomId && selectedGroupPartIds.length > 0;
+      const under =
+        room.id === selectedRoomId && (selectedRoomPartId !== null || grouped)
           ? roomPartAt(room, point)
           : null;
+      const part =
+        under !== null && (!grouped || selectedGroupPartIds.includes(under.id))
+          ? under
+          : null;
       if (part !== null) {
-        onSelectRoomPart?.(room.id, part.id);
+        if (!grouped) {
+          onSelectRoomPart?.(room.id, part.id);
+        }
         dragRef.current = {
           kind: "part",
           pointerId: event.pointerId,
@@ -1216,6 +1235,7 @@ export function RoomPlanCanvas({
             xMeters: point.xMeters - part.origin.xMeters,
             zMeters: point.zMeters - part.origin.zMeters,
           },
+          withGroup: grouped,
         };
         setCursor("move");
         canvas.focus();
@@ -1519,13 +1539,14 @@ export function RoomPlanCanvas({
           unit,
         ),
       });
-      // Its group-mates go with it by the same amount: a closet is picked
-      // up as a closet.
+      // When the group was what got picked up, its other sections go by
+      // the same amount: a closet is moved as a closet. A section selected
+      // on its own moves on its own.
       const delta = {
         xMeters: origin.xMeters - part.origin.xMeters,
         zMeters: origin.zMeters - part.origin.zMeters,
       };
-      const moved = groupMates(room, part).reduce(
+      const moved = (drag.withGroup ? groupMates(room, part) : []).reduce(
         (next, mate) =>
           withRoomPartOrigin(next, mate.id, {
             xMeters: mate.origin.xMeters + delta.xMeters,
@@ -2584,6 +2605,7 @@ type DrawOptions = {
   selectedRoomId: string | null;
   groupRoomIds?: readonly string[];
   selectedRoomPartId: string | null;
+  selectedGroupPartIds?: readonly string[];
   selectedOpeningId: string | null;
   troubledIds: ReadonlySet<string>;
   viewport: PixelSize;
@@ -2620,6 +2642,7 @@ function drawPlan(
     selectedRoomId,
     groupRoomIds = [],
     selectedRoomPartId,
+    selectedGroupPartIds = NO_IDS,
     selectedOpeningId,
     troubledIds,
     viewport,
@@ -2701,7 +2724,9 @@ function drawPlan(
 
   for (const room of floor.rooms) {
     drawRoomName(context, frame, room, fontFamily);
-    if (room.id === selectedRoomId || groupRoomIds.includes(room.id)) {
+    if (selectedGroupPartIds.length > 0 && room.id === selectedRoomId) {
+      markSelectedGroup(context, frame, room, selectedGroupPartIds);
+    } else if (room.id === selectedRoomId || groupRoomIds.includes(room.id)) {
       markSelectedRoom(context, frame, room, selectedRoomPartId);
     }
   }
@@ -3416,6 +3441,41 @@ function draggedRotation(radians: number): number {
 }
 
 /** The selected room, outlined inside its own walls, with its handles. */
+/**
+ * A selected group of sections: each member outlined, as the room's own
+ * sections are, and no resize handles — the group is picked up and moved
+ * as one; a member is resized by selecting it on its own.
+ */
+function markSelectedGroup(
+  context: CanvasRenderingContext2D,
+  frame: PlanFrame,
+  room: Room,
+  partIds: readonly string[],
+): void {
+  const pixelsPerMeter = spanPixels(frame, 1);
+  context.save();
+  context.fillStyle = frame.color;
+  context.strokeStyle = frame.color;
+  context.lineWidth = 2;
+  context.setLineDash([6, 4]);
+  for (const part of room.parts.filter((one) => partIds.includes(one.id))) {
+    inPartFrame(context, frame, part, (width, depth) => {
+      context.globalAlpha = SELECTED_FILL_ALPHA;
+      if (roomPartIsCut(part)) {
+        tracePartOutline(context, part, pixelsPerMeter);
+        context.fill();
+        context.globalAlpha = 1;
+        context.stroke();
+        return;
+      }
+      context.fillRect(0, 0, width, depth);
+      context.globalAlpha = 1;
+      context.strokeRect(0, 0, width, depth);
+    });
+  }
+  context.restore();
+}
+
 function markSelectedRoom(
   context: CanvasRenderingContext2D,
   frame: PlanFrame,

@@ -117,7 +117,9 @@ export function Inspector(props: InspectorProps) {
     <div className="flex h-full flex-col overflow-y-auto">
       {selection === null ? (
         <FloorInspector {...props} />
-      ) : selection.kind === "room" || selection.kind === "room-part" ? (
+      ) : selection.kind === "room" ||
+        selection.kind === "room-part" ||
+        selection.kind === "section-group" ? (
         <RoomInspector {...props} selection={selection} />
       ) : selection.kind === "opening" ? (
         <OpeningInspector {...props} selection={selection} />
@@ -287,7 +289,8 @@ function RoomInspector({
 }: InspectorProps & {
   selection:
     | { kind: "room"; id: string }
-    | { kind: "room-part"; roomId: string; id: string };
+    | { kind: "room-part"; roomId: string; id: string }
+    | { kind: "section-group"; roomId: string; id: string };
 }) {
   const roomId = selection.kind === "room" ? selection.id : selection.roomId;
   const room = floor.rooms.find((one) => one.id === roomId);
@@ -322,7 +325,14 @@ function RoomInspector({
         placingOpeningKind={
           placingOpening?.roomId === room.id ? placingOpening.kind : null
         }
-        selectedPartId={selection.kind === "room-part" ? selection.id : null}
+        selectedPartId={
+          selection.kind === "room-part"
+            ? selection.id
+            : selection.kind === "section-group"
+              ? (room.parts.find((part) => part.groupId === selection.id)?.id ??
+                null)
+              : null
+        }
         onSelectPart={(partId) =>
           onSelect(
             partId === null

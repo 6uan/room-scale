@@ -1472,6 +1472,60 @@ test.describe("laying the apartment out", () => {
     await page.keyboard.press("Enter");
     await expect(row("Closet")).toBeVisible();
 
+    // Folded like a room, and the panel's chips list the closet once, with
+    // its own sections on a row of their own.
+    await contents(page)
+      .getByRole("button", { name: "Collapse Closet" })
+      .click();
+    await expect(row("Section 2")).toBeHidden();
+    await contents(page).getByRole("button", { name: "Expand Closet" }).click();
+    await expect(row("Section 2")).toBeVisible();
+    await row("Closet").click();
+    await expect(row("Closet")).toHaveAttribute("aria-pressed", "true");
+    await expect(row("Section 2")).toHaveAttribute("aria-pressed", "false");
+    await expect(
+      room.getByRole("button", { name: "Select Living room Closet" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      room.getByRole("group", { name: "Group sections" }),
+    ).toBeVisible();
+
+    // Picked up by either of its sections, the group moves as one and the
+    // room stays where it was. The panel shows the first section's fields.
+    const sectionX = room.getByLabel("Living room section 2 X position");
+    const roomX = room.getByLabel("Living room section 1 X position");
+    await roomRow.click();
+    const roomBefore = await roomX.inputValue();
+    await row("Closet").click();
+    const sectionBefore = Number(await sectionX.inputValue());
+    const grab = at(48, 12);
+    await page.mouse.move(grab.x, grab.y);
+    await page.mouse.down();
+    await page.mouse.move(grab.x + 60, grab.y, { steps: 8 });
+    await page.mouse.up();
+    await expect(row("Closet")).toHaveAttribute("aria-pressed", "true");
+    expect(Number(await sectionX.inputValue())).toBeGreaterThan(sectionBefore);
+    await roomRow.click();
+    await expect(roomX).toHaveValue(roomBefore);
+
+    // One section selected on its own moves on its own: the other stays.
+    await row("Section 3").click();
+    const otherX = room.getByLabel("Living room section 2 X position");
+    const ownX = room.getByLabel("Living room section 3 X position");
+    const ownBefore = Number(await ownX.inputValue());
+    await row("Section 2").click();
+    const otherBefore = await otherX.inputValue();
+    await row("Section 3").click();
+    // Where the third section is now: it went east with the group.
+    const hold = { x: grab.x + 60, y: grab.y };
+    await page.mouse.move(hold.x, hold.y);
+    await page.mouse.down();
+    await page.mouse.move(hold.x + 40, hold.y, { steps: 8 });
+    await page.mouse.up();
+    expect(Number(await ownX.inputValue())).toBeGreaterThan(ownBefore);
+    await row("Section 2").click();
+    await expect(otherX).toHaveValue(otherBefore);
+
     // The group survives a reload, and comes apart on request.
     await page.waitForTimeout(500);
     await page.reload();

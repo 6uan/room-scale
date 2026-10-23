@@ -737,6 +737,7 @@ export function ApartmentLayers({
                         entry.kind === "group" ? (
                           <li
                             key={`group:${entry.group.id}`}
+                            className="flex flex-col"
                             onContextMenu={(
                               event: MouseEvent<HTMLLIElement>,
                             ) => {
@@ -751,55 +752,50 @@ export function ApartmentLayers({
                               });
                             }}
                           >
-                            <Row
-                              label={entry.group.name}
+                            <EditableRow
+                              name={entry.group.name}
+                              placeholder="Unnamed group"
                               icon={SquareDashed}
                               depth={1}
-                              selected={entry.members.some((member) =>
-                                isSelected(
-                                  selection,
-                                  "room-part",
-                                  member.part.id,
-                                ),
-                              )}
-                              onSelect={() => {
-                                const first = entry.members[0];
-                                if (first !== undefined) {
-                                  onSelect({
-                                    kind: "room-part",
-                                    roomId: room.id,
-                                    id: first.part.id,
-                                  });
-                                }
-                              }}
-                              onDoubleClick={() =>
-                                setRenamingRowId(entry.group.id)
+                              selected={
+                                selection?.kind === "section-group" &&
+                                selection.id === entry.group.id
                               }
-                              title="Double-click to rename"
-                              editor={
-                                renamingRowId === entry.group.id ? (
-                                  <RenameField
-                                    name={entry.group.name}
-                                    label={`Rename ${entry.group.name}`}
-                                    onApply={(next) =>
-                                      onRoomChange(
-                                        withPartGroupName(
-                                          room,
-                                          entry.group.id,
-                                          next,
-                                        ),
-                                      )
-                                    }
-                                    onDone={() => setRenamingRowId(null)}
-                                  />
-                                ) : undefined
+                              onSelect={() =>
+                                onSelect({
+                                  kind: "section-group",
+                                  roomId: room.id,
+                                  id: entry.group.id,
+                                })
+                              }
+                              onRename={(name) =>
+                                onRoomChange(
+                                  withPartGroupName(room, entry.group.id, name),
+                                )
+                              }
+                              editing={renamingRowId === entry.group.id}
+                              onEditingChange={(editing) =>
+                                setRenamingRowId(
+                                  editing ? entry.group.id : null,
+                                )
+                              }
+                              folded={folded.has(entry.group.id)}
+                              onToggleFolded={() =>
+                                toggleFolded(entry.group.id)
                               }
                             />
-                            <ul className="flex flex-col">
-                              {entry.members.map((member) =>
-                                sectionRow(room, member.part, member.index, 2),
-                              )}
-                            </ul>
+                            <Fold folded={folded.has(entry.group.id)}>
+                              <ul className="flex flex-col overflow-hidden">
+                                {entry.members.map((member) =>
+                                  sectionRow(
+                                    room,
+                                    member.part,
+                                    member.index,
+                                    2,
+                                  ),
+                                )}
+                              </ul>
+                            </Fold>
                           </li>
                         ) : (
                           sectionRow(room, entry.part, entry.index, 1)

@@ -879,12 +879,21 @@ export function Workspace() {
               selectedRoomId={
                 selection?.kind === "room"
                   ? selection.id
-                  : selection?.kind === "room-part"
+                  : selection?.kind === "room-part" ||
+                      selection?.kind === "section-group"
                     ? selection.roomId
                     : null
               }
               selectedRoomPartId={
                 selection?.kind === "room-part" ? selection.id : null
+              }
+              selectedGroupPartIds={
+                selection?.kind === "section-group"
+                  ? (floor.rooms
+                      .find((one) => one.id === selection.roomId)
+                      ?.parts.filter((part) => part.groupId === selection.id)
+                      .map((part) => part.id) ?? [])
+                  : []
               }
               onSelectRoom={(id) => setSelection({ kind: "room", id })}
               onSelectRoomPart={(roomId, id) =>
