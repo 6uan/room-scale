@@ -899,6 +899,18 @@ right edge since it stopped being a column, covered the corner readout, the
 centred hints and the problems along the bottom; they live in a layer that
 ends where the panel begins while it is open.
 
+**Positions land on whole inches, and can be rounded after the fact.** A
+dragged section already landed on a whole inch; a dragged room, piece or
+selection did not, and sat at 8' 1.43". They all land whole now, unless a snap
+against a wall or a neighbouring room holds them, since contact is exact and
+the inch is not. What was placed before can be rounded from the ⋯ menu of a
+room, a piece or a selection, and that only ever moves things: each room
+moves rigidly, so no section, size, angle, corner or area changes. It does
+not change how things meet either — rooms one wall apart move together, so a
+1.5" wall stays 1.5" and some rooms stay at a half inch; a piece against a
+wall stays against it; touching pieces stay touching; and nothing is moved
+into, or newly within a wall of, anything it was clear of.
+
 **One format for a length, chosen once, and arrow keys in every field.**
 A field showed bare inches (`116`) while every label beside it read feet and
 inches with a tenth (`9' 8.0"`), so one number was on screen two ways. Now a

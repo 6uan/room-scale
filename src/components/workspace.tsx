@@ -40,11 +40,14 @@ import { pressIs } from "@/components/shortcuts";
 import {
   countPlaced,
   createInstance,
+  footprintRect,
   type FurnitureInstance,
   type FurnitureProduct,
   placedFurniture,
   placedNames,
   placementFor,
+  roomUnder,
+  roundPositions,
   shownFurniture,
   withInstance,
   withInstanceHidden,
@@ -92,6 +95,7 @@ import {
   type WallSide,
 } from "@/domain/room";
 import {
+  metersFromDisplayValue,
   metersFromInches,
   roundToDisplayUnit,
   storedUnit,
@@ -567,6 +571,38 @@ export function Workspace() {
     setSelection(null);
   }
 
+  /**
+   * Rounds rooms and pieces to the nearest whole unit, moving and never
+   * resizing: see `roundPositions`. A room's own pieces are rounded with it,
+   * and the whole of it is one step to undo.
+   */
+  function roundPositionsOf(
+    roomIds: readonly string[],
+    instanceIds: readonly string[],
+  ): void {
+    const inRooms = furniture.flatMap((placed) => {
+      const room = roomUnder(floor, footprintRect(placed));
+      return room !== null && roomIds.includes(room.id)
+        ? [placed.instance.id]
+        : [];
+    });
+    const result = roundPositions(
+      floor,
+      furniture,
+      { roomIds, instanceIds: [...new Set([...instanceIds, ...inRooms])] },
+      metersFromDisplayValue(1, unit),
+      groups,
+    );
+    const moved = new Map(result.instances.map((one) => [one.id, one]));
+    const gesture = "round-positions";
+    setFloor(withRooms(floor, result.rooms), gesture);
+    setInstances(
+      instances.map((one) => moved.get(one.id) ?? one),
+      gesture,
+    );
+    endGesture();
+  }
+
   function removeProduct(product: FurnitureProduct): void {
     // Refused rather than cascaded: deleting a product out from under the
     // copies standing in the room is the one thing ADR 0003 rules out.
@@ -1012,6 +1048,7 @@ export function Workspace() {
             className="absolute inset-y-0 right-0 z-10 w-80 min-h-0 overflow-hidden border-l border-black/10 bg-background shadow-xl dark:border-white/15"
           >
             <Inspector
+              onRoundPositions={roundPositionsOf}
               floor={floor}
               furniture={furniture}
               products={products}

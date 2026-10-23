@@ -85,6 +85,14 @@ export type InspectorProps = {
   ) => void;
   onProductSave: (product: FurnitureProduct) => void;
   onProductRemove: (product: FurnitureProduct) => void;
+  /**
+   * Moves rooms and pieces to the nearest whole unit, never resizing; a
+   * room's own pieces go with it. One undo step.
+   */
+  onRoundPositions: (
+    roomIds: readonly string[],
+    instanceIds: readonly string[],
+  ) => void;
   productProblem: string | null;
   /** The id a product entered now would take. */
   newProductId: string;
@@ -182,6 +190,17 @@ function Panel({
   );
 }
 
+/** The menu item that rounds positions, named in the unit on screen. */
+function roundItem(unit: DisplayUnit, onSelect: () => void) {
+  return {
+    label:
+      unit === "metric"
+        ? "Round to whole centimeters"
+        : "Round to whole inches",
+    onSelect,
+  };
+}
+
 /** Nothing selected: the apartment's own settings. */
 
 function RoomInspector({
@@ -196,6 +215,7 @@ function RoomInspector({
   onAddOpening,
   placingOpening,
   onSelect,
+  onRoundPositions,
 }: InspectorProps & {
   selection:
     | { kind: "room"; id: string }
@@ -235,6 +255,7 @@ function RoomInspector({
         <ActionMenu
           label={`${name} actions`}
           items={[
+            roundItem(unit, () => onRoundPositions([room.id], [])),
             ...(shown === undefined || shownIndex === 0
               ? []
               : [
@@ -348,6 +369,7 @@ function InstanceInspector({
   onSelect,
   onInstanceChange,
   onInstanceRemove,
+  onRoundPositions,
 }: InspectorProps & { selection: { kind: "instance"; id: string } }) {
   const index = furniture.findIndex(
     ({ instance }) => instance.id === selection.id,
@@ -383,6 +405,7 @@ function InstanceInspector({
           <ActionMenu
             label={`${name} actions`}
             items={[
+              roundItem(unit, () => onRoundPositions([], [placed.instance.id])),
               {
                 label: `Take ${name} out of the room`,
                 danger: true,
@@ -473,6 +496,7 @@ function GroupInspector({
   unit,
   selection,
   onGroupRemove,
+  onRoundPositions,
 }: InspectorProps & {
   selection: {
     kind: "group";
@@ -517,6 +541,9 @@ function GroupInspector({
         <ActionMenu
           label={`${title} actions`}
           items={[
+            roundItem(unit, () =>
+              onRoundPositions(selection.roomIds, selection.instanceIds),
+            ),
             {
               label: `Delete ${title}`,
               danger: true,

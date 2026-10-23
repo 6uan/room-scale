@@ -1580,9 +1580,17 @@ export function RoomPlanCanvas({
       onRoomChange?.(
         withOrigin(
           moving,
+          // Whole inches, as a dragged section lands; a snap to a
+          // neighbour's wall still wins, being exact contact.
           snapRoomOrigin(floor, moving, {
-            xMeters: point.xMeters - drag.grabOffset.xMeters,
-            zMeters: point.zMeters - drag.grabOffset.zMeters,
+            xMeters: roundToDisplayUnit(
+              point.xMeters - drag.grabOffset.xMeters,
+              unit,
+            ),
+            zMeters: roundToDisplayUnit(
+              point.zMeters - drag.grabOffset.zMeters,
+              unit,
+            ),
           }),
         ),
         `room-move:${drag.roomId}`,
@@ -1711,13 +1719,31 @@ export function RoomPlanCanvas({
         delta = snapped.value;
         dragRef.current = { ...drag, hold: snapped.hold };
       }
+      // On an axis nothing snapped to, the piece picked up lands on a whole
+      // inch and the rest keep their places around it. A snap is left alone:
+      // flush against a wall is exact, whatever the inch says.
+      const leaderAt = drag.instanceOrigins.get(drag.leader.id);
+      if (leaderAt !== undefined) {
+        const whole = (at: number, moved: number) =>
+          roundToDisplayUnit(at + moved, unit) - at;
+        delta = {
+          xMeters:
+            delta.xMeters === raw.xMeters
+              ? whole(leaderAt.xMeters, raw.xMeters)
+              : delta.xMeters,
+          zMeters:
+            delta.zMeters === raw.zMeters
+              ? whole(leaderAt.zMeters, raw.zMeters)
+              : delta.zMeters,
+        };
+      }
     } else {
       const leader = floor.rooms.find((one) => one.id === drag.leader.id);
       const origin = drag.roomOrigins.get(drag.leader.id);
       if (leader !== undefined && origin !== undefined) {
         const landed = snapRoomOrigin(floor, leader, {
-          xMeters: origin.xMeters + raw.xMeters,
-          zMeters: origin.zMeters + raw.zMeters,
+          xMeters: roundToDisplayUnit(origin.xMeters + raw.xMeters, unit),
+          zMeters: roundToDisplayUnit(origin.zMeters + raw.zMeters, unit),
         });
         delta = {
           xMeters: landed.xMeters - origin.xMeters,

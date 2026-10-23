@@ -3084,3 +3084,35 @@ test.describe("the apartment list and the panel", () => {
     expect(open.x + open.width).toBeGreaterThan(panel.x - 40);
   });
 });
+
+test.describe("whole inches", () => {
+  test("rounds a room to the nearest whole inch from its menu, without resizing it", async ({
+    page,
+  }) => {
+    await openWithLivingRoom(page);
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
+    const room = details(page).getByRole("region", {
+      name: "Living room",
+      exact: true,
+    });
+    const x = room.getByLabel("Living room X position", { exact: true });
+    const width = room.getByLabel("Living room width", { exact: true });
+
+    await x.fill("-83.6");
+    await x.press("Tab");
+    await expect(x).toHaveValue("-83.6");
+
+    await details(page)
+      .getByRole("button", { name: "Living room actions" })
+      .click();
+    await page.getByRole("menuitem", { name: "Round to whole inches" }).click();
+    await expect(x).toHaveValue("-84");
+    await expect(width).toHaveValue("168");
+
+    // One step back puts it where it was.
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect(x).toHaveValue("-83.6");
+  });
+});
