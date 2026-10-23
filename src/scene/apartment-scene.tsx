@@ -1,9 +1,21 @@
 "use client";
 
 import { OrbitControls } from "@react-three/drei";
-import { Canvas } from "@react-three/fiber";
-import { useMemo, useSyncExternalStore } from "react";
-import { Shape, ShapeGeometry } from "three";
+import { Canvas, useThree } from "@react-three/fiber";
+import {
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ComponentRef,
+} from "react";
+import { MathUtils, PerspectiveCamera, Shape, ShapeGeometry } from "three";
+import {
+  cameraOfFraming,
+  framingAfterOrbit,
+  type Framing,
+} from "@/domain/geometry";
 import {
   apartmentShell,
   floorBounds,
@@ -26,32 +38,26 @@ import { formatLength, type DisplayUnit } from "@/domain/units";
  *
  * It is a view, not a workspace: nothing here is edited, and nothing can be
  * known only by looking at it — the numbers stay in the panels beside it.
- * The camera orbits the apartment's center for now; walking through it is
- * the last step of the perspective view.
+ * The camera opens on what the plan was showing — the same floor point in
+ * the middle, the same width of floor across, north at the top — tilted down
+ * to look into the rooms, and orbits from there. Walking through it is the
+ * last step of the perspective view.
  */
 export function ApartmentScene({
   floor,
   unit,
+  framing,
+  onFramingChange,
 }: {
   floor: Floor;
   unit: DisplayUnit;
+  /** What the plan was showing when the view was switched; null frames the whole floor. */
+  framing?: Framing | null;
+  /** Said when an orbit ends, so the plan can come back to it. */
+  onFramingChange?: (framing: Framing) => void;
 }) {
   const shell = useMemo(() => apartmentShell(floor), [floor]);
-  const { origin, extent } = floorBounds(floor);
   const dark = usePrefersDark();
-  const center: [number, number, number] = [
-    origin.xMeters + extent.widthMeters / 2,
-    0,
-    origin.zMeters + extent.depthMeters / 2,
-  ];
-  // Far enough back along the diagonal that the whole apartment is in view,
-  // and a little above a standing person's eye.
-  const reach = Math.max(extent.widthMeters, extent.depthMeters, 4) * 1.1;
-  const camera: [number, number, number] = [
-    center[0] + reach,
-    reach * 0.6 + 1.6,
-    center[2] + reach,
-  ];
 
   return (
     <div
@@ -64,10 +70,7 @@ export function ApartmentScene({
           Nothing to see yet. Draw the rooms on the plan first.
         </p>
       ) : null}
-      <Canvas
-        camera={{ fov: 55, near: 0.05, far: 500, position: camera }}
-        dpr={[1, 2]}
-      >
+      <Canvas camera={{ fov: 55, near: 0.05, far: 500 }} dpr={[1, 2]}>
         <ambientLight intensity={dark ? 0.9 : 1.4} />
         <directionalLight position={[6, 12, 4]} intensity={dark ? 1.2 : 1.6} />
         {shell.floors.map((slab) => (
@@ -84,9 +87,88 @@ export function ApartmentScene({
             color={dark ? WALL_DARK : WALL_LIGHT}
           />
         ))}
-        <OrbitControls target={center} maxPolarAngle={Math.PI / 2 - 0.02} />
+        <FramedControls
+          framing={framing ?? wholeFloor(floor)}
+          heightMeters={Math.max(
+            0,
+            ...floor.rooms.map((room) => room.heightMeters),
+          )}
+          {...(onFramingChange === undefined ? {} : { onFramingChange })}
+        />
       </Canvas>
     </div>
+  );
+}
+
+/** The whole apartment, with a margin, for when there is no plan view to follow. */
+function wholeFloor(floor: Floor): Framing {
+  const { origin, extent } = floorBounds(floor);
+  return {
+    center: {
+      xMeters: origin.xMeters + extent.widthMeters / 2,
+      zMeters: origin.zMeters + extent.depthMeters / 2,
+    },
+    metersAcross: Math.max(extent.widthMeters, 1),
+    metersDown: Math.max(extent.depthMeters, 1),
+  };
+}
+
+/**
+ * The orbiting camera, placed once from the framing it opened on, and
+ * reporting where it was left each time a drag ends.
+ *
+ * Placed once rather than on every change: the framing is where the view
+ * starts, and a camera that jumped back to it would undo the orbit being made.
+ */
+function FramedControls({
+  framing,
+  heightMeters,
+  onFramingChange,
+}: {
+  framing: Framing;
+  /** The tallest wall, so the walls of what was framed are not cut off. */
+  heightMeters: number;
+  onFramingChange?: (framing: Framing) => void;
+}) {
+  const camera = useThree((state) => state.camera);
+  const size = useThree((state) => state.size);
+  const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
+  const fov = MathUtils.degToRad(
+    camera instanceof PerspectiveCamera ? camera.fov : 55,
+  );
+  const aspect = size.height > 0 ? size.width / size.height : 1;
+  const [start] = useState(() =>
+    cameraOfFraming(framing, fov, aspect, heightMeters),
+  );
+
+  useLayoutEffect(() => {
+    camera.position.set(...start.position);
+    camera.lookAt(...start.target);
+    controls.current?.target.set(...start.target);
+    controls.current?.update();
+  }, [camera, start]);
+
+  return (
+    <OrbitControls
+      ref={controls}
+      makeDefault
+      target={start.target}
+      maxPolarAngle={Math.PI / 2 - 0.02}
+      onEnd={() => {
+        const target = controls.current?.target;
+        if (target === undefined || onFramingChange === undefined) {
+          return;
+        }
+        onFramingChange(
+          framingAfterOrbit(
+            framing,
+            start.distanceMeters,
+            [camera.position.x, camera.position.y, camera.position.z],
+            [target.x, target.y, target.z],
+          ),
+        );
+      }}
+    />
   );
 }
 

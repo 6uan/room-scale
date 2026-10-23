@@ -794,6 +794,19 @@ up, a wall's turn is its floor angle negated. The view is a mode behind a
 and arming any drawing or placing mode brings the plan back on its own,
 because every edit happens there.
 
+**20a, continued — the camera keeps the plan's place. ✅** The perspective
+view used to open on the whole apartment from its south-east corner, turned
+45° from the plan, whatever the plan was showing. It opens now on what the
+plan showed: aimed at the same floor point, from due south so north stays at
+the top, tilted 55° down, and as close as it can stand with everything the
+plan showed in view — its floor, and the walls on it up to their height. The
+fit is exact rather than searched: the camera only slides along its line of
+sight, so every corner keeps its sideways and upward offsets and asks for
+one distance, and the camera takes the largest (`cameraOfFraming`). An orbit
+hands its framing back when it ends — the point aimed at, scaled by how far
+the camera has come in or out — and the plan comes back there, north-up.
+Kept for the session, like selection; nothing is stored.
+
 **20b — Furniture as boxes.** Each placed piece at its product's width,
 depth, and height, at its position and turn.
 

@@ -9,7 +9,7 @@ import {
   Undo2,
 } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApartmentLayers } from "@/components/apartment-layers";
 import {
   ButtonGroup,
@@ -53,7 +53,7 @@ import {
   withInstanceHidden,
   withInstanceName,
 } from "@/domain/furniture";
-import type { FloorPoint } from "@/domain/geometry";
+import type { FloorPoint, Framing } from "@/domain/geometry";
 import {
   type Layout,
   type PieceGroup,
@@ -183,6 +183,22 @@ export function Workspace() {
    * mode brings the plan back without the button having to be pressed.
    */
   const [perspective, setPerspective] = useState(false);
+  /**
+   * What the plan is showing, kept as it pans and zooms so the perspective
+   * view can open on it. A ref, not state: the plan reports on every pan, and
+   * nothing renders from it until the view is switched.
+   */
+  const planFramingRef = useRef<Framing | null>(null);
+  const onPlanFraming = useCallback((framing: Framing) => {
+    planFramingRef.current = framing;
+  }, []);
+  /** What the perspective view opened on, taken when it was switched to. */
+  const [sceneFraming, setSceneFraming] = useState<Framing | null>(null);
+  /** Where the perspective view was left, for the plan to come back to. */
+  const [returnFraming, setReturnFraming] = useState<{
+    readonly framing: Framing;
+    readonly id: number;
+  } | null>(null);
   /** Whether a drag on the plan draws a room. One room, then off again. */
   const [drawingRoom, setDrawingRoom] = useState(false);
   /**
@@ -725,7 +741,12 @@ export function Workspace() {
             label="Perspective"
             icon={Box}
             pressed={!showingPlan}
-            onClick={() => setPerspective((on) => !on)}
+            onClick={() => {
+              if (showingPlan) {
+                setSceneFraming(planFramingRef.current);
+              }
+              setPerspective(showingPlan);
+            }}
           />
           <IconButton
             label="Keys"
@@ -907,7 +928,17 @@ export function Workspace() {
         >
           {showingPlan ? null : (
             <div className="absolute inset-0">
-              <ApartmentScene floor={floor} unit={unit} />
+              <ApartmentScene
+                floor={floor}
+                unit={unit}
+                framing={sceneFraming}
+                onFramingChange={(framing) =>
+                  setReturnFraming((was) => ({
+                    framing,
+                    id: (was?.id ?? 0) + 1,
+                  }))
+                }
+              />
             </div>
           )}
           <div className={showingPlan ? "absolute inset-0" : "hidden"}>
@@ -916,6 +947,8 @@ export function Workspace() {
               furniture={shown}
               unit={unit}
               panelOpen={selection !== null}
+              onFramingChange={onPlanFraming}
+              showFraming={returnFraming}
               selectedIds={selectedInstanceIds(selection)}
               troubledIds={troubledIds}
               groupRoomIds={groupedRoomIds(selection)}
