@@ -73,7 +73,11 @@ export function NumberField({
     setDraft(lengthFieldText(meters, unit));
   }
 
-  const problem = draftProblem(draft, unit, limits);
+  // Only what was typed is judged. A value handed in from outside is shown as
+  // it is: a piece standing through a wall has a negative gap, and that is a
+  // fact for the problems list to state, not a typing mistake to flag here.
+  const typed = draft !== lengthFieldText(meters, unit);
+  const problem = typed ? draftProblem(draft, unit, limits) : null;
   const compact = compactLabel !== undefined;
 
   function handleChange(text: string): void {

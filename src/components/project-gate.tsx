@@ -5,8 +5,10 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createProject, type Project } from "@/domain/project";
 import {
   loadImperialLengths,
+  loadProductLengths,
   loadProject,
   saveImperialLengths,
+  saveProductLengths,
   saveProjectUnlessNewer,
 } from "@/persistence";
 import { usePreferencesStore } from "@/state/preferences-store";
@@ -93,10 +95,12 @@ export function ProjectGate({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     let unsubscribe = () => {};
-    void loadImperialLengths()
-      .then((imperialLengths) => {
+    void Promise.all([loadImperialLengths(), loadProductLengths()])
+      .then(([imperialLengths, productLengths]) => {
         if (!cancelled) {
-          usePreferencesStore.getState().setImperialLengths(imperialLengths);
+          const store = usePreferencesStore.getState();
+          store.setImperialLengths(imperialLengths);
+          store.setProductLengths(productLengths);
         }
       })
       .catch(() => {
@@ -109,6 +113,9 @@ export function ProjectGate({ children }: { children: ReactNode }) {
         unsubscribe = usePreferencesStore.subscribe((state, previous) => {
           if (state.imperialLengths !== previous.imperialLengths) {
             void saveImperialLengths(state.imperialLengths).catch(() => {});
+          }
+          if (state.productLengths !== previous.productLengths) {
+            void saveProductLengths(state.productLengths).catch(() => {});
           }
         });
       });

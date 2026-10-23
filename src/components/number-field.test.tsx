@@ -207,3 +207,35 @@ describe("NumberField in feet and inches", () => {
     expect(onChange.mock.lastCall?.[0]).toBeCloseTo(metersFromInches(116), 12);
   });
 });
+
+describe("NumberField limits", () => {
+  it("judges what is typed, not a value handed in from outside", () => {
+    const { rerender } = render(
+      <NumberField
+        label="Gap to north wall"
+        unit="inches"
+        meters={metersFromInches(-80)}
+        limits={{ minMeters: 0, maxMeters: 30 }}
+        onMetersChange={vi.fn()}
+      />,
+    );
+    const field = screen.getByRole("textbox", { name: "Gap to north wall" });
+    expect(field).toHaveValue("-80");
+    expect(field).toHaveAttribute("aria-invalid", "false");
+
+    fireEvent.change(field, { target: { value: "-5" } });
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByText(/At least/)).toBeInTheDocument();
+
+    rerender(
+      <NumberField
+        label="Gap to north wall"
+        unit="inches"
+        meters={metersFromInches(12)}
+        limits={{ minMeters: 0, maxMeters: 30 }}
+        onMetersChange={vi.fn()}
+      />,
+    );
+    expect(field).toHaveAttribute("aria-invalid", "false");
+  });
+});

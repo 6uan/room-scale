@@ -38,6 +38,7 @@ function renderInspector(overrides: Partial<InspectorProps>) {
     furniture: [],
     products: [],
     unit: "imperial",
+    productUnit: "inches",
     selection: { kind: "room", id: room.id },
     onSelect: vi.fn(),
     onFloorChange: vi.fn(),
@@ -183,5 +184,57 @@ describe("rounding from the menu", () => {
     renderInspector({ unit: "metric" });
 
     expect(await menuItems(user)).toContain("Round to whole centimeters");
+  });
+});
+
+describe("a piece's product", () => {
+  const product = {
+    id: "sofa",
+    name: "Harmony sectional",
+    retailer: "Wayfair",
+    productUrl: "https://example.com/harmony",
+    priceCents: 0,
+    purchaseStatus: "wanted" as const,
+    category: "seating" as const,
+    footprint: { widthMeters: 110 * 0.0254, depthMeters: 38 * 0.0254 },
+    heightMeters: 33 * 0.0254,
+  };
+  const placed = {
+    instance: {
+      id: "i1",
+      productId: "sofa",
+      position: { xMeters: 0, zMeters: 0 },
+      rotationRadians: 0,
+      name: "Couch",
+    },
+    product,
+  };
+
+  it("reads its name, status, three sizes, price and shop", () => {
+    renderInspector({
+      furniture: [placed],
+      products: [product],
+      selection: { kind: "instance", id: "i1" },
+    });
+    const section = screen.getByRole("region", { name: "Product" });
+
+    expect(within(section).getByText("Harmony sectional")).toBeInTheDocument();
+    expect(within(section).getByText("Wishlist")).toBeInTheDocument();
+    for (const [name, value] of [
+      ["Width", `110"`],
+      ["Length", `38"`],
+      ["Height", `33"`],
+    ]) {
+      expect(within(section).getByText(name!).parentElement).toHaveTextContent(
+        value!,
+      );
+    }
+    // Nothing typed is not a price of nothing.
+    expect(within(section).getByText("No price yet")).toBeInTheDocument();
+    expect(
+      within(section).getByRole("link", {
+        name: "Open the product page at Wayfair",
+      }),
+    ).toHaveAttribute("href", "https://example.com/harmony");
   });
 });

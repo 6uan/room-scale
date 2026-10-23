@@ -101,7 +101,11 @@ import {
   storedUnit,
 } from "@/domain/units";
 import { checkLayout, troubledInstanceIds } from "@/domain/validation";
-import { usePreferencesStore, useDisplayUnit } from "@/state/preferences-store";
+import {
+  usePreferencesStore,
+  useDisplayUnit,
+  useProductUnit,
+} from "@/state/preferences-store";
 import { useProjectStore } from "@/state/project-store";
 
 /**
@@ -137,6 +141,7 @@ export function Workspace() {
   const floor = useProjectStore((state) => state.project.floor);
   const underlay = useProjectStore((state) => state.project.underlay);
   const unit = useDisplayUnit();
+  const productUnit = useProductUnit();
   const setImperialLengths = usePreferencesStore(
     (state) => state.setImperialLengths,
   );
@@ -892,7 +897,7 @@ export function Workspace() {
           <CataloguePanel
             products={products}
             instances={instances}
-            unit={unit}
+            unit={productUnit}
             selection={selection}
             onSelect={setSelection}
             onDelete={deleteProductEverywhere}
@@ -932,6 +937,7 @@ export function Workspace() {
                 floor={floor}
                 furniture={shown}
                 unit={unit}
+                productUnit={productUnit}
                 framing={sceneFraming}
                 onFramingChange={(framing) =>
                   setReturnFraming((was) => ({
@@ -948,6 +954,7 @@ export function Workspace() {
               furniture={shown}
               unit={unit}
               panelOpen={selection !== null}
+              productUnit={productUnit}
               onFramingChange={onPlanFraming}
               showFraming={returnFraming}
               selectedIds={selectedInstanceIds(selection)}
@@ -1083,6 +1090,7 @@ export function Workspace() {
           >
             <Inspector
               onRoundPositions={roundPositionsOf}
+              productUnit={productUnit}
               floor={floor}
               furniture={furniture}
               products={products}

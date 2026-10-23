@@ -12,9 +12,11 @@ import {
   deleteProject,
   listProjects,
   loadImperialLengths,
+  loadProductLengths,
   loadProject,
   openProjectId,
   saveImperialLengths,
+  saveProductLengths,
   saveProject,
   saveProjectUnlessNewer,
   setOpenProjectId,
@@ -269,5 +271,15 @@ describe("how imperial lengths are read", () => {
       imperialLengths: "furlongs" as "inches",
     });
     expect(await loadImperialLengths(database)).toBe("feet-and-inches");
+  });
+});
+
+describe("how a product's own size is read", () => {
+  it("is inches until told otherwise, and apart from the apartment's", async () => {
+    expect(await loadProductLengths(database)).toBe("inches");
+    await saveProductLengths("feet-and-inches", database);
+    await saveImperialLengths("inches", database);
+    expect(await loadProductLengths(database)).toBe("feet-and-inches");
+    expect(await loadImperialLengths(database)).toBe("inches");
   });
 });

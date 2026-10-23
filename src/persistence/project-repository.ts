@@ -14,6 +14,7 @@ import type { ImperialLengths } from "@/domain/units";
 import {
   CURRENT_PROJECT_ID,
   IMPERIAL_LENGTHS_KEY,
+  PRODUCT_LENGTHS_KEY,
   OPEN_PROJECT_KEY,
   QUARANTINE_ID,
   sharedDatabase,
@@ -82,6 +83,29 @@ export async function saveImperialLengths(
   database: RoomScaleDatabase = sharedDatabase(),
 ): Promise<void> {
   await database.settings.put({ id: IMPERIAL_LENGTHS_KEY, imperialLengths });
+}
+
+/**
+ * How this browser reads a product's own size in imperial: inches unless it
+ * was told otherwise, the way a retailer prints it.
+ */
+export async function loadProductLengths(
+  database: RoomScaleDatabase = sharedDatabase(),
+): Promise<ImperialLengths> {
+  const row = await database.settings.get(PRODUCT_LENGTHS_KEY);
+  return row?.imperialLengths === "feet-and-inches"
+    ? "feet-and-inches"
+    : "inches";
+}
+
+export async function saveProductLengths(
+  productLengths: ImperialLengths,
+  database: RoomScaleDatabase = sharedDatabase(),
+): Promise<void> {
+  await database.settings.put({
+    id: PRODUCT_LENGTHS_KEY,
+    imperialLengths: productLengths,
+  });
 }
 
 /** Loads the open project, or the one asked for. */

@@ -909,6 +909,17 @@ directly under the room's own name and carried nothing else. A closet can now
 be deleted whole, and the first rectangle, whose chip already says "Room", is
 no longer offered for deletion on its own.
 
+**A product reads in inches; the apartment in feet and inches.** A
+retailer prints a sofa as 84" and a listing gives the room as 12' 6", and
+reading the sofa back as 7' 0" made it the one number on screen that matched
+nothing. So a product's own width, depth and height read by a preference of
+their own — inches unless told otherwise, switched by a toggle beside the
+three sizes in the product form — wherever they appear: the form, the
+furniture list, a piece's panel, the shopping list, and both views'
+descriptions. Where a piece stands, and its gaps to the walls, stay with the
+apartment. Like the apartment's choice, it is this browser's, in the
+settings table; metric is centimeters for both.
+
 **Rooms are reordered by dragging their row, and nothing over the plan sits
 under the panel.** A room's own row in the list drags, and drops above the
 row it is let go on, or last on the strip after the last room — the order

@@ -8,17 +8,17 @@ import {
   Pencil,
   Trash2,
 } from "lucide-react";
-import {
-  IconButton,
-  IconFileButton,
-  LabelledLink,
-} from "@/components/icon-button";
+import { IconButton, IconFileButton } from "@/components/icon-button";
 import { ActionMenu } from "@/components/action-menu";
 import { cn } from "@/components/cn";
 import { NumberField } from "@/components/number-field";
 import { openingName, sectionLabel } from "@/components/opening-name";
 import { OpeningFields } from "@/components/room-openings-form";
-import { ProductForm, TextField } from "@/components/product-form";
+import {
+  PURCHASE_STATUS_LABELS,
+  ProductForm,
+  TextField,
+} from "@/components/product-form";
 import { RoomFields, shownSectionIndex } from "@/components/room-fields";
 import { PanelSection } from "@/components/panel/section";
 import { orientedRectCorners } from "@/domain/geometry";
@@ -57,6 +57,8 @@ export type InspectorProps = {
   furniture: readonly PlacedFurniture[];
   products: readonly FurnitureProduct[];
   unit: DisplayUnit;
+  /** The unit a product's own size reads in: inches by default in imperial. */
+  productUnit: DisplayUnit;
   selection: Selection;
   onSelect: (selection: Selection) => void;
   onFloorChange: (floor: Floor) => void;
@@ -365,6 +367,7 @@ function InstanceInspector({
   floor,
   furniture,
   unit,
+  productUnit,
   selection,
   onSelect,
   onInstanceChange,
@@ -446,7 +449,7 @@ function InstanceInspector({
         wonders.
       */}
       <PanelSection
-        title={placed.product.retailer || "Product"}
+        title="Product"
         action={
           <IconButton
             label={`Edit ${placed.product.name}`}
@@ -456,32 +459,97 @@ function InstanceInspector({
           />
         }
       >
-        {/* The size is the fact this tool exists for, so it is the big
-            number here; the price is read second and set smaller. */}
-        <div className="flex items-baseline justify-between gap-3">
-          <p className="text-[19px] font-semibold tracking-tight tabular-nums">
-            {formatLength(placed.product.footprint.widthMeters, unit)} ×{" "}
-            {formatLength(placed.product.footprint.depthMeters, unit)}
+        {/* What it is, and whether it is bought yet: the piece's own name
+            above can differ from what the shop calls it. */}
+        <div className="flex items-center justify-between gap-3">
+          <p className="min-w-0 truncate text-sm font-medium">
+            {placed.product.name}
           </p>
-          <p className="text-sm tabular-nums opacity-60">
-            {formatCents(placed.product.priceCents)}
-          </p>
+          <span className="shrink-0 rounded-full bg-black/[0.06] px-2 py-0.5 text-[11px] dark:bg-white/10">
+            {PURCHASE_STATUS_LABELS[placed.product.purchaseStatus]}
+          </span>
         </div>
-        <p className="-mt-2 text-[12px] opacity-50">
-          {formatLength(placed.product.heightMeters, unit)} high
-        </p>
-        {placed.product.productUrl === "" ? null : (
-          <div className="self-start">
-            <LabelledLink
-              label="Open the product page"
-              icon={ExternalLink}
+        {/* The three sizes as the form's own row has them, each the same
+            weight: height was a footnote under the other two, and it is the
+            one that decides whether a console fits under a window. */}
+        <div className="flex gap-1.5">
+          <SizeCell
+            short="W"
+            name="Width"
+            meters={placed.product.footprint.widthMeters}
+            unit={productUnit}
+          />
+          <SizeCell
+            short="L"
+            name="Length"
+            meters={placed.product.footprint.depthMeters}
+            unit={productUnit}
+          />
+          <SizeCell
+            short="H"
+            name="Height"
+            meters={placed.product.heightMeters}
+            unit={productUnit}
+          />
+        </div>
+        <div className="flex items-center justify-between gap-3 text-[13px]">
+          {placed.product.priceCents === 0 ? (
+            <span className="opacity-50">No price yet</span>
+          ) : (
+            <span className="font-semibold tabular-nums">
+              {formatCents(placed.product.priceCents)}
+            </span>
+          )}
+          {placed.product.productUrl === "" ? (
+            placed.product.retailer === "" ? null : (
+              <span className="truncate opacity-60">
+                {placed.product.retailer}
+              </span>
+            )
+          ) : (
+            <a
               href={placed.product.productUrl}
               target="_blank"
-            />
-          </div>
-        )}
+              rel="noreferrer"
+              aria-label={`Open the product page${placed.product.retailer === "" ? "" : ` at ${placed.product.retailer}`}`}
+              className="flex min-w-0 items-center gap-1 opacity-60 hover:opacity-100"
+            >
+              <span className="truncate">
+                {placed.product.retailer === ""
+                  ? "Product page"
+                  : placed.product.retailer}
+              </span>
+              <ExternalLink aria-hidden="true" className="size-3.5 shrink-0" />
+            </a>
+          )}
+        </div>
       </PanelSection>
     </Panel>
+  );
+}
+
+/** One of a product's three sizes, read-only, the way the form's row has it. */
+function SizeCell({
+  short,
+  name,
+  meters,
+  unit,
+}: {
+  short: string;
+  name: string;
+  meters: number;
+  unit: DisplayUnit;
+}) {
+  return (
+    <p className="flex h-11 min-w-0 flex-1 items-baseline gap-1.5 rounded-lg bg-black/[0.05] px-2.5 leading-[44px] dark:bg-white/[0.07]">
+      <span aria-hidden="true" className="text-[11px] font-medium opacity-55">
+        {short}
+      </span>
+      <span className="sr-only">{name}</span>
+      <span className="truncate text-[17px] font-semibold tabular-nums">
+        {formatLength(meters, unit)}
+      </span>
+    </p>
   );
 }
 
@@ -494,6 +562,7 @@ function GroupInspector({
   floor,
   furniture,
   unit,
+  productUnit,
   selection,
   onGroupRemove,
   onRoundPositions,
@@ -581,8 +650,15 @@ function GroupInspector({
             <li key={placed.instance.id} className="flex justify-between gap-3">
               <span className="truncate">{name}</span>
               <span className="shrink-0 tabular-nums opacity-55">
-                {formatLength(placed.product.footprint.widthMeters, unit)} ×{" "}
-                {formatLength(placed.product.footprint.depthMeters, unit)}
+                {formatLength(
+                  placed.product.footprint.widthMeters,
+                  productUnit,
+                )}{" "}
+                ×{" "}
+                {formatLength(
+                  placed.product.footprint.depthMeters,
+                  productUnit,
+                )}
               </span>
             </li>
           ))}
@@ -594,7 +670,7 @@ function GroupInspector({
 
 function ProductInspector({
   products,
-  unit,
+  productUnit,
   selection,
   onSelect,
   onProductSave,
@@ -639,7 +715,7 @@ function ProductInspector({
       <ProductForm
         key={existing?.id ?? "new"}
         initial={initial}
-        unit={unit}
+        unit={productUnit}
         submitLabel={existing === undefined ? "Add product" : "Save changes"}
         problem={productProblem}
         onSave={onProductSave}

@@ -28,10 +28,13 @@ export type ProjectRow = {
  * project to open next time, and how the reader likes imperial lengths read.
  */
 export type SettingsRow = {
-  id: typeof OPEN_PROJECT_KEY | typeof IMPERIAL_LENGTHS_KEY;
+  id:
+    | typeof OPEN_PROJECT_KEY
+    | typeof IMPERIAL_LENGTHS_KEY
+    | typeof PRODUCT_LENGTHS_KEY;
   /** On the open-project row. */
   projectId?: string;
-  /** On the imperial-lengths row. */
+  /** On the imperial-lengths and product-lengths rows. */
   imperialLengths?: ImperialLengths;
 };
 
@@ -52,6 +55,9 @@ export const CURRENT_PROJECT_ID = "current";
 export const OPEN_PROJECT_KEY = "open-project";
 
 export const IMPERIAL_LENGTHS_KEY = "imperial-lengths";
+
+/** How a product's own size is read in imperial, kept apart from the apartment's. */
+export const PRODUCT_LENGTHS_KEY = "product-lengths";
 
 /**
  * Where a record that could not be read is put before anything overwrites it.

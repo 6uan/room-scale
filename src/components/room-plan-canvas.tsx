@@ -250,6 +250,8 @@ export type RoomPlanCanvasProps = {
   unit: DisplayUnit;
   /** Whether the details panel is floating over the plan's right edge. */
   panelOpen?: boolean;
+  /** The unit a product's own size reads in, which can differ from the plan's. */
+  productUnit?: DisplayUnit;
   /** Said whenever what the plan shows changes, so another view can follow it. */
   onFramingChange?: (framing: Framing) => void;
   /**
@@ -502,6 +504,7 @@ export function RoomPlanCanvas({
   furniture,
   unit,
   panelOpen = false,
+  productUnit = unit,
   onFramingChange,
   showFraming = null,
   selectedIds,
@@ -2140,7 +2143,7 @@ export function RoomPlanCanvas({
         ref={canvasRef}
         role="img"
         tabIndex={0}
-        aria-label={describeFloor(floor, furniture, unit)}
+        aria-label={describeFloor(floor, furniture, unit, productUnit)}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={endDrag}
@@ -2626,6 +2629,7 @@ function describeFloor(
   floor: Floor,
   furniture: readonly PlacedFurniture[],
   unit: DisplayUnit,
+  productUnit: DisplayUnit,
 ): string {
   if (floor.rooms.length === 0) {
     return "Plan view of an apartment with no rooms in it yet.";
@@ -2638,7 +2642,7 @@ function describeFloor(
     `holding ${floor.rooms.length} ${floor.rooms.length === 1 ? "room" : "rooms"}: ` +
     `${floor.rooms.map((room) => describeRoom(room, unit)).join("; ")}.`;
 
-  return `${shell} ${describeFurniture(furniture, unit)}`;
+  return `${shell} ${describeFurniture(furniture, unit, productUnit)}`;
 }
 
 /** One room: how big it is, where it stands, and what is cut into its walls. */
@@ -2677,6 +2681,7 @@ function describeRoom(room: Room, unit: DisplayUnit): string {
 function describeFurniture(
   furniture: readonly PlacedFurniture[],
   unit: DisplayUnit,
+  productUnit: DisplayUnit,
 ): string {
   if (furniture.length === 0) {
     return "Nothing placed in it yet.";
@@ -2690,8 +2695,8 @@ function describeFurniture(
           ? ""
           : `, turned ${formatAngle(instance.rotationRadians)}`;
       return (
-        `${names[index]}, ${formatLength(product.footprint.widthMeters, unit)} by ` +
-        `${formatLength(product.footprint.depthMeters, unit)}, ` +
+        `${names[index]}, ${formatLength(product.footprint.widthMeters, productUnit)} by ` +
+        `${formatLength(product.footprint.depthMeters, productUnit)}, ` +
         `${formatLength(instance.position.xMeters, unit)} from the west wall and ` +
         `${formatLength(instance.position.zMeters, unit)} from the north wall${turn}`
       );
