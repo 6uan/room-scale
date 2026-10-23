@@ -27,11 +27,16 @@ import {
   orbitDistanceLimits,
   orbitTargetOnFloor,
   standsBeforeTarget,
+  type FloorPoint,
   type Framing,
 } from "@/domain/geometry";
 import {
   apartmentShell,
+  doorways,
+  EYE_HEIGHT_METERS,
   floorBounds,
+  walkStart,
+  walkStep,
   type Floor,
   type FloorSlab,
   type WallPoint,
@@ -71,6 +76,8 @@ export function ApartmentScene({
   framing,
   onFramingChange,
   walls = "see-through",
+  walking = false,
+  onWalkEnd,
 }: {
   floor: Floor;
   /** What is placed in this layout; a piece set aside is left out. */
@@ -87,9 +94,18 @@ export function ApartmentScene({
    * is hidden by a wall, from any angle.
    */
   walls?: WallsMode;
+  /**
+   * Walking through at eye height rather than orbiting: drag to look, the
+   * arrow keys or WASD to move, through doorways and not through walls.
+   */
+  walking?: boolean;
+  /** Said when the walker presses Escape to stop. */
+  onWalkEnd?: () => void;
 }) {
   const shell = useMemo(() => apartmentShell(floor), [floor]);
   const boxes = useMemo(() => furnitureBoxes(furniture), [furniture]);
+  /** The floor point the orbit is aimed at, where a walk begins. */
+  const aimedAt = useRef<FloorPoint>((framing ?? wholeFloor(floor)).center);
   const dark = usePrefersDark();
 
   return (
@@ -130,15 +146,26 @@ export function ApartmentScene({
             edge={dark ? FURNITURE_EDGE_DARK : FURNITURE_EDGE_LIGHT}
           />
         ))}
-        <FramedControls
-          framing={framing ?? wholeFloor(floor)}
-          whole={wholeFloor(floor)}
-          heightMeters={Math.max(
-            0,
-            ...floor.rooms.map((room) => room.heightMeters),
-          )}
-          {...(onFramingChange === undefined ? {} : { onFramingChange })}
-        />
+        {walking ? (
+          <WalkControls
+            floor={floor}
+            startFrom={() => aimedAt.current}
+            {...(onWalkEnd === undefined ? {} : { onWalkEnd })}
+          />
+        ) : (
+          <FramedControls
+            framing={framing ?? wholeFloor(floor)}
+            whole={wholeFloor(floor)}
+            heightMeters={Math.max(
+              0,
+              ...floor.rooms.map((room) => room.heightMeters),
+            )}
+            onAim={(point) => {
+              aimedAt.current = point;
+            }}
+            {...(onFramingChange === undefined ? {} : { onFramingChange })}
+          />
+        )}
       </Canvas>
     </div>
   );
@@ -168,6 +195,7 @@ function FramedControls({
   framing,
   whole,
   heightMeters,
+  onAim,
   onFramingChange,
 }: {
   framing: Framing;
@@ -175,6 +203,8 @@ function FramedControls({
   whole: Framing;
   /** The tallest wall, so the walls of what was framed are not cut off. */
   heightMeters: number;
+  /** Said as the orbit point moves, with where it is on the floor. */
+  onAim?: (point: FloorPoint) => void;
   onFramingChange?: (framing: Framing) => void;
 }) {
   const camera = useThree((state) => state.camera);
@@ -231,6 +261,7 @@ function FramedControls({
           );
           target.set(...kept);
         }
+        onAim?.({ xMeters: kept[0], zMeters: kept[2] });
       }}
       onEnd={() => {
         const target = controls.current?.target;
@@ -249,6 +280,157 @@ function FramedControls({
     />
   );
 }
+
+/** How fast the walker goes: an easy walking pace, and twice it with Shift. */
+const WALK_METERS_PER_SECOND = 1.4;
+
+/** How far the view turns per pixel dragged, and how far up or down it may look. */
+const LOOK_RADIANS_PER_PIXEL = 0.005;
+const LOOK_LIMIT_RADIANS = (80 * Math.PI) / 180;
+
+/**
+ * Walking through the apartment at eye height. Dragging turns the head; the
+ * arrow keys or WASD walk, Shift faster. Every step is `walkStep`'s, so the
+ * walls stop the walker and the doorways let them through. Escape stops.
+ *
+ * The walk starts where the orbit was aimed, looking north as the orbit did,
+ * or in the middle of a room when that point is not somewhere to stand.
+ */
+function WalkControls({
+  floor,
+  startFrom,
+  onWalkEnd,
+}: {
+  floor: Floor;
+  startFrom: () => FloorPoint;
+  onWalkEnd?: () => void;
+}) {
+  const element = useThree((state) => state.gl.domElement);
+  const openings = useMemo(() => doorways(floor), [floor]);
+  const [start] = useState(() => walkStart(floor, startFrom()));
+  const at = useRef<FloorPoint | null>(start);
+  const look = useRef({ yaw: 0, pitch: -0.15 });
+  const held = useRef(new Set<string>());
+
+  useEffect(() => {
+    let dragging: { x: number; y: number } | null = null;
+    const typing = (target: EventTarget | null) =>
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLSelectElement;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (typing(event.target)) {
+        return;
+      }
+      if (event.key === "Escape") {
+        onWalkEnd?.();
+        return;
+      }
+      if (WALK_KEYS.has(event.key.toLowerCase())) {
+        event.preventDefault();
+        held.current.add(event.key.toLowerCase());
+      }
+    };
+    const onKeyUp = (event: KeyboardEvent) => {
+      held.current.delete(event.key.toLowerCase());
+    };
+    const onBlur = () => held.current.clear();
+    const onDown = (event: PointerEvent) => {
+      dragging = { x: event.clientX, y: event.clientY };
+      element.setPointerCapture(event.pointerId);
+    };
+    const onMove = (event: PointerEvent) => {
+      if (dragging === null) {
+        return;
+      }
+      look.current.yaw += (event.clientX - dragging.x) * LOOK_RADIANS_PER_PIXEL;
+      look.current.pitch = Math.max(
+        -LOOK_LIMIT_RADIANS,
+        Math.min(
+          LOOK_LIMIT_RADIANS,
+          look.current.pitch -
+            (event.clientY - dragging.y) * LOOK_RADIANS_PER_PIXEL,
+        ),
+      );
+      dragging = { x: event.clientX, y: event.clientY };
+    };
+    const onUp = () => {
+      dragging = null;
+    };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onBlur);
+    element.addEventListener("pointerdown", onDown);
+    element.addEventListener("pointermove", onMove);
+    element.addEventListener("pointerup", onUp);
+    element.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onBlur);
+      element.removeEventListener("pointerdown", onDown);
+      element.removeEventListener("pointermove", onMove);
+      element.removeEventListener("pointerup", onUp);
+      element.removeEventListener("pointercancel", onUp);
+    };
+  }, [element, onWalkEnd]);
+
+  useFrame((state, delta) => {
+    const here = at.current;
+    if (here === null) {
+      return;
+    }
+    const { yaw, pitch } = look.current;
+    // Yaw from north toward east: forward is north at zero, and Z runs south.
+    const forward = { dx: Math.sin(yaw), dz: -Math.cos(yaw) };
+    const right = { dx: Math.cos(yaw), dz: Math.sin(yaw) };
+    const keys = held.current;
+    const ahead =
+      (keys.has("w") || keys.has("arrowup") ? 1 : 0) -
+      (keys.has("s") || keys.has("arrowdown") ? 1 : 0);
+    const aside =
+      (keys.has("d") || keys.has("arrowright") ? 1 : 0) -
+      (keys.has("a") || keys.has("arrowleft") ? 1 : 0);
+    if (ahead !== 0 || aside !== 0) {
+      const length = Math.hypot(ahead, aside);
+      const speed =
+        WALK_METERS_PER_SECOND *
+        (keys.has("shift") ? 2 : 1) *
+        Math.min(delta, 0.1);
+      at.current = walkStep(
+        floor,
+        here,
+        {
+          dx: ((forward.dx * ahead + right.dx * aside) / length) * speed,
+          dz: ((forward.dz * ahead + right.dz * aside) / length) * speed,
+        },
+        openings,
+      );
+    }
+    const eye = at.current ?? here;
+    state.camera.position.set(eye.xMeters, EYE_HEIGHT_METERS, eye.zMeters);
+    state.camera.lookAt(
+      eye.xMeters + forward.dx * Math.cos(pitch),
+      EYE_HEIGHT_METERS + Math.sin(pitch),
+      eye.zMeters + forward.dz * Math.cos(pitch),
+    );
+  });
+
+  return null;
+}
+
+/** The keys that walk: WASD, the arrows, and Shift to go faster. */
+const WALK_KEYS = new Set([
+  "w",
+  "a",
+  "s",
+  "d",
+  "arrowup",
+  "arrowdown",
+  "arrowleft",
+  "arrowright",
+  "shift",
+]);
 
 /**
  * One piece, as the box its product measures: the same footprint the plan
