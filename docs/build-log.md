@@ -817,6 +817,17 @@ aside is left out, as it is from the bill. Each box carries its edges, so two
 pieces that touch read as two, and the view's description lists every piece
 with its three measurements.
 
+**20b, continued — walls in the way are see-through, not cut. ✅** At the
+view's tilt a full-height wall hid the part of the room beyond it, which is
+where the furniture was. Cutting the near walls down was the usual answer and
+the wrong one here: a wall that shows shorter than it is, is a wall drawn at
+the wrong height. So every wall keeps its height, and any wall standing
+between the camera and the point it orbits is drawn see-through, with its
+outline, and stops hiding what is behind it. Decided by position rather than
+by which way a wall faces, so the two rooms on either side of a shared wall —
+each of which draws its own — always agree about it; walls beyond the point
+stay solid as the backdrop. It follows the camera as it orbits.
+
 **20c — Openings at their heights.** Doors, windows, and passages cut from
 the walls at their sill and head.
 

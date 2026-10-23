@@ -1,7 +1,7 @@
 "use client";
 
 import { Edges, OrbitControls } from "@react-three/drei";
-import { Canvas, useThree } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {
   useLayoutEffect,
   useMemo,
@@ -10,10 +10,18 @@ import {
   useSyncExternalStore,
   type ComponentRef,
 } from "react";
-import { MathUtils, PerspectiveCamera, Shape, ShapeGeometry } from "three";
+import {
+  MathUtils,
+  MeshStandardMaterial,
+  PerspectiveCamera,
+  Shape,
+  ShapeGeometry,
+  Vector3,
+} from "three";
 import {
   cameraOfFraming,
   framingAfterOrbit,
+  standsBeforeTarget,
   type Framing,
 } from "@/domain/geometry";
 import {
@@ -98,6 +106,7 @@ export function ApartmentScene({
             key={`${wall.roomId}/${wall.partId}/${index}`}
             wall={wall}
             color={dark ? WALL_DARK : WALL_LIGHT}
+            edge={dark ? WALL_EDGE_DARK : WALL_EDGE_LIGHT}
           />
         ))}
         {boxes.map((box) => (
@@ -230,6 +239,8 @@ const FURNITURE_LIGHT = "#b39b7d";
 const FURNITURE_DARK = "#7a6a58";
 const FURNITURE_EDGE_LIGHT = "#5c4e3e";
 const FURNITURE_EDGE_DARK = "#c9b59c";
+const WALL_EDGE_LIGHT = "#8f877c";
+const WALL_EDGE_DARK = "#6f6a64";
 const FLOOR_LIGHT = "#d9d2c7";
 const FLOOR_DARK = "#3b3835";
 const WALL_LIGHT = "#efece7";
@@ -258,7 +269,51 @@ function FloorMesh({ slab, color }: { slab: FloorSlab; color: string }) {
   );
 }
 
-function WallMesh({ wall, color }: { wall: WallSlab; color: string }) {
+/**
+ * How much of a wall shows when it stands between the camera and what it is
+ * looking at: enough to see where it is and how high it goes, not enough to
+ * hide the room behind it.
+ */
+const SEE_THROUGH_OPACITY = 0.18;
+
+/**
+ * One stretch of wall, at its full height always. Each frame it asks whether
+ * it stands before the point the camera orbits, and if so it is drawn
+ * see-through — and stops writing depth, so what is behind it is drawn
+ * rather than hidden by an invisible surface.
+ */
+function WallMesh({
+  wall,
+  color,
+  edge,
+}: {
+  wall: WallSlab;
+  color: string;
+  edge: string;
+}) {
+  const material = useRef<MeshStandardMaterial>(null);
+  useFrame(({ camera, controls }) => {
+    const target =
+      controls !== null && "target" in controls
+        ? (controls.target as Vector3)
+        : null;
+    const surface = material.current;
+    if (surface === null || target === null) {
+      return;
+    }
+    const before = standsBeforeTarget(
+      wall.center,
+      [camera.position.x, camera.position.y, camera.position.z],
+      [target.x, target.y, target.z],
+    );
+    const opacity = before ? SEE_THROUGH_OPACITY : 1;
+    if (surface.opacity !== opacity) {
+      surface.opacity = opacity;
+      surface.transparent = before;
+      surface.depthWrite = !before;
+      surface.needsUpdate = true;
+    }
+  });
   return (
     <mesh
       position={[
@@ -271,7 +326,10 @@ function WallMesh({ wall, color }: { wall: WallSlab; color: string }) {
       <boxGeometry
         args={[wall.lengthMeters, wall.heightMeters, wall.thicknessMeters]}
       />
-      <meshStandardMaterial color={color} />
+      <meshStandardMaterial ref={material} color={color} />
+      {/* Its outline stays when it is see-through, so the wall is still
+          read as a wall of a measured height. */}
+      <Edges color={edge} />
     </mesh>
   );
 }
