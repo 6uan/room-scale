@@ -13,6 +13,13 @@ import {
  */
 const WALL_INCHES = 4.5;
 
+/**
+ * The strip on the plan's right kept clear for the details panel. The
+ * apartment is fitted into the rest, so every position worked out from the
+ * plan's box leaves this much off its width.
+ */
+const PLAN_RESERVE = 320;
+
 function contents(page: Page) {
   return page.getByRole("complementary", { name: "Contents" });
 }
@@ -40,7 +47,10 @@ async function addRoom(page: Page) {
   if (box === null) {
     throw new Error("the plan has no box to point at");
   }
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.click(
+    box.x + (box.width - PLAN_RESERVE) / 2,
+    box.y + box.height / 2,
+  );
 }
 
 /**
@@ -74,7 +84,7 @@ async function placeFromList(page: Page, name: string, offset = 0) {
     throw new Error("the plan has no box to point at");
   }
   await page.mouse.click(
-    box.x + box.width / 2 + offset,
+    box.x + (box.width - PLAN_RESERVE) / 2 + offset,
     box.y + box.height / 2 + offset,
   );
 }
@@ -101,7 +111,7 @@ async function addProduct(
 }
 
 test.describe("the workspace", () => {
-  test("opens on three panels and a room somebody measured", async ({
+  test("opens on the list, the plan, and a room somebody measured", async ({
     page,
   }) => {
     await openWithLivingRoom(page);
@@ -110,10 +120,10 @@ test.describe("the workspace", () => {
       contents(page).getByRole("button", { name: "Living room", exact: true }),
     ).toBeVisible();
     await expect(planImage(page)).toBeVisible();
-    // Nothing selected: the panel on the right is the apartment itself.
-    await expect(
-      details(page).getByRole("region", { name: "Apartment" }),
-    ).toBeVisible();
+    // Nothing selected: nothing to edit, and no panel on the right. The
+    // apartment's own settings are behind the gear.
+    await expect(details(page)).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Settings" })).toBeVisible();
   });
 
   test("opens a new project on an empty floor, and says what to do with it", async ({
@@ -148,7 +158,10 @@ test.describe("the workspace", () => {
     const invite = plan(page).getByRole("button", { name: "Add room" });
     await invite.click();
     await expect(invite).toHaveAttribute("aria-pressed", "true");
-    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.click(
+      box.x + (box.width - PLAN_RESERVE) / 2,
+      box.y + box.height / 2,
+    );
 
     await expect(
       contents(page).getByRole("button", { name: "Room 1", exact: true }),
@@ -333,7 +346,10 @@ test.describe("the plan as a canvas", () => {
     if (box === null) {
       throw new Error("the plan has no box to point at");
     }
-    return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    return {
+      x: box.x + (box.width - PLAN_RESERVE) / 2,
+      y: box.y + box.height / 2,
+    };
   }
 
   async function placeRug(page: Page) {
@@ -371,7 +387,7 @@ test.describe("the plan as a canvas", () => {
     const metres = (inches: number) => inches * 0.0254;
     const padding = 40;
     const scale = Math.min(
-      (box.width - padding * 2) / metres(168 + WALL_INCHES * 2),
+      (box.width - PLAN_RESERVE - padding * 2) / metres(168 + WALL_INCHES * 2),
       (box.height - padding * 2) / metres(144 + WALL_INCHES * 2),
     );
     const centre = await planCentre(page);
@@ -421,7 +437,7 @@ test.describe("the plan as a canvas", () => {
     const metres = (inches: number) => inches * 0.0254;
     const padding = 40;
     const scale = Math.min(
-      (box.width - padding * 2) / metres(168 + WALL_INCHES * 2),
+      (box.width - PLAN_RESERVE - padding * 2) / metres(168 + WALL_INCHES * 2),
       (box.height - padding * 2) / metres(144 + WALL_INCHES * 2),
     );
     const centre = await planCentre(page);
@@ -1292,10 +1308,13 @@ test.describe("laying the apartment out", () => {
     const metres = (inches: number) => inches * 0.0254;
     const padding = 40;
     const scale = Math.min(
-      (box.width - padding * 2) / metres(168 + WALL_INCHES * 2),
+      (box.width - PLAN_RESERVE - padding * 2) / metres(168 + WALL_INCHES * 2),
       (box.height - padding * 2) / metres(144 + WALL_INCHES * 2),
     );
-    const middle = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const middle = {
+      x: box.x + (box.width - PLAN_RESERVE) / 2,
+      y: box.y + box.height / 2,
+    };
     // Clear of the existing centered north window: 36" from the west corner.
     const north = {
       x: middle.x + metres(-84 + 36) * scale,
@@ -1430,10 +1449,13 @@ test.describe("laying the apartment out", () => {
     const inches = (value: number) => value * 0.0254;
     const wall = inches(WALL_INCHES);
     const scale = Math.min(
-      (box.width - 80) / (inches(168) + 2 * wall),
+      (box.width - PLAN_RESERVE - 80) / (inches(168) + 2 * wall),
       (box.height - 80) / (inches(144) + 2 * wall),
     );
-    const center = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const center = {
+      x: box.x + (box.width - PLAN_RESERVE) / 2,
+      y: box.y + box.height / 2,
+    };
     const at = (xInches: number, yInches: number) => ({
       x: center.x + inches(xInches) * scale,
       y: center.y + inches(yInches) * scale,
@@ -1560,10 +1582,14 @@ test.describe("laying the apartment out", () => {
     const wall = inches(WALL_INCHES);
     const bounds = { west: -84, north: -72, east: 84, south: 72 };
     const scale = Math.min(
-      (box.width - 80) / (inches(bounds.east - bounds.west) + wall * 2),
+      (box.width - PLAN_RESERVE - 80) /
+        (inches(bounds.east - bounds.west) + wall * 2),
       (box.height - 80) / (inches(bounds.south - bounds.north) + wall * 2),
     );
-    const center = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const center = {
+      x: box.x + (box.width - PLAN_RESERVE) / 2,
+      y: box.y + box.height / 2,
+    };
     const floorCenter = {
       x: (bounds.west + bounds.east) / 2,
       y: (bounds.north + bounds.south) / 2,
@@ -1712,7 +1738,10 @@ test.describe("laying the apartment out", () => {
     // usual size, where the pointer went down. Where exactly does not matter
     // here — the angles do.
     await room.getByRole("button", { name: "Add section" }).click();
-    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.click(
+      box.x + (box.width - PLAN_RESERVE) / 2,
+      box.y + box.height / 2,
+    );
     await expect(room.getByLabel("Living room section 2 width")).toBeVisible();
 
     await room
@@ -1749,10 +1778,13 @@ test.describe("laying the apartment out", () => {
     const inches = (value: number) => value * 0.0254;
     const wall = inches(WALL_INCHES);
     const scale = Math.min(
-      (box.width - 80) / (inches(168) + wall * 2),
+      (box.width - PLAN_RESERVE - 80) / (inches(168) + wall * 2),
       (box.height - 80) / (inches(144) + wall * 2),
     );
-    const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const centre = {
+      x: box.x + (box.width - PLAN_RESERVE) / 2,
+      y: box.y + box.height / 2,
+    };
     const toPixel = (xInches: number, yInches: number) => ({
       x: centre.x + inches(xInches) * scale,
       y: centre.y + inches(yInches) * scale,
@@ -1829,10 +1861,17 @@ test.describe("laying the apartment out", () => {
   }) => {
     await openWithLivingRoom(page);
 
-    // The Apartment panel takes the image and puts it straight under the grid.
-    const apartment = details(page).getByRole("region", { name: "Apartment" });
+    // The apartment's settings take the image and put it under the grid.
+    const settings = async () => {
+      const dialog = page.getByRole("dialog", { name: "Settings" });
+      if (!(await dialog.isVisible())) {
+        await page.getByRole("button", { name: "Settings" }).click();
+      }
+      return dialog;
+    };
+    const apartment = await settings();
     await apartment
-      .locator('input[type="file"]')
+      .getByLabel("Add plan image")
       .setInputFiles("e2e/fixtures/plan.png");
     const image = page.getByRole("img", {
       name: "The floor plan being traced",
@@ -1843,6 +1882,8 @@ test.describe("laying the apartment out", () => {
     const width = apartment.getByLabel("Underlay width");
     const dropped = Number(await width.inputValue());
     expect(dropped).toBeGreaterThan(0);
+    await page.keyboard.press("Escape");
+    await expect(apartment).toBeHidden();
 
     // The south-east corner, pulled away from the image, makes it bigger.
     const box = await image.boundingBox();
@@ -1856,14 +1897,15 @@ test.describe("laying the apartment out", () => {
     });
     await page.mouse.up();
 
-    await expect
-      .poll(async () => Number(await width.inputValue()))
-      .toBeGreaterThan(dropped);
     // The proportions are kept, so the image is never a drawing that lies
     // about one axis: it grew on both.
     const grown = await image.boundingBox();
     expect(grown?.width ?? 0).toBeGreaterThan(box.width);
     expect(grown?.height ?? 0).toBeGreaterThan(box.height);
+    await settings();
+    await expect
+      .poll(async () => Number(await width.inputValue()))
+      .toBeGreaterThan(dropped);
 
     // A typed width is the exact path, and the top-left corner stays put.
     await width.fill("240");
@@ -1874,8 +1916,9 @@ test.describe("laying the apartment out", () => {
     await expect(
       page.getByRole("img", { name: "The floor plan being traced" }),
     ).toBeVisible();
-    await details(page)
-      .getByRole("region", { name: "Apartment" })
+    await (
+      await settings()
+    )
       .getByRole("button", { name: "Hide image" })
       .click();
     await expect(image).toHaveCount(0);
@@ -1886,10 +1929,11 @@ test.describe("laying the apartment out", () => {
   }) => {
     await openWithLivingRoom(page);
 
-    // Nothing selected: the apartment's own settings. The wall is folded away
+    // The apartment's own settings, behind the gear. The wall is folded away
     // behind one line that reads it out, because it is set once and read
     // often — so the summary has to carry the number.
-    const apartment = details(page).getByRole("region", { name: "Apartment" });
+    await page.getByRole("button", { name: "Settings" }).click();
+    const apartment = page.getByRole("dialog", { name: "Settings" });
     const walls = apartment.getByRole("button", { name: /^Wall thickness/ });
     await expect(walls).toHaveAttribute("aria-expanded", "false");
     await expect(walls).toContainText("4.5 in");
@@ -1900,30 +1944,34 @@ test.describe("laying the apartment out", () => {
     await expect(thickness).toHaveValue("9");
     await expect(walls).toContainText("9 in walls");
 
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(500);
     await page.reload();
-    const reopened = details(page).getByRole("region", { name: "Apartment" });
+    await page.getByRole("button", { name: "Settings" }).click();
+    const reopened = page.getByRole("dialog", { name: "Settings" });
     await reopened.getByRole("button", { name: /^Wall thickness/ }).click();
     await expect(reopened.getByLabel("Wall thickness")).toHaveValue("9");
   });
 
-  test("counts the floor up only once there is a floor to count", async ({
+  test("counts the floor up only once there is a floor to count, and keeps the panel for what is selected", async ({
     page,
   }) => {
-    // Four figures reading zero teach nobody anything about an empty project,
-    // and neither does "0.0 sq ft" in the corner of an empty plan.
+    // "0.0 sq ft" in the corner of an empty plan teaches nobody anything.
     await page.goto("/");
-    const empty = details(page).getByRole("region", { name: "Apartment" });
-    await expect(empty.getByText("Floor area")).toBeHidden();
     await expect(plan(page).getByText("sq ft")).toBeHidden();
+    // Nothing selected, nothing to edit: there is no panel, and the plan has
+    // the width. The apartment's own settings are behind the gear.
+    await expect(details(page)).toHaveCount(0);
 
-    // With a room on the floor, every one of them is a fact about something.
     await openWithLivingRoom(page);
-    const measured = details(page).getByRole("region", { name: "Apartment" });
-    await expect(measured.getByText("Floor area")).toBeVisible();
-    await expect(
-      measured.getByRole("term").filter({ hasText: "Rooms" }),
-    ).toBeVisible();
     await expect(plan(page).getByText("sq ft")).toBeVisible();
+    await expect(details(page)).toHaveCount(0);
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
+    await expect(details(page)).toBeVisible();
+    await planImage(page).press("Escape");
+    await expect(details(page)).toHaveCount(0);
   });
 
   test("lets one room be built out of something else, and hands it back", async ({
@@ -2100,11 +2148,11 @@ test.describe("laying the apartment out", () => {
     const across = metres(168 + WALL_INCHES * 2);
     const down = metres(144 + WALL_INCHES * 2);
     const scale = Math.min(
-      (box.width - padding * 2) / across,
+      (box.width - PLAN_RESERVE - padding * 2) / across,
       (box.height - padding * 2) / down,
     );
     const eastHandle = {
-      x: box.x + box.width / 2 + metres(84) * scale,
+      x: box.x + (box.width - PLAN_RESERVE) / 2 + metres(84) * scale,
       y: box.y + box.height / 2,
     };
 
@@ -2159,7 +2207,10 @@ test.describe("laying the apartment out", () => {
     if (box === null) {
       throw new Error("the plan has no box to point at");
     }
-    const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const centre = {
+      x: box.x + (box.width - PLAN_RESERVE) / 2,
+      y: box.y + box.height / 2,
+    };
 
     // The living room is the only thing on the plan, and it is in the middle.
     await page.mouse.click(centre.x, centre.y);
@@ -2239,10 +2290,13 @@ test.describe("laying the apartment out", () => {
     const across = metres(168) + metres(WALL_INCHES) * 2;
     const down = metres(144) + metres(WALL_INCHES) * 2;
     const scale = Math.min(
-      (box.width - padding * 2) / across,
+      (box.width - PLAN_RESERVE - padding * 2) / across,
       (box.height - padding * 2) / down,
     );
-    const middle = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const middle = {
+      x: box.x + (box.width - PLAN_RESERVE) / 2,
+      y: box.y + box.height / 2,
+    };
     const handle = {
       x: middle.x + (metres(168) / 2) * scale,
       y: middle.y,
@@ -2463,10 +2517,13 @@ test.describe("laying the apartment out", () => {
     const across = metres(168) + metres(WALL_INCHES) * 2;
     const down = metres(144) + metres(WALL_INCHES) * 2;
     const scale = Math.min(
-      (box.width - padding * 2) / across,
+      (box.width - PLAN_RESERVE - padding * 2) / across,
       (box.height - padding * 2) / down,
     );
-    const middle = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const middle = {
+      x: box.x + (box.width - PLAN_RESERVE) / 2,
+      y: box.y + box.height / 2,
+    };
     const handle = { x: middle.x - (metres(168) / 2) * scale, y: middle.y };
 
     await page.mouse.move(handle.x, handle.y);
@@ -2504,7 +2561,10 @@ test.describe("laying the apartment out", () => {
     if (box === null) {
       throw new Error("the plan has no box to point at");
     }
-    const middle = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const middle = {
+      x: box.x + (box.width - PLAN_RESERVE) / 2,
+      y: box.y + box.height / 2,
+    };
 
     // Clicked into, so the wheel belongs to the plan, then swiped hard enough
     // to send the apartment into the next county.
@@ -2549,10 +2609,14 @@ test.describe("laying the apartment out", () => {
     const metres = (inches: number) => inches * 0.0254;
     const padding = 40;
     const scale = Math.min(
-      (box.width - padding * 2) / (metres(168) + metres(WALL_INCHES) * 2),
+      (box.width - PLAN_RESERVE - padding * 2) /
+        (metres(168) + metres(WALL_INCHES) * 2),
       (box.height - padding * 2) / (metres(144) + metres(WALL_INCHES) * 2),
     );
-    const middle = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const middle = {
+      x: box.x + (box.width - PLAN_RESERVE) / 2,
+      y: box.y + box.height / 2,
+    };
     const cursor = () =>
       planImage(page).evaluate((element) => getComputedStyle(element).cursor);
 
@@ -2831,7 +2895,10 @@ test.describe("groups in the list", () => {
     if (box === null) {
       throw new Error("the plan has no box to point at");
     }
-    const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const centre = {
+      x: box.x + (box.width - PLAN_RESERVE) / 2,
+      y: box.y + box.height / 2,
+    };
     await page.mouse.move(centre.x, centre.y);
     await page.mouse.down();
     await page.mouse.move(

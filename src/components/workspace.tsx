@@ -705,7 +705,12 @@ export function Workspace() {
         </div>
       </header>
 
-      <div className="grid min-h-0 grid-cols-[minmax(0,16rem)_minmax(0,1fr)_minmax(0,20rem)]">
+      {/* Two columns: the list and the plan. The details panel is for what
+          is selected, and floats over the plan's right edge only while
+          something is; the plan itself always has the full width, so
+          selecting and deselecting never resizes it and nothing on it
+          moves. The apartment's own settings are behind the gear. */}
+      <div className="relative grid min-h-0 grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
         {/* The catalogue sits at the bottom and grows upward as it fills; the
             layers take the rest, so spare room shows above it rather than
             below. */}
@@ -977,64 +982,66 @@ export function Workspace() {
           </div>
         </main>
 
-        <aside
-          aria-label="Details"
-          className="min-h-0 overflow-hidden border-l border-black/10 dark:border-white/15"
-        >
-          <Inspector
-            floor={floor}
-            furniture={furniture}
-            products={products}
-            unit={unit}
-            selection={selection}
-            onSelect={setSelection}
-            onFloorChange={setFloor}
-            underlay={underlay}
-            onAddPlanImage={(file) => {
-              void addPlanImage(file);
-            }}
-            onUnderlayChange={setUnderlay}
-            onRoomChange={(room, gesture) => moveRooms([room], gesture)}
-            onGestureEnd={endGesture}
-            onRoomRemove={removeRoom}
-            drawingSectionOf={drawingSectionOf}
-            onDrawSection={(room) => {
-              setPlacingOpening(null);
-              setDrawingRoom(false);
-              setDrawingSectionOf((on) => (on === room.id ? null : room.id));
-            }}
-            onAddOpening={startOpeningPlacement}
-            placingOpening={placingOpening}
-            onOpeningChange={changeOpening}
-            onOpeningRemove={removeOpening}
-            onInstanceChange={(instance: FurnitureInstance) =>
-              setInstances(withInstance(instances, instance))
-            }
-            onInstanceRemove={(instance: FurnitureInstance) => {
-              setInstances(instances.filter((one) => one.id !== instance.id));
-              setSelection(null);
-            }}
-            onGroupRemove={(instanceIds, roomIds) => {
-              setFloor(
-                withRooms(
-                  floor,
-                  floor.rooms.filter((one) => !roomIds.includes(one.id)),
-                ),
-              );
-              setInstances(
-                instances.filter((one) => !instanceIds.includes(one.id)),
-              );
-              setSelection(null);
-            }}
-            onProductSave={saveProduct}
-            onProductRemove={removeProduct}
-            productProblem={productProblem}
-            newProductId={nextId(
-              "product",
-              products.map((one) => one.id),
-            )}
-          />
-        </aside>
+        {selection === null ? null : (
+          <aside
+            aria-label="Details"
+            className="absolute inset-y-0 right-0 z-10 w-80 min-h-0 overflow-hidden border-l border-black/10 bg-background shadow-xl dark:border-white/15"
+          >
+            <Inspector
+              floor={floor}
+              furniture={furniture}
+              products={products}
+              unit={unit}
+              selection={selection}
+              onSelect={setSelection}
+              onFloorChange={setFloor}
+              underlay={underlay}
+              onAddPlanImage={(file) => {
+                void addPlanImage(file);
+              }}
+              onUnderlayChange={setUnderlay}
+              onRoomChange={(room, gesture) => moveRooms([room], gesture)}
+              onGestureEnd={endGesture}
+              onRoomRemove={removeRoom}
+              drawingSectionOf={drawingSectionOf}
+              onDrawSection={(room) => {
+                setPlacingOpening(null);
+                setDrawingRoom(false);
+                setDrawingSectionOf((on) => (on === room.id ? null : room.id));
+              }}
+              onAddOpening={startOpeningPlacement}
+              placingOpening={placingOpening}
+              onOpeningChange={changeOpening}
+              onOpeningRemove={removeOpening}
+              onInstanceChange={(instance: FurnitureInstance) =>
+                setInstances(withInstance(instances, instance))
+              }
+              onInstanceRemove={(instance: FurnitureInstance) => {
+                setInstances(instances.filter((one) => one.id !== instance.id));
+                setSelection(null);
+              }}
+              onGroupRemove={(instanceIds, roomIds) => {
+                setFloor(
+                  withRooms(
+                    floor,
+                    floor.rooms.filter((one) => !roomIds.includes(one.id)),
+                  ),
+                );
+                setInstances(
+                  instances.filter((one) => !instanceIds.includes(one.id)),
+                );
+                setSelection(null);
+              }}
+              onProductSave={saveProduct}
+              onProductRemove={removeProduct}
+              productProblem={productProblem}
+              newProductId={nextId(
+                "product",
+                products.map((one) => one.id),
+              )}
+            />
+          </aside>
+        )}
       </div>
 
       {guideOpen ? (
@@ -1045,6 +1052,13 @@ export function Workspace() {
         <SettingsDialog
           unit={unit}
           onUnitChange={setUnit}
+          floor={floor}
+          onFloorChange={setFloor}
+          underlay={underlay}
+          onAddPlanImage={(file) => {
+            void addPlanImage(file);
+          }}
+          onUnderlayChange={setUnderlay}
           onClose={() => setSettingsOpen(false)}
         />
       ) : null}

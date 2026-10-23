@@ -138,6 +138,14 @@ import {
  * against the edge of the panel.
  */
 const PLAN_PADDING_PIXELS = 40;
+/**
+ * The width kept clear on the right when the plan is fitted: where the
+ * details panel floats while something is selected. Fitting into the rest
+ * means the panel never lands on the apartment, and the plan never has to
+ * move when the panel comes and goes — the strip is simply spare canvas
+ * until it is wanted. Matches the panel's `w-80`.
+ */
+const PANEL_RESERVE_PIXELS = 320;
 const LABEL_PIXELS = 12;
 
 /**
@@ -2499,7 +2507,10 @@ function planProjectionFor(
   // origin over is what makes the result a complete transform, so nothing
   // downstream adds it back.
   const { origin, extent } = fittedRect(floor, underlay);
-  return createPlanProjection(extent, viewport, PLAN_PADDING_PIXELS, origin);
+  const spare = viewport.width - PANEL_RESERVE_PIXELS;
+  const fitInto =
+    spare > PLAN_PADDING_PIXELS * 2 ? { ...viewport, width: spare } : viewport;
+  return createPlanProjection(extent, fitInto, PLAN_PADDING_PIXELS, origin);
 }
 
 /** Where the underlay image sits on screen, in CSS pixels. */
