@@ -48,7 +48,7 @@ describe("LayoutProblems", () => {
     ]);
 
     expect(
-      screen.getByText(`Sectional overlaps Coffee table by 0' 4.0".`),
+      screen.getByText(`Sectional overlaps Coffee table by 4".`),
     ).toBeInTheDocument();
   });
 
@@ -65,7 +65,7 @@ describe("LayoutProblems", () => {
 
     expect(
       screen.getByText(
-        `Sectional crosses the west wall of the Living room by 1' 0.0".`,
+        `Sectional crosses the west wall of the Living room by 1' 0".`,
       ),
     ).toBeInTheDocument();
   });
@@ -84,7 +84,7 @@ describe("LayoutProblems", () => {
 
     expect(
       screen.getByText(
-        `Sectional crosses the north wall of section 2 of the Living room by 0' 3.0".`,
+        `Sectional crosses the north wall of section 2 of the Living room by 3".`,
       ),
     ).toBeInTheDocument();
   });
@@ -108,7 +108,7 @@ describe("LayoutProblems", () => {
 
     expect(
       screen.getByText(
-        `Living room and Hall are in the same place, overlapping by 1' 6.0".`,
+        `Living room and Hall are in the same place, overlapping by 1' 6".`,
       ),
     ).toBeInTheDocument();
   });

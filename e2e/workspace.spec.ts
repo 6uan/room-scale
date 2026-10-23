@@ -186,7 +186,7 @@ test.describe("the workspace", () => {
     await expect(inspector).toBeVisible();
     await inspector.getByLabel("Living room width").fill("120");
 
-    await expect(planImage(page)).toHaveAccessibleName(/10' 0\.0" wide/);
+    await expect(planImage(page)).toHaveAccessibleName(/120" wide/);
     await expect(
       plan(page).getByText(
         "Drag or resize the room here, or type its X/Y and W/D",
@@ -269,7 +269,7 @@ test.describe("the workspace", () => {
     await details(page).getByLabel("From west").fill("24");
 
     await expect(planImage(page)).toHaveAccessibleName(
-      /2' 0\.0" from the west wall/,
+      /24" from the west wall/,
     );
   });
 
@@ -336,7 +336,7 @@ test.describe("editing the product behind a piece", () => {
     await expect(page.getByRole("status", { name: "" })).toContainText(
       "Saved Rug",
     );
-    await expect(planImage(page)).toHaveAccessibleName(/4' 0\.0" by 5' 0\.0"/);
+    await expect(planImage(page)).toHaveAccessibleName(/48" by 60"/);
   });
 });
 
@@ -1114,7 +1114,7 @@ test.describe("the perspective view", () => {
     await expect(scene).toBeVisible();
     await expect(scene).toHaveAttribute(
       "aria-label",
-      /holding 1 room: Living room 8' 0.0" high\./,
+      /holding 1 room: Living room 96" high\./,
     );
     await expect(page.getByRole("main", { name: "Perspective" })).toBeVisible();
     await expect(scene.locator("canvas")).toBeVisible();
@@ -1356,7 +1356,7 @@ test.describe("laying the apartment out", () => {
     await startGap.fill("24");
     await expect(startGap).toHaveValue("24");
     await expect(endGap).toHaveValue("112");
-    await expect(plan(page).getByText(`x -3' 8.0"`)).toBeVisible();
+    await expect(plan(page).getByText(`x -44"`)).toBeVisible();
 
     // Selection is also on the canvas, through the gap cut in the wall.
     await planImage(page).press("Escape");
@@ -1958,13 +1958,13 @@ test.describe("laying the apartment out", () => {
     const apartment = page.getByRole("dialog", { name: "Settings" });
     const walls = apartment.getByRole("button", { name: /^Wall thickness/ });
     await expect(walls).toHaveAttribute("aria-expanded", "false");
-    await expect(walls).toContainText("4.5 in");
+    await expect(walls).toContainText(`4.5"`);
 
     await walls.click();
     const thickness = apartment.getByLabel("Wall thickness");
     await thickness.fill("9");
     await expect(thickness).toHaveValue("9");
-    await expect(walls).toContainText("9 in walls");
+    await expect(walls).toContainText(`9" walls`);
 
     await page.keyboard.press("Escape");
     await page.waitForTimeout(500);
@@ -2013,7 +2013,7 @@ test.describe("laying the apartment out", () => {
     // by that name, and one panel cannot have two controls with one name.
     const walls = room.getByRole("button", { name: /^Wall thickness/ });
     await expect(walls).toHaveAttribute("aria-expanded", "false");
-    await expect(walls).toContainText("4.5 in");
+    await expect(walls).toContainText(`4.5"`);
     await expect(walls).toContainText("from the apartment");
 
     await walls.click();
@@ -2022,7 +2022,7 @@ test.describe("laying the apartment out", () => {
     await expect(thickness).toHaveValue("4.5");
 
     await thickness.fill("7");
-    await expect(walls).toContainText("7 in");
+    await expect(walls).toContainText(`7"`);
     await expect(walls).not.toContainText("from the apartment");
     // Typed once, it stays this room's: the apartment's own default no longer
     // reaches it, and it survives a reload.
@@ -2037,7 +2037,7 @@ test.describe("laying the apartment out", () => {
       details(page)
         .getByRole("region", { name: "Living room", exact: true })
         .getByRole("button", { name: /^Wall thickness/ }),
-    ).toContainText("7 in");
+    ).toContainText(`7"`);
 
     // And handed back, it reads the apartment's again.
     const reopened = details(page).getByRole("region", {
@@ -2050,7 +2050,7 @@ test.describe("laying the apartment out", () => {
       .click();
     await expect(
       reopened.getByRole("button", { name: /^Wall thickness/ }),
-    ).toContainText("4.5 in");
+    ).toContainText(`4.5"`);
   });
 
   test("turns a wall into a railing that refuses a door, then into a divider", async ({
@@ -2281,8 +2281,8 @@ test.describe("laying the apartment out", () => {
       .click();
 
     // Its north-west corner: the room is centred, so half of 168 by half of 144.
-    await expect(plan(page).getByText(`x -7' 0.0"`)).toBeVisible();
-    await expect(plan(page).getByText(`y -6' 0.0"`)).toBeVisible();
+    await expect(plan(page).getByText(`x -84"`)).toBeVisible();
+    await expect(plan(page).getByText(`y -72"`)).toBeVisible();
   });
 
   test("resizes a room by dragging its wall, landing on whole inches", async ({
@@ -2363,15 +2363,15 @@ test.describe("laying the apartment out", () => {
     await page.mouse.down();
     await page.mouse.move(from.x + 160, from.y + 90, { steps: 8 });
 
-    // Mid-drag: a width and a depth in feet and inches, wider than deep.
+    // Mid-drag: a width and a depth in the reading unit, wider than deep.
     const readout = page.getByLabel("Room being drawn");
     await expect(readout).toBeVisible();
     const text = (await readout.textContent()) ?? "";
-    const match = /^Width(\d+)' ([\d.]+)"Length(\d+)' ([\d.]+)"$/.exec(text);
+    const match = /^Width([\d.]+)"Length([\d.]+)"$/.exec(text);
     expect(match, text).not.toBeNull();
-    const [, wf, wi, df, di] = match ?? [];
-    const width = Number(wf) * 12 + Number(wi);
-    const depth = Number(df) * 12 + Number(di);
+    const [, wi, di] = match ?? [];
+    const width = Number(wi);
+    const depth = Number(di);
     expect(width).toBeGreaterThan(depth);
 
     await page.mouse.up();
@@ -2712,7 +2712,7 @@ test.describe("laying the apartment out", () => {
 
     await room.getByLabel("Living room width").fill("11' 6\"");
     // Feet and inches in, inches stored, and the room read back in feet.
-    await expect(room.getByText(/^11' 6\.0" ×/)).toBeVisible();
+    await expect(room.getByText(/^138" ×/)).toBeVisible();
     await planImage(page).press("Escape");
     await contents(page)
       .getByRole("button", { name: "Living room", exact: true })
@@ -2983,5 +2983,50 @@ test.describe("groups in the list", () => {
     await expect(row("Lamp 2")).toHaveAttribute("aria-pressed", "false");
     await expect(row("Lamp 3")).toHaveAttribute("aria-pressed", "true");
     await expect(details(page).getByText("2 pieces")).toBeVisible();
+  });
+});
+
+test.describe("reading lengths", () => {
+  test("reads feet and inches in fields as on labels, steps with the arrow keys, and remembers inches", async ({
+    page,
+  }) => {
+    await openWithLivingRoom(page, "/", "feet-and-inches");
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
+    const width = details(page).getByLabel("Living room width", {
+      exact: true,
+    });
+
+    // One format: the field reads the way the plan's labels do.
+    await expect(width).toHaveValue(`14' 0"`);
+
+    // An inch with ↑, ten with Shift.
+    await width.focus();
+    await page.keyboard.press("ArrowUp");
+    await expect(width).toHaveValue(`14' 1"`);
+    await page.keyboard.press("Shift+ArrowUp");
+    await expect(width).toHaveValue(`14' 11"`);
+
+    // Inches alone, chosen once, for every field and label after.
+    await page.getByRole("button", { name: "Settings" }).click();
+    await page
+      .getByRole("dialog", { name: "Settings" })
+      .locator("label")
+      .filter({ hasText: /^Inches/ })
+      .click();
+    await expect(page.getByRole("radio", { name: /^Inches/ })).toBeChecked();
+    await page.keyboard.press("Escape");
+    await expect(width).toHaveValue("179");
+
+    // A preference of this browser's, so it is there after a reload.
+    await page.waitForTimeout(300);
+    await page.reload();
+    await contents(page)
+      .getByRole("button", { name: "Living room", exact: true })
+      .click();
+    await expect(
+      details(page).getByLabel("Living room width", { exact: true }),
+    ).toHaveValue("179");
   });
 });

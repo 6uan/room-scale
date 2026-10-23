@@ -889,6 +889,20 @@ directly under the room's own name and carried nothing else. A closet can now
 be deleted whole, and the first rectangle, whose chip already says "Room", is
 no longer offered for deletion on its own.
 
+**One format for a length, chosen once, and arrow keys in every field.**
+A field showed bare inches (`116`) while every label beside it read feet and
+inches with a tenth (`9' 8.0"`), so one number was on screen two ways. Now a
+length reads the same in a field as on a label, in whichever of three ways
+Settings says: feet and inches (`9' 8"`, the default, how a tape and a listing
+write it), inches (`116"`, how a retailer lists a sofa), or centimeters. A
+stray `.0` is dropped, a length under a foot reads `6"` rather than `0' 6"`,
+and the echo under a field is gone, since it only repeated the field. Metric
+or imperial stays with the project; feet-and-inches or inches is this
+browser's, in the settings table beside the open project, so it changes no
+stored document. Every length, angle and price field steps by one with ↑ and
+↓ and by ten with Shift — exactly, through the typed path, and one undo step
+for a held key.
+
 **The opening panel is on the same rows as the others.** It was the last
 one built from loose controls: a bordered box repeating the panel's name, a
 dropdown for the wall and one for each of the door's style, hinge and swing,

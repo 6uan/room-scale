@@ -22,6 +22,15 @@ import type { Page } from "@playwright/test";
 
 const DATABASE = "roomscale";
 const STORE = "projects";
+const SETTINGS = "settings";
+
+/**
+ * Read in inches, not feet and inches. These tests are about exact geometry
+ * — a wall at 84 inches, a window centred at 84 — and they read it back as
+ * the bare number a field shows in inches. Feet and inches, the default, has
+ * its own test; everything else names its numbers the way it always has.
+ */
+type ImperialLengths = "inches" | "feet-and-inches";
 
 /** Retail measurements are inches; the stored document is meters. */
 const inches = (value: number) => value * 0.0254;
@@ -98,8 +107,12 @@ const DOCUMENT = {
  * Dexie's own — ten for the `version(1)` in `project-database.ts` — and
  * guessing at that convention would break the next time it moves.
  */
-export async function openWithLivingRoom(page: Page, path = "/") {
-  await seedStoredProject(page, DOCUMENT, path);
+export async function openWithLivingRoom(
+  page: Page,
+  path = "/",
+  imperialLengths: ImperialLengths = "inches",
+) {
+  await seedStoredProject(page, DOCUMENT, path, imperialLengths);
 }
 
 /**
@@ -126,11 +139,12 @@ async function seedStoredProject(
   page: Page,
   document: unknown,
   path: string,
+  imperialLengths: ImperialLengths = "inches",
 ): Promise<void> {
   await page.goto(path);
   await page.waitForSelector('[role="img"][aria-label^="Plan view"]');
   await page.evaluate(
-    ({ database, store, document: record }) =>
+    ({ database, store, settings, preference, document: record }) =>
       new Promise<void>((resolve, reject) => {
         const open = indexedDB.open(database);
         open.onerror = () => reject(open.error);
@@ -142,8 +156,9 @@ async function seedStoredProject(
             reject(new Error(`no ${store} store to seed`));
             return;
           }
-          const transaction = db.transaction(store, "readwrite");
+          const transaction = db.transaction([store, settings], "readwrite");
           transaction.objectStore(store).put(record);
+          transaction.objectStore(settings).put(preference);
           transaction.oncomplete = () => {
             db.close();
             resolve();
@@ -151,7 +166,13 @@ async function seedStoredProject(
           transaction.onerror = () => reject(transaction.error);
         };
       }),
-    { database: DATABASE, store: STORE, document },
+    {
+      database: DATABASE,
+      store: STORE,
+      settings: SETTINGS,
+      preference: { id: "imperial-lengths", imperialLengths },
+      document,
+    },
   );
   await page.goto(path);
 }

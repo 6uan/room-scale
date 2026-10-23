@@ -11,8 +11,10 @@ import {
   clearProject,
   deleteProject,
   listProjects,
+  loadImperialLengths,
   loadProject,
   openProjectId,
+  saveImperialLengths,
   saveProject,
   saveProjectUnlessNewer,
   setOpenProjectId,
@@ -244,5 +246,28 @@ describe("clearProject", () => {
       status: "empty",
       id: CURRENT_PROJECT_ID,
     });
+  });
+});
+
+describe("how imperial lengths are read", () => {
+  it("is feet and inches until told otherwise, and remembers being told", async () => {
+    expect(await loadImperialLengths(database)).toBe("feet-and-inches");
+    await saveImperialLengths("inches", database);
+    expect(await loadImperialLengths(database)).toBe("inches");
+  });
+
+  it("is kept apart from which project is open", async () => {
+    await setOpenProjectId("project-2", database);
+    await saveImperialLengths("inches", database);
+    expect(await openProjectId(database)).toBe("project-2");
+    expect(await loadImperialLengths(database)).toBe("inches");
+  });
+
+  it("reads a row it does not recognise as the default", async () => {
+    await database.settings.put({
+      id: "imperial-lengths",
+      imperialLengths: "furlongs" as "inches",
+    });
+    expect(await loadImperialLengths(database)).toBe("feet-and-inches");
   });
 });

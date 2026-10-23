@@ -87,8 +87,13 @@ import {
   type Room,
   type WallSide,
 } from "@/domain/room";
-import { metersFromInches, roundToDisplayUnit } from "@/domain/units";
+import {
+  metersFromInches,
+  roundToDisplayUnit,
+  storedUnit,
+} from "@/domain/units";
 import { checkLayout, troubledInstanceIds } from "@/domain/validation";
+import { usePreferencesStore, useDisplayUnit } from "@/state/preferences-store";
 import { useProjectStore } from "@/state/project-store";
 
 /**
@@ -123,7 +128,10 @@ const NO_GROUPS: readonly PieceGroup[] = [];
 export function Workspace() {
   const floor = useProjectStore((state) => state.project.floor);
   const underlay = useProjectStore((state) => state.project.underlay);
-  const unit = useProjectStore((state) => state.project.displayUnit);
+  const unit = useDisplayUnit();
+  const setImperialLengths = usePreferencesStore(
+    (state) => state.setImperialLengths,
+  );
   const products = useProjectStore((state) => state.project.products);
   const instances = useProjectStore((state) => activeInstances(state.project));
   const setFloor = useProjectStore((state) => state.setFloor);
@@ -1052,7 +1060,14 @@ export function Workspace() {
       {settingsOpen ? (
         <SettingsDialog
           unit={unit}
-          onUnitChange={setUnit}
+          onUnitChange={(next) => {
+            setUnit(storedUnit(next));
+            if (next !== "metric") {
+              setImperialLengths(
+                next === "inches" ? "inches" : "feet-and-inches",
+              );
+            }
+          }}
           floor={floor}
           onFloorChange={setFloor}
           underlay={underlay}

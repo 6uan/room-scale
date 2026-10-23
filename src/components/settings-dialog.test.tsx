@@ -24,11 +24,13 @@ describe("the settings dialog", () => {
       />,
     );
 
-    expect(screen.getByRole("radio", { name: /Inches/ })).toBeChecked();
+    expect(screen.getByRole("radio", { name: /Feet & inches/ })).toBeChecked();
 
     await userEvent.click(screen.getByRole("radio", { name: /Centimeters/ }));
-
     expect(onUnitChange).toHaveBeenCalledWith("metric");
+
+    await userEvent.click(screen.getByRole("radio", { name: /^Inches/ }));
+    expect(onUnitChange).toHaveBeenCalledWith("inches");
   });
 
   it("holds the ways out of the browser, which used to live on the overview", () => {
@@ -64,7 +66,7 @@ describe("the settings dialog", () => {
 
     expect(screen.getByLabelText("Add plan image")).toBeInTheDocument();
     const walls = screen.getByRole("button", { name: /^Wall thickness/ });
-    expect(walls).toHaveTextContent("4.5 in walls");
+    expect(walls).toHaveTextContent(`4.5" walls`);
     await userEvent.click(walls);
     await userEvent.clear(screen.getByLabelText("Wall thickness"));
     await userEvent.type(screen.getByLabelText("Wall thickness"), "9{Tab}");

@@ -1,17 +1,19 @@
 import { useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { metersFromInches } from "@/domain/units";
+import { metersFromInches, type DisplayUnit } from "@/domain/units";
 import { NumberField } from "./number-field";
 
 function ScrubField({
   onChange,
   onGestureEnd,
   startInches = 96,
+  unit = "inches",
 }: {
   onChange: (meters: number, gesture?: string) => void;
   onGestureEnd: () => void;
   startInches?: number;
+  unit?: DisplayUnit;
 }) {
   const [meters, setMeters] = useState(metersFromInches(startInches));
 
@@ -20,7 +22,7 @@ function ScrubField({
       label="Living room width"
       compactLabel="W"
       scrubGesture="room-field:room-1:width"
-      unit="imperial"
+      unit={unit}
       meters={meters}
       limits={{ minMeters: 0.5, maxMeters: 30 }}
       onMetersChange={(next, gesture) => {
@@ -130,5 +132,78 @@ describe("NumberField compact scrubbing", () => {
       screen.getByRole("textbox", { name: "Living room width" }),
     ).toHaveValue("19.69");
     expect(onChange.mock.lastCall?.[0]).toBe(0.5);
+  });
+});
+
+describe("NumberField arrow keys", () => {
+  it("steps an inch with ↑ and ↓, ten with Shift, exactly and as one gesture", () => {
+    const onChange = vi.fn();
+    const onGestureEnd = vi.fn();
+    render(<ScrubField onChange={onChange} onGestureEnd={onGestureEnd} />);
+    const field = screen.getByRole("textbox", { name: "Living room width" });
+
+    fireEvent.keyDown(field, { key: "ArrowUp" });
+    expect(field).toHaveValue("97");
+    expect(onChange).toHaveBeenLastCalledWith(
+      metersFromInches(97),
+      "room-field:room-1:width",
+    );
+
+    fireEvent.keyDown(field, { key: "ArrowDown", shiftKey: true });
+    expect(field).toHaveValue("87");
+
+    fireEvent.keyUp(field, { key: "ArrowDown" });
+    expect(onGestureEnd).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops at the field's limits", () => {
+    const onChange = vi.fn();
+    render(
+      <ScrubField
+        onChange={onChange}
+        onGestureEnd={() => undefined}
+        startInches={25}
+      />,
+    );
+    const field = screen.getByRole("textbox", { name: "Living room width" });
+
+    fireEvent.keyDown(field, { key: "ArrowDown", shiftKey: true });
+    expect(onChange.mock.lastCall?.[0]).toBe(0.5);
+  });
+});
+
+describe("NumberField in feet and inches", () => {
+  it("shows the length the way the labels do, and steps it by the inch", () => {
+    const onChange = vi.fn();
+    render(
+      <ScrubField
+        onChange={onChange}
+        onGestureEnd={() => undefined}
+        startInches={116}
+        unit="imperial"
+      />,
+    );
+    const field = screen.getByRole("textbox", { name: "Living room width" });
+    expect(field).toHaveValue(`9' 8"`);
+
+    fireEvent.keyDown(field, { key: "ArrowUp", shiftKey: true });
+    expect(field).toHaveValue(`10' 6"`);
+    expect(onChange.mock.lastCall?.[0]).toBeCloseTo(metersFromInches(126), 12);
+  });
+
+  it("still takes a bare number as inches", () => {
+    const onChange = vi.fn();
+    render(
+      <ScrubField
+        onChange={onChange}
+        onGestureEnd={() => undefined}
+        unit="imperial"
+      />,
+    );
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Living room width" }),
+      { target: { value: "116" } },
+    );
+    expect(onChange.mock.lastCall?.[0]).toBeCloseTo(metersFromInches(116), 12);
   });
 });

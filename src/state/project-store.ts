@@ -49,7 +49,7 @@ import {
   type Project,
 } from "@/domain/project";
 import { withRooms, type Floor, type Room } from "@/domain/room";
-import type { DisplayUnit } from "@/domain/units";
+import type { StoredUnit } from "@/domain/units";
 import { CURRENT_PROJECT_ID } from "@/persistence/project-database";
 import {
   canRedo,
@@ -132,7 +132,7 @@ export type ProjectState = {
   /** The active layout's groups: which pieces are picked up together. */
   setGroups: (groups: readonly PieceGroup[], gesture?: Gesture) => void;
   setActiveLayout: (id: string) => void;
-  setDisplayUnit: (unit: DisplayUnit) => void;
+  setDisplayUnit: (unit: StoredUnit) => void;
   /** Closes the gesture in progress, so the next edit starts a new step. */
   endGesture: () => void;
   undo: () => void;

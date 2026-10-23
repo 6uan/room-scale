@@ -8,11 +8,7 @@ import { ProjectTransferPanel } from "@/components/project-transfer-panel";
 import { UnitToggle } from "@/components/unit-toggle";
 import type { PlanUnderlay } from "@/domain/project";
 import { WALL_THICKNESS_LIMITS, type Floor } from "@/domain/room";
-import {
-  displayUnitSuffix,
-  displayValueFromMeters,
-  type DisplayUnit,
-} from "@/domain/units";
+import { formatLength, type DisplayUnit } from "@/domain/units";
 
 export type SettingsDialogProps = {
   unit: DisplayUnit;
@@ -66,7 +62,7 @@ export function SettingsDialog({
             />
             <Disclosure
               label="Wall thickness"
-              summary={`${thicknessLabel(floor.wallThicknessMeters, unit)} walls`}
+              summary={`${formatLength(floor.wallThicknessMeters, unit)} walls`}
             >
               <NumberField
                 label="Wall thickness"
@@ -83,7 +79,7 @@ export function SettingsDialog({
 
         <DialogSection
           title="Units"
-          description="What every measurement is typed and read in. Nothing stored changes — lengths are meters underneath, whichever you pick."
+          description="What every measurement is typed and read in, the same in every field and label. Nothing stored changes — lengths are meters underneath, whichever you pick."
         >
           <UnitToggle unit={unit} onUnitChange={onUnitChange} />
         </DialogSection>
@@ -94,10 +90,4 @@ export function SettingsDialog({
       </div>
     </Dialog>
   );
-}
-
-/** A wall thickness the way the field beside it reads, not in feet-and-inches. */
-function thicknessLabel(meters: number, unit: DisplayUnit): string {
-  const value = displayValueFromMeters(meters, unit);
-  return `${Number(value.toFixed(2))} ${displayUnitSuffix(unit)}`;
 }

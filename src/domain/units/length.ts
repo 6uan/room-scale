@@ -12,8 +12,36 @@ const INCHES_PER_FOOT = 12;
 const METERS_PER_CENTIMETER = 0.01;
 const METERS_PER_MILLIMETER = 0.001;
 
-/** The unit a person reads, kept separately from the stored value. */
-export type DisplayUnit = "metric" | "imperial";
+/** The unit a project is kept in: metric, or imperial. */
+export type StoredUnit = "metric" | "imperial";
+
+/**
+ * How imperial lengths are read: the way a tape and a listing write them,
+ * 9' 8", or in inches alone, 116", the way a retailer lists a sofa. A
+ * preference of the reader's, kept in the browser rather than the project.
+ */
+export type ImperialLengths = "feet-and-inches" | "inches";
+
+/**
+ * The unit lengths are typed and read in on screen: centimeters, feet and
+ * inches, or inches. Every length is meters underneath, whichever it is.
+ */
+export type DisplayUnit = "metric" | "imperial" | "inches";
+
+/** The unit to read in, from the project's unit and the reader's preference. */
+export function readingUnit(
+  stored: StoredUnit,
+  imperialLengths: ImperialLengths,
+): DisplayUnit {
+  return stored === "imperial" && imperialLengths === "inches"
+    ? "inches"
+    : stored;
+}
+
+/** Which unit a project keeps, for a unit picked on screen. */
+export function storedUnit(unit: DisplayUnit): StoredUnit {
+  return unit === "metric" ? "metric" : "imperial";
+}
 
 /** An inclusive range a length must fall inside. */
 export type LengthLimits = {
@@ -79,7 +107,7 @@ export function feetAndInchesFromMeters(meters: number): {
   };
 }
 
-/** The unit a person types a single number in: centimeters, or inches. */
+/** The unit a bare number is typed in: centimeters, or inches. */
 export function displayUnitSuffix(unit: DisplayUnit): string {
   return unit === "metric" ? "cm" : "in";
 }
@@ -125,7 +153,15 @@ export function displayValueFromMeters(
  * tape measured. In metric, `m` and `cm` are read the same way.
  */
 export function parseLength(text: string, unit: DisplayUnit): number | null {
-  const trimmed = text.trim().toLowerCase();
+  const typed = text.trim().toLowerCase();
+  // A position or a gap can be negative, and a field writes one back as
+  // -8' 7": the sign belongs to the whole length, not to the feet alone.
+  if (/^-\s*\S/.test(typed) && !/^-?\d*\.?\d+$/.test(typed)) {
+    const rest = typed.replace(/^-\s*/, "");
+    const magnitude = rest.startsWith("-") ? null : parseLength(rest, unit);
+    return magnitude === null ? null : -magnitude;
+  }
+  const trimmed = typed;
   if (trimmed === "") {
     return null;
   }
@@ -134,7 +170,7 @@ export function parseLength(text: string, unit: DisplayUnit): number | null {
   }
 
   const number = String.raw`(\d*\.?\d+)`;
-  if (unit === "imperial") {
+  if (unit !== "metric") {
     // Feet, then inches, either optional but not both absent.
     const match = new RegExp(
       String.raw`^(?:${number}\s*(?:'|ft|feet|foot))?\s*(?:${number}\s*(?:"|''|in|inches|inch)?)?$`,
@@ -170,27 +206,80 @@ export function roundToDisplayUnit(meters: number, unit: DisplayUnit): number {
   );
 }
 
-/**
- * Formats a stored meter value for display. Rounding happens here only —
- * calculations upstream keep full precision.
- */
-export function formatLength(meters: number, unit: DisplayUnit): string {
-  if (unit === "metric") {
-    return `${centimetersFromMeters(meters).toFixed(1)} cm`;
-  }
+/** A number to at most `decimals` places, with no trailing zeros: 8, 8.5. */
+function trimmedNumber(value: number, decimals: number): string {
+  return String(Number(value.toFixed(decimals)));
+}
 
+/**
+ * Feet and inches the way a tape reads them — 9' 8", 9' 8.5" — and inches
+ * alone under a foot, 6", rather than 0' 6".
+ */
+function feetAndInchesText(meters: number, decimals: number): string {
   const { feet, inches } = feetAndInchesFromMeters(meters);
   const negative = feet < 0 || inches < 0;
   let wholeFeet = Math.abs(feet);
-  let displayInches = Number(Math.abs(inches).toFixed(1));
+  let roundedInches = Number(Math.abs(inches).toFixed(decimals));
 
-  // Rounding to a tenth can reach a whole foot. Eight feet typed as 96 inches
-  // comes back out of meters as 95.9999…, which would otherwise print as
-  // 7' 12.0" — a length nobody writes and no tape measure shows.
-  if (displayInches >= INCHES_PER_FOOT) {
-    displayInches -= INCHES_PER_FOOT;
+  // Rounding can reach a whole foot. Eight feet typed as 96 inches comes back
+  // out of meters as 95.9999…, which would otherwise print as 7' 12" — a
+  // length nobody writes and no tape measure shows.
+  if (roundedInches >= INCHES_PER_FOOT) {
+    roundedInches -= INCHES_PER_FOOT;
     wholeFeet += 1;
   }
 
-  return `${negative ? "-" : ""}${wholeFeet}' ${displayInches.toFixed(1)}"`;
+  const sign = negative && (wholeFeet > 0 || roundedInches > 0) ? "-" : "";
+  const inchText = `${trimmedNumber(roundedInches, decimals)}"`;
+  return wholeFeet === 0
+    ? `${sign}${inchText}`
+    : `${sign}${wholeFeet}' ${inchText}`;
+}
+
+/**
+ * Formats a stored meter value for display. Rounding happens here only —
+ * calculations upstream keep full precision.
+ *
+ * A tenth is kept where there is one and dropped where there is not: 9' 8",
+ * not 9' 8.0".
+ */
+export function formatLength(meters: number, unit: DisplayUnit): string {
+  switch (unit) {
+    case "metric":
+      return `${trimmedNumber(centimetersFromMeters(meters), 1)} cm`;
+    case "inches":
+      return `${trimmedNumber(inchesFromMeters(meters), 1)}"`;
+    case "imperial":
+      return feetAndInchesText(meters, 1);
+  }
+}
+
+/**
+ * The text a length field shows, which is also text it reads back.
+ *
+ * Feet and inches show as the tape writes them, so what is typed and what is
+ * read are one format; inches and centimeters show the bare number, with the
+ * unit beside the field. A hundredth of an inch and a tenth of a centimeter
+ * are kept, which is finer than any label and coarse enough not to show
+ * floating-point noise.
+ */
+export function lengthFieldText(meters: number, unit: DisplayUnit): string {
+  switch (unit) {
+    case "metric":
+      return trimmedNumber(centimetersFromMeters(meters), 1);
+    case "inches":
+      return trimmedNumber(inchesFromMeters(meters), 2);
+    case "imperial":
+      return feetAndInchesText(meters, 2);
+  }
+}
+
+/**
+ * The number a field steps from with the arrow keys or a drag, in its bare
+ * unit — inches, even when it reads in feet and inches.
+ */
+export function lengthStepValue(meters: number, unit: DisplayUnit): number {
+  return Number(
+    displayValueFromMeters(meters, unit).toFixed(unit === "metric" ? 1 : 2),
+  );
 }

@@ -1,9 +1,9 @@
 /**
  * The IndexedDB database itself.
  *
- * One table holding one record per project, and a second holding the one fact
- * that is about the collection rather than any project in it: which one is
- * open. Layouts, which are several arrangements of the same apartment, live
+ * One table holding one record per project, and a second holding the facts
+ * that are about this browser rather than any project in it: which one is
+ * open, and how imperial lengths are read. Layouts, which are several arrangements of the same apartment, live
  * inside the document rather than as separate rows.
  *
  * Dexie's `version(2)` below is the shape of the tables. It is a different
@@ -13,6 +13,7 @@
  */
 
 import Dexie, { type EntityTable } from "dexie";
+import type { ImperialLengths } from "@/domain/units";
 
 /** Stored loosely on purpose: what comes back out is parsed, not trusted. */
 export type ProjectRow = {
@@ -22,10 +23,16 @@ export type ProjectRow = {
   project: unknown;
 };
 
-/** One row, naming the project to open next time. */
+/**
+ * The settings table: facts about this browser rather than any project — which
+ * project to open next time, and how the reader likes imperial lengths read.
+ */
 export type SettingsRow = {
-  id: typeof OPEN_PROJECT_KEY;
-  projectId: string;
+  id: typeof OPEN_PROJECT_KEY | typeof IMPERIAL_LENGTHS_KEY;
+  /** On the open-project row. */
+  projectId?: string;
+  /** On the imperial-lengths row. */
+  imperialLengths?: ImperialLengths;
 };
 
 export type RoomScaleDatabase = Dexie & {
@@ -43,6 +50,8 @@ export const DATABASE_NAME = "roomscale";
 export const CURRENT_PROJECT_ID = "current";
 
 export const OPEN_PROJECT_KEY = "open-project";
+
+export const IMPERIAL_LENGTHS_KEY = "imperial-lengths";
 
 /**
  * Where a record that could not be read is put before anything overwrites it.

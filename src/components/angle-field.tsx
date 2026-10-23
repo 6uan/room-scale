@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import { arrowStep } from "@/components/arrow-step";
 import {
   degreesFromRadians,
   normalizeRadians,
@@ -119,6 +120,17 @@ export function AngleField({
             aria-invalid={parsed === null}
             {...(parsed === null ? { "aria-describedby": messageId } : {})}
             onChange={(event) => handleChange(event.target.value)}
+            onKeyDown={(event) => {
+              // A degree, or ten with Shift, from the angle on screen. The
+              // browser's own number stepping ignores Shift.
+              const units = arrowStep(event);
+              if (units !== null) {
+                event.preventDefault();
+                handleChange(
+                  String(Number((currentDegrees(radians) + units).toFixed(1))),
+                );
+              }
+            }}
             className={
               compact
                 ? "compact-number-input h-full min-w-0 flex-1 bg-transparent px-1 text-sm tabular-nums outline-none"

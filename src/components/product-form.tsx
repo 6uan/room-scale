@@ -180,7 +180,6 @@ export function ProductForm({
           unit={unit}
           meters={draft.footprint.widthMeters}
           limits={PRODUCT_LENGTH_LIMITS}
-          hint={false}
           onMetersChange={(meters) =>
             setDraft(withFootprint(draft, "widthMeters", meters))
           }
@@ -190,7 +189,6 @@ export function ProductForm({
           unit={unit}
           meters={draft.footprint.depthMeters}
           limits={PRODUCT_LENGTH_LIMITS}
-          hint={false}
           onMetersChange={(meters) =>
             setDraft(withFootprint(draft, "depthMeters", meters))
           }
@@ -200,7 +198,6 @@ export function ProductForm({
           unit={unit}
           meters={draft.heightMeters}
           limits={PRODUCT_LENGTH_LIMITS}
-          hint={false}
           onMetersChange={(heightMeters) =>
             setDraft({ ...draft, heightMeters })
           }

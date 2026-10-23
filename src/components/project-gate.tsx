@@ -3,7 +3,13 @@
 import { X } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createProject, type Project } from "@/domain/project";
-import { loadProject, saveProjectUnlessNewer } from "@/persistence";
+import {
+  loadImperialLengths,
+  loadProject,
+  saveImperialLengths,
+  saveProjectUnlessNewer,
+} from "@/persistence";
+import { usePreferencesStore } from "@/state/preferences-store";
 import { useProjectStore } from "@/state/project-store";
 
 /**
@@ -81,6 +87,36 @@ export function ProjectGate({ children }: { children: ReactNode }) {
       }
     })();
   }, [adopt, setStatus]);
+
+  // This browser's reading preference: read once, written back whenever it
+  // changes. Not part of any project, so it never waits on one.
+  useEffect(() => {
+    let cancelled = false;
+    let unsubscribe = () => {};
+    void loadImperialLengths()
+      .then((imperialLengths) => {
+        if (!cancelled) {
+          usePreferencesStore.getState().setImperialLengths(imperialLengths);
+        }
+      })
+      .catch(() => {
+        // No IndexedDB: feet and inches, and nothing remembered.
+      })
+      .finally(() => {
+        if (cancelled) {
+          return;
+        }
+        unsubscribe = usePreferencesStore.subscribe((state, previous) => {
+          if (state.imperialLengths !== previous.imperialLengths) {
+            void saveImperialLengths(state.imperialLengths).catch(() => {});
+          }
+        });
+      });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     if (status === "loading") {
