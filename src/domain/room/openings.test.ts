@@ -13,6 +13,9 @@ import {
   openingAtPoint,
   openingEndpoints,
   openingGapsMeters,
+  openingHeights,
+  withOpeningHeights,
+  DEFAULT_OPENING_HEIGHTS,
   openingRangeMeters,
   pointAlongWall,
   resizeOpeningJamb,
@@ -438,5 +441,46 @@ describe("an opening's gaps to the corners", () => {
       9,
     );
     expect(checkOpening(LIVING_ROOM, off)).toBe("off-wall");
+  });
+});
+
+describe("an opening's heights", () => {
+  const door = LIVING_ROOM.openings[0]!;
+  const window = LIVING_ROOM.openings[1]!;
+  const inches = (meters: number) => meters / 0.0254;
+
+  it("is its kind's standard until it is given its own", () => {
+    expect(inches(openingHeights(door).headMeters)).toBeCloseTo(80, 9);
+    expect(openingHeights(door).sillMeters).toBe(0);
+    expect(inches(openingHeights(window).sillMeters)).toBeCloseTo(36, 9);
+    expect(inches(openingHeights(window).headMeters)).toBeCloseTo(84, 9);
+    expect(DEFAULT_OPENING_HEIGHTS.passage.sillMeters).toBe(0);
+  });
+
+  it("keeps what it was given, exactly", () => {
+    const tall = withOpeningHeights(door, {
+      headMeters: metersFromInches(84),
+    });
+    expect(openingHeights(tall).headMeters).toBe(metersFromInches(84));
+    expect(checkOpening(LIVING_ROOM, tall)).toBeNull();
+  });
+
+  it("says when its top is above the ceiling, or not above its bottom", () => {
+    // The room is 96 inches high.
+    expect(
+      checkOpening(
+        LIVING_ROOM,
+        withOpeningHeights(window, { headMeters: metersFromInches(100) }),
+      ),
+    ).toBe("above-ceiling");
+    expect(
+      checkOpening(
+        LIVING_ROOM,
+        withOpeningHeights(window, {
+          sillMeters: metersFromInches(50),
+          headMeters: metersFromInches(40),
+        }),
+      ),
+    ).toBe("no-height");
   });
 });

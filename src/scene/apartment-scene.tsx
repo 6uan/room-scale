@@ -318,7 +318,7 @@ function WallMesh({
     <mesh
       position={[
         wall.center.xMeters,
-        wall.heightMeters / 2,
+        wall.baseMeters + wall.heightMeters / 2,
         wall.center.zMeters,
       ]}
       rotation={[0, -wall.angleRadians, 0]}

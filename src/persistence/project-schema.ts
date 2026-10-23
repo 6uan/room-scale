@@ -58,7 +58,7 @@ import { FIRST_PROJECT_NAME, type Project } from "@/domain/project";
  *     names the group it is in. Absent is none, which every existing
  *     section is.
  */
-export const SCHEMA_VERSION = 22;
+export const SCHEMA_VERSION = 23;
 
 /** Meters, cents, and the rest are all plain finite numbers on the way in. */
 const finiteNumber = z
@@ -96,6 +96,10 @@ const openingFields = {
   centerMeters: finiteNumber,
   widthMeters: finiteNumber,
   name: z.string().optional(),
+  // Heights up the wall, written from version 23. Absent is the standard for
+  // the opening's kind, which every opening stored before then has.
+  sillMeters: finiteNumber.optional(),
+  headMeters: finiteNumber.optional(),
 };
 
 const openingSchema = z.discriminatedUnion("kind", [
@@ -623,6 +627,9 @@ const MIGRATIONS: Record<number, (document: object) => object> = {
   20: (document) => ({ ...document, version: 21 }),
   // Version 22 let a room's sections be grouped. Nothing stored was.
   21: (document) => ({ ...document, version: 22 }),
+  // Version 23 let an opening have its own sill and head heights. Nothing
+  // stored had them, and absent is the standard for its kind.
+  22: (document) => ({ ...document, version: 23 }),
 };
 
 /**

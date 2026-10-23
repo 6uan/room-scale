@@ -828,8 +828,18 @@ by which way a wall faces, so the two rooms on either side of a shared wall —
 each of which draws its own — always agree about it; walls beyond the point
 stay solid as the backdrop. It follows the camera as it orbits.
 
-**20c — Openings at their heights.** Doors, windows, and passages cut from
-the walls at their sill and head.
+**20c — Openings at their heights. ✅** Doors, windows, and passages cut from
+the walls at their sill and head. Each opening carries a sill and a head of
+its own, typed beside its position, or the standard for its kind when it has
+none: a door and a passage to 6' 8", a window from a 3' 0" sill to a 7' 0"
+head. The stored document goes to version 23, with nothing to rewrite —
+absent is the standard. The shell cuts each stretch of wall into the runs
+between openings, a lintel over each from its head to the ceiling, and under
+a window the wall up to its sill. Which openings cut a stretch is found by
+position, not ownership: an opening's doorway line lies on its own wall's
+inside face, one thickness from the next room's, so a door in a shared wall
+opens both rooms' copies of it. An opening whose top is above the ceiling,
+or not above its bottom, says so.
 
 **20d — Walking around.** The camera moved through the apartment at eye
 height.

@@ -746,6 +746,45 @@ describe("readStoredProject", () => {
     expect(stored?.openings[0]?.name).toBe("Closet door");
   });
 
+  it("reads a version 22 opening, which had no heights, as its kind's standard", () => {
+    const result = readStoredProject({ ...STORED, version: 22 });
+
+    expect(result.ok).toBe(true);
+    const opening = result.ok
+      ? result.project.floor.rooms[0]?.openings[0]
+      : undefined;
+    expect(opening?.sillMeters).toBeUndefined();
+    expect(opening?.headMeters).toBeUndefined();
+  });
+
+  it("keeps an opening's own heights through a save and a read", () => {
+    const project = projectWithLivingRoom();
+    const room = project.floor.rooms[0]!;
+    const withHeights = {
+      ...project,
+      floor: {
+        ...project.floor,
+        rooms: [
+          {
+            ...room,
+            openings: room.openings.map((opening) => ({
+              ...opening,
+              sillMeters: 0.5,
+              headMeters: 2.1,
+            })),
+          },
+        ],
+      },
+    };
+    const result = readStoredProject(
+      toStoredProject("current", withHeights, 1_700_000_000_000),
+    );
+
+    expect(
+      result.ok && result.project.floor.rooms[0]?.openings[0],
+    ).toMatchObject({ sillMeters: 0.5, headMeters: 2.1 });
+  });
+
   it("reads a version 21 room, which had no section groups, as one with none", () => {
     const result = readStoredProject({ ...STORED, version: 21 });
 
