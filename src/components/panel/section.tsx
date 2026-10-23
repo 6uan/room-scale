@@ -33,7 +33,14 @@ export function PanelSection({
       aria-label={title}
       className={cn(
         "flex flex-col gap-4 py-6",
-        first ? "pt-0" : "border-t border-black/10 dark:border-white/15",
+        // An untitled first band keeps a row's gap below the panel's name; its
+        // own heading used to supply it, and the header's buttons sat on the
+        // first row without it.
+        first
+          ? title === undefined
+            ? "pt-4"
+            : "pt-0"
+          : "border-t border-black/10 dark:border-white/15",
       )}
     >
       {title === undefined ? null : (
