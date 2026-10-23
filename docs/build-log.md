@@ -15,7 +15,7 @@ Two rules keep the order honest:
   Steps 4 to 10 are that question end to end. Everything after them makes the
   answer nicer to look at.
 
-Status: **steps 1 to 19 are done, and step 20 has begun.** What is still to
+Status: **steps 1 to 20 are done.** What is still to
 build is tracked as [issues](https://github.com/6uan/room-scale/issues).
 
 What is still to build lives in the issues, not here. This file is the record
@@ -772,7 +772,7 @@ moving it out of the way must clear the problem.
 
 Nothing here changes an answer. It changes how easy the answer is to believe.
 
-### 20. Add a perspective view ◀ in progress
+### 20. Add a perspective view ✅
 
 React Three Fiber, Three.js, and Drei arrive here. The same data, seen from
 inside the room, with furniture as correctly sized boxes and the openings from
@@ -869,8 +869,17 @@ Only an opening from floor to ceiling splits a wall, there being nothing
 above or below it to join. The shell's test is the area: a face is the wall
 less exactly its openings, whichever corner they stand in.
 
-**20d — Walking around.** The camera moved through the apartment at eye
-height.
+**20d — Walking around. ✅** The camera moved through the apartment at eye
+height. "Walk" in the view's corner drops the camera to 5' 3" where the orbit
+was aimed — or into the middle of a room, if that was nowhere to stand — and
+from there dragging turns the head, WASD or the arrows walk, Shift hurries,
+and Escape stands back up into the orbit. `walk.ts` says where a person can
+stand: on any room's floor, or in the gap a door or passage cuts through a
+wall, and nowhere else — not in a wall, not past a balcony's rail, not out of
+a window. The walker is a circle eight inches across the shoulder, so a corner
+cannot be slipped past with half a body, and a step into a wall slides along
+it. Furniture does not stop the walker; the plan's checks are what say a
+piece is in the way, and a rug is walked on.
 
 Done when: the room can be walked around, and every box measures what its
 product says it measures.

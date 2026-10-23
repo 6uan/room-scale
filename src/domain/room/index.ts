@@ -4,3 +4,4 @@ export * from "./room";
 export * from "./walls";
 export * from "./shell";
 export * from "./shared-openings";
+export * from "./walk";

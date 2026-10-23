@@ -212,6 +212,8 @@ export function Workspace() {
   const [perspective, setPerspective] = useState(false);
   /** How the perspective view draws its walls. A fact about this sitting. */
   const [walls, setWalls] = useState<WallsMode>("see-through");
+  /** Whether the perspective view is walked through at eye height. */
+  const [walking, setWalking] = useState(false);
   /**
    * What the plan is showing, kept as it pans and zooms so the perspective
    * view can open on it. A ref, not state: the plan reports on every pan, and
@@ -774,6 +776,8 @@ export function Workspace() {
               if (showingPlan) {
                 setSceneFraming(planFramingRef.current);
               }
+              // A walk ends with the view it was in.
+              setWalking(false);
               setPerspective(showingPlan);
             }}
           />
@@ -970,27 +974,48 @@ export function Workspace() {
                   }))
                 }
                 walls={walls}
+                walking={walking}
+                onWalkEnd={() => setWalking(false)}
               />
               {/*
                 See-through by default, so nothing in any room is hidden by a
                 wall from any angle; solid to see the place as it will look;
                 auto to have the walls in the way fade as the camera moves.
               */}
-              <div className="absolute top-3 left-3 flex w-72 rounded-lg bg-black/70 p-1 dark:bg-white/10">
-                <ChipRow name="Walls">
-                  {WALLS_MODES.map(({ mode, label, title }) => (
-                    <Chip
-                      key={mode}
-                      label={`${label} walls`}
-                      title={title}
-                      pressed={walls === mode}
-                      onClick={() => setWalls(mode)}
-                    >
-                      {label}
-                    </Chip>
-                  ))}
-                </ChipRow>
+              <div className="absolute top-3 left-3 flex items-center gap-2">
+                <div className="flex w-72 rounded-lg bg-black/70 p-1 dark:bg-white/10">
+                  <ChipRow name="Walls">
+                    {WALLS_MODES.map(({ mode, label, title }) => (
+                      <Chip
+                        key={mode}
+                        label={`${label} walls`}
+                        title={title}
+                        pressed={walls === mode}
+                        onClick={() => setWalls(mode)}
+                      >
+                        {label}
+                      </Chip>
+                    ))}
+                  </ChipRow>
+                </div>
+                {/* Down to eye height and through the doors, or back up to orbit. */}
+                <div className="flex w-24 rounded-lg bg-black/70 p-1 dark:bg-white/10">
+                  <Chip
+                    label="Walk through"
+                    title="Walk through at eye height: drag to look, WASD or the arrows to move"
+                    pressed={walking}
+                    onClick={() => setWalking((on) => !on)}
+                  >
+                    Walk
+                  </Chip>
+                </div>
               </div>
+              {walking ? (
+                <p className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-[13px] text-white dark:bg-white/15">
+                  Drag to look · WASD or arrows to walk · Shift to hurry · Esc
+                  to stop
+                </p>
+              ) : null}
             </div>
           )}
           <div className={showingPlan ? "absolute inset-0" : "hidden"}>

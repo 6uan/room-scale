@@ -1131,6 +1131,14 @@ test.describe("the perspective view", () => {
     await expect(auto).toHaveAttribute("aria-pressed", "true");
     await expect(solid).toHaveAttribute("aria-pressed", "false");
 
+    // Down to eye height to walk through, and Escape back up to orbit.
+    const walk = page.getByRole("button", { name: "Walk through" });
+    await walk.click();
+    await expect(walk).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByText(/WASD or arrows to walk/)).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(walk).toHaveAttribute("aria-pressed", "false");
+
     // Arming a drawing mode is an edit, and edits happen on the plan.
     await contents(page).getByRole("button", { name: "Add room" }).click();
     await expect(page.getByRole("main", { name: "Plan" })).toBeVisible();
