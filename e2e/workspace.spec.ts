@@ -1981,6 +1981,35 @@ test.describe("laying the apartment out", () => {
       .getByRole("button", { name: "Hide image" })
       .click();
     await expect(image).toHaveCount(0);
+    await page.keyboard.press("Escape");
+
+    // A layer of its own, first in the Apartment list: shown again from its
+    // row, and faded from its own panel.
+    await contents(page)
+      .getByRole("button", { name: "Show plan image" })
+      .click();
+    await expect(image).toBeVisible();
+    await contents(page)
+      .getByRole("button", { name: "Plan image", exact: true })
+      .click();
+    const opacity = details(page).getByLabel("Plan image opacity", {
+      exact: true,
+    });
+    await expect(opacity).toHaveValue("40");
+    await opacity.fill("70");
+    await expect(image).toHaveCSS("opacity", "0.7");
+    await opacity.press("ArrowDown");
+    await expect(image).toHaveCSS("opacity", "0.69");
+
+    // Deleted from its menu, by name.
+    await details(page)
+      .getByRole("button", { name: "Plan image actions" })
+      .click();
+    await page.getByRole("menuitem", { name: "Delete plan image" }).click();
+    await expect(image).toHaveCount(0);
+    await expect(
+      contents(page).getByRole("button", { name: "Plan image", exact: true }),
+    ).toHaveCount(0);
   });
 
   test("keeps the apartment's wall thickness as one typed number", async ({

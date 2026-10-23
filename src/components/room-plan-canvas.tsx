@@ -252,6 +252,8 @@ export type RoomPlanCanvasProps = {
   panelOpen?: boolean;
   /** The unit a product's own size reads in, which can differ from the plan's. */
   productUnit?: DisplayUnit;
+  /** How strongly the plan image is drawn, 0 to 1. */
+  underlayOpacity?: number;
   /** Said whenever what the plan shows changes, so another view can follow it. */
   onFramingChange?: (framing: Framing) => void;
   /**
@@ -505,6 +507,7 @@ export function RoomPlanCanvas({
   unit,
   panelOpen = false,
   productUnit = unit,
+  underlayOpacity = 0.4,
   onFramingChange,
   showFraming = null,
   selectedIds,
@@ -2129,8 +2132,9 @@ export function RoomPlanCanvas({
               <img
                 src={underlay.imageDataUrl}
                 alt="The floor plan being traced"
-                className="pointer-events-none absolute max-w-none opacity-40 dark:opacity-30"
+                className="pointer-events-none absolute max-w-none"
                 style={{
+                  opacity: underlayOpacity,
                   left: frame.left,
                   top: frame.top,
                   width: frame.width,

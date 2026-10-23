@@ -15,6 +15,7 @@ import {
   CURRENT_PROJECT_ID,
   IMPERIAL_LENGTHS_KEY,
   PRODUCT_LENGTHS_KEY,
+  UNDERLAY_OPACITY_KEY,
   OPEN_PROJECT_KEY,
   QUARANTINE_ID,
   sharedDatabase,
@@ -106,6 +107,33 @@ export async function saveProductLengths(
     id: PRODUCT_LENGTHS_KEY,
     imperialLengths: productLengths,
   });
+}
+
+/** How strongly a plan image is drawn until it is told otherwise. */
+export const DEFAULT_UNDERLAY_OPACITY = 0.4;
+
+/**
+ * How strongly this browser draws the plan image: the stored amount if it is
+ * one that can be seen, the default otherwise.
+ */
+export async function loadUnderlayOpacity(
+  database: RoomScaleDatabase = sharedDatabase(),
+): Promise<number> {
+  const row = await database.settings.get(UNDERLAY_OPACITY_KEY);
+  const opacity = row?.underlayOpacity;
+  return typeof opacity === "number" &&
+    Number.isFinite(opacity) &&
+    opacity >= 0.05 &&
+    opacity <= 1
+    ? opacity
+    : DEFAULT_UNDERLAY_OPACITY;
+}
+
+export async function saveUnderlayOpacity(
+  underlayOpacity: number,
+  database: RoomScaleDatabase = sharedDatabase(),
+): Promise<void> {
+  await database.settings.put({ id: UNDERLAY_OPACITY_KEY, underlayOpacity });
 }
 
 /** Loads the open project, or the one asked for. */

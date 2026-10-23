@@ -7,8 +7,10 @@ import {
   loadImperialLengths,
   loadProductLengths,
   loadProject,
+  loadUnderlayOpacity,
   saveImperialLengths,
   saveProductLengths,
+  saveUnderlayOpacity,
   saveProjectUnlessNewer,
 } from "@/persistence";
 import { usePreferencesStore } from "@/state/preferences-store";
@@ -95,12 +97,17 @@ export function ProjectGate({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     let unsubscribe = () => {};
-    void Promise.all([loadImperialLengths(), loadProductLengths()])
-      .then(([imperialLengths, productLengths]) => {
+    void Promise.all([
+      loadImperialLengths(),
+      loadProductLengths(),
+      loadUnderlayOpacity(),
+    ])
+      .then(([imperialLengths, productLengths, underlayOpacity]) => {
         if (!cancelled) {
           const store = usePreferencesStore.getState();
           store.setImperialLengths(imperialLengths);
           store.setProductLengths(productLengths);
+          store.setUnderlayOpacity(underlayOpacity);
         }
       })
       .catch(() => {
@@ -116,6 +123,9 @@ export function ProjectGate({ children }: { children: ReactNode }) {
           }
           if (state.productLengths !== previous.productLengths) {
             void saveProductLengths(state.productLengths).catch(() => {});
+          }
+          if (state.underlayOpacity !== previous.underlayOpacity) {
+            void saveUnderlayOpacity(state.underlayOpacity).catch(() => {});
           }
         });
       });

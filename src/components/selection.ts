@@ -35,6 +35,8 @@ export type Selection =
   | { readonly kind: "product"; readonly id: string }
   /** A product being entered that does not exist yet. */
   | { readonly kind: "new-product" }
+  /** The plan image behind the grid. */
+  | { readonly kind: "underlay" }
   | null;
 
 /** The selected pieces, on their own or as part of a group. */

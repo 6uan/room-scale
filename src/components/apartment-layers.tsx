@@ -7,6 +7,7 @@ import {
   Eye,
   EyeOff,
   Group,
+  Image as ImageIcon,
   MoveHorizontal,
   PanelsTopLeft,
   Sofa,
@@ -22,7 +23,7 @@ import {
   type MouseEvent,
 } from "react";
 import { ContextMenu } from "@/components/context-menu";
-import { nextId } from "@/domain/project";
+import { nextId, type PlanUnderlay } from "@/domain/project";
 import { IconButton } from "@/components/icon-button";
 import { useScrollFade } from "@/components/scroll-fade";
 import { openingListName, sectionLabel } from "@/components/opening-name";
@@ -81,6 +82,10 @@ export type ApartmentLayersProps = {
   onRenameGroup?: ((groupId: string, name: string) => void) | undefined;
   /** Gives one piece a name of its own; blank hands it back the product's. */
   onRenamePiece?: ((instanceId: string, name: string) => void) | undefined;
+  /** The listing's plan behind the grid, listed first when there is one. */
+  underlay?: PlanUnderlay | null;
+  /** Shows or hides the plan image from its row. */
+  onUnderlayChange?: ((underlay: PlanUnderlay | null) => void) | undefined;
   /** Puts a room somewhere else in the list, by a drag of its own row. */
   onReorderRoom?:
     ((roomId: string, beforeRoomId: string | null) => void) | undefined;
@@ -163,6 +168,8 @@ export function ApartmentLayers({
   onRenameGroup,
   onRenamePiece,
   onReorderRoom,
+  underlay = null,
+  onUnderlayChange,
 }: ApartmentLayersProps) {
   const names = placedNames(furniture);
   const scroll = useScrollFade();
@@ -725,6 +732,49 @@ export function ApartmentLayers({
             className={`flex min-h-0 flex-col gap-5 overflow-y-auto px-3 pt-3 ${scroll.className}`}
           >
             <ul className="flex flex-col gap-1">
+              {/*
+                The image being traced, as a layer of its own: first, because
+                it is underneath everything, and selectable, so its size and
+                how strongly it shows are a click away rather than in Settings.
+              */}
+              {underlay === null ? null : (
+                <li>
+                  <Row
+                    label="Plan image"
+                    icon={ImageIcon}
+                    dimmed={!underlay.visible}
+                    selected={selection?.kind === "underlay"}
+                    onSelect={() => onSelect({ kind: "underlay" })}
+                    trailing={
+                      onUnderlayChange === undefined ? null : (
+                        <span
+                          className={`flex shrink-0 ${
+                            underlay.visible
+                              ? "opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
+                              : ""
+                          }`}
+                        >
+                          <IconButton
+                            label={
+                              underlay.visible
+                                ? "Hide plan image"
+                                : "Show plan image"
+                            }
+                            icon={underlay.visible ? Eye : EyeOff}
+                            size="row"
+                            onClick={() =>
+                              onUnderlayChange({
+                                ...underlay,
+                                visible: !underlay.visible,
+                              })
+                            }
+                          />
+                        </span>
+                      )
+                    }
+                  />
+                </li>
+              )}
               {floor.rooms.map((room) => (
                 <li key={room.id} className="flex flex-col">
                   {/*

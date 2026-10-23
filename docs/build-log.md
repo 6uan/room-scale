@@ -978,6 +978,15 @@ descriptions. Where a piece stands, and its gaps to the walls, stay with the
 apartment. Like the apartment's choice, it is this browser's, in the
 settings table; metric is centimeters for both.
 
+**The plan image is a layer in the list, with its own panel.** It was only
+reachable through Settings, and drawn at one fixed faintness. It heads the
+Apartment list now, as "Plan image", with an eye to show and hide it; selected,
+it has a panel of its own with its position, its width, and how strongly it
+is drawn — a slider and a typed percentage — and its menu deletes it, by
+name. How strongly it is drawn is the reader's, kept in the browser beside the
+units: how faint a tracing should be is a way of looking, not part of the
+apartment, and no stored document changes for it.
+
 **Rooms are reordered by dragging their row, and nothing over the plan sits
 under the panel.** A room's own row in the list drags, and drops above the
 row it is let go on, or last on the strip after the last room — the order

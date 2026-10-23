@@ -13,10 +13,13 @@ import {
   listProjects,
   loadImperialLengths,
   loadProductLengths,
+  loadUnderlayOpacity,
+  DEFAULT_UNDERLAY_OPACITY,
   loadProject,
   openProjectId,
   saveImperialLengths,
   saveProductLengths,
+  saveUnderlayOpacity,
   saveProject,
   saveProjectUnlessNewer,
   setOpenProjectId,
@@ -281,5 +284,18 @@ describe("how a product's own size is read", () => {
     await saveImperialLengths("inches", database);
     expect(await loadProductLengths(database)).toBe("feet-and-inches");
     expect(await loadImperialLengths(database)).toBe("inches");
+  });
+});
+
+describe("how strongly the plan image is drawn", () => {
+  it("is the default until told otherwise, and remembers being told", async () => {
+    expect(await loadUnderlayOpacity(database)).toBe(DEFAULT_UNDERLAY_OPACITY);
+    await saveUnderlayOpacity(0.7, database);
+    expect(await loadUnderlayOpacity(database)).toBe(0.7);
+  });
+
+  it("reads an amount nobody could see by as the default", async () => {
+    await saveUnderlayOpacity(0, database);
+    expect(await loadUnderlayOpacity(database)).toBe(DEFAULT_UNDERLAY_OPACITY);
   });
 });

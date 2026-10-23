@@ -164,6 +164,7 @@ export function Workspace() {
   const underlay = useProjectStore((state) => state.project.underlay);
   const unit = useDisplayUnit();
   const productUnit = useProductUnit();
+  const underlayOpacity = usePreferencesStore((state) => state.underlayOpacity);
   const setImperialLengths = usePreferencesStore(
     (state) => state.setImperialLengths,
   );
@@ -824,6 +825,8 @@ export function Workspace() {
           style={{ gridTemplateRows: "minmax(0, 1fr) auto" }}
         >
           <ApartmentLayers
+            underlay={underlay}
+            onUnderlayChange={setUnderlay}
             floor={floor}
             furniture={furniture}
             selection={selection}
@@ -1025,6 +1028,7 @@ export function Workspace() {
               unit={unit}
               panelOpen={selection !== null}
               productUnit={productUnit}
+              underlayOpacity={underlayOpacity}
               onFramingChange={onPlanFraming}
               showFraming={returnFraming}
               selectedIds={selectedInstanceIds(selection)}
