@@ -390,7 +390,7 @@ export function Workspace() {
     setSelection({ kind: "opening", roomId: room.id, id });
   }
 
-  function changeOpening(room: Room, opening: Opening): void {
+  function changeOpening(room: Room, opening: Opening, gesture?: string): void {
     setFloor(
       withRoom(
         floor,
@@ -399,6 +399,7 @@ export function Workspace() {
           room.openings.map((one) => (one.id === opening.id ? opening : one)),
         ),
       ),
+      gesture,
     );
   }
 

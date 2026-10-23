@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { type Opening } from "@/domain/room";
@@ -58,7 +58,7 @@ describe("RoomOpeningsForm", () => {
 });
 
 describe("OpeningFields", () => {
-  it("keeps a typed center exact in the reader's unit", () => {
+  it("keeps a typed gap exact in the reader's unit, and moves the door by it", () => {
     const opening = LIVING_ROOM.openings[0];
     if (opening === undefined) {
       throw new Error("the default room has a door");
@@ -74,11 +74,79 @@ describe("OpeningFields", () => {
       />,
     );
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Center" }), {
-      target: { value: "40" },
-    });
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Gap from the start corner" }),
+      { target: { value: "24" } },
+    );
 
+    // A 32" door 24" from the corner is centred 40" along the wall.
     const changed = onChange.mock.lastCall?.[0] as Opening | undefined;
     expect(changed?.centerMeters).toBeCloseTo(metersFromInches(40), 10);
+    expect(changed?.widthMeters).toBe(opening.widthMeters);
+  });
+
+  it("moves the opening to another wall with one chip", async () => {
+    const user = userEvent.setup();
+    const door = LIVING_ROOM.openings[0];
+    if (door === undefined) {
+      throw new Error("the default room has a door");
+    }
+    const onChange = vi.fn();
+    render(
+      <OpeningFields
+        room={LIVING_ROOM}
+        opening={door}
+        unit="imperial"
+        onChange={onChange}
+      />,
+    );
+
+    const walls = screen.getByRole("group", {
+      name: "Living room door 1 wall",
+    });
+    expect(
+      within(walls).getByRole("button", { name: "South wall (bottom)" }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(
+      within(walls).getByRole("button", { name: "East wall (right)" }),
+    );
+    expect((onChange.mock.lastCall?.[0] as Opening).wall).toBe("east");
+  });
+
+  it("sets a door's style, hinge and swing with chips, and only a door's", async () => {
+    const user = userEvent.setup();
+    const [door, window] = LIVING_ROOM.openings;
+    if (door === undefined || window === undefined) {
+      throw new Error("the default room has a door and a window");
+    }
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <OpeningFields
+        room={LIVING_ROOM}
+        opening={door}
+        unit="imperial"
+        onChange={onChange}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Sliding" }));
+    expect(onChange.mock.lastCall?.[0]).toMatchObject({ style: "sliding" });
+    await user.click(screen.getByRole("button", { name: "Out of the room" }));
+    expect(onChange.mock.lastCall?.[0]).toMatchObject({ swing: "outward" });
+    await user.click(
+      screen.getByRole("button", { name: "At the end of the wall" }),
+    );
+    expect(onChange.mock.lastCall?.[0]).toMatchObject({ hinge: "end" });
+
+    rerender(
+      <OpeningFields
+        room={LIVING_ROOM}
+        opening={window}
+        unit="imperial"
+        onChange={onChange}
+      />,
+    );
+    expect(screen.queryByRole("region", { name: "Door" })).toBeNull();
   });
 });

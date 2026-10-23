@@ -161,6 +161,63 @@ export function openingRangeMeters(opening: OpeningPlacement): {
   };
 }
 
+/**
+ * The wall either side of an opening: from the wall's start corner to the
+ * near jamb, and from the far jamb to the end corner — the two numbers a tape
+ * reads from the corners, and the two the plan draws beside a selected one.
+ */
+export function openingGapsMeters(
+  room: Room,
+  opening: Opening,
+): { startMeters: number; endMeters: number } {
+  const wallLength = wallLengthMeters(room, opening.wall, opening.partId);
+  const range = openingRangeMeters(opening);
+  return {
+    startMeters: range.startMeters,
+    endMeters: wallLength - range.endMeters,
+  };
+}
+
+/**
+ * Typed edits by gap, kept exact: nothing here clamps, so a number that runs
+ * off the wall stays what was typed and `checkOpening` says so, the way every
+ * other typed length behaves.
+ */
+export function withOpeningStartGap(
+  opening: Opening,
+  gapMeters: number,
+): Opening {
+  return { ...opening, centerMeters: gapMeters + opening.widthMeters / 2 };
+}
+
+export function withOpeningEndGap(
+  room: Room,
+  opening: Opening,
+  gapMeters: number,
+): Opening {
+  const wallLength = wallLengthMeters(room, opening.wall, opening.partId);
+  return {
+    ...opening,
+    centerMeters: wallLength - gapMeters - opening.widthMeters / 2,
+  };
+}
+
+/**
+ * A new width with the start jamb where it was, so the gap typed beside it
+ * does not change under it; the door grows toward the end corner.
+ */
+export function withOpeningWidthFromStart(
+  opening: Opening,
+  widthMeters: number,
+): Opening {
+  const { startMeters } = openingRangeMeters(opening);
+  return {
+    ...opening,
+    widthMeters,
+    centerMeters: startMeters + widthMeters / 2,
+  };
+}
+
 export type OpeningProblem =
   | "not-a-number"
   | "too-narrow"

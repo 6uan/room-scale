@@ -1336,15 +1336,26 @@ test.describe("laying the apartment out", () => {
       name: "Living room door 2",
     });
     await expect(opening).toBeVisible();
-    await expect(opening.getByLabel("Living room door 2 wall")).toHaveValue(
-      "north",
+    await expect(
+      opening
+        .getByRole("group", { name: "Living room door 2 wall" })
+        .getByRole("button", { name: "North wall (top)" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    // Read along the wall: 20" of wall, a 32" door, and the rest.
+    const startGap = opening.getByLabel("Gap from the start corner", {
+      exact: true,
+    });
+    const endGap = opening.getByLabel("Gap to the end corner", { exact: true });
+    await expect(startGap).toHaveValue("20");
+    await expect(opening.getByLabel("Width", { exact: true })).toHaveValue(
+      "32",
     );
-    await expect(opening.getByLabel("Center")).toHaveValue("36");
-    await expect(opening.getByLabel("Width")).toHaveValue("32");
+    await expect(endGap).toHaveValue("116");
 
-    // A measured number stays exact and moves the selected opening's readout.
-    await opening.getByLabel("Center").fill("40");
-    await expect(opening.getByLabel("Center")).toHaveValue("40");
+    // A measured gap stays exact, moves the door, and the far gap follows.
+    await startGap.fill("24");
+    await expect(startGap).toHaveValue("24");
+    await expect(endGap).toHaveValue("112");
     await expect(plan(page).getByText(`x -3' 8.0"`)).toBeVisible();
 
     // Selection is also on the canvas, through the gap cut in the wall.
@@ -1361,12 +1372,17 @@ test.describe("laying the apartment out", () => {
     await page.mouse.down();
     await page.mouse.move(typedCenter.x + 24, typedCenter.y, { steps: 6 });
     await page.mouse.up();
-    const movedCenter = Number(await opening.getByLabel("Center").inputValue());
-    expect(movedCenter).toBeGreaterThan(40);
-    expect(movedCenter % 1).toBe(0);
+    const movedStart = Number(await startGap.inputValue());
+    expect(movedStart).toBeGreaterThan(24);
+    expect(movedStart % 1).toBe(0);
 
-    // Drag its end jamb. The start stays put, so width and center both grow.
-    const beforeWidth = Number(await opening.getByLabel("Width").inputValue());
+    // Drag its end jamb. The start stays put, so the width grows into the
+    // gap beyond it.
+    const beforeWidth = Number(
+      await opening.getByLabel("Width", { exact: true }).inputValue(),
+    );
+    const beforeEnd = Number(await endGap.inputValue());
+    const movedCenter = movedStart + beforeWidth / 2;
     const endJamb = {
       x: middle.x + metres(-84 + movedCenter + beforeWidth / 2) * scale,
       y: north.y,
@@ -1377,11 +1393,10 @@ test.describe("laying the apartment out", () => {
     await page.mouse.up();
 
     expect(
-      Number(await opening.getByLabel("Width").inputValue()),
+      Number(await opening.getByLabel("Width", { exact: true }).inputValue()),
     ).toBeGreaterThan(beforeWidth);
-    expect(
-      Number(await opening.getByLabel("Center").inputValue()),
-    ).toBeGreaterThan(movedCenter);
+    expect(Number(await endGap.inputValue())).toBeLessThan(beforeEnd);
+    expect(Number(await startGap.inputValue())).toBe(movedStart);
   });
 
   test("snaps a room against its neighbour, sharing one wall", async ({

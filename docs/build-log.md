@@ -889,6 +889,17 @@ directly under the room's own name and carried nothing else. A closet can now
 be deleted whole, and the first rectangle, whose chip already says "Room", is
 no longer offered for deletion on its own.
 
+**The opening panel is on the same rows as the others.** It was the last
+one built from loose controls: a bordered box repeating the panel's name, a
+dropdown for the wall and one for each of the door's style, hinge and swing,
+and a feet-and-inches echo under each length. The wall is now a row of chips
+reading N, E, S, W as the room's wall row does, and a door's three settings
+are chips under a "Door" band — a choice of two or three is shown, not hidden
+behind a dropdown. The center is no longer shown at all: the row reads along
+the wall, Start | W | End, the gap from each corner being what a tape reads
+and what the plan already draws beside a selected opening. A typed width
+keeps the start gap and grows toward the end corner.
+
 **The details panel is for what is selected, and only then.** With nothing
 selected it used to show the apartment: the plan underlay, the wall
 thickness, and four figures — rooms, across, down, area — that describe the
