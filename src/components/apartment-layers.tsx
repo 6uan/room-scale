@@ -8,6 +8,7 @@ import {
   EyeOff,
   Group,
   Image as ImageIcon,
+  ImagePlus,
   MoveHorizontal,
   PanelsTopLeft,
   Sofa,
@@ -24,7 +25,7 @@ import {
 } from "react";
 import { ContextMenu } from "@/components/context-menu";
 import { nextId, type PlanUnderlay } from "@/domain/project";
-import { IconButton } from "@/components/icon-button";
+import { IconButton, IconFileButton } from "@/components/icon-button";
 import { useScrollFade } from "@/components/scroll-fade";
 import { openingListName, sectionLabel } from "@/components/opening-name";
 import { PanelHeader } from "@/components/panel-header";
@@ -86,6 +87,8 @@ export type ApartmentLayersProps = {
   underlay?: PlanUnderlay | null;
   /** Shows or hides the plan image from its row. */
   onUnderlayChange?: ((underlay: PlanUnderlay | null) => void) | undefined;
+  /** Puts the listing's plan behind the grid, or swaps in another. */
+  onAddPlanImage?: ((file: File) => void) | undefined;
   /** Puts a room somewhere else in the list, by a drag of its own row. */
   onReorderRoom?:
     ((roomId: string, beforeRoomId: string | null) => void) | undefined;
@@ -170,6 +173,7 @@ export function ApartmentLayers({
   onReorderRoom,
   underlay = null,
   onUnderlayChange,
+  onAddPlanImage,
 }: ApartmentLayersProps) {
   const names = placedNames(furniture);
   const scroll = useScrollFade();
@@ -717,6 +721,19 @@ export function ApartmentLayers({
       {/* Lit while the plan is waiting for a rectangle, so the mode it turns
           on is visible in the one place that turned it on. */}
       <PanelHeader
+        extra={
+          onAddPlanImage === undefined ? null : (
+            <IconFileButton
+              label={
+                underlay === null ? "Add plan image" : "Replace plan image"
+              }
+              icon={ImagePlus}
+              accept="image/*"
+              size="small"
+              onFile={onAddPlanImage}
+            />
+          )
+        }
         title="Apartment"
         action="Add room"
         active={drawingRoom}

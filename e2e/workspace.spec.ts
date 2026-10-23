@@ -1920,29 +1920,24 @@ test.describe("laying the apartment out", () => {
   }) => {
     await openWithLivingRoom(page);
 
-    // The apartment's settings take the image and put it under the grid.
-    const settings = async () => {
-      const dialog = page.getByRole("dialog", { name: "Settings" });
-      if (!(await dialog.isVisible())) {
-        await page.getByRole("button", { name: "Settings" }).click();
-      }
-      return dialog;
-    };
-    const apartment = await settings();
-    await apartment
+    // Added from the Apartment list's header, and selected once it is there.
+    await contents(page)
       .getByLabel("Add plan image")
       .setInputFiles("e2e/fixtures/plan.png");
     const image = page.getByRole("img", {
       name: "The floor plan being traced",
     });
     await expect(image).toBeVisible();
+    const row = contents(page).getByRole("button", {
+      name: "Plan image",
+      exact: true,
+    });
+    await expect(row).toHaveAttribute("aria-pressed", "true");
 
     // Its size is a number, and it is the number the corner drags.
-    const width = apartment.getByLabel("Underlay width");
+    const width = details(page).getByLabel("Underlay width", { exact: true });
     const dropped = Number(await width.inputValue());
     expect(dropped).toBeGreaterThan(0);
-    await page.keyboard.press("Escape");
-    await expect(apartment).toBeHidden();
 
     // The south-east corner, pulled away from the image, makes it bigger.
     const box = await image.boundingBox();
@@ -1961,37 +1956,51 @@ test.describe("laying the apartment out", () => {
     const grown = await image.boundingBox();
     expect(grown?.width ?? 0).toBeGreaterThan(box.width);
     expect(grown?.height ?? 0).toBeGreaterThan(box.height);
-    await settings();
     await expect
       .poll(async () => Number(await width.inputValue()))
       .toBeGreaterThan(dropped);
+
+    // While it is selected, a drag on it moves it — not a selection
+    // rectangle, and not the room drawn over it.
+    const x = details(page).getByLabel("Underlay X position", {
+      exact: true,
+    });
+    const before = Number(await x.inputValue());
+    const at = await image.boundingBox();
+    if (at === null) {
+      throw new Error("the underlay has no box to point at");
+    }
+    await page.mouse.move(at.x + at.width / 2, at.y + at.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(at.x + at.width / 2 + 60, at.y + at.height / 2, {
+      steps: 8,
+    });
+    await page.mouse.up();
+    await expect
+      .poll(async () => Number(await x.inputValue()))
+      .toBeGreaterThan(before);
+    // One drag, one step back.
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect.poll(async () => Number(await x.inputValue())).toBe(before);
 
     // A typed width is the exact path, and the top-left corner stays put.
     await width.fill("240");
     await expect(width).toHaveValue("240");
 
-    // The image survives a reload, and hides without being lost.
+    // The image survives a reload, and hides from its row without being lost.
     await page.reload();
-    await expect(
-      page.getByRole("img", { name: "The floor plan being traced" }),
-    ).toBeVisible();
-    await (
-      await settings()
-    )
-      .getByRole("button", { name: "Hide image" })
+    await expect(image).toBeVisible();
+    await contents(page)
+      .getByRole("button", { name: "Hide plan image" })
       .click();
     await expect(image).toHaveCount(0);
-    await page.keyboard.press("Escape");
-
-    // A layer of its own, first in the Apartment list: shown again from its
-    // row, and faded from its own panel.
     await contents(page)
       .getByRole("button", { name: "Show plan image" })
       .click();
     await expect(image).toBeVisible();
-    await contents(page)
-      .getByRole("button", { name: "Plan image", exact: true })
-      .click();
+
+    // Faded from its own panel.
+    await row.click();
     const opacity = details(page).getByLabel("Plan image opacity", {
       exact: true,
     });
@@ -2001,15 +2010,22 @@ test.describe("laying the apartment out", () => {
     await opacity.press("ArrowDown");
     await expect(image).toHaveCSS("opacity", "0.69");
 
+    // Replaced from the header, where it was and as wide as it was.
+    const wide = await width.inputValue();
+    const corner = await x.inputValue();
+    await contents(page)
+      .getByLabel("Replace plan image")
+      .setInputFiles("e2e/fixtures/plan.png");
+    await expect(width).toHaveValue(wide);
+    await expect(x).toHaveValue(corner);
+
     // Deleted from its menu, by name.
     await details(page)
       .getByRole("button", { name: "Plan image actions" })
       .click();
     await page.getByRole("menuitem", { name: "Delete plan image" }).click();
     await expect(image).toHaveCount(0);
-    await expect(
-      contents(page).getByRole("button", { name: "Plan image", exact: true }),
-    ).toHaveCount(0);
+    await expect(row).toHaveCount(0);
   });
 
   test("keeps the apartment's wall thickness as one typed number", async ({

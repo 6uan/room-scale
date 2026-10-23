@@ -1,14 +1,7 @@
 "use client";
 
-import {
-  ExternalLink,
-  Eye,
-  EyeOff,
-  ImagePlus,
-  Pencil,
-  Trash2,
-} from "lucide-react";
-import { IconButton, IconFileButton } from "@/components/icon-button";
+import { ExternalLink, Eye, EyeOff, Pencil } from "lucide-react";
+import { IconButton } from "@/components/icon-button";
 import { ActionMenu } from "@/components/action-menu";
 import { cn } from "@/components/cn";
 import { NumberField } from "@/components/number-field";
@@ -65,7 +58,6 @@ export type InspectorProps = {
   onSelect: (selection: Selection) => void;
   onFloorChange: (floor: Floor) => void;
   underlay: PlanUnderlay | null;
-  onAddPlanImage: (file: File) => void;
   onUnderlayChange: (underlay: PlanUnderlay | null) => void;
   onRoomChange: (room: Room, gesture?: string) => void;
   onGestureEnd: () => void;
@@ -726,79 +718,6 @@ function ProductInspector({
         onCancel={() => onSelect(null)}
       />
     </Panel>
-  );
-}
-
-/**
- * The listing's plan under the canvas: added, scaled by one measured line,
- * nudged into place, and taken away once the tracing is done.
- *
- * The typed length is the only number here that is a measurement; it goes
- * through an explicit Apply because scaling is anchored to the drawn line,
- * and reapplying a half-typed value would scale the image out from under it.
- */
-export function UnderlayFields({
-  underlay,
-  unit,
-  onAddPlanImage,
-  onUnderlayChange,
-}: {
-  underlay: PlanUnderlay | null;
-  unit: DisplayUnit;
-  onAddPlanImage: (file: File) => void;
-  onUnderlayChange: (underlay: PlanUnderlay | null) => void;
-}) {
-  return (
-    <fieldset className="flex flex-col gap-2 border-b border-black/10 pb-4 dark:border-white/15">
-      <legend className="sr-only">Plan underlay</legend>
-      <div className="flex items-center justify-between gap-2">
-        <span aria-hidden="true" className="text-xs font-medium">
-          Plan underlay
-        </span>
-        {underlay === null ? (
-          <IconFileButton
-            label="Add plan image"
-            icon={ImagePlus}
-            accept="image/*"
-            size="small"
-            onFile={onAddPlanImage}
-          />
-        ) : (
-          <div className="flex items-center gap-0.5">
-            <IconButton
-              label={underlay.visible ? "Hide image" : "Show image"}
-              icon={underlay.visible ? Eye : EyeOff}
-              size="small"
-              onClick={() =>
-                onUnderlayChange({ ...underlay, visible: !underlay.visible })
-              }
-            />
-            <IconButton
-              label="Remove image"
-              icon={Trash2}
-              size="small"
-              tone="danger"
-              onClick={() => onUnderlayChange(null)}
-            />
-          </div>
-        )}
-      </div>
-
-      {underlay === null ? (
-        <p className="text-xs leading-relaxed opacity-60">
-          Put the listing&rsquo;s floor plan behind the grid and trace the rooms
-          over it. The image stays on this machine.
-        </p>
-      ) : (
-        <>
-          <UnderlayAdjustments
-            underlay={underlay}
-            unit={unit}
-            onUnderlayChange={onUnderlayChange}
-          />
-        </>
-      )}
-    </fieldset>
   );
 }
 

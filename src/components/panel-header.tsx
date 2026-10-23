@@ -18,6 +18,7 @@ export function PanelHeader({
   onAction,
   collapsed,
   onToggleCollapsed,
+  extra,
 }: {
   title: string;
   /** The accessible name of the add button, unchanged by the mode it turns on. */
@@ -27,6 +28,8 @@ export function PanelHeader({
   /** Whether the panel's body is folded away, for a panel that can be. */
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
+  /** Another way to add, beside the main one. */
+  extra?: React.ReactNode;
 }) {
   return (
     <div className="flex items-center justify-between gap-2">
@@ -49,6 +52,7 @@ export function PanelHeader({
             onClick={() => onToggleCollapsed?.()}
           />
         )}
+        {extra}
         <IconButton
           label={action}
           icon={Plus}

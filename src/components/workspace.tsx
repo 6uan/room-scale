@@ -64,6 +64,7 @@ import {
   buildChecklist,
   createLayout,
   createUnderlay,
+  underlayExtentMeters,
   duplicateLayout,
   nextId,
   nextLayoutName,
@@ -334,12 +335,29 @@ export function Workspace() {
   async function addPlanImage(file: File): Promise<void> {
     const image = await readPlanImage(file);
     const { origin, extent } = floorBounds(floor);
-    setUnderlay(
-      createUnderlay(image.dataUrl, image.widthPixels, image.heightPixels, {
+    const fresh = createUnderlay(
+      image.dataUrl,
+      image.widthPixels,
+      image.heightPixels,
+      {
         xMeters: origin.xMeters + extent.widthMeters / 2,
         zMeters: origin.zMeters + extent.depthMeters / 2,
-      }),
+      },
     );
+    // A replacement keeps where the last image was and how wide, so a
+    // cleaner copy of the same plan does not undo the lining up.
+    setUnderlay(
+      underlay === null
+        ? fresh
+        : {
+            ...fresh,
+            origin: underlay.origin,
+            metersPerPixel:
+              underlayExtentMeters(underlay).widthMeters / image.widthPixels,
+          },
+    );
+    // The image is what is worked on now: its panel open, its corners there.
+    setSelection({ kind: "underlay" });
     // Whatever tool was armed is put down: the image is the thing to look at
     // now, and its corners are there to be dragged.
     setDrawingRoom(false);
@@ -827,6 +845,9 @@ export function Workspace() {
           <ApartmentLayers
             underlay={underlay}
             onUnderlayChange={setUnderlay}
+            onAddPlanImage={(file) => {
+              void addPlanImage(file);
+            }}
             floor={floor}
             furniture={furniture}
             selection={selection}
@@ -1029,6 +1050,7 @@ export function Workspace() {
               panelOpen={selection !== null}
               productUnit={productUnit}
               underlayOpacity={underlayOpacity}
+              underlaySelected={selection?.kind === "underlay"}
               onFramingChange={onPlanFraming}
               showFraming={returnFraming}
               selectedIds={selectedInstanceIds(selection)}
@@ -1173,9 +1195,6 @@ export function Workspace() {
               onSelect={setSelection}
               onFloorChange={setFloor}
               underlay={underlay}
-              onAddPlanImage={(file) => {
-                void addPlanImage(file);
-              }}
               onUnderlayChange={setUnderlay}
               onRoomChange={(room, gesture) => moveRooms([room], gesture)}
               onGestureEnd={endGesture}
@@ -1238,11 +1257,6 @@ export function Workspace() {
           }}
           floor={floor}
           onFloorChange={setFloor}
-          underlay={underlay}
-          onAddPlanImage={(file) => {
-            void addPlanImage(file);
-          }}
-          onUnderlayChange={setUnderlay}
           onClose={() => setSettingsOpen(false)}
         />
       ) : null}

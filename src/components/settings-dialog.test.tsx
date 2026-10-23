@@ -7,9 +7,6 @@ import { SettingsDialog } from "./settings-dialog";
 const apartment = {
   floor: DEFAULT_FLOOR,
   onFloorChange: () => {},
-  underlay: null,
-  onAddPlanImage: () => {},
-  onUnderlayChange: () => {},
 };
 
 describe("the settings dialog", () => {
@@ -52,7 +49,7 @@ describe("the settings dialog", () => {
     }
   });
 
-  it("holds the apartment's own settings: the plan to trace and the wall thickness", async () => {
+  it("holds the apartment's wall thickness, and leaves the plan image to the list", async () => {
     const onFloorChange = vi.fn();
     render(
       <SettingsDialog
@@ -64,7 +61,7 @@ describe("the settings dialog", () => {
       />,
     );
 
-    expect(screen.getByLabelText("Add plan image")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Add plan image")).toBeNull();
     const walls = screen.getByRole("button", { name: /^Wall thickness/ });
     expect(walls).toHaveTextContent(`4.5" walls`);
     await userEvent.click(walls);

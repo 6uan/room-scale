@@ -985,7 +985,12 @@ it has a panel of its own with its position, its width, and how strongly it
 is drawn — a slider and a typed percentage — and its menu deletes it, by
 name. How strongly it is drawn is the reader's, kept in the browser beside the
 units: how faint a tracing should be is a way of looking, not part of the
-apartment, and no stored document changes for it.
+apartment, and no stored document changes for it. It is added from a button in the
+Apartment list's header, beside the one that adds a room, rather than from
+Settings, which no longer carries it; once there is one, the same button
+replaces it, keeping where it was and how wide. While it is selected, a drag
+that starts on it moves it, rather than drawing a selection or taking hold of
+the room traced over it, and one drag is one step to undo.
 
 **Rooms are reordered by dragging their row, and nothing over the plan sits
 under the panel.** A room's own row in the list drags, and drops above the

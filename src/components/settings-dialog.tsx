@@ -2,11 +2,9 @@
 
 import { Dialog, DialogSection } from "@/components/dialog";
 import { Disclosure } from "@/components/disclosure";
-import { UnderlayFields } from "@/components/inspector";
 import { NumberField } from "@/components/number-field";
 import { ProjectTransferPanel } from "@/components/project-transfer-panel";
 import { UnitToggle } from "@/components/unit-toggle";
-import type { PlanUnderlay } from "@/domain/project";
 import { WALL_THICKNESS_LIMITS, type Floor } from "@/domain/room";
 import { formatLength, type DisplayUnit } from "@/domain/units";
 
@@ -15,9 +13,6 @@ export type SettingsDialogProps = {
   onUnitChange: (unit: DisplayUnit) => void;
   floor: Floor;
   onFloorChange: (floor: Floor) => void;
-  underlay: PlanUnderlay | null;
-  onAddPlanImage: (file: File) => void;
-  onUnderlayChange: (underlay: PlanUnderlay | null) => void;
   onClose: () => void;
 };
 
@@ -35,9 +30,6 @@ export function SettingsDialog({
   onUnitChange,
   floor,
   onFloorChange,
-  underlay,
-  onAddPlanImage,
-  onUnderlayChange,
   onClose,
 }: SettingsDialogProps) {
   return (
@@ -51,15 +43,9 @@ export function SettingsDialog({
         */}
         <DialogSection
           title="Apartment"
-          description="The listing's plan to trace over, and what every wall is built out of until a room says otherwise."
+          description="What every wall is built out of until a room says otherwise. The listing's plan to trace over is added from the Apartment list."
         >
           <div className="flex flex-col gap-4">
-            <UnderlayFields
-              underlay={underlay}
-              unit={unit}
-              onAddPlanImage={onAddPlanImage}
-              onUnderlayChange={onUnderlayChange}
-            />
             <Disclosure
               label="Wall thickness"
               summary={`${formatLength(floor.wallThicknessMeters, unit)} walls`}

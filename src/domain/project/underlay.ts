@@ -63,6 +63,28 @@ export function underlayExtentMeters(underlay: PlanUnderlay): {
   };
 }
 
+/** Whether a floor point lies on the image, edges included. */
+export function underlayContains(
+  underlay: PlanUnderlay,
+  point: FloorPoint,
+): boolean {
+  const { widthMeters, depthMeters } = underlayExtentMeters(underlay);
+  return (
+    point.xMeters >= underlay.origin.xMeters &&
+    point.xMeters <= underlay.origin.xMeters + widthMeters &&
+    point.zMeters >= underlay.origin.zMeters &&
+    point.zMeters <= underlay.origin.zMeters + depthMeters
+  );
+}
+
+/** The image with its top-left corner moved, its size untouched. */
+export function movedUnderlay(
+  underlay: PlanUnderlay,
+  origin: FloorPoint,
+): PlanUnderlay {
+  return { ...underlay, origin };
+}
+
 /**
  * A new underlay, centered on `around`.
  *
