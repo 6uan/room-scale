@@ -830,7 +830,11 @@ That is the second answer. The first faded only the walls standing between
 the camera and the point it orbited, and then, when a room behind another was
 still hidden by the wall between them, every wall with floor on its far side
 as well. Each rule was right and each needed explaining; a wall that changed
-as the camera moved was a wall you had to guess about. A choice is not.
+as the camera moved was a wall you had to guess about. A choice is not — and
+the rule is kept as one of the choices, "Auto", between see-through and solid,
+for anyone who would rather the walls in the way fade as the camera moves:
+walls between rooms see-through always, an outside wall only while it stands
+between the camera and the point it orbits.
 
 **20c — Openings at their heights. ✅** Doors, windows, and passages cut from
 the walls at their sill and head. Each opening carries a sill and a head of

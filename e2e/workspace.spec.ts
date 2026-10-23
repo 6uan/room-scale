@@ -1126,6 +1126,10 @@ test.describe("the perspective view", () => {
     await solid.click();
     await expect(solid).toHaveAttribute("aria-pressed", "true");
     await expect(seeThrough).toHaveAttribute("aria-pressed", "false");
+    const auto = page.getByRole("button", { name: "Auto walls" });
+    await auto.click();
+    await expect(auto).toHaveAttribute("aria-pressed", "true");
+    await expect(solid).toHaveAttribute("aria-pressed", "false");
 
     // Arming a drawing mode is an edit, and edits happen on the plan.
     await contents(page).getByRole("button", { name: "Add room" }).click();

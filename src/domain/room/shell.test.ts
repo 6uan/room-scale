@@ -203,4 +203,32 @@ describe("openings in the shell", () => {
       "room-2",
     ]);
   });
+
+  it("knows a wall between two rooms from a wall to the outside", () => {
+    const part = BARE.parts[0]!;
+    const thickness = BARE_FLOOR.wallThicknessMeters;
+    const next = {
+      ...BARE,
+      id: "room-2",
+      parts: [
+        {
+          ...part,
+          id: "room-2-part-1",
+          origin: {
+            xMeters: part.origin.xMeters + part.widthMeters + thickness,
+            zMeters: part.origin.zMeters,
+          },
+        },
+      ],
+    };
+    const shell = apartmentShell(withRooms(BARE_FLOOR, [BARE, next]));
+    // Each room's copy of the shared wall is interior; the other six are not.
+    const interior = shell.walls.filter((wall) => wall.interior);
+    expect(interior).toHaveLength(2);
+    expect(interior.map((wall) => wall.roomId).sort()).toEqual([
+      "room-1",
+      "room-2",
+    ]);
+    expect(shell.walls.filter((wall) => !wall.interior)).toHaveLength(6);
+  });
 });
