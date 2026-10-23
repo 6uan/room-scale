@@ -58,6 +58,7 @@ function renderInspector(overrides: Partial<InspectorProps>) {
     onGroupRemove: vi.fn(),
     onProductSave: vi.fn(),
     onProductRemove: vi.fn(),
+    onRoundPositions: vi.fn(),
     productProblem: null,
     newProductId: "product-new",
     ...overrides,
@@ -78,7 +79,10 @@ describe("the room panel's menu", () => {
     const user = userEvent.setup();
     renderInspector({});
 
-    expect(await menuItems(user)).toEqual(["Delete Living room"]);
+    expect(await menuItems(user)).toEqual([
+      "Round to whole inches",
+      "Delete Living room",
+    ]);
     // One menu, and no trash can anywhere else in the panel.
     expect(screen.queryByRole("button", { name: /^Remove / })).toBeNull();
   });
@@ -90,6 +94,7 @@ describe("the room panel's menu", () => {
     });
 
     expect(await menuItems(user)).toEqual([
+      "Round to whole inches",
       "Delete Section 3",
       "Delete Closet B",
       "Delete Living room",
@@ -158,5 +163,25 @@ describe("the opening panel's menu", () => {
     );
 
     expect(props.onOpeningRemove).toHaveBeenCalledWith(room, door);
+  });
+});
+
+describe("rounding from the menu", () => {
+  it("rounds the room, named in the unit on screen", async () => {
+    const user = userEvent.setup();
+    const { props } = renderInspector({});
+
+    await menuItems(user);
+    await user.click(
+      screen.getByRole("menuitem", { name: "Round to whole inches" }),
+    );
+    expect(props.onRoundPositions).toHaveBeenCalledWith(["room-1"], []);
+  });
+
+  it("says centimeters in metric", async () => {
+    const user = userEvent.setup();
+    renderInspector({ unit: "metric" });
+
+    expect(await menuItems(user)).toContain("Round to whole centimeters");
   });
 });

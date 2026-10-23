@@ -81,6 +81,9 @@ export type ApartmentLayersProps = {
   onRenameGroup?: ((groupId: string, name: string) => void) | undefined;
   /** Gives one piece a name of its own; blank hands it back the product's. */
   onRenamePiece?: ((instanceId: string, name: string) => void) | undefined;
+  /** Puts a room somewhere else in the list, by a drag of its own row. */
+  onReorderRoom?:
+    ((roomId: string, beforeRoomId: string | null) => void) | undefined;
 };
 
 /**
@@ -107,6 +110,11 @@ const DROP_LINE =
 const LAYER_DRAG_TYPE = "application/x-roomscale-layer";
 /** The drag type a group row carries: the whole group moves in the order. */
 const GROUP_DRAG_TYPE = "application/x-roomscale-group";
+/**
+ * The drag type a room's own row carries. Its own type, so a room dropped on a
+ * piece's row, or a piece on a room's, is simply not taken.
+ */
+const ROOM_DRAG_TYPE = "application/x-roomscale-room";
 
 const NO_GROUPS: readonly PieceGroup[] = [];
 
@@ -154,6 +162,7 @@ export function ApartmentLayers({
   onReorderGroup,
   onRenameGroup,
   onRenamePiece,
+  onReorderRoom,
 }: ApartmentLayersProps) {
   const names = placedNames(furniture);
   const scroll = useScrollFade();
@@ -718,16 +727,47 @@ export function ApartmentLayers({
             <ul className="flex flex-col gap-1">
               {floor.rooms.map((room) => (
                 <li key={room.id} className="flex flex-col">
-                  <EditableRow
-                    name={room.name}
-                    placeholder="Unnamed room"
-                    icon={Square}
-                    selected={isSelected(selection, "room", room.id)}
-                    onSelect={() => onSelect({ kind: "room", id: room.id })}
-                    onRename={(name) => onRoomChange({ ...room, name })}
-                    folded={folded.has(room.id)}
-                    onToggleFolded={() => toggleFolded(room.id)}
-                  />
+                  {/*
+                    The room's own row is what drags, not the whole item: the
+                    item holds its sections and pieces, and a piece dragged
+                    inside it must not pick the room up with it.
+                  */}
+                  <div
+                    draggable={onReorderRoom !== undefined}
+                    onDragStart={(event: DragEvent<HTMLDivElement>) => {
+                      event.dataTransfer.setData(ROOM_DRAG_TYPE, room.id);
+                      event.dataTransfer.effectAllowed = "move";
+                    }}
+                    onDragOver={(event: DragEvent<HTMLDivElement>) => {
+                      if (event.dataTransfer.types.includes(ROOM_DRAG_TYPE)) {
+                        event.preventDefault();
+                        setOver(`room:${room.id}`);
+                      }
+                    }}
+                    onDragLeave={() =>
+                      setOver((was) => (was === `room:${room.id}` ? null : was))
+                    }
+                    onDrop={(event: DragEvent<HTMLDivElement>) => {
+                      const from = event.dataTransfer.getData(ROOM_DRAG_TYPE);
+                      setOver(null);
+                      if (from !== "" && from !== room.id) {
+                        event.preventDefault();
+                        onReorderRoom?.(from, room.id);
+                      }
+                    }}
+                    className={over === `room:${room.id}` ? DROP_LINE : ""}
+                  >
+                    <EditableRow
+                      name={room.name}
+                      placeholder="Unnamed room"
+                      icon={Square}
+                      selected={isSelected(selection, "room", room.id)}
+                      onSelect={() => onSelect({ kind: "room", id: room.id })}
+                      onRename={(name) => onRoomChange({ ...room, name })}
+                      folded={folded.has(room.id)}
+                      onToggleFolded={() => toggleFolded(room.id)}
+                    />
+                  </div>
                   <Fold folded={folded.has(room.id)}>
                     <ul className="flex flex-col overflow-hidden">
                       {/* The first rectangle is the room, already on the row
@@ -885,6 +925,30 @@ export function ApartmentLayers({
                   </Fold>
                 </li>
               ))}
+              {/* After the last room, so a room can be dropped last. */}
+              {onReorderRoom === undefined ? null : (
+                <li
+                  aria-hidden="true"
+                  onDragOver={(event: DragEvent<HTMLLIElement>) => {
+                    if (event.dataTransfer.types.includes(ROOM_DRAG_TYPE)) {
+                      event.preventDefault();
+                      setOver("room-end");
+                    }
+                  }}
+                  onDragLeave={() =>
+                    setOver((was) => (was === "room-end" ? null : was))
+                  }
+                  onDrop={(event: DragEvent<HTMLLIElement>) => {
+                    const from = event.dataTransfer.getData(ROOM_DRAG_TYPE);
+                    setOver(null);
+                    if (from !== "") {
+                      event.preventDefault();
+                      onReorderRoom(from, null);
+                    }
+                  }}
+                  className={`h-2 ${over === "room-end" ? DROP_LINE : ""}`}
+                />
+              )}
             </ul>
 
             {homeless.length === 0 ? null : (
