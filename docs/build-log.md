@@ -807,6 +807,16 @@ hands its framing back when it ends — the point aimed at, scaled by how far
 the camera has come in or out — and the plan comes back there, north-up.
 Kept for the session, like selection; nothing is stored.
 
+**20a, continued — the camera stays with the apartment. ✅** Scrolling out
+had no end, so the apartment could shrink to a speck in the middle of the
+dark; and panning moved the orbit point up and down the screen, so a drag
+could carry the camera under the floor and look at the apartment from
+beneath. The camera now backs off no farther than twice what frames the whole
+apartment, and comes no nearer than half a meter. Panning slides along the
+floor, and the point it orbits is held on the floor and over the apartment's
+footprint — so the camera, which never goes below that point's horizon, never
+goes below the floor, and a pan stops at the edge rather than running off.
+
 **20b — Furniture as boxes. ✅** Each placed piece at its product's width,
 depth, and height, at its position and turn. `furnitureBoxes` in the domain
 stands up the footprint the plan draws and validation checks — its floor

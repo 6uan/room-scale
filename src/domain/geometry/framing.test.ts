@@ -4,6 +4,9 @@ import {
   cameraOfFraming,
   framingAfterOrbit,
   framingOfProjection,
+  MIN_ORBIT_DISTANCE_METERS,
+  orbitDistanceLimits,
+  orbitTargetOnFloor,
   projectionOfFraming,
   standsBeforeTarget,
   type Framing,
@@ -183,5 +186,32 @@ describe("what stands before the point looked at", () => {
     expect(
       standsBeforeTarget({ xMeters: 0, zMeters: 2 }, fromEast, target),
     ).toBe(false);
+  });
+});
+
+describe("the orbit's limits", () => {
+  const whole: Framing = {
+    center: { xMeters: 2, zMeters: 1 },
+    metersAcross: 12,
+    metersDown: 8,
+  };
+
+  it("lets the camera back off to twice what frames the whole apartment, no farther", () => {
+    const { minMeters, maxMeters } = orbitDistanceLimits(
+      whole,
+      FOV,
+      ASPECT,
+      2.44,
+    );
+    const fits = cameraOfFraming(whole, FOV, ASPECT, 2.44).distanceMeters;
+    expect(maxMeters).toBeCloseTo(fits * 2, 12);
+    expect(minMeters).toBe(MIN_ORBIT_DISTANCE_METERS);
+  });
+
+  it("keeps the orbit point on the floor, and over the apartment", () => {
+    // Panned up off the floor and away past the east and north edges.
+    expect(orbitTargetOnFloor([20, 3, -10], whole)).toEqual([8, 0, -3]);
+    // Inside: left where it is, only brought down to the floor.
+    expect(orbitTargetOnFloor([1, -2, 2], whole)).toEqual([1, 0, 2]);
   });
 });

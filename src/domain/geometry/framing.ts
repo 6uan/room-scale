@@ -191,3 +191,55 @@ export function standsBeforeTarget(
     1e-9
   );
 }
+
+/** The nearest the camera may come to the point it orbits, in meters. */
+export const MIN_ORBIT_DISTANCE_METERS = 0.5;
+
+/** How far past framing the whole apartment the camera may pull back. */
+const MAX_ORBIT_DISTANCE_FACTOR = 2;
+
+/**
+ * How near and how far the perspective camera may be from what it orbits:
+ * close enough to look at a lamp, and back to twice what it takes to frame
+ * the whole apartment — never so far that the apartment is a speck.
+ */
+export function orbitDistanceLimits(
+  whole: Framing,
+  verticalFovRadians: number,
+  aspect: number,
+  heightMeters: number,
+): { minMeters: number; maxMeters: number } {
+  const fits = cameraOfFraming(
+    whole,
+    verticalFovRadians,
+    aspect,
+    heightMeters,
+  ).distanceMeters;
+  return {
+    minMeters: MIN_ORBIT_DISTANCE_METERS,
+    maxMeters: Math.max(
+      fits * MAX_ORBIT_DISTANCE_FACTOR,
+      MIN_ORBIT_DISTANCE_METERS,
+    ),
+  };
+}
+
+/**
+ * The point the camera orbits, kept on the floor and over the apartment.
+ *
+ * On the floor, so the camera — which never goes below the orbit point's
+ * horizon — never goes below the floor; over the apartment, so panning
+ * cannot carry the view off into the dark.
+ */
+export function orbitTargetOnFloor(
+  target: ScenePoint,
+  whole: Framing,
+): ScenePoint {
+  const clamp = (value: number, middle: number, half: number) =>
+    Math.min(middle + half, Math.max(middle - half, value));
+  return [
+    clamp(target[0], whole.center.xMeters, whole.metersAcross / 2),
+    0,
+    clamp(target[2], whole.center.zMeters, whole.metersDown / 2),
+  ];
+}
