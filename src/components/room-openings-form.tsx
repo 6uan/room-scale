@@ -23,6 +23,7 @@ import {
   MIN_OPENING_METERS,
   type Opening,
   openingGapsMeters,
+  openingHeights,
   type OpeningKind,
   type OpeningProblem,
   partWallSides,
@@ -31,6 +32,7 @@ import {
   wallLengthMeters,
   type WallSide,
   withOpeningEndGap,
+  withOpeningHeights,
   withOpeningName,
   withOpeningStartGap,
   withOpeningWall,
@@ -183,6 +185,7 @@ export function OpeningFields({
   const problem = checkOpening(room, opening);
   const name = openingName(room, opening);
   const gaps = openingGapsMeters(room, opening);
+  const heights = openingHeights(opening);
 
   return (
     <>
@@ -250,6 +253,43 @@ export function OpeningFields({
             limits={{ minMeters: 0, maxMeters: wallLength }}
             onMetersChange={(meters, gesture) =>
               onChange(withOpeningEndGap(room, opening, meters), gesture)
+            }
+            {...(onGestureEnd === undefined ? {} : { onGestureEnd })}
+          />
+        </PanelRow>
+
+        {/*
+          How high it runs, in the apartment's unit: a window from its sill to
+          its head, a door or passage from the floor to its head. These are
+          what the perspective view cuts through the wall.
+        */}
+        <PanelRow name="Up the wall">
+          {opening.kind === "window" ? (
+            <NumberField
+              label="Sill height"
+              compactLabel="Sill"
+              scrubGesture={`opening-field:${opening.id}:sill`}
+              unit={unit}
+              meters={heights.sillMeters}
+              limits={{ minMeters: 0, maxMeters: room.heightMeters }}
+              onMetersChange={(sillMeters, gesture) =>
+                onChange(withOpeningHeights(opening, { sillMeters }), gesture)
+              }
+              {...(onGestureEnd === undefined ? {} : { onGestureEnd })}
+            />
+          ) : null}
+          <NumberField
+            label="Head height"
+            compactLabel="Head"
+            scrubGesture={`opening-field:${opening.id}:head`}
+            unit={unit}
+            meters={heights.headMeters}
+            limits={{
+              minMeters: MIN_OPENING_METERS,
+              maxMeters: room.heightMeters,
+            }}
+            onMetersChange={(headMeters, gesture) =>
+              onChange(withOpeningHeights(opening, { headMeters }), gesture)
             }
             {...(onGestureEnd === undefined ? {} : { onGestureEnd })}
           />
@@ -363,5 +403,9 @@ function problemMessage(
       return `This runs past the end of a ${formatLength(wallLengthMeters, unit)} wall.`;
     case "open-wall":
       return "This wall is open — there is no wall to cut it through.";
+    case "above-ceiling":
+      return "Its top is above the ceiling.";
+    case "no-height":
+      return "Its top has to be above its bottom.";
   }
 }

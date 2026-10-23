@@ -817,19 +817,37 @@ aside is left out, as it is from the bill. Each box carries its edges, so two
 pieces that touch read as two, and the view's description lists every piece
 with its three measurements.
 
-**20b, continued — walls in the way are see-through, not cut. ✅** At the
+**20b, continued — walls are see-through, or solid when asked. ✅** At the
 view's tilt a full-height wall hid the part of the room beyond it, which is
 where the furniture was. Cutting the near walls down was the usual answer and
 the wrong one here: a wall that shows shorter than it is, is a wall drawn at
-the wrong height. So every wall keeps its height, and any wall standing
-between the camera and the point it orbits is drawn see-through, with its
-outline, and stops hiding what is behind it. Decided by position rather than
-by which way a wall faces, so the two rooms on either side of a shared wall —
-each of which draws its own — always agree about it; walls beyond the point
-stay solid as the backdrop. It follows the camera as it orbits.
+the wrong height. So every wall keeps its height and is drawn see-through,
+with its outline, writing no depth — nothing in any room is hidden by a wall
+from any angle — and a switch in the corner of the view makes every wall
+solid, for seeing the place as it will look.
 
-**20c — Openings at their heights.** Doors, windows, and passages cut from
-the walls at their sill and head.
+That is the second answer. The first faded only the walls standing between
+the camera and the point it orbited, and then, when a room behind another was
+still hidden by the wall between them, every wall with floor on its far side
+as well. Each rule was right and each needed explaining; a wall that changed
+as the camera moved was a wall you had to guess about. A choice is not — and
+the rule is kept as one of the choices, "Auto", between see-through and solid,
+for anyone who would rather the walls in the way fade as the camera moves:
+walls between rooms see-through always, an outside wall only while it stands
+between the camera and the point it orbits.
+
+**20c — Openings at their heights. ✅** Doors, windows, and passages cut from
+the walls at their sill and head. Each opening carries a sill and a head of
+its own, typed beside its position, or the standard for its kind when it has
+none: a door and a passage to 6' 8", a window from a 3' 0" sill to a 7' 0"
+head. The stored document goes to version 23, with nothing to rewrite —
+absent is the standard. The shell cuts each stretch of wall into the runs
+between openings, a lintel over each from its head to the ceiling, and under
+a window the wall up to its sill. Which openings cut a stretch is found by
+position, not ownership: an opening's doorway line lies on its own wall's
+inside face, one thickness from the next room's, so a door in a shared wall
+opens both rooms' copies of it. An opening whose top is above the ceiling,
+or not above its bottom, says so.
 
 **20d — Walking around.** The camera moved through the apartment at eye
 height.

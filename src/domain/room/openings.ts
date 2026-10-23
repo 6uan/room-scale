@@ -111,6 +111,14 @@ type OpeningPlacement = {
   /** What it is called, when "Door 2" is not it: "Closet door". Absent is
       its kind, numbered. */
   readonly name?: string | undefined;
+  /**
+   * How far up the wall the opening starts and ends. Absent is the standard
+   * for its kind (`DEFAULT_OPENING_HEIGHTS`), which is what every opening
+   * drawn before heights could be typed has. Only a window has a sill in
+   * practice; a door or passage starts at the floor.
+   */
+  readonly sillMeters?: number | undefined;
+  readonly headMeters?: number | undefined;
 };
 
 export type Door = OpeningPlacement & {
@@ -136,6 +144,39 @@ export const DEFAULT_OPENING_WIDTH_METERS: Record<OpeningKind, number> = {
   window: 1.2192,
   passage: 0.9144,
 };
+
+/**
+ * The heights an opening has until it is given its own: a door and a passage
+ * up to 6' 8", the standard door head, and a window from a 3' 0" sill to a
+ * 7' 0" head. In meters, exactly: 80, 36 and 84 inches.
+ */
+export const DEFAULT_OPENING_HEIGHTS: Record<
+  OpeningKind,
+  { readonly sillMeters: number; readonly headMeters: number }
+> = {
+  door: { sillMeters: 0, headMeters: 2.032 },
+  window: { sillMeters: 0.9144, headMeters: 2.1336 },
+  passage: { sillMeters: 0, headMeters: 2.032 },
+};
+
+/** Where an opening starts and ends up the wall: its own, or its kind's. */
+export function openingHeights(opening: Opening): {
+  sillMeters: number;
+  headMeters: number;
+} {
+  const fallback = DEFAULT_OPENING_HEIGHTS[opening.kind];
+  return {
+    sillMeters: opening.sillMeters ?? fallback.sillMeters,
+    headMeters: opening.headMeters ?? fallback.headMeters,
+  };
+}
+
+export function withOpeningHeights(
+  opening: Opening,
+  heights: { sillMeters?: number; headMeters?: number },
+): Opening {
+  return { ...opening, ...heights };
+}
 
 /** A direction on the floor plane, as a unit vector. */
 export type FloorVector = { readonly dx: number; readonly dz: number };
@@ -223,7 +264,11 @@ export type OpeningProblem =
   | "too-narrow"
   | "off-wall"
   /** The wall was left open: there is nothing to cut a hole through. */
-  | "open-wall";
+  | "open-wall"
+  /** Its top is above the room's ceiling. */
+  | "above-ceiling"
+  /** Its top is at or below its bottom. */
+  | "no-height";
 
 export function checkOpening(
   room: Room,
@@ -256,6 +301,18 @@ export function checkOpening(
   }
   if (part.openWalls.includes(opening.wall)) {
     return "open-wall";
+  }
+  const { sillMeters, headMeters } = openingHeights(opening);
+  if (
+    !Number.isFinite(sillMeters) ||
+    !Number.isFinite(headMeters) ||
+    sillMeters < 0 ||
+    headMeters <= sillMeters
+  ) {
+    return "no-height";
+  }
+  if (headMeters > room.heightMeters + 1e-9) {
+    return "above-ceiling";
   }
   return null;
 }
