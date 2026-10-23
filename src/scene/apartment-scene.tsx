@@ -3,6 +3,7 @@
 import { Edges, OrbitControls } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -11,7 +12,9 @@ import {
   type ComponentRef,
 } from "react";
 import {
+  ExtrudeGeometry,
   MathUtils,
+  Path,
   MeshStandardMaterial,
   PerspectiveCamera,
   Shape,
@@ -29,6 +32,7 @@ import {
   floorBounds,
   type Floor,
   type FloorSlab,
+  type WallPoint,
   type WallSlab,
 } from "@/domain/room";
 import {
@@ -341,18 +345,14 @@ function WallMesh({
     );
   });
   const seeThrough = mode !== "solid";
+  const geometry = useMemo(() => wallGeometry(wall), [wall]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
   return (
     <mesh
-      position={[
-        wall.center.xMeters,
-        wall.baseMeters + wall.heightMeters / 2,
-        wall.center.zMeters,
-      ]}
+      position={[wall.center.xMeters, 0, wall.center.zMeters]}
       rotation={[0, -wall.angleRadians, 0]}
+      geometry={geometry}
     >
-      <boxGeometry
-        args={[wall.lengthMeters, wall.heightMeters, wall.thicknessMeters]}
-      />
       <meshStandardMaterial
         key={mode}
         ref={material}
@@ -364,6 +364,37 @@ function WallMesh({
       <Edges color={edge} />
     </mesh>
   );
+}
+
+/**
+ * A wall's face, as the shell gives it, pushed out to the wall's thickness:
+ * one solid with its openings cut out, so its outline is the wall's edge and
+ * the openings' and nothing else. In the wall's own frame — X along it, Y up,
+ * Z through it — and centred on its thickness, as the box it replaces was.
+ */
+function wallGeometry(wall: WallSlab): ExtrudeGeometry {
+  const path = <T extends Shape | Path>(
+    into: T,
+    points: readonly WallPoint[],
+  ) => {
+    points.forEach((point, index) => {
+      if (index === 0) {
+        into.moveTo(point.alongMeters, point.upMeters);
+      } else {
+        into.lineTo(point.alongMeters, point.upMeters);
+      }
+    });
+    into.closePath();
+    return into;
+  };
+  const face = path(new Shape(), wall.outline);
+  face.holes = wall.holes.map((hole) => path(new Path(), hole));
+  const geometry = new ExtrudeGeometry(face, {
+    depth: wall.thicknessMeters,
+    bevelEnabled: false,
+  });
+  geometry.translate(0, 0, -wall.thicknessMeters / 2);
+  return geometry;
 }
 
 /** The same information as the picture, for assistive technology and tests. */
