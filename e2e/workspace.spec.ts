@@ -1490,6 +1490,41 @@ test.describe("laying the apartment out", () => {
       room.getByRole("group", { name: "Group sections" }),
     ).toBeVisible();
 
+    // Picked up by either of its sections, the group moves as one and the
+    // room stays where it was. The panel shows the first section's fields.
+    const sectionX = room.getByLabel("Living room section 2 X position");
+    const roomX = room.getByLabel("Living room section 1 X position");
+    await roomRow.click();
+    const roomBefore = await roomX.inputValue();
+    await row("Closet").click();
+    const sectionBefore = Number(await sectionX.inputValue());
+    const grab = at(48, 12);
+    await page.mouse.move(grab.x, grab.y);
+    await page.mouse.down();
+    await page.mouse.move(grab.x + 60, grab.y, { steps: 8 });
+    await page.mouse.up();
+    await expect(row("Closet")).toHaveAttribute("aria-pressed", "true");
+    expect(Number(await sectionX.inputValue())).toBeGreaterThan(sectionBefore);
+    await roomRow.click();
+    await expect(roomX).toHaveValue(roomBefore);
+
+    // One section selected on its own moves on its own: the other stays.
+    await row("Section 3").click();
+    const otherX = room.getByLabel("Living room section 2 X position");
+    const ownX = room.getByLabel("Living room section 3 X position");
+    const ownBefore = Number(await ownX.inputValue());
+    await row("Section 2").click();
+    const otherBefore = await otherX.inputValue();
+    await row("Section 3").click();
+    const hold = at(48, 12);
+    await page.mouse.move(hold.x, hold.y);
+    await page.mouse.down();
+    await page.mouse.move(hold.x + 40, hold.y, { steps: 8 });
+    await page.mouse.up();
+    expect(Number(await ownX.inputValue())).toBeGreaterThan(ownBefore);
+    await row("Section 2").click();
+    await expect(otherX).toHaveValue(otherBefore);
+
     // The group survives a reload, and comes apart on request.
     await page.waitForTimeout(500);
     await page.reload();

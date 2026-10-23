@@ -384,6 +384,8 @@ type Drag =
       readonly roomId: string;
       readonly partId: string;
       readonly grabOffset: FloorPoint;
+      /** Whether the group this section is in was what got picked up. */
+      readonly withGroup: boolean;
     }
   | {
       readonly kind: "resize";
@@ -1207,12 +1209,23 @@ export function RoomPlanCanvas({
     }
 
     if (hit === null && room !== null) {
-      const part =
-        room.id === selectedRoomId && selectedRoomPartId !== null
+      // A selected group is picked up by any of its sections, and stays
+      // selected as a group while it moves; a selected section is picked up
+      // by whichever section was pressed.
+      const grouped =
+        room.id === selectedRoomId && selectedGroupPartIds.length > 0;
+      const under =
+        room.id === selectedRoomId && (selectedRoomPartId !== null || grouped)
           ? roomPartAt(room, point)
           : null;
+      const part =
+        under !== null && (!grouped || selectedGroupPartIds.includes(under.id))
+          ? under
+          : null;
       if (part !== null) {
-        onSelectRoomPart?.(room.id, part.id);
+        if (!grouped) {
+          onSelectRoomPart?.(room.id, part.id);
+        }
         dragRef.current = {
           kind: "part",
           pointerId: event.pointerId,
@@ -1222,6 +1235,7 @@ export function RoomPlanCanvas({
             xMeters: point.xMeters - part.origin.xMeters,
             zMeters: point.zMeters - part.origin.zMeters,
           },
+          withGroup: grouped,
         };
         setCursor("move");
         canvas.focus();
@@ -1525,13 +1539,14 @@ export function RoomPlanCanvas({
           unit,
         ),
       });
-      // Its group-mates go with it by the same amount: a closet is picked
-      // up as a closet.
+      // When the group was what got picked up, its other sections go by
+      // the same amount: a closet is moved as a closet. A section selected
+      // on its own moves on its own.
       const delta = {
         xMeters: origin.xMeters - part.origin.xMeters,
         zMeters: origin.zMeters - part.origin.zMeters,
       };
-      const moved = groupMates(room, part).reduce(
+      const moved = (drag.withGroup ? groupMates(room, part) : []).reduce(
         (next, mate) =>
           withRoomPartOrigin(next, mate.id, {
             xMeters: mate.origin.xMeters + delta.xMeters,
