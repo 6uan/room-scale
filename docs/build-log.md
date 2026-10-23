@@ -807,8 +807,15 @@ hands its framing back when it ends — the point aimed at, scaled by how far
 the camera has come in or out — and the plan comes back there, north-up.
 Kept for the session, like selection; nothing is stored.
 
-**20b — Furniture as boxes.** Each placed piece at its product's width,
-depth, and height, at its position and turn.
+**20b — Furniture as boxes. ✅** Each placed piece at its product's width,
+depth, and height, at its position and turn. `furnitureBoxes` in the domain
+stands up the footprint the plan draws and validation checks — its floor
+corners are the footprint's corners, which a test holds it to — so the
+perspective view shows exactly what was measured against the walls, and a
+model added in step 21 goes inside the box rather than around it. A piece set
+aside is left out, as it is from the bill. Each box carries its edges, so two
+pieces that touch read as two, and the view's description lists every piece
+with its three measurements.
 
 **20c — Openings at their heights.** Doors, windows, and passages cut from
 the walls at their sill and head.

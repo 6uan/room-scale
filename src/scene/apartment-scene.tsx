@@ -1,6 +1,6 @@
 "use client";
 
-import { OrbitControls } from "@react-three/drei";
+import { Edges, OrbitControls } from "@react-three/drei";
 import { Canvas, useThree } from "@react-three/fiber";
 import {
   useLayoutEffect,
@@ -23,6 +23,12 @@ import {
   type FloorSlab,
   type WallSlab,
 } from "@/domain/room";
+import {
+  furnitureBoxes,
+  placedNames,
+  type FurnitureBox,
+  type PlacedFurniture,
+} from "@/domain/furniture";
 import { formatLength, type DisplayUnit } from "@/domain/units";
 
 /**
@@ -45,11 +51,14 @@ import { formatLength, type DisplayUnit } from "@/domain/units";
  */
 export function ApartmentScene({
   floor,
+  furniture = NO_FURNITURE,
   unit,
   framing,
   onFramingChange,
 }: {
   floor: Floor;
+  /** What is placed in this layout; a piece set aside is left out. */
+  furniture?: readonly PlacedFurniture[];
   unit: DisplayUnit;
   /** What the plan was showing when the view was switched; null frames the whole floor. */
   framing?: Framing | null;
@@ -57,12 +66,13 @@ export function ApartmentScene({
   onFramingChange?: (framing: Framing) => void;
 }) {
   const shell = useMemo(() => apartmentShell(floor), [floor]);
+  const boxes = useMemo(() => furnitureBoxes(furniture), [furniture]);
   const dark = usePrefersDark();
 
   return (
     <div
       role="img"
-      aria-label={describe(floor, unit)}
+      aria-label={describe(floor, furniture, unit)}
       className="absolute inset-0"
     >
       {floor.rooms.length === 0 ? (
@@ -85,6 +95,14 @@ export function ApartmentScene({
             key={`${wall.roomId}/${wall.partId}/${index}`}
             wall={wall}
             color={dark ? WALL_DARK : WALL_LIGHT}
+          />
+        ))}
+        {boxes.map((box) => (
+          <FurnitureMesh
+            key={box.instanceId}
+            box={box}
+            color={dark ? FURNITURE_DARK : FURNITURE_LIGHT}
+            edge={dark ? FURNITURE_EDGE_DARK : FURNITURE_EDGE_LIGHT}
           />
         ))}
         <FramedControls
@@ -172,6 +190,43 @@ function FramedControls({
   );
 }
 
+/**
+ * One piece, as the box its product measures: the same footprint the plan
+ * draws and validation checks, stood up to the product's height. Turned the
+ * way a wall is, by its floor angle negated, because Three turns +X toward
+ * -Z about Y while the floor's angle turns it toward +Z.
+ */
+function FurnitureMesh({
+  box,
+  color,
+  edge,
+}: {
+  box: FurnitureBox;
+  color: string;
+  edge: string;
+}) {
+  return (
+    <mesh
+      position={[box.center.xMeters, box.heightMeters / 2, box.center.zMeters]}
+      rotation={[0, -box.angleRadians, 0]}
+    >
+      <boxGeometry
+        args={[box.widthMeters, box.heightMeters, box.depthMeters]}
+      />
+      <meshStandardMaterial color={color} />
+      {/* The box's own edges, so two pieces that touch read as two. */}
+      <Edges color={edge} />
+    </mesh>
+  );
+}
+
+const NO_FURNITURE: readonly PlacedFurniture[] = [];
+
+/** Warmer than the walls and darker than the floor, so a piece reads as a thing in the room. */
+const FURNITURE_LIGHT = "#b39b7d";
+const FURNITURE_DARK = "#7a6a58";
+const FURNITURE_EDGE_LIGHT = "#5c4e3e";
+const FURNITURE_EDGE_DARK = "#c9b59c";
 const FLOOR_LIGHT = "#d9d2c7";
 const FLOOR_DARK = "#3b3835";
 const WALL_LIGHT = "#efece7";
@@ -219,7 +274,11 @@ function WallMesh({ wall, color }: { wall: WallSlab; color: string }) {
 }
 
 /** The same information as the picture, for assistive technology and tests. */
-function describe(floor: Floor, unit: DisplayUnit): string {
+function describe(
+  floor: Floor,
+  furniture: readonly PlacedFurniture[],
+  unit: DisplayUnit,
+): string {
   if (floor.rooms.length === 0) {
     return "Perspective view of an apartment with no rooms in it yet.";
   }
@@ -230,10 +289,24 @@ function describe(floor: Floor, unit: DisplayUnit): string {
         `${room.name === "" ? "an unnamed room" : room.name} ${formatLength(room.heightMeters, unit)} high`,
     )
     .join("; ");
+  const names = placedNames(furniture);
+  const pieces = furniture.flatMap((placed, index) =>
+    placed.instance.hidden === true
+      ? []
+      : [
+          `${names[index] ?? placed.product.name}, ` +
+            `${formatLength(placed.product.footprint.widthMeters, unit)} by ` +
+            `${formatLength(placed.product.footprint.depthMeters, unit)}, ` +
+            `${formatLength(placed.product.heightMeters, unit)} high`,
+        ],
+  );
   return (
     `Perspective view of an apartment ${formatLength(extent.widthMeters, unit)} across ` +
     `and ${formatLength(extent.depthMeters, unit)} down, ` +
-    `holding ${floor.rooms.length} ${floor.rooms.length === 1 ? "room" : "rooms"}: ${rooms}.`
+    `holding ${floor.rooms.length} ${floor.rooms.length === 1 ? "room" : "rooms"}: ${rooms}.` +
+    (pieces.length === 0
+      ? ""
+      : ` ${pieces.length} ${pieces.length === 1 ? "piece" : "pieces"} standing: ${pieces.join("; ")}.`)
   );
 }
 

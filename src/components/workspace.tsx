@@ -930,6 +930,7 @@ export function Workspace() {
             <div className="absolute inset-0">
               <ApartmentScene
                 floor={floor}
+                furniture={shown}
                 unit={unit}
                 framing={sceneFraming}
                 onFramingChange={(framing) =>
