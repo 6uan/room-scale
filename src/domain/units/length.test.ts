@@ -8,6 +8,10 @@ import {
   feetAndInchesFromMeters,
   formatLength,
   inchesFromMeters,
+  lengthFieldText,
+  lengthStepValue,
+  readingUnit,
+  storedUnit,
   metersFromCentimeters,
   metersFromDisplayValue,
   metersFromFeetAndInches,
@@ -50,22 +54,102 @@ describe("length conversions", () => {
     expect(inches).toBeCloseTo(-6, 10);
   });
 
-  it("formats in the requested display unit", () => {
+  it("formats in the requested display unit, with no stray tenth", () => {
     expect(formatLength(1.0668, "metric")).toBe("106.7 cm");
-    expect(formatLength(1.0668, "imperial")).toBe(`3' 6.0"`);
+    expect(formatLength(1.0668, "imperial")).toBe(`3' 6"`);
+    expect(formatLength(1.0668, "inches")).toBe(`42"`);
+    expect(formatLength(metersFromInches(42.5), "imperial")).toBe(`3' 6.5"`);
+    expect(formatLength(metersFromCentimeters(295), "metric")).toBe("295 cm");
+  });
+
+  it("reads under a foot in inches alone, not 0' 4.5\"", () => {
+    expect(formatLength(metersFromInches(4.5), "imperial")).toBe(`4.5"`);
+    expect(formatLength(-metersFromInches(4.5), "imperial")).toBe(`-4.5"`);
+    expect(formatLength(0, "imperial")).toBe(`0"`);
   });
 
   it("carries a rounded-up inch into the feet", () => {
     // 96 inches comes back out of meters as 95.9999…, which rounds to 12.0
     // inches. Eight feet is not written 7' 12.0".
-    expect(formatLength(metersFromInches(96), "imperial")).toBe(`8' 0.0"`);
-    expect(formatLength(metersFromInches(24), "imperial")).toBe(`2' 0.0"`);
+    expect(formatLength(metersFromInches(96), "imperial")).toBe(`8' 0"`);
+    expect(formatLength(metersFromInches(24), "imperial")).toBe(`2' 0"`);
     // Just under the carry, so it stays where it is.
     expect(formatLength(metersFromInches(95.9), "imperial")).toBe(`7' 11.9"`);
   });
 
   it("signs a negative length once, not on both parts", () => {
-    expect(formatLength(-metersFromInches(18), "imperial")).toBe(`-1' 6.0"`);
+    expect(formatLength(-metersFromInches(18), "imperial")).toBe(`-1' 6"`);
+  });
+});
+
+describe("what a field shows and steps by", () => {
+  it("shows feet and inches as the tape writes them, and reads it back", () => {
+    const meters = metersFromInches(116.25);
+    expect(lengthFieldText(meters, "imperial")).toBe(`9' 8.25"`);
+    expect(lengthFieldText(meters, "inches")).toBe("116.25");
+    expect(
+      parseLength(lengthFieldText(meters, "imperial"), "imperial"),
+    ).toBeCloseTo(meters, 12);
+    expect(
+      parseLength(lengthFieldText(meters, "inches"), "inches"),
+    ).toBeCloseTo(meters, 12);
+  });
+
+  it("keeps a centimeter's tenth and drops a whole number's", () => {
+    expect(lengthFieldText(metersFromCentimeters(295), "metric")).toBe("295");
+    expect(lengthFieldText(metersFromCentimeters(295.46), "metric")).toBe(
+      "295.5",
+    );
+  });
+
+  it("steps in inches whichever way imperial is read", () => {
+    const meters = metersFromInches(116);
+    expect(lengthStepValue(meters, "imperial")).toBe(116);
+    expect(lengthStepValue(meters, "inches")).toBe(116);
+    expect(lengthStepValue(metersFromCentimeters(295), "metric")).toBe(295);
+  });
+
+  it("reads back a negative length it wrote, the sign on the whole of it", () => {
+    for (const unit of ["imperial", "inches", "metric"] as const) {
+      const meters = -metersFromInches(102.97);
+      // A field keeps a hundredth of an inch, or a tenth of a centimeter.
+      expect(parseLength(lengthFieldText(meters, unit), unit)).toBeCloseTo(
+        meters,
+        unit === "metric" ? 3 : 12,
+      );
+    }
+    expect(parseLength(`-8' 6.97"`, "imperial")).toBeCloseTo(
+      -metersFromInches(102.97),
+      12,
+    );
+    expect(parseLength(`-6.5"`, "imperial")).toBeCloseTo(
+      -metersFromInches(6.5),
+      12,
+    );
+    expect(parseLength("-", "imperial")).toBeNull();
+    expect(parseLength("--3", "imperial")).toBeNull();
+  });
+
+  it("takes tape notation in inches mode too, and a bare number as inches", () => {
+    expect(parseLength(`9' 8"`, "inches")).toBeCloseTo(
+      metersFromInches(116),
+      12,
+    );
+    expect(parseLength("116", "inches")).toBeCloseTo(metersFromInches(116), 12);
+  });
+});
+
+describe("the reading unit", () => {
+  it("reads imperial in inches only when this reader asked to", () => {
+    expect(readingUnit("imperial", "feet-and-inches")).toBe("imperial");
+    expect(readingUnit("imperial", "inches")).toBe("inches");
+    expect(readingUnit("metric", "inches")).toBe("metric");
+  });
+
+  it("keeps a project in metric or imperial, never inches", () => {
+    expect(storedUnit("inches")).toBe("imperial");
+    expect(storedUnit("imperial")).toBe("imperial");
+    expect(storedUnit("metric")).toBe("metric");
   });
 });
 
@@ -128,6 +212,7 @@ describe("display values", () => {
   it("names the unit a single typed number is in", () => {
     expect(displayUnitSuffix("metric")).toBe("cm");
     expect(displayUnitSuffix("imperial")).toBe("in");
+    expect(displayUnitSuffix("inches")).toBe("in");
   });
 
   it("reads a typed number as centimeters or inches", () => {

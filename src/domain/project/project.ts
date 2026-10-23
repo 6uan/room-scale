@@ -13,7 +13,7 @@
 
 import type { FurnitureInstance, FurnitureProduct } from "@/domain/furniture";
 import { DEFAULT_FLOOR, type Floor } from "@/domain/room";
-import type { DisplayUnit } from "@/domain/units";
+import type { StoredUnit } from "@/domain/units";
 import type { PieceGroup } from "./groups";
 import {
   EMPTY_LAYOUT,
@@ -36,7 +36,7 @@ export type Project = {
   /** The one being worked on. Saved, so a project opens where it was left. */
   readonly activeLayoutId: string;
   /** A reading preference, not a measurement. Everything stored is meters. */
-  readonly displayUnit: DisplayUnit;
+  readonly displayUnit: StoredUnit;
 };
 
 /** What the first project is called before anyone names it. */
@@ -162,7 +162,7 @@ export function withGroups(
 
 export function withDisplayUnit(
   project: Project,
-  displayUnit: DisplayUnit,
+  displayUnit: StoredUnit,
 ): Project {
   return { ...project, displayUnit };
 }

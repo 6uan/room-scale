@@ -1,11 +1,14 @@
 "use client";
 
 import { useId, useRef, useState, type PointerEvent } from "react";
+import { arrowStep } from "@/components/arrow-step";
 import {
   checkLength,
   displayUnitSuffix,
   displayValueFromMeters,
   formatLength,
+  lengthFieldText,
+  lengthStepValue,
   metersFromDisplayValue,
   parseLength,
   type DisplayUnit,
@@ -13,12 +16,6 @@ import {
   type LengthProblem,
 } from "@/domain/units";
 
-/**
- * Digits kept in an input. A tenth of a centimeter is a millimeter, and a
- * hundredth of an inch is finer than anyone measures a wall — enough either way
- * that the stored meters are not degraded by editing them.
- */
-const INPUT_DECIMALS: Record<DisplayUnit, number> = { metric: 1, imperial: 2 };
 const SCRUB_UNITS_PER_PIXEL = 1;
 
 type Scrub = {
@@ -41,8 +38,6 @@ export type NumberFieldProps = {
   /** Optional pointer/slider path when scrubbing has spatial behavior. */
   onScrubbedMetersChange?: (meters: number, gesture?: string) => void;
   onGestureEnd?: () => void;
-  /** Whether to print the value back in feet and inches under the field. */
-  hint?: boolean;
 };
 
 /**
@@ -63,12 +58,11 @@ export function NumberField({
   onMetersChange,
   onScrubbedMetersChange = onMetersChange,
   onGestureEnd,
-  hint = true,
 }: NumberFieldProps) {
   const inputId = useId();
   const messageId = `${inputId}-message`;
 
-  const [draft, setDraft] = useState(() => textFromMeters(meters, unit));
+  const [draft, setDraft] = useState(() => lengthFieldText(meters, unit));
   const [applied, setApplied] = useState({ meters, unit });
   const [scrubbing, setScrubbing] = useState(false);
   // Pointer positions change too often to belong in render state.
@@ -76,7 +70,7 @@ export function NumberField({
 
   if (applied.unit !== unit || applied.meters !== meters) {
     setApplied({ meters, unit });
-    setDraft(textFromMeters(meters, unit));
+    setDraft(lengthFieldText(meters, unit));
   }
 
   const problem = draftProblem(draft, unit, limits);
@@ -111,8 +105,28 @@ export function NumberField({
       scrub.lastMeters = next;
     }
     setApplied({ meters: next, unit });
-    setDraft(textFromMeters(next, unit));
+    setDraft(lengthFieldText(next, unit));
     onScrubbedMetersChange(next, gesture);
+  }
+
+  /**
+   * ↑ and ↓ in the field: one inch or centimeter, ten with Shift. Exact, the
+   * way a typed number is — it goes through `onMetersChange`, not the drag's
+   * snapping path — and grouped by the field's gesture, so holding the key
+   * down is one step to undo rather than one per repeat.
+   */
+  function stepBy(units: number): void {
+    const next = clamp(
+      metersFromDisplayValue(lengthStepValue(meters, unit) + units, unit),
+      limits.minMeters,
+      limits.maxMeters,
+    );
+    if (next === meters) {
+      return;
+    }
+    setApplied({ meters: next, unit });
+    setDraft(lengthFieldText(next, unit));
+    onMetersChange(next, scrubGesture);
   }
 
   function beginScrub(event: PointerEvent<HTMLSpanElement>): void {
@@ -124,7 +138,7 @@ export function NumberField({
     scrubRef.current = {
       pointerId: event.pointerId,
       startClientX: event.clientX,
-      startDisplayValue: displayedNumber(meters, unit),
+      startDisplayValue: lengthStepValue(meters, unit),
       lastMeters: meters,
     };
     setScrubbing(true);
@@ -160,7 +174,7 @@ export function NumberField({
     onGestureEnd?.();
   }
 
-  function handleScrubKey(key: string): void {
+  function handleScrubKey(key: string, shift: boolean): void {
     const direction =
       key === "ArrowRight" || key === "ArrowUp"
         ? 1
@@ -170,7 +184,9 @@ export function NumberField({
     if (direction === 0) {
       return;
     }
-    applyScrubbedDisplayValue(displayedNumber(meters, unit) + direction);
+    applyScrubbedDisplayValue(
+      lengthStepValue(meters, unit) + direction * (shift ? 10 : 1),
+    );
   }
 
   return (
@@ -193,7 +209,7 @@ export function NumberField({
             aria-label={`${compactLabel} drag handle`}
             aria-valuemin={displayValueFromMeters(limits.minMeters, unit)}
             aria-valuemax={displayValueFromMeters(limits.maxMeters, unit)}
-            aria-valuenow={displayedNumber(meters, unit)}
+            aria-valuenow={lengthStepValue(meters, unit)}
             aria-valuetext={formatLength(meters, unit)}
             title={`Drag left or right to change ${label}`}
             onPointerDown={beginScrub}
@@ -204,7 +220,7 @@ export function NumberField({
             onKeyDown={(event) => {
               if (event.key.startsWith("Arrow")) {
                 event.preventDefault();
-                handleScrubKey(event.key);
+                handleScrubKey(event.key, event.shiftKey);
               }
             }}
             /*
@@ -231,34 +247,41 @@ export function NumberField({
           inputMode="decimal"
           value={draft}
           aria-invalid={problem !== null}
-          aria-describedby={
-            (compact || !hint) && problem === null ? undefined : messageId
-          }
+          aria-describedby={problem === null ? undefined : messageId}
           onChange={(event) => handleChange(event.target.value)}
+          onKeyDown={(event) => {
+            const units = arrowStep(event);
+            if (units !== null) {
+              event.preventDefault();
+              stepBy(units);
+            }
+          }}
+          onKeyUp={(event) => {
+            if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+              onGestureEnd?.();
+            }
+          }}
           className={
             compact
               ? "compact-number-input h-full min-w-0 flex-1 bg-transparent pr-1.5 text-sm tabular-nums outline-none"
               : "h-full min-w-0 flex-1 bg-transparent pl-2.5 text-sm tabular-nums outline-none"
           }
         />
-        {compact ? null : (
+        {/* Feet and inches carry their own marks; a bare number does not. */}
+        {compact || unit === "imperial" ? null : (
           <span className="pr-2 text-xs opacity-50">
             {displayUnitSuffix(unit)}
           </span>
         )}
       </div>
-      {(compact || !hint) && problem === null ? null : (
-        <p
-          id={messageId}
-          className={
-            problem === null
-              ? "text-[13px] opacity-60"
-              : "text-[13px] text-red-600"
-          }
-        >
-          {problem === null
-            ? formatLength(meters, unit)
-            : problemMessage(problem, limits, unit)}
+      {/*
+        Only a problem is printed under the field. It used to echo the value
+        back in feet and inches too, which was the second format on screen for
+        one number; the field reads in the format the labels do now.
+      */}
+      {problem === null ? null : (
+        <p id={messageId} className="text-[13px] text-red-600">
+          {problemMessage(problem, limits, unit)}
         </p>
       )}
     </div>
@@ -267,18 +290,6 @@ export function NumberField({
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
-}
-
-/** The exact number the field shows, so scrubbing starts where the reader sees. */
-function displayedNumber(meters: number, unit: DisplayUnit): number {
-  return Number(textFromMeters(meters, unit));
-}
-
-function textFromMeters(meters: number, unit: DisplayUnit): string {
-  const text = displayValueFromMeters(meters, unit).toFixed(
-    INPUT_DECIMALS[unit],
-  );
-  return text.includes(".") ? text.replace(/\.?0+$/, "") : text;
 }
 
 /** Parses a field's text into meters, or null when it is not yet a length. */
@@ -302,9 +313,9 @@ function problemMessage(
 ): string {
   switch (problem) {
     case "not-a-number":
-      return unit === "imperial"
-        ? `Enter inches, or feet and inches like 11' 6".`
-        : "Enter a number.";
+      return unit === "metric"
+        ? "Enter a number."
+        : `Enter inches, or feet and inches like 11' 6".`;
     case "too-small":
       return `At least ${formatLength(limits.minMeters, unit)}.`;
     case "too-large":

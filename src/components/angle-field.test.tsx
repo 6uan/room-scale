@@ -100,3 +100,20 @@ describe("AngleField messages", () => {
     expect(field).toHaveAttribute("aria-describedby");
   });
 });
+
+describe("AngleField arrow keys", () => {
+  it("turns a degree with ↑ and ↓, ten with Shift", () => {
+    const onRadiansChange = vi.fn();
+    render(<Field onRadiansChange={onRadiansChange} startDegrees={30} />);
+    const field = screen.getByRole("spinbutton");
+
+    fireEvent.keyDown(field, { key: "ArrowUp" });
+    expect(field).toHaveValue(31);
+    fireEvent.keyDown(field, { key: "ArrowDown", shiftKey: true });
+    expect(field).toHaveValue(21);
+    expect(onRadiansChange.mock.lastCall?.[0]).toBeCloseTo(
+      radiansFromDegrees(21),
+      12,
+    );
+  });
+});

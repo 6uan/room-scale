@@ -8,9 +8,15 @@ export type UnitToggleProps = {
   onUnitChange: (unit: DisplayUnit) => void;
 };
 
+/**
+ * Each option shows the same length — 9' 8" — the way it would read, which
+ * says more than a name: "Imperial" does not tell you whether a sofa is 7' 8"
+ * or 92".
+ */
 const OPTIONS: readonly { unit: DisplayUnit; label: string; hint: string }[] = [
-  { unit: "imperial", label: "Inches", hint: "Feet and inches" },
-  { unit: "metric", label: "Centimeters", hint: "Meters and centimeters" },
+  { unit: "imperial", label: "Feet & inches", hint: `9' 8"` },
+  { unit: "inches", label: "Inches", hint: `116"` },
+  { unit: "metric", label: "Centimeters", hint: "295 cm" },
 ];
 
 /**
@@ -18,7 +24,8 @@ const OPTIONS: readonly { unit: DisplayUnit; label: string; hint: string }[] = [
  * every length is meters underneath (ADR 0001).
  *
  * Drawn as a segmented control but built from radios, because that is what it
- * is: one choice out of two, arrow-keys and all.
+ * is: one choice out of three, arrow-keys and all. Metric or imperial is kept
+ * with the project; feet-and-inches or inches is this browser's.
  */
 export function UnitToggle({ unit, onUnitChange }: UnitToggleProps) {
   const name = useId();

@@ -16,6 +16,7 @@ import {
   type Layout,
 } from "@/domain/project";
 import { formatCents, formatLength } from "@/domain/units";
+import { useDisplayUnit } from "@/state/preferences-store";
 import { useProjectStore } from "@/state/project-store";
 
 /**
@@ -33,7 +34,7 @@ export function ProjectChecklist() {
   const products = useProjectStore((state) => state.project.products);
   const instances = useProjectStore((state) => activeInstances(state.project));
   const floor = useProjectStore((state) => state.project.floor);
-  const unit = useProjectStore((state) => state.project.displayUnit);
+  const unit = useDisplayUnit();
   const layouts = useProjectStore((state) => state.project.layouts);
   const current = useProjectStore((state) => activeLayout(state.project));
   const setProducts = useProjectStore((state) => state.setProducts);

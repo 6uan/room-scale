@@ -10,8 +10,10 @@
  */
 
 import type { Project } from "@/domain/project";
+import type { ImperialLengths } from "@/domain/units";
 import {
   CURRENT_PROJECT_ID,
+  IMPERIAL_LENGTHS_KEY,
   OPEN_PROJECT_KEY,
   QUARANTINE_ID,
   sharedDatabase,
@@ -61,6 +63,25 @@ export async function setOpenProjectId(
   database: RoomScaleDatabase = sharedDatabase(),
 ): Promise<void> {
   await database.settings.put({ id: OPEN_PROJECT_KEY, projectId: id });
+}
+
+/**
+ * How this browser reads imperial lengths. Feet and inches unless it was told
+ * otherwise — and unless what is stored is not one of the two answers, since a
+ * settings row is read the way a project is: checked, not trusted.
+ */
+export async function loadImperialLengths(
+  database: RoomScaleDatabase = sharedDatabase(),
+): Promise<ImperialLengths> {
+  const row = await database.settings.get(IMPERIAL_LENGTHS_KEY);
+  return row?.imperialLengths === "inches" ? "inches" : "feet-and-inches";
+}
+
+export async function saveImperialLengths(
+  imperialLengths: ImperialLengths,
+  database: RoomScaleDatabase = sharedDatabase(),
+): Promise<void> {
+  await database.settings.put({ id: IMPERIAL_LENGTHS_KEY, imperialLengths });
 }
 
 /** Loads the open project, or the one asked for. */

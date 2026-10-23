@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import { arrowStep } from "@/components/arrow-step";
 import {
   MAX_PRICE_CENTS,
   checkPrice,
@@ -70,6 +71,16 @@ export function PriceField({ label, cents, onCentsChange }: PriceFieldProps) {
           aria-invalid={problem !== null}
           {...(problem === null ? {} : { "aria-describedby": messageId })}
           onChange={(event) => handleChange(event.target.value)}
+          onKeyDown={(event) => {
+            // A dollar, or ten with Shift, never below nothing.
+            const units = arrowStep(event);
+            if (units !== null) {
+              event.preventDefault();
+              handleChange(
+                decimalStringFromCents(Math.max(0, cents + units * 100)),
+              );
+            }
+          }}
           className="h-full min-w-0 flex-1 bg-transparent px-2 text-sm tabular-nums outline-none"
         />
       </div>

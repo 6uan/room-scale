@@ -51,13 +51,7 @@ import {
   type WallSide,
   type WallState,
 } from "@/domain/room";
-import {
-  displayUnitSuffix,
-  displayValueFromMeters,
-  formatArea,
-  formatLength,
-  type DisplayUnit,
-} from "@/domain/units";
+import { formatArea, formatLength, type DisplayUnit } from "@/domain/units";
 
 const WALL_TITLES: Record<WallSide, string> = {
   north: "North",
@@ -467,10 +461,8 @@ function WallThicknessFields({
   const own = room.wallThicknessMeters !== null;
   const meters = wallThicknessMeters(floor, room);
 
-  // In the unit the field below is typed in, rather than through
-  // `formatLength` — a wall is never feet, and `0' 4.5"` is a reading nobody
-  // takes off a tape.
-  const summary = `${Number(displayValueFromMeters(meters, unit).toFixed(2))} ${displayUnitSuffix(unit)}`;
+  // A wall is under a foot, so this reads 4.5", the way the field does.
+  const summary = formatLength(meters, unit);
 
   return (
     // Not "Walls": the row of sides above is called that, and one panel cannot
