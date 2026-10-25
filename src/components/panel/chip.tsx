@@ -17,6 +17,7 @@ export function Chip({
   pressed,
   disabled = false,
   stacked = false,
+  grow = true,
   onClick,
   children,
 }: {
@@ -27,6 +28,8 @@ export function Chip({
   disabled?: boolean;
   /** A glyph above its word, for the chips that draw and name both. */
   stacked?: boolean;
+  /** Shares its row evenly; false sizes it to its word, for a row that wraps. */
+  grow?: boolean;
   onClick: () => void;
   /** A glyph, where the chip draws rather than writes. */
   children?: React.ReactNode;
@@ -40,7 +43,8 @@ export function Chip({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "flex min-w-0 flex-1 items-center justify-center rounded-md px-1 text-[11px] font-medium tabular-nums transition-colors",
+        "flex min-w-0 items-center justify-center rounded-md text-[11px] font-medium tabular-nums transition-colors",
+        grow ? "flex-1 px-1" : "shrink-0 px-2.5",
         stacked ? "h-11 flex-col gap-1" : "h-8 gap-1",
         "disabled:cursor-default disabled:opacity-30",
         pressed === true

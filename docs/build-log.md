@@ -1000,6 +1000,17 @@ floor at any angle. The angle is the image's, kept with the project beside
 its position and width, so the stored document goes to version 24 with
 nothing to rewrite — absent is square.
 
+**The furniture list narrows by category.** A row of chips above it reads
+All and then one per category actually in use, each with its count, so a
+catalogue with no lamps has no Lighting chip, and one with a single category
+has no row at all, having nothing to narrow. It is a way of looking and
+nothing more: not saved, and placing, dragging, reordering and the right-click
+menu work the same on a narrowed list. A category whose last product goes
+reads as All rather than as an empty list. While narrowed, the list keeps
+the height it had: the panel sizes to its list and sits at the bottom of the
+column, so a shorter list pulled the chips down from under the pointer that
+had just pressed one.
+
 **Rooms are reordered by dragging their row, and nothing over the plan sits
 under the panel.** A room's own row in the list drags, and drops above the
 row it is let go on, or last on the strip after the last room — the order

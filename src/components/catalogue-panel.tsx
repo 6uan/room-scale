@@ -1,14 +1,17 @@
 "use client";
 
-import { useState, type MouseEvent } from "react";
+import { useRef, useState, type MouseEvent } from "react";
 import { ContextMenu } from "@/components/context-menu";
 import { PRODUCT_CATEGORY_LABELS } from "@/components/product-form";
 import { PanelHeader } from "@/components/panel-header";
+import { Chip } from "@/components/panel/chip";
 import { useScrollFade } from "@/components/scroll-fade";
 import {
   countPlaced,
+  PRODUCT_CATEGORIES,
   type FurnitureInstance,
   type FurnitureProduct,
+  type ProductCategory,
 } from "@/domain/furniture";
 import { formatCents, formatLength, type DisplayUnit } from "@/domain/units";
 import { isSelected, type Selection } from "@/components/selection";
@@ -72,6 +75,31 @@ export function CataloguePanel({
     x: number;
     y: number;
   } | null>(null);
+  /**
+   * The category the list is narrowed to. A way of looking, not a fact about
+   * the project, so it is not saved; and a category whose last product went
+   * reads as All rather than as an empty list.
+   */
+  const [filter, setFilter] = useState<ProductCategory | "all">("all");
+  /**
+   * The list's height before it was narrowed, held while it is. The panel
+   * sizes to its list and is anchored at the bottom, so a shorter list would
+   * pull the category row down from under the pointer that just pressed it.
+   */
+  const body = useRef<HTMLDivElement>(null);
+  const [heldHeight, setHeldHeight] = useState<number | null>(null);
+  const counts = categoryCounts(products);
+  const present = PRODUCT_CATEGORIES.filter((category) => counts[category] > 0);
+  const shown = filter !== "all" && counts[filter] > 0 ? filter : "all";
+  const visible =
+    shown === "all"
+      ? products
+      : products.filter((product) => product.category === shown);
+  const choose = (category: ProductCategory | "all") => {
+    if (category === "all") setHeldHeight(null);
+    else if (shown === "all") setHeldHeight(body.current?.offsetHeight ?? null);
+    setFilter(category);
+  };
   const collapsed = collapsedProp ?? ownCollapsed;
   const toggleCollapsed =
     onToggleCollapsed ?? (() => setOwnCollapsed((was) => !was));
@@ -110,96 +138,134 @@ export function CataloguePanel({
         aria-hidden={collapsed}
       >
         {/* The gap under the header lives in here, so it folds with the list. */}
-        <div className="-mx-3 flex min-h-0 flex-col overflow-hidden">
+        <div
+          ref={body}
+          className="-mx-3 flex min-h-0 flex-col overflow-hidden"
+          style={
+            shown === "all" || heldHeight === null
+              ? undefined
+              : { minHeight: heldHeight }
+          }
+        >
           {products.length === 0 ? (
             <p className="px-1 text-[13px] leading-relaxed opacity-60">
               Nothing yet. Add the first thing you are thinking of buying, or
               paste the page you found it on.
             </p>
           ) : (
-            <div
-              {...scroll}
-              className={`min-h-0 overflow-y-auto px-3 pt-3 ${scroll.className}`}
-            >
-              <ul className="flex flex-col gap-1">
-                {products.map((product) => {
-                  const placed = countPlaced(instances, product.id);
-                  return (
-                    <li
-                      key={product.id}
-                      draggable
-                      onDragStart={(event) => {
-                        event.dataTransfer.setData(
-                          PRODUCT_DRAG_TYPE,
-                          product.id,
-                        );
-                        event.dataTransfer.effectAllowed = "copy";
-                      }}
-                      onContextMenu={(event: MouseEvent<HTMLLIElement>) => {
-                        event.preventDefault();
-                        setMenu({
-                          product,
-                          x: event.clientX,
-                          y: event.clientY,
-                        });
-                      }}
-                      // The same drag that places a product on the plan
-                      // reorders it when it lands on another row instead.
-                      onDragOver={(event) => {
-                        if (
-                          onReorder !== undefined &&
-                          event.dataTransfer.types.includes(PRODUCT_DRAG_TYPE)
-                        ) {
-                          event.preventDefault();
-                          setOver(product.id);
-                        }
-                      }}
-                      onDragLeave={() =>
-                        setOver((was) => (was === product.id ? null : was))
-                      }
-                      onDrop={(event) => {
-                        const from =
-                          event.dataTransfer.getData(PRODUCT_DRAG_TYPE);
-                        setOver(null);
-                        if (from !== "" && from !== product.id) {
-                          event.preventDefault();
-                          onReorder?.(from, product.id);
-                        }
-                      }}
-                      className={`group flex min-w-0 cursor-grab items-center gap-1 rounded-lg px-2.5 py-2 text-sm transition-colors active:cursor-grabbing ${
-                        over === product.id ? DROP_LINE : ""
-                      } ${
-                        isSelected(selection, "product", product.id)
-                          ? "bg-black/10 dark:bg-white/15"
-                          : "hover:bg-black/5 dark:hover:bg-white/10"
-                      }`}
+            <>
+              {/* One category has nothing to narrow, so no row until two. */}
+              {present.length < 2 ? null : (
+                <div
+                  role="group"
+                  aria-label="Show furniture"
+                  className="flex flex-wrap gap-1 px-3 pt-3"
+                >
+                  {(["all", ...present] as const).map((category) => (
+                    <Chip
+                      key={category}
+                      grow={false}
+                      label={`${category === "all" ? "All" : PRODUCT_CATEGORY_LABELS[category]}, ${category === "all" ? products.length : counts[category]}`}
+                      pressed={shown === category}
+                      onClick={() => choose(category)}
                     >
-                      <button
-                        type="button"
-                        aria-label={`Place ${product.name} in the room`}
-                        onClick={() => onPlace(product)}
-                        // The hand: a button's own cursor is the arrow, which
-                        // hid the row's say that it can be dragged.
-                        className="min-w-0 flex-1 cursor-grab text-left active:cursor-grabbing"
+                      {category === "all"
+                        ? "All"
+                        : PRODUCT_CATEGORY_LABELS[category]}
+                      <span className="opacity-55">
+                        {category === "all"
+                          ? products.length
+                          : counts[category]}
+                      </span>
+                    </Chip>
+                  ))}
+                </div>
+              )}
+              <div
+                {...scroll}
+                className={`min-h-0 overflow-y-auto px-3 pt-3 ${scroll.className}`}
+              >
+                <ul className="flex flex-col gap-1">
+                  {visible.map((product) => {
+                    const placed = countPlaced(instances, product.id);
+                    return (
+                      <li
+                        key={product.id}
+                        draggable
+                        onDragStart={(event) => {
+                          event.dataTransfer.setData(
+                            PRODUCT_DRAG_TYPE,
+                            product.id,
+                          );
+                          event.dataTransfer.effectAllowed = "copy";
+                        }}
+                        onContextMenu={(event: MouseEvent<HTMLLIElement>) => {
+                          event.preventDefault();
+                          setMenu({
+                            product,
+                            x: event.clientX,
+                            y: event.clientY,
+                          });
+                        }}
+                        // The same drag that places a product on the plan
+                        // reorders it when it lands on another row instead.
+                        onDragOver={(event) => {
+                          if (
+                            onReorder !== undefined &&
+                            event.dataTransfer.types.includes(PRODUCT_DRAG_TYPE)
+                          ) {
+                            event.preventDefault();
+                            setOver(product.id);
+                          }
+                        }}
+                        onDragLeave={() =>
+                          setOver((was) => (was === product.id ? null : was))
+                        }
+                        onDrop={(event) => {
+                          const from =
+                            event.dataTransfer.getData(PRODUCT_DRAG_TYPE);
+                          setOver(null);
+                          if (from !== "" && from !== product.id) {
+                            event.preventDefault();
+                            onReorder?.(from, product.id);
+                          }
+                        }}
+                        className={`group flex min-w-0 cursor-grab items-center gap-1 rounded-lg px-2.5 py-2 text-sm transition-colors active:cursor-grabbing ${
+                          over === product.id ? DROP_LINE : ""
+                        } ${
+                          isSelected(selection, "product", product.id)
+                            ? "bg-black/10 dark:bg-white/15"
+                            : "hover:bg-black/5 dark:hover:bg-white/10"
+                        }`}
                       >
-                        <span className="block truncate">{product.name}</span>
-                        <span className="block truncate text-[13px] opacity-55">
-                          {product.category === "other"
-                            ? ""
-                            : `${PRODUCT_CATEGORY_LABELS[product.category]} · `}
-                          {formatLength(product.footprint.widthMeters, unit)} ×{" "}
-                          {formatLength(product.footprint.depthMeters, unit)}
-                          {product.priceCents === 0
-                            ? ""
-                            : ` · ${formatCents(product.priceCents)}`}
-                          {placed === 0 ? "" : ` · ${placed} placed`}
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
+                        <button
+                          type="button"
+                          aria-label={`Place ${product.name} in the room`}
+                          onClick={() => onPlace(product)}
+                          // The hand: a button's own cursor is the arrow, which
+                          // hid the row's say that it can be dragged.
+                          className="min-w-0 flex-1 cursor-grab text-left active:cursor-grabbing"
+                        >
+                          <span className="block truncate">{product.name}</span>
+                          <span className="block truncate text-[13px] opacity-55">
+                            {product.category === "other"
+                              ? ""
+                              : `${PRODUCT_CATEGORY_LABELS[product.category]} · `}
+                            {formatLength(product.footprint.widthMeters, unit)}{" "}
+                            ×{" "}
+                            {formatLength(product.footprint.depthMeters, unit)}
+                            {product.priceCents === 0
+                              ? ""
+                              : ` · ${formatCents(product.priceCents)}`}
+                            {placed === 0 ? "" : ` · ${placed} placed`}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -228,6 +294,17 @@ export function CataloguePanel({
       )}
     </div>
   );
+}
+
+/** How many products there are of each category. */
+function categoryCounts(
+  products: readonly FurnitureProduct[],
+): Record<ProductCategory, number> {
+  const counts = Object.fromEntries(
+    PRODUCT_CATEGORIES.map((category) => [category, 0]),
+  ) as Record<ProductCategory, number>;
+  for (const product of products) counts[product.category] += 1;
+  return counts;
 }
 
 /** What deleting does, said before it is done: a placed product goes too. */
